@@ -49,6 +49,11 @@ prompt.
 }
 ```
 
+   On Windows, write that interpreter as `python`: a stock install has no
+   `python3` alias, so the hook would fail before the adapter ever runs.
+   Only that one token changes; the path and the rest of the command stay
+   as they are.
+
 3. Optionally copy `skills/delete-guard/SKILL.md` into the project's skill
    directory so the model prefers the safe-delete flow proactively.
 

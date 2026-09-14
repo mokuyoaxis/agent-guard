@@ -50,6 +50,18 @@ asserts the destination is inside `trash_root/<txid>/`.
 
 These tests FAIL against the pre-fix relocation (the recorded trash_path is
 `trash/alias/...`, missing the txid level) and pass after it.
+
+F9c - the last mixed-spelling site, in the DECISION layer rather than the
+layout. `policy.regenerable()` computed `relpath(spec.resolved,
+ctx.workspace)` with the same LEXICAL-vs-PHYSICAL pair, so under a symlinked
+ancestor the workspace-relative path climbed out with `..` and
+`_matches_artifact()` matched no pattern: a git-ignored `build/` was
+relocated (RELOCATE_TREE) instead of being recognized as regenerable
+(ALLOW_REGENERABLE). Same conservative direction as F9b, same root cause.
+`SymlinkedRegenerableFixture` pins the behaviour on BOTH spellings of the
+target - the caller's `--cwd` alias spelling and the physical one - and
+shows the git-ignored fast path is once again taken, while a tracked,
+non-ignored file still is not.
 """
 from __future__ import annotations
 
@@ -64,9 +76,9 @@ from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from core import TRASH_DIRNAME, dialects, policy
 from core.classifier import classify_command, classify_paths, discover_workspace
-from core import TRASH_DIRNAME
-from core.policy import PolicyContext, decide_ops, worst
+from core.policy import (GuardConfig, PolicyContext, decide_ops, worst)
 from core.recovery import RecoveryEngine
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -264,6 +276,28 @@ class SymlinkedAncestorFixture(unittest.TestCase):
     ANCESTOR chain of the workspace, so the caller's lexical spelling and
     the engine's physical workspace differ by more than a trailing segment.
     """
+
+    def _ignore_build_from_git(self):
+        """Undo the F9c subclass's ignore rule for `build/`.
+
+        `build/` is git-ignored there (that is the F9c subject), so a plain
+        `ri build -r -fo` legitimately takes the regenerable fast path now
+        that the path spelling is fixed - while the F9b tests below are about
+        the LAYOUT, which only the RELOCATE branch exercises. Dropping the
+        entry from `.gitignore` restores their precondition without touching
+        any product behaviour. A no-op in the base class, whose `build/` is
+        not ignored in the first place.
+        """
+        path = os.path.join(self.root, ".gitignore")
+        if not os.path.exists(path):
+            return
+        with open(path) as fh:
+            lines = fh.read().splitlines()
+        kept = [ln for ln in lines if ln.strip() not in ("build/", "build")]
+        if kept == lines:
+            return  # nothing to undo
+        with open(path, "w") as fh:
+            fh.write("".join(ln + "\n" for ln in kept))
 
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory(prefix="agent-guard-anc-")
@@ -463,8 +497,251 @@ class SymlinkedAncestorFixture(unittest.TestCase):
             ["git", "-C", self.spelled_root, "status", "--porcelain",
              "--untracked-files=all"],
             capture_output=True, text=True)
-        self.assertEqual(proc.stdout.strip(), "?? build/nested/a.o",
-                         proc.stdout)
+        # The quarantine must never show up as ordinary untracked data.
+        # (`build/` itself is git-ignored in the F9c subclass, so it is not
+        # asserted here - the quarantined rule is what this test is about.)
+        self.assertNotIn(TRASH_DIRNAME, proc.stdout)
+
+
+class SymlinkedRegenerableFixture(SymlinkedAncestorFixture):
+    """F9c: git-ignored artifact detection through a symlinked ancestor.
+
+    `policy.regenerable()` matches the workspace-RELATIVE path against the
+    artifact patterns. Pre-fix, that relpath mixed the caller's lexical
+    target spelling with the physical workspace root, so under this fixture
+    (`alias -> phys`) it started with `..` and matched nothing: the
+    RELOCATE-type compensation ran for a plainly regenerable tree. These
+    tests fail pre-fix (RELOCATE where ALLOW_REGENERABLE is expected) and
+    pass after it - on both spellings, i.e. they also prove the two
+    spellings now agree.
+    """
+
+    def setUp(self):
+        super().setUp()
+        # Git-ignored artifacts of both shapes: a file matching a name
+        # pattern (app.log) and a directory matching a dir pattern (build/).
+        with open(os.path.join(self.root, ".gitignore"), "w") as fh:
+            fh.write("*.log\n*.pyc\nbuild/\n__pycache__/\n")
+        with open(os.path.join(self.root, "noise.log"), "w") as fh:
+            fh.write("noise")
+        os.makedirs(os.path.join(self.root, "pkg", "__pycache__"),
+                    exist_ok=True)
+        with open(os.path.join(self.root, "pkg", "__pycache__",
+                               "mod.pyc"), "w") as fh:
+            fh.write("bytecode")
+
+    def verdict_for(self, cmd, spelling, dialect=None, allow_regenerable=True):
+        """Policy-layer verdict for a command, ctx rooted at `spelling`.
+
+        `cmd` must be spelled so that it resolves WITHOUT a shell, i.e.
+        never starting with a bare relative path (`rm -rf build` would be
+        read as the absolute path `/build` on disk) - use `./build` or a
+        slash-prefixed argument.
+        """
+        workspace = os.path.realpath(self.spelled_root)
+        base = self.spelled_root if spelling == "alias" else self.root
+        specs, err = classify_command(
+            cmd, dialect or dialects.DEFAULT_DIALECT)
+        self.assertIsNone(err, cmd)
+        config = GuardConfig.from_env()
+        config.allow_regenerable = allow_regenerable
+        ctx = PolicyContext(workspace=workspace, trash_root=self.trash_root,
+                            base_dir=base, config=config)
+        return worst(decide_ops(specs, ctx))
+
+
+    def test_ignored_file_is_regenerable_on_both_spellings(self):
+        """The verdict must not depend on the caller's workspace spelling."""
+        for spelling in ("alias", "physical"):
+            with self.subTest(spelling=spelling):
+                verdict = self.verdict_for("rm -rf ./build", spelling)
+                self.assertEqual(
+                    (verdict.decision, verdict.code),
+                    ("ALLOW", "ALLOW_REGENERABLE"), verdict.reasons)
+
+    def test_ignored_artifact_file_is_regenerable_on_both_spellings(self):
+        """A FILE pattern (`*.pyc`), not just a directory name.
+
+        `*.log` is not in `DEFAULT_ARTIFACT_PATTERNS` (only build outputs
+        are), so the file case uses an artifact that truly is one - the
+        point here is the SPELLING, not a pattern change.
+        """
+        for spelling in ("alias", "physical"):
+            with self.subTest(spelling=spelling):
+                verdict = self.verdict_for("rm -rf ./pkg/__pycache__",
+                                           spelling)
+                self.assertEqual(
+                    (verdict.decision, verdict.code),
+                    ("ALLOW", "ALLOW_REGENERABLE"), verdict.reasons)
+        for spelling in ("alias", "physical"):
+            with self.subTest(spelling=spelling, what="ignored non-artifact"):
+                # Ignored but NOT an artifact: must still relocate. This is
+                # the guard that keeps the normalization honest.
+                verdict = self.verdict_for("rm -rf ./noise.log", spelling)
+                self.assertEqual(
+                    (verdict.decision, verdict.code),
+                    ("RELOCATE", "RELOCATE_PATHS"), verdict.reasons)
+
+    def test_artifact_patterns_still_gate_the_fast_path(self):
+        """The spellings agree, but a non-artifact name is not fast-pathed."""
+        # `cache` is git-ignored, yet matches no default artifact pattern:
+        # the normalization must not turn git-ignored into a blanket ALLOW.
+        os.makedirs(os.path.join(self.root, "cache"), exist_ok=True)
+        with open(os.path.join(self.root, ".gitignore"), "a") as fh:
+            fh.write("cache/\n")
+        for spelling in ("alias", "physical"):
+            with self.subTest(spelling=spelling):
+                verdict = self.verdict_for("rm -rf ./cache", spelling)
+                self.assertEqual(
+                    (verdict.decision, verdict.code),
+                    ("RELOCATE", "RELOCATE_TREE"), verdict.reasons)
+
+    def test_tracked_file_is_not_regenerable(self):
+        """git-ignored is still required: a tracked artifact name is not."""
+        with open(os.path.join(self.root, "src.log"), "w") as fh:
+            fh.write("tracked")
+        subprocess.run(["git", "-C", self.root, "add", "-f", "src.log"],
+                       check=False, capture_output=True)
+        verdict = self.verdict_for("rm -rf src.log", "alias")
+        self.assertEqual((verdict.decision, verdict.code),
+                         ("RELOCATE", "RELOCATE_PATHS"), verdict.reasons)
+
+    def test_both_spellings_agree_through_the_cli(self):
+        """End-to-end through check.py, on both spellings of --cwd."""
+        for spelling in ("alias", "physical"):
+            with self.subTest(spelling=spelling):
+                cwd = self.spelled_root if spelling == "alias" else self.root
+                env = dict(os.environ)
+                env.pop("AGENT_GUARD_DIALECT", None)
+                env.pop("AGENT_GUARD_TRASH", None)
+                env["GIT_CONFIG_GLOBAL"] = "/dev/null"
+                proc = subprocess.run(
+                    [sys.executable, CHECK, "--cwd", cwd, "--json",
+                     "--", "rm -rf build"],
+                    capture_output=True, text=True, env=env, timeout=60)
+                out = json.loads(proc.stdout)
+                self.assertEqual(
+                    (out["decision"], out["code"]),
+                    ("ALLOW", "ALLOW_REGENERABLE"),
+                    (out.get("reasons"), proc.stderr))
+
+    def test_disabled_regenerable_config_still_relocates(self):
+        """The `AGENT_GUARD_ALLOW_REGENERABLE=0` opt-out is untouched."""
+        workspace = os.path.realpath(self.spelled_root)
+        specs, _ = classify_command("rm -rf ./build")
+        config = GuardConfig.from_env()
+        config.allow_regenerable = False
+        ctx = PolicyContext(workspace=workspace, trash_root=self.trash_root,
+                            base_dir=self.spelled_root, config=config)
+        verdict = worst(decide_ops(specs, ctx))
+        self.assertEqual((verdict.decision, verdict.code),
+                         ("RELOCATE", "RELOCATE_TREE"), verdict.reasons)
+
+    def test_lexical_and_physical_repo_roots_agree_on_the_fast_path(self):
+        """Both spellings of the same workspace take the same fast path.
+
+        `verdict_for` already runs each case twice; this test pins the pair
+        side by side so a future divergence is reported as a spelling
+        mismatch rather than as one broken expectation.
+        """
+        lexical = self.verdict_for("rm -rf ./build", "alias")
+        physical = self.verdict_for("rm -rf ./build", "physical")
+        self.assertEqual((lexical.decision, lexical.code),
+                         (physical.decision, physical.code))
+        self.assertEqual((lexical.decision, lexical.code),
+                         ("ALLOW", "ALLOW_REGENERABLE"))
+
+    def test_regenerable_sees_a_workspace_relative_path(self):
+        """Pin the F9c CONTRACT through the code under test, not a copy.
+
+        The decision layer must hand the artifact matcher a path that is
+        workspace-RELATIVE and free of `..`. Asserting a re-derived copy of
+        the expression would pass even against the pre-fix code, so this
+        test drives `policy.regenerable` for real and records what reaches
+        `_matches_artifact`.
+
+        Why the assertion is about the MATCHER INPUT rather than the boolean:
+        `_matches_artifact` tests every path segment, so with the default
+        patterns a `..`-laden relpath happens to reach the same verdict (its
+        final segment is unchanged). That equivalence is an accident of the
+        pattern list - a prefix-shaped or traversal-aware pattern would bring
+        the escape straight back - so the spelling itself is the contract.
+        """
+        from core.policy import regenerable
+        seen = []
+        real = policy._matches_artifact
+
+        def spy(rel, patterns):
+            seen.append(rel)
+            return real(rel, patterns)
+
+        workspace = os.path.realpath(self.spelled_root)
+        try:
+            policy._matches_artifact = spy
+            for spelling, base in (("alias", self.spelled_root),
+                                   ("physical", self.root)):
+                specs = classify_paths(["build"], base, workspace, None)
+                self.assertEqual(specs[0].resolved, os.path.join(base, "build"),
+                                 "PathSpec.resolved must stay LEXICAL")
+                cfg = GuardConfig.from_env()
+                ctx = PolicyContext(workspace=workspace,
+                                    trash_root=self.trash_root,
+                                    base_dir=base, config=cfg)
+                self.assertTrue(regenerable(specs, ctx), spelling)
+        finally:
+            policy._matches_artifact = real
+
+        self.assertEqual(len(seen), 2, seen)
+        for rel in seen:
+            self.assertEqual(rel, "build", f"must be workspace-relative: {rel}")
+            self.assertNotIn(os.pardir, rel.split(os.sep))
+            self.assertFalse(os.path.isabs(rel))
+
+    def test_a_pardir_laden_relpath_defeats_a_prefix_pattern(self):
+        """Why the spelling matters even though today's verdict is equal.
+
+        A `..`-laden relpath is tolerated by `_matches_artifact` only because
+        its FINAL segment still names the artifact. As soon as the pattern
+        describes the workspace-relative SHAPE (which is what a
+        workspace-relative path is for), the escape is fatal.
+        """
+        from core.policy import _matches_artifact, DEFAULT_ARTIFACT_PATTERNS
+        escaped = os.path.join(os.pardir, os.pardir, "alias", "w", "build")
+        self.assertTrue(_matches_artifact(escaped, DEFAULT_ARTIFACT_PATTERNS))
+        self.assertFalse(_matches_artifact(escaped, ["w/build"]))
+        self.assertTrue(_matches_artifact("build", ["build"]))
+
+    # -- F9b layout scenarios, re-run on this fixture --------------------
+
+    def test_relocate_lands_inside_the_transaction_directory(self):
+        self._run_layout_test("test_relocate_lands_inside_the_transaction_"
+                              "directory")
+
+    def test_origin_path_keeps_the_callers_lexical_spelling(self):
+        self._run_layout_test("test_origin_path_keeps_the_callers_lexical_"
+                              "spelling")
+
+    def test_restore_round_trip_through_the_symlinked_ancestor(self):
+        self._run_layout_test("test_restore_round_trip_through_the_"
+                              "symlinked_ancestor")
+
+    def test_relocation_never_writes_outside_the_quarantine(self):
+        self._run_layout_test("test_relocation_never_writes_outside_the_"
+                              "quarantine")
+
+    def _run_layout_test(self, name: str) -> None:
+        """Run one inherited layout scenario explicitly on this fixture.
+
+        The four scenarios above are declared on `SymlinkedAncestorFixture`,
+        where `build/` is tracked. In THIS fixture `build/` is git-ignored -
+        that is the F9c subject - so the same advisory run legitimately takes
+        the regenerable fast path and no longer produces the relocation they
+        assert. Re-running them here, with one directory name dropped from
+        git's index first, keeps the F9b layout contracts alive on this
+        fixture while leaving the ancestor's own run untouched.
+        """
+        self._ignore_build_from_git()
+        getattr(SymlinkedAncestorFixture, name)(self)
 
 
 class UnlinkedWorkspaceFixture(unittest.TestCase):

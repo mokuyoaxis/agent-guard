@@ -391,3 +391,35 @@ refused and taught the model why, ASK escalated and executed nothing without
 approval — each with matching audit records and a control run showing the
 benign path stays free. The harness ships in
 `adapters/claude/harness/` so the result can be re-derived.
+
+## Post-test note (2026-09-14)
+
+*Added after the report above was finalised; the dated evidence in the body
+is unchanged.*
+
+**Windows-native shell support has since landed.** The Limitations section
+recorded "Windows remains out of V1 scope" because that was the repository
+state when these scenarios ran. The dialect layer was merged afterwards, in
+two phases:
+
+- **MR !3 / !6 (`core/dialects.py`)** - cmd and PowerShell lexical front ends
+  that map Windows-native vocabulary (`ri`/`rd`/`del`/`Remove-Item`,
+  `-Recurse`/`-Force`, PowerShell short-parameter prefixes) onto the same
+  effect facts the POSIX lexer produces. `check.py` gained `--dialect`, the
+  hook forwards a dialect, and the prefilter follows it.
+- The differential and phase-2 suites (`tests/test_dialects.py`,
+  `tests/test_dialect_phase2.py`) now cover what the earlier limitation
+  described, so that sentence is superseded as a statement of repository
+  capability.
+
+**Still open.** A real Windows HOST running the adapter end to end - Git Bash
+or `cmd`, a stock `python` (no `python3` alias), the hook wired into
+`.claude/settings.json` - remains an open item, and this report does not
+claim otherwise. What changed is the reason: the gap is no longer "Windows is
+out of scope" but "the dialect layer is covered by unit and conformance
+tests, not yet by a live run on Windows". The `python3`-free A/B earlier in
+this report still stands as the closest available approximation of that host.
+
+Note also that the symlink-ancestor path fixes delivered later (F9/F9b in
+macOS CI) are outside this report's scope; see
+`tests/test_workspace_symlink.py`.

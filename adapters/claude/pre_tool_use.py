@@ -31,6 +31,11 @@ Install - project .claude/settings.json:
   }
 }
 
+On Windows, spell the interpreter `python` (there is no `python3` alias in
+a stock install); the example above is the POSIX form. The adapter itself
+spawns the guard with `sys.executable`, so the interpreter that runs the
+hook is the interpreter that runs the guard.
+
 Also copy skills/delete-guard into the project (or reference it) so the
 model learns the discipline. Set AGENT_GUARD_DEBUG=1 to print the raw core
 verdict JSON to stderr (used by conformance tests).

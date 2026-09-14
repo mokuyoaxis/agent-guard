@@ -62,6 +62,8 @@ from .classifier import (
     KIND_UNKNOWN,
     PathSpec,
     OpSpec,
+    _physical,
+    _physical_keep_final,
     classify_paths,
 )
 
@@ -352,12 +354,34 @@ def is_git_ignored(workspace: str, path: str) -> bool:
 
 
 def regenerable(specs: List[PathSpec], ctx: PolicyContext) -> bool:
+    """True when every target is git-ignored AND matches an artifact pattern.
+
+    The workspace-relative path used for artifact matching is computed from
+    PHYSICAL spellings on BOTH sides (F9c). ``ctx.workspace`` comes from
+    ``discover_workspace()`` and is realpath-resolved, while
+    ``PathSpec.resolved`` deliberately keeps the caller's LEXICAL spelling
+    (MR !7) - mixing the two yields a ``..``-laden relpath whenever the
+    workspace sits under a symlinked ancestor (macOS: /var -> /private/var,
+    /tmp -> /private/tmp), so the segmented artifact match silently failed
+    and the fast RELOCATE path degraded into a full compensation.
+
+    The FINAL component stays verbatim (``_physical_keep_final``): artifact
+    matching is about where the ENTRY lives, so a target that is itself a
+    symlink is classified by the link's own location, never by its target
+    (the same choice relocation makes for the quarantine layout).
+
+    The effect direction is conservative either way - a false negative only
+    buys a relocation - and this is a pure spelling fix: patterns, defaults
+    and the decision table are untouched. ``spec.resolved`` is still handed
+    to git unchanged.
+    """
     if not ctx.config.allow_regenerable:
         return False
     for spec in specs:
         if not spec.resolved or not spec.exists:
             return False
-        rel = os.path.relpath(spec.resolved, ctx.workspace)
+        rel = os.path.relpath(_physical_keep_final(spec.resolved),
+                              _physical(ctx.workspace))
         if not _matches_artifact(rel, ctx.config.artifact_patterns):
             return False
         if not is_git_ignored(ctx.workspace, spec.resolved):
