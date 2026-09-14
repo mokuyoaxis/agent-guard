@@ -1,0 +1,68 @@
+# agent-guard CNB CI - Linux x Python 3.12 + Node 20 smoke.
+#
+# Companion to .github/workflows/ci.yml: same checks, zero third-party
+# dependencies, no install step. The OS/Python matrix stays on GitHub
+# Actions; this pipeline gives the CNB mirror the same gates.
+# GIT_CONFIG_GLOBAL=/dev/null keeps host git config (e.g. commit signing)
+# from breaking test fixtures.
+
+main:
+  push:
+    - name: unittest-and-hard-boundary (py3.12)
+      docker:
+        image: python:3.12
+      stages:
+        - name: unittest suite
+          script: GIT_CONFIG_GLOBAL=/dev/null python -m unittest discover tests -v
+        - name: integration smoke - hard boundary holds end-to-end
+          script: |
+            set -e
+            repo="$PWD"
+            d="$(mktemp -d)"
+            git -C "$d" init -q
+            printf 'node_modules/\n' > "$d/.gitignore"
+            cd "$d"
+            # workspace root must be refused with exit code 2 even under --enforce
+            python3 "$repo/skills/delete-guard/scripts/check.py" \
+              --enforce -- 'rm -rf .' && { echo 'guard failed to block'; exit 1; } \
+              || test $? -eq 2
+            echo 'hard boundary verified'
+
+    - name: dsh-adapter-smoke (node 20)
+      docker:
+        image: node:20
+      stages:
+        - name: import and initialize adapter with mocked host services
+          script: |
+            node --check adapters/dsh/lib/index.js
+            node tests/test_dsh_adapter.mjs
+
+  pull_request:
+    - name: unittest-and-hard-boundary (py3.12)
+      docker:
+        image: python:3.12
+      stages:
+        - name: unittest suite
+          script: GIT_CONFIG_GLOBAL=/dev/null python -m unittest discover tests -v
+        - name: integration smoke - hard boundary holds end-to-end
+          script: |
+            set -e
+            repo="$PWD"
+            d="$(mktemp -d)"
+            git -C "$d" init -q
+            printf 'node_modules/\n' > "$d/.gitignore"
+            cd "$d"
+            # workspace root must be refused with exit code 2 even under --enforce
+            python3 "$repo/skills/delete-guard/scripts/check.py" \
+              --enforce -- 'rm -rf .' && { echo 'guard failed to block'; exit 1; } \
+              || test $? -eq 2
+            echo 'hard boundary verified'
+
+    - name: dsh-adapter-smoke (node 20)
+      docker:
+        image: node:20
+      stages:
+        - name: import and initialize adapter with mocked host services
+          script: |
+            node --check adapters/dsh/lib/index.js
+            node tests/test_dsh_adapter.mjs
