@@ -7,6 +7,7 @@
 [![Codex tested](https://img.shields.io/badge/Codex-gpt--5.6--sol%20medium%20%2B%20high-000000?logo=openai&logoColor=white)](docs/test-report-codex-gpt-5.6-sol.md)
 [![DSH live-tested](https://img.shields.io/badge/DSH-v0.1.1%20DeepSeek%20V4%20Pro%20high%20minimal-4D6BFE)](docs/test-report-dsh-v0.1.1.md)
 [![ZCode live-tested](https://img.shields.io/badge/ZCode-GLM--Flash%20win32%20live--tested-7C5CE0)](docs/test-report-zcode-glm-flash.md)
+[![Claude Code live-tested](https://img.shields.io/badge/Claude%20Code-2.1.270%20hook%20live--tested%20mock%20model-D97757?logo=anthropic&logoColor=white)](docs/test-report-claude-code-harness.md)
 [![DSH v0.1.0 history](https://img.shields.io/badge/DSH-v0.1.0%20friction%20log-8B8B8B)](docs/friction.md)
 
 # agent-guard
@@ -146,8 +147,11 @@ fail-closed、只读 `.git` 下不污染工作树的审计预检、明确的
 `RESTORABLE` / `RESTORED` 生命周期状态和 DSH 运行时 smoke test。
 仍使用 patch 版本是有意的:当前验证矩阵只覆盖两个模型家族、两个 harness。
 下一步将扩展 Codex/Claude/DSH 的模型与 reasoning level，
-再按需求支持 Windows 方言，以及同一补偿引擎上的 `database-guard` /
-`cloud-guard`。
+并推进 Windows 原生 shell 方言(Phase 1-2 已落地:cmd/PowerShell
+的纯逻辑分词与效果映射在 `core/dialects.py`,PowerShell 无歧义参数前缀展开,
+方言选择已接入 `check.py --dialect`、`AGENT_GUARD_DIALECT` 与两个适配器,
+POSIX 行为与默认路径不变;真实 Windows 端到端验证仍需 Windows 机器),以及同一补偿引擎上的
+`database-guard` / `cloud-guard`。
 
 ## 许可证
 

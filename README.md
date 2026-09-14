@@ -7,6 +7,7 @@
 [![Codex tested](https://img.shields.io/badge/Codex-gpt--5.6--sol%20medium%20%2B%20high-000000?logo=openai&logoColor=white)](docs/test-report-codex-gpt-5.6-sol.md)
 [![DSH live-tested](https://img.shields.io/badge/DSH-v0.1.1%20DeepSeek%20V4%20Pro%20high%20minimal-4D6BFE)](docs/test-report-dsh-v0.1.1.md)
 [![ZCode live-tested](https://img.shields.io/badge/ZCode-GLM--Flash%20win32%20live--tested-7C5CE0)](docs/test-report-zcode-glm-flash.md)
+[![Claude Code live-tested](https://img.shields.io/badge/Claude%20Code-2.1.270%20hook%20live--tested%20mock%20model-D97757?logo=anthropic&logoColor=white)](docs/test-report-claude-code-harness.md)
 [![DSH v0.1.0 history](https://img.shields.io/badge/DSH-v0.1.0%20friction%20log-8B8B8B)](docs/friction.md)
 
 # agent-guard
@@ -155,7 +156,12 @@ compensation, clean audit preflight under read-only `.git`, explicit
 The patch version is deliberate: the model/harness validation matrix still
 covers only two model families across two harnesses. Next:
 additional Codex/Claude/DSH models and reasoning levels,
-Windows dialects (demand-driven), then `database-guard` / `cloud-guard` on
+Windows shell dialects (Phases 1-2 landed: cmd/PowerShell lexing and
+effect mapping in `core/dialects.py`, unambiguous PowerShell parameter
+prefixes, and dialect selection wired through `check.py --dialect`,
+`AGENT_GUARD_DIALECT` and both adapters - POSIX behaviour and the default
+path unchanged; real-Windows end-to-end validation still needs a Windows
+host), then `database-guard` / `cloud-guard` on
 the same compensation engine.
 
 ## License

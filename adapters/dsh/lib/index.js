@@ -47,6 +47,8 @@ export const Config = {
   promptSection: { type: "boolean", default: true },
   /** System-prompt section order (persona 0, tool guidance 100-199). */
   sectionOrder: { type: "number", default: 105 },
+  /** Default shell dialect for guard invocations; empty = posix. */
+  dialect: { type: "string", default: "" },
 };
 
 // Aligned with core/classifier.py vocabulary (V1: Linux/macOS).
@@ -55,6 +57,37 @@ const DESTRUCTIVE_RE = new RegExp(
     "|\\bfind\\b[^\\n|;&]*-delete\\b" +
     "|\\bgit\\s+(clean|reset|restore|checkout|push)\\b"
 );
+
+// Windows-native vocabulary (cmd / PowerShell). Used only when the session
+// requested a non-posix dialect: `ri build -r -fo` never matches the POSIX
+// regex, so a Windows session would otherwise skip the guard entirely.
+const DESTRUCTIVE_RE_WINDOWS = new RegExp(
+  "(^|[\\s;&|(\\\\/])(rm|ri|rd|rmdir|del|erase|remove-item)\\b" +
+    "|-\\s?(recurse|force|whatif|literalpath)\\b" +
+    "|\\bgit\\s+(clean|reset|restore|checkout|push)\\b",
+  "i"
+);
+
+// Dialect selectors recognised by core/dialects.py. Kept here only to pick
+// the prefilter and to decide whether to pass `--dialect`; the authoritative
+// validation (and the BLOCK for an unusable selector) stays in check.py.
+const POSIX_ALIASES = new Set(["posix", "sh", "bash", "zsh"]);
+
+function dialectSelector(args, config, env) {
+  const fromArgs = args && args.dialect;
+  if (typeof fromArgs === "string" && fromArgs.trim()) return fromArgs;
+  const fromEnv = env && env.AGENT_GUARD_DIALECT;
+  if (typeof fromEnv === "string" && fromEnv.trim()) return fromEnv;
+  if (typeof config.dialect === "string" && config.dialect.trim()) {
+    return config.dialect;
+  }
+  return undefined;
+}
+
+function isPosixDialect(selector) {
+  if (selector === undefined) return true;
+  return POSIX_ALIASES.has(String(selector).trim().toLowerCase());
+}
 
 /**
  * Build the adapter runtime for one apply() invocation.
@@ -150,13 +183,26 @@ export function apply(ctx, config) {
         const args = exec.arguments || {};
         const command =
           typeof args.command === "string" ? args.command : "";
-        if (!command || !DESTRUCTIVE_RE.test(command)) return next();
+        // Dialect first: the prefilter cannot see Windows-native syntax.
+        const selector = dialectSelector(args, config, process.env);
+        const posix = isPosixDialect(selector);
+        const prefilter = posix ? DESTRUCTIVE_RE : DESTRUCTIVE_RE_WINDOWS;
+        if (!command || !prefilter.test(command)) return next();
+
+        // An unusable selector is still forwarded: check.py owns the
+        // verdict and BLOCKs it explicitly instead of silently guessing
+        // a lexer.
+        const dialectFlag =
+          selector !== undefined ? "--dialect " + rt.shQuote(selector) : "";
 
         let result;
         try {
           result = await rt.runScript(
             "check.py",
-            "--enforce --json -- " + rt.shQuote(command),
+            "--enforce --json" +
+              (dialectFlag ? " " + dialectFlag : "") +
+              " -- " +
+              rt.shQuote(command),
             typeof args.workdir === "string" ? args.workdir : undefined,
             90000,
             exec

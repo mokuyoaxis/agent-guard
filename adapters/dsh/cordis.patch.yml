@@ -15,6 +15,10 @@
 #   promptSection register the deletion-discipline system-prompt section.
 #   sectionOrder  ascending; persona is 0, tool guidance conventionally
 #                 100-199.
+#   dialect       shell dialect the session issues commands in: posix
+#                 (default), cmd, or powershell. Callers may also set it
+#                 per call (tools) or via AGENT_GUARD_DIALECT; an unusable
+#                 value is refused by the guard with an explicit BLOCK code.
 - insert:
     - id: agent_guard
       name: 'agent-guard'
@@ -23,3 +27,4 @@
         defaultCwd: ''
         promptSection: true
         sectionOrder: 105
+        dialect: ''

@@ -1,13 +1,20 @@
 #!/usr/bin/env python3
 """check - classify a shell command before it runs (harness adapter entry).
 
-    check.py [--cwd DIR] [--enforce] [--json] -- COMMAND...
+    check.py [--cwd DIR] [--enforce] [--json]
+             [--dialect {posix,cmd,powershell}] -- COMMAND...
 
 Advisory mode (default): prints the verdict and does not mutate command
 targets. It records the assessment when audit storage is available.
 --enforce: performs the compensations first (relocate targets / git snapshot
 / git-clean enumeration+relocation) and tells the caller to PROCEED, or
 refuses with BLOCKED. Any BLOCK in the line means nothing is executed.
+--dialect selects the lexical front end for COMMAND: `posix` (default,
+unchanged behaviour), `cmd`, or `powershell`. Aliases such as `pwsh` and
+`cmd.exe` are accepted. The dialect is NOT validated by argparse's
+`choices` on purpose: an unknown selector must produce an explicit BLOCK
+decision (with a reason code), not an argparse usage error that a harness
+could mistake for "nothing to worry about".
 """
 from __future__ import annotations
 
@@ -20,7 +27,7 @@ import time
 import _bootstrap  # noqa: F401
 
 from core import AUDIT_NAME, TRASH_DIRNAME
-from core import audit, classifier, policy, recovery
+from core import audit, classifier, dialects, policy, recovery
 
 
 def main() -> int:
@@ -28,6 +35,10 @@ def main() -> int:
     ap.add_argument("--cwd")
     ap.add_argument("--enforce", action="store_true")
     ap.add_argument("--json", action="store_true", dest="as_json")
+    # No argparse `choices`: an unknown dialect must reach the policy layer
+    # as an explicit BLOCK, not as a usage error (see module docstring).
+    ap.add_argument("--dialect", default=None, metavar="{posix,cmd,powershell}",
+                    help="shell dialect of COMMAND (default: posix)")
     ap.add_argument("command", nargs=argparse.REMAINDER)
     args = ap.parse_args()
     cmd_tokens = [t for t in args.command if t != "--"]
@@ -44,27 +55,50 @@ def main() -> int:
     audit_path = os.path.join(trash_root, AUDIT_NAME)
 
     started = time.monotonic()
-    specs, parse_error = classifier.classify_command(cmd)
-    verdicts = policy.decide_ops(specs, ctx) if not parse_error else [
-        policy.Verdict(policy.DECISION_BLOCK,
-                       policy.CODE_BLOCK_UNDETERMINABLE_EFFECT,
-                       [f"parse error: {parse_error}"])]
+
+    # Resolve the dialect BEFORE classifying: an unusable selector means the
+    # command line was never classified, which is a BLOCK (with its own
+    # reason code) - never a silent fallback to POSIX.
+    resolution = dialects.resolve_dialect(
+        args.dialect if args.dialect is not None
+        else os.environ.get("AGENT_GUARD_DIALECT"),
+        source="flag --dialect" if args.dialect is not None
+        else "env AGENT_GUARD_DIALECT")
+
+    if resolution.ok:
+        specs, parse_error = classifier.classify_command(
+            cmd, resolution.dialect)
+        verdicts = policy.decide_ops(specs, ctx) if not parse_error else [
+            policy.Verdict(policy.DECISION_BLOCK,
+                           policy.CODE_BLOCK_UNDETERMINABLE_EFFECT,
+                           [f"parse error: {parse_error}"])]
+    else:
+        # No classification happened; the only safe verdict is BLOCK.
+        specs, parse_error = [], None
+        verdicts = [policy.decide_dialect_failure(resolution)]
+
     top = policy.worst(verdicts)
     latency_ms = round((time.monotonic() - started) * 1000, 1)
 
     out = {
         "command": cmd,
         "mode": mode,
+        "dialect": resolution.dialect,
+        "dialect_requested": resolution.requested,
+        "dialect_outcome": "ok" if resolution.ok else "unusable",
         "decision": top.decision,
         "code": top.code,
         "explanation": top.explanation,
         "reasons": top.reasons,
         "guard_latency_ms": latency_ms,
         "ops": [{"op": s.op, "kind": s.kind, "shape": s.shape,
+                 "dialect": getattr(s, "dialect", resolution.dialect),
                  "undeterminable": s.undeterminable, "notes": s.notes}
                 for s in specs],
         "enforced": bool(args.enforce),
     }
+    if not resolution.ok and resolution.reason:
+        out["dialect_error"] = resolution.reason
 
     def finish(code):
         out["exit"] = code
@@ -96,6 +130,9 @@ def main() -> int:
     if not args.enforce:
         record({"event": "check", "decision": top.decision,
                 "code": top.code, "command": cmd[:500],
+                "dialect": resolution.dialect,
+                "dialect_requested": resolution.requested,
+                "dialect_outcome": "ok" if resolution.ok else "unusable",
                 "guard_latency_ms": latency_ms})
         return finish(0)
 

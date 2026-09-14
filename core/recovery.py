@@ -28,7 +28,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from . import MANIFEST_NAME, TRASH_DIRNAME
 from .audit import new_txid, utc_now_iso
-from .classifier import PathSpec
+from .classifier import PathSpec, _physical, _physical_keep_final
 
 # Soft retention policy (docs/references: GC). Thresholds only MARK entries
 # GC_ELIGIBLE; actual purging is an explicit maintenance action - a system
@@ -54,6 +54,27 @@ class RecoveryEngine:
 
     # ------------------------------------------------------------- layout
 
+    @staticmethod
+    def _contained_dest(dest: str, tx_dir: str) -> str:
+        """Return dest, refusing anything that escapes trash_root/<txid>/.
+
+        Relocation must be RECOVERABLE: a destination outside the
+        transaction directory is evidence that the origin/trash spelling
+        pair diverged (the macOS /var link bug) or that a symlink moved
+        under us. Never silently write there - raise OSError, which the
+        caller turns into a controlled failure plus a manifest record.
+        """
+        root = _physical(os.path.normpath(os.path.abspath(tx_dir)))
+        candidate = _physical(os.path.normpath(os.path.abspath(dest)))
+        if candidate == root:
+            raise OSError(
+                f"refusing to relocate onto the transaction directory: {dest}")
+        if os.path.commonpath([candidate, root]) != root:
+            raise OSError(
+                f"destination escapes quarantine transaction directory "
+                f"{root}: {dest}")
+        return candidate
+
     @property
     def manifest_path(self) -> str:
         return os.path.join(self.trash_root, MANIFEST_NAME)
@@ -72,7 +93,8 @@ class RecoveryEngine:
         do not require a redundant `.git/info/exclude` mutation.
         """
         try:
-            rel = os.path.relpath(self.trash_root, self.workspace)
+            rel = os.path.relpath(_physical(self.trash_root),
+                                  _physical(self.workspace))
             if rel == os.pardir or rel.startswith(os.pardir + os.sep):
                 return True  # external quarantine cannot pollute this repo
             git_rel = rel.replace(os.sep, "/").rstrip("/") + "/"
@@ -107,7 +129,12 @@ class RecoveryEngine:
                 existing = fh.read()
         except OSError:
             existing = ""
-        rel = os.path.relpath(self.trash_root, self.workspace).replace(os.sep, "/")
+        # Both sides physical: an external AGENT_GUARD_TRASH given in a
+        # non-physical spelling (symlinked ancestor) would otherwise yield
+        # a `..`-laden pattern that excludes the wrong path from git status.
+        rel = os.path.relpath(
+            _physical(self.trash_root),
+            _physical(self.workspace)).replace(os.sep, "/")
         pattern = f"/{rel.strip('/')}/"
         for line in existing.splitlines():
             if line.strip() in (TRASH_DIRNAME, pattern):
@@ -185,7 +212,16 @@ class RecoveryEngine:
 
     def relocate(self, specs: List[PathSpec], txid: Optional[str] = None,
                  meta: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Move every concrete target into trash/<txid>/<workspace-relative>."""
+        """Move every concrete target into trash/<txid>/<workspace-relative>.
+
+        Layout arithmetic uses PHYSICAL spellings on BOTH sides: the
+        workspace root is realpath-resolved (F8) while ``spec.resolved`` is
+        deliberately LEXICAL, so a lexically-spelled target under a
+        symlinked ancestor (macOS /var -> /private/var) used to produce a
+        multi-segment ``..`` relpath and a destination OUTSIDE the
+        transaction directory. ``origin_path`` stays lexical: restore and
+        every message must speak the caller's spelling.
+        """
         txid = txid or new_txid()
         # Write-ahead journal: no source mutation may happen until the
         # transaction exists durably. Each target intent is durable before its
@@ -206,8 +242,26 @@ class RecoveryEngine:
             if not os.path.lexists(src):
                 skipped.append({**entry_base, "reason": "already absent"})
                 continue
-            rel = os.path.relpath(src, self.workspace)
-            dest = os.path.join(self.trash_root, txid, rel)
+            tx_dir = os.path.join(self.trash_root, txid)
+            # Parent chain physical, final component verbatim: a target
+            # that is itself a symlink keeps its own location (F9).
+            rel = os.path.relpath(_physical_keep_final(src),
+                                  _physical(self.workspace))
+            dest = os.path.join(tx_dir, rel)
+            try:
+                # Defence in depth (F9): a symlink race or an exotic
+                # spelling must never let a target land outside its own
+                # transaction directory. Fail closed, with evidence.
+                dest = self._contained_dest(dest, tx_dir)
+            except OSError as exc:
+                skipped.append({**entry_base,
+                                "reason": f"uncontained destination: {exc}"})
+                self._manifest_append([{
+                    "type": "relocate-failed", "txid": txid,
+                    "origin_path": src, "trash_path": dest,
+                    "reason": str(exc),
+                }])
+                continue
             intent = {"type": "relocate-intent", "txid": txid,
                       "origin_path": src, "trash_path": dest,
                       "raw": spec.raw}

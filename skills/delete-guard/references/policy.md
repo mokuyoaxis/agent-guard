@@ -25,6 +25,25 @@ RESTRICTED prohibitions) are policy violations and never askable.
 
 check.py exit codes: 0 proceed/advisory-ok · 2 blocked · 3 ask · 1 error.
 
+### Dialects
+
+`check.py` lexes the command line for a shell dialect: `--dialect posix`
+(default) `| cmd | powershell`, or `AGENT_GUARD_DIALECT`. The Claude and
+DSH adapters forward it from the payload / tool arguments / environment.
+An unusable selector is a BLOCK, never a silent POSIX fallback:
+
+| Condition | Verdict code | Effect |
+|---|---|---|
+| dialect name not recognised (e.g. `fish`) | `BLOCK_DIALECT_UNKNOWN` | refuse; fix the selector |
+| dialect selector malformed (e.g. `posix:cmd`) | `BLOCK_DIALECT_INVALID` | refuse; fix the selector |
+
+Both are configuration defects rather than one-off authorization, so they
+BLOCK instead of ASKing: the selector would fail again on the next command.
+The command is never classified in that case, which is why allowing it is
+not an option. Under PowerShell, unambiguous parameter prefixes (`-r`,
+`-rec`, `-fo`) are expanded to their full names; a prefix matching two
+different effects (`-wi`, `-c`, `-p`) stays unknown and BLOCKs.
+
 ## Rule table (first match wins)
 
 | # | Condition | Verdict code | Effect |

@@ -30,6 +30,18 @@ dsh plugin --profile <your-profile> add github:mokuyoaxis/agent-guard
 | `defaultCwd` | executor default | working directory for guard invocations |
 | `promptSection` | `true` | register the deletion-discipline section |
 | `sectionOrder` | `105` | system-prompt section order |
+| `dialect` | `""` (posix) | shell dialect for guard invocations: `posix`, `cmd`, or `powershell` |
+
+## Shell dialect
+
+Interception forwards a shell dialect to `check.py` so Windows-native
+command lines are lexed with the right rules. Precedence: the tool
+argument (`dialect`), then `AGENT_GUARD_DIALECT`, then the `dialect` config
+key, then `posix`. The prefilter follows the dialect (the POSIX regex
+cannot see `ri build -r -fo`); the POSIX prefilter and the default path are
+unchanged. An unrecognised selector is forwarded verbatim rather than
+swapped for POSIX, so `check.py` returns `BLOCK_DIALECT_UNKNOWN` and the
+call is denied with that code.
 
 ## Notes
 

@@ -47,7 +47,14 @@ _REPO_ROOT = os.path.dirname(os.path.dirname(_HERE))
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
-from core.classifier import DESTRUCTIVE_PREFILTER_RE  # noqa: E402
+from core.classifier import (  # noqa: E402
+    DESTRUCTIVE_PREFILTER_RE, DESTRUCTIVE_PREFILTER_RE_WINDOWS)
+from core.dialects import DIALECT_POSIX, resolve_dialect  # noqa: E402
+
+# Payload keys checked (in order) for a dialect selector. Claude Code does
+# not define a dialect field today, so this is an extension point: a host
+# that grows one takes effect without an adapter change.
+_DIALECT_PAYLOAD_KEYS = ("dialect", "shell_dialect", "shellDialect")
 
 CHECK = os.path.join(_REPO_ROOT, "skills", "delete-guard",
                      "scripts", "check.py")
@@ -74,7 +81,26 @@ def main() -> int:
     command = tool_input.get("command")
     if not isinstance(command, str) or not command:
         return 0
-    if not DESTRUCTIVE_PREFILTER_RE.search(command):
+    # Dialect resolution must happen BEFORE the prefilter: the POSIX regex
+    # cannot see `ri build -r -fo`, so a Windows-native payload would be
+    # skipped as harmless. Precedence: payload -> AGENT_GUARD_DIALECT ->
+    # posix (the documented default). An unusable selector is NOT swallowed
+    # here; it is handed to check.py, which BLOCKs with an explicit code.
+    dialect_raw = None
+    for key in _DIALECT_PAYLOAD_KEYS:
+        candidate = payload.get(key)
+        if isinstance(candidate, str) and candidate.strip():
+            dialect_raw = candidate
+            break
+    resolution = resolve_dialect(
+        dialect_raw if dialect_raw is not None
+        else os.environ.get("AGENT_GUARD_DIALECT"),
+        source="payload" if dialect_raw is not None
+        else "env AGENT_GUARD_DIALECT")
+
+    prefilter = (DESTRUCTIVE_PREFILTER_RE if resolution.dialect == DIALECT_POSIX
+                 else DESTRUCTIVE_PREFILTER_RE_WINDOWS)
+    if resolution.ok and not prefilter.search(command):
         return 0  # fast path: regex cost only
 
     cwd = payload.get("cwd") or os.getcwd()
@@ -82,11 +108,21 @@ def main() -> int:
     session_id = payload.get("session_id")
     if session_id:
         env["AGENT_GUARD_SESSION"] = str(session_id)
+    # Forward the *requested* selector verbatim rather than the resolved
+    # value: check.py owns the "is this usable?" verdict, so an unknown
+    # dialect becomes BLOCK_DIALECT_UNKNOWN instead of a silent posix
+    # fallback. The payload selector travels on argv; the environment
+    # variable is inherited by the child as-is.
+    argv = [sys.executable, CHECK, "--enforce", "--json"]
+    if dialect_raw is not None:
+        argv += ["--dialect", dialect_raw]
+    elif resolution.ok:
+        argv += ["--dialect", resolution.dialect]
+    argv += ["--", command]
 
     try:
         proc = subprocess.run(
-            ["python3", CHECK, "--enforce", "--json", "--", command],
-            capture_output=True, text=True, timeout=90, cwd=cwd, env=env,
+            argv, capture_output=True, text=True, timeout=90, cwd=cwd, env=env,
         )
     except Exception as exc:
         sys.stderr.write(

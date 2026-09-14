@@ -30,6 +30,53 @@ While the major version is `0`:
 | check.py CLI flags removed or re-semanticized | major + MIGRATION.md |
 | Default policy verdict changes for an existing shape | minor + entry in docs/friction.md |
 
+## Additive surfaces since v0.1.1
+
+| Surface | Class | Notes |
+|---|---|---|
+| Command dialects (`cmd`, `powershell`) | minor | `classify_command(cmd, dialect=...)`; the default stays `posix`, so pre-existing callers are unaffected |
+| `core/dialects.py` module + `TokenStream` | minor | Internal-but-documented; used by the dialect unit tests |
+| `OpSpec.dialect` field | minor | New field; unknown fields stay opaque to consumers |
+| `Ask` on PowerShell `-WhatIf` | minor | A dry run is an `ALLOW_NOOP`; a real delete keeps existing rules |
+| `check.py --dialect` flag | minor | Defaults to `posix`; omitting it is byte-for-byte the old behaviour |
+| `AGENT_GUARD_DIALECT` env var | minor | Read by `check.py` and both adapters; unset means `posix` |
+| `BLOCK_DIALECT_UNKNOWN` / `BLOCK_DIALECT_INVALID` | minor | New reason codes (additive) |
+| PowerShell parameter prefix expansion | minor | `-r`/`-rec`/`-fo` now resolve; see below |
+
+Unknown dialect names raise `ValueError` from `normalize_dialect`, and the
+production paths (`check.py`, both adapters) turn an unusable selector into
+an explicit `BLOCK` rather than a silent POSIX fallback. That is a
+deliberate *closed* failure: a silent fallback would lex a Windows command
+line with POSIX rules and could under-restrict it.
+
+`check.py --dialect` deliberately does **not** use argparse `choices`. An
+unknown selector must produce a Decision Protocol verdict with a reason
+code; a usage error carries none, and a harness could read "no decision" as
+"nothing to worry about".
+
+Phase 3 (real Windows end-to-end validation, UNC/device paths, module
+auto-loading) has not happened. The dialect layer stays additive and
+opt-in so Windows support lands without changing any POSIX verdict.
+
+### PowerShell parameter prefixes
+
+PowerShell resolves a parameter by unambiguous prefix, so `ri build -r -fo`
+is `-Recurse -Force`. The guard expands those, but is deliberately
+*stricter* than the host in one place:
+
+| Written | Host expands to | Guard does |
+|---|---|---|
+| `-r` `-rec` `-recur` `-Recurse` | `-Recurse` | expands |
+| `-fo` `-for` `-force` `-Force` | `-Force` | expands |
+| `-wi` | `-WhatIf` | **refuses** - also matches `-WarningAction` |
+| `-c`, `-p` | `-Confirm`/`-Credential`, `-Path`/`-PSPath` | **refuses** |
+
+A prefix is expanded only when every candidate leads to the *same* effect
+fact; otherwise it stays an unknown parameter, which policy BLOCKs. `-wi`
+is the interesting case: `-WhatIf` stops the delete while `-WarningAction`
+does not, so a wrong guess is asymmetric and the guard will not make it.
+Every expansion is recorded in the op notes for audit.
+
 ## What is explicitly NOT frozen
 
 - Explanation wording (humans read it; improve freely).

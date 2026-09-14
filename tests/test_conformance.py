@@ -7,8 +7,10 @@ workspace state -> identical core decision/code regardless of adapter.
 """
 import json
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -39,7 +41,7 @@ def run_check(workspace, command):
     return json.loads(proc.stdout)
 
 
-def run_adapter(workspace, command, tool_name="Bash"):
+def run_adapter(workspace, command, tool_name="Bash", env=None):
     payload = {
         "session_id": "conformance-test",
         "cwd": workspace,
@@ -47,12 +49,14 @@ def run_adapter(workspace, command, tool_name="Bash"):
         "tool_name": tool_name,
         "tool_input": {"command": command},
     }
+    full_env = {**os.environ, "AGENT_GUARD_WORKSPACE": workspace,
+                "AGENT_GUARD_DEBUG": "1"}
+    if env:
+        full_env.update(env)
     return subprocess.run(
         [sys.executable, ADAPTER],
         input=json.dumps(payload), capture_output=True, text=True,
-        timeout=90, cwd=workspace,
-        env={**os.environ, "AGENT_GUARD_WORKSPACE": workspace,
-             "AGENT_GUARD_DEBUG": "1"},
+        timeout=90, cwd=workspace, env=full_env,
     )
 
 
@@ -63,6 +67,23 @@ def last_json(text):
         except json.JSONDecodeError:
             continue
     return None
+
+
+def no_python3_path(case):
+    """A PATH directory with `python` but no `python3`.
+
+    Reproduces the Windows / minimal-image shape where the adapter's
+    hardcoded `python3` could not be resolved. `git` and the core utils
+    the guard itself needs stay on PATH.
+    """
+    bindir = tempfile.mkdtemp(prefix="agent-guard-nopy3-")
+    case.addCleanup(shutil.rmtree, bindir, True)
+    os.symlink(sys.executable, os.path.join(bindir, "python"))
+    for tool in ("git", "sh", "bash"):
+        found = shutil.which(tool)
+        if found:
+            os.symlink(found, os.path.join(bindir, tool))
+    return bindir
 
 
 @unittest.skipUnless(git_available(), "git required")
@@ -135,6 +156,39 @@ class Conformance(RepoFixture):
             capture_output=True, text=True, timeout=30,
             env={**os.environ, "AGENT_GUARD_WORKSPACE": self.root})
         self.assertEqual(proc.returncode, 0)
+
+
+    def test_adapter_spawns_guard_with_sys_executable(self):
+        """Regression: the guard child must not hardcode `python3`.
+
+        Windows (and some minimal images) ship only `python`, so a
+        hardcoded `python3` made every interception fail closed with
+        "guard infrastructure error" - the guard was silently unusable.
+        Prove it here by running the adapter with a PATH that has no
+        `python3` at all: the child must still be spawned through
+        sys.executable.
+        """
+        self.seed()
+        # A PATH that exposes `python` but no `python3` - the Windows
+        # shape that broke the adapter. `git` is kept available because
+        # the core needs it independently of the spawn fix.
+        bindir = no_python3_path(self)
+        proc = run_adapter(self.root, "rm -rf build", env={"PATH": bindir})
+        self.assertEqual(proc.returncode, 0, proc.stderr[-800:])
+        self.assertNotIn("guard infrastructure error", proc.stderr)
+        out = json.loads(proc.stdout)
+        self.assertEqual(
+            out["hookSpecificOutput"]["permissionDecision"], "allow")
+        self.assertIn("RELOCATE_TREE",
+                      out["hookSpecificOutput"]["permissionDecisionReason"])
+        self.assertFalse(os.path.exists(os.path.join(self.root, "build")))
+
+    def test_adapter_blocking_still_works_without_python3_on_path(self):
+        bindir = no_python3_path(self)
+        proc = run_adapter(self.root, "rm -rf .", env={"PATH": bindir})
+        self.assertEqual(proc.returncode, 2, proc.stderr[-800:])
+        self.assertIn("BLOCK_PROTECTED_PATH", proc.stderr)
+        self.assertNotIn("guard infrastructure error", proc.stderr)
 
 
 if __name__ == "__main__":
