@@ -12,6 +12,11 @@ Decision classes (docs/architecture.md):
     ALLOW      safe to run as-is (noop / provably regenerable / trash GC)
     RELOCATE   compensate by quarantine, then run
     SNAPSHOT   compensate by git snapshot, then run
+    SANITIZE   rewrite the PAYLOAD (not the command) before it is emitted:
+               the degraded compensation of an irreversible channel. It
+               restores nothing; it only records what was removed
+               (core/redaction.py, exfil-guard). Ranks below ASK: it is
+               automatic (SAFE tier), while ASK forfeits automation
     ASK        guard cannot safely automate, but user intent may be legit:
                single-execution authorization (ASK_ONCE, never a rule
                exemption); adapters map to their native ask, or degrade to
@@ -72,6 +77,7 @@ from .classifier import (
 DECISION_ALLOW = "ALLOW"
 DECISION_RELOCATE = "RELOCATE"
 DECISION_SNAPSHOT = "SNAPSHOT"
+DECISION_SANITIZE = "SANITIZE"
 DECISION_ASK = "ASK"
 DECISION_BLOCK = "BLOCK"
 
@@ -96,6 +102,18 @@ CODE_BLOCK_FORCE_PUSH = "BLOCK_FORCE_PUSH"
 CODE_BLOCK_DIALECT_UNKNOWN = "BLOCK_DIALECT_UNKNOWN"        # config
 CODE_BLOCK_DIALECT_INVALID = "BLOCK_DIALECT_INVALID"        # config
 CODE_BLOCK_RELOCATE_FAILED_STORAGE = "RELOCATE_FAILED_STORAGE"
+# exfil-guard (span decisions). Rule ids (`secret/*`, `path/*`) are payload,
+# never verdict codes; these codes name the *disposition*, not the pattern.
+CODE_SANITIZE_SECRET_REDACT = "SANITIZE_SECRET_REDACT"
+CODE_SANITIZE_PATH_REWRITE = "SANITIZE_PATH_REWRITE"
+CODE_BLOCK_SECRET_EMISSION = "BLOCK_SECRET_EMISSION"
+CODE_BLOCK_PATH_EMISSION = "BLOCK_PATH_EMISSION"
+CODE_BLOCK_SECRET_SOURCE_DUMP = "BLOCK_SECRET_SOURCE_DUMP"
+CODE_BLOCK_OUTPUT_UNSCANNABLE = "BLOCK_OUTPUT_UNSCANNABLE"
+CODE_ASK_SECRET_EMISSION = "ASK_SECRET_EMISSION"
+CODE_ASK_PATH_EMISSION = "ASK_PATH_EMISSION"
+CODE_ALLOW_SECRET_PLACEHOLDER = "ALLOW_SECRET_PLACEHOLDER"
+CODE_ALLOW_PATH_IN_WORKSPACE = "ALLOW_PATH_IN_WORKSPACE"
 CODE_BLOCK_COMPENSATION_FAILED = "COMPENSATION_FAILED"
 
 # Human-facing one-liners: why the guard cannot just do it (or did do it).
@@ -159,6 +177,43 @@ EXPLANATIONS: Dict[str, str] = {
                                         "fall back to permanent deletion.",
     CODE_BLOCK_COMPENSATION_FAILED: "Compensation failed before execution; "
                                     "refusing to proceed unrecoverable.",
+    CODE_SANITIZE_SECRET_REDACT: "A credential would leave the machine on this "
+                                 "payload; it is replaced in place before "
+                                 "emission. Apply the redaction plan to the "
+                                 "payload you hold - the guard never rewrites "
+                                 "it for you.",
+    CODE_SANITIZE_PATH_REWRITE: "A host-identifying path would leave the "
+                                "machine on this payload; it is rewritten to a "
+                                "stable placeholder before emission. Apply the "
+                                "redaction plan to the payload you hold.",
+    CODE_BLOCK_SECRET_EMISSION: "A credential would enter an immutable or "
+                                "remote history on this channel, where it "
+                                "cannot be taken back. Remove it and retry "
+                                "(amend the message / rewrite before pushing).",
+    CODE_BLOCK_PATH_EMISSION: "A host-identifying path would enter an "
+                              "immutable or remote history on this channel. "
+                              "Remove it and retry.",
+    CODE_BLOCK_SECRET_SOURCE_DUMP: "This payload reads a secret source (a "
+                                   "credential file, or the whole "
+                                   "environment) whose content cannot be "
+                                   "scanned or rewritten here. Fail closed: "
+                                   "such a dump is not a clean emission.",
+    CODE_BLOCK_OUTPUT_UNSCANNABLE: "The payload was never scanned (scanner "
+                                   "unavailable or the text exceeds the "
+                                   "supported size). An unscanned egress is "
+                                   "not a clean egress.",
+    CODE_ASK_SECRET_EMISSION: "A credential would leave the machine on a "
+                              "channel the guard cannot rewrite and cannot "
+                              "take back (it cannot un-print). Allow once to "
+                              "proceed as-is, or remove the value first.",
+    CODE_ASK_PATH_EMISSION: "A host-identifying path would leave the machine "
+                            "on a channel the guard cannot rewrite. Low "
+                            "severity; allow once to proceed as-is.",
+    CODE_ALLOW_SECRET_PLACEHOLDER: "Every match is a documented placeholder "
+                                   "or an already-redacted marker; nothing to "
+                                   "remove.",
+    CODE_ALLOW_PATH_IN_WORKSPACE: "Every path lies inside the workspace, so "
+                                  "it identifies no host.",
 }
 
 # ------------------------------------------------------------------- verdict
@@ -185,11 +240,22 @@ class Verdict:
     def asks(self) -> bool:
         return self.decision == DECISION_ASK
 
+    @property
+    def sanitizes(self) -> bool:
+        return self.decision == DECISION_SANITIZE
+
 
 def worst(verdicts: List[Verdict]) -> Verdict:
-    """Aggregate a command line: BLOCK > ASK > RELOCATE/SNAPSHOT > ALLOW."""
-    rank = {DECISION_ALLOW: 0, DECISION_RELOCATE: 1, DECISION_SNAPSHOT: 1,
-            DECISION_ASK: 2, DECISION_BLOCK: 3}
+    """Aggregate: BLOCK > ASK > RELOCATE/SNAPSHOT > SANITIZE > ALLOW.
+
+    SANITIZE ranks *below* ASK deliberately (design 1.3): it is automatic
+    (SAFE tier, like RELOCATE/SNAPSHOT) while ASK forfeits automation. A
+    payload carrying both a sanitizable secret and an uninspectable,
+    un-rewritable shape must ASK - you cannot silently proceed when part of
+    the emission cannot be inspected.
+    """
+    rank = {DECISION_ALLOW: 0, DECISION_SANITIZE: 1, DECISION_RELOCATE: 2,
+            DECISION_SNAPSHOT: 2, DECISION_ASK: 3, DECISION_BLOCK: 4}
     if not verdicts:
         return Verdict(DECISION_ALLOW, CODE_ALLOW_NOOP,
                        explanation=EXPLANATIONS[CODE_ALLOW_NOOP])
