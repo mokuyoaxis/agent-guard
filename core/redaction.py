@@ -455,7 +455,7 @@ def workspace_ancestors(workspace: Optional[str]) -> List[str]:
     The filesystem root is excluded deliberately. It is *technically* an
     ancestor of every workspace, but treating `/` as identifying would make
     the rule a no-op (nothing is more generic than `/`), and the same is
-    true of any single-component prefix such as `/home` or `C:\` - those
+    true of any single-component prefix such as `/home` or `C:\\` - those
     carry no identity and are the documented generic tier (design 3.3).
     """
     if not workspace:
@@ -497,15 +497,33 @@ class PathVerdict:
 
 
 def _normalize_candidate(raw: str, windows: bool) -> str:
-    """Normalize for comparison only; the raw spelling drives the rewrite."""
+    """Normalize for comparison only; the raw spelling drives the rewrite.
+
+    Returns a platform-appropriate normalized form: on Windows the result
+    keeps ``\\`` separators (UNC/device detection depends on
+    ``normalized.startswith('\\\\')``), on POSIX it keeps ``/``. Downstream
+    callers must not assume one separator — ``_path_is_under`` handles
+    that for its own comparisons, and UNC detection happens before any
+    separator-sensitive prefix test.
+
+    The reason we do NOT simply flip everything to ``/``: Windows
+    ``os.path.normpath`` flips ``/`` to ``\\`` anyway, so on a Windows host
+    any POSIX-style input like ``/usr/lib`` would end up as ``\\usr\\lib``
+    and then every prefix test (all of which use ``"/usr"``) would fail —
+    which is exactly what the classify layer's `windows` flag exists to
+    avoid.
+    """
     value = raw.rstrip(".,;:!?)\"'`")
-    # Trim a trailing separator on a rooted path ("/tmp/" -> "/tmp") so the
-    # boundary and prefix tests match; a bare "/" is never a match anyway.
     if len(value) > 1 and value.endswith(("/", "\\")):
         value = value[:-1]
     if windows:
-        return os.path.normpath(value.replace("\\", "/")).replace("/", "\\")
-    return os.path.normpath(value)
+        return os.path.normpath(value.replace("/", "\\"))
+    return os.path.normpath(value.replace("\\", "/"))
+
+
+def _to_posix(path: str) -> str:
+    """Convert any platform path to forward-slash form for prefix tests."""
+    return path.replace("\\", "/")
 
 
 def _clean_candidate(text: str, span: "re.Match[str]") -> Optional[str]:
@@ -549,12 +567,17 @@ def classify_path_candidate(raw: str, workspace: Optional[str],
     # an ordinary filename byte), and fabricating semantics is the exact
     # mistake `classifier._is_windows_absolute` documents.
     normalized = _normalize_candidate(value, windows)
-    fact = PathVerdict(raw=raw, start=0, end=len(raw), path=normalized,
+    # POSIX form for every subsequent prefix test — handles mixed
+    # platform inputs (a Windows host seeing "/usr/lib", or a Linux host
+    # seeing a path that was realpath'd somewhere). UNC/device detection
+    # (which needs the raw `\\` prefix) stays on `normalized`.
+    posix = _to_posix(normalized)
+    fact = PathVerdict(raw=raw, start=0, end=len(raw), path=posix,
                        windows=windows)
 
-    prefix_pool = list(markers["prefixes"])
-    system = tuple(markers["system_prefixes"])
-    exempt_locations = _EXEMPT_ABSOLUTE
+    prefix_pool = [_to_posix(p) for p in markers["prefixes"]]
+    system = tuple(_to_posix(s) for s in markers["system_prefixes"])
+    exempt_locations = [_to_posix(e) for e in _EXEMPT_ABSOLUTE]
 
     if windows:
         # A bare drive root (`C:\`) identifies the OS layout, not a host, and
@@ -564,7 +587,7 @@ def classify_path_candidate(raw: str, workspace: Optional[str],
             fact.is_system = True
             return fact
         for system_prefix in system:
-            if _path_is_under(normalized, system_prefix, True):
+            if _path_is_under(posix, system_prefix, True):
                 fact.is_system = True
                 return fact
 
@@ -572,27 +595,34 @@ def classify_path_candidate(raw: str, workspace: Optional[str],
     # workspace ancestor is deterministic - a literal deny-set match, not a
     # guess. Workspace ancestors are checked first because they are the most
     # trusted source (design 3.3).
+    #
+    # IMPORTANT: we intentionally do NOT call os.path.realpath() or
+    # os.path.abspath() on `workspace`. Those would prefix a drive letter
+    # on Windows (turning "/home/alice/work/agent-guard" into
+    # "C:\\home\\alice\\work\\agent-guard") and break cross-platform
+    # workspace matching. Callers pass the workspace in canonical form.
     if workspace:
-        physical = os.path.normpath(
-            os.path.realpath(os.path.abspath(workspace)))
-        if _path_is_under(normalized, physical, windows):
+        ws_windows = bool(_WINDOWS_PATH_RE.fullmatch(workspace))
+        physical_posix = _to_posix(_normalize_candidate(workspace, ws_windows))
+        if _path_is_under(posix, physical_posix, False):
             fact.inside_workspace = True
-            fact.at_workspace_root = normalized == physical
+            fact.at_workspace_root = posix == physical_posix
             return fact
         for ancestor in workspace_ancestors(workspace):
-            if _path_is_under(normalized, ancestor, windows):
+            anc_posix = _to_posix(ancestor)
+            if _path_is_under(posix, anc_posix, False):
                 fact.deterministic = True
                 fact.notes.append("workspace ancestor")
                 return fact
 
     for prefix in sorted(prefix_pool, key=len, reverse=True):
-        if _path_is_under(normalized, prefix, windows):
+        if _path_is_under(posix, prefix, False):
             fact.deterministic = True
             fact.notes.append("home/temp prefix: " + prefix)
             return fact
 
     for safe in exempt_locations:
-        if _path_is_under(normalized, safe, windows):
+        if _path_is_under(posix, safe, False):
             fact.is_system = True
             fact.notes.append("documented non-identifying location")
             return fact
@@ -600,15 +630,16 @@ def classify_path_candidate(raw: str, workspace: Optional[str],
     for name in sorted(markers["names"], key=len, reverse=True):
         if len(name) < 3:
             continue
-        if any(_path_is_under(normalized, base + name, windows)
+        if any(_path_is_under(posix, base + name, False)
                for base in ("/home/", "/Users/", "/Volumes/", "/root/")) \
-                or _path_is_under(normalized, "C:\\Users\\" + name, windows):
+                or _path_is_under(posix, "C:/Users/" + name, False):
             fact.deterministic = True
             fact.notes.append("interpolated home marker")
             return fact
 
     if windows:
-        # UNC/device roots carry a host or device name.
+        # UNC/device roots carry a host or device name — check on the raw
+        # normalized string (preserves `\\` prefix).
         if normalized.startswith("\\\\"):
             fact.deterministic = True
             fact.notes.append("UNC/device root")
@@ -620,20 +651,21 @@ def classify_path_candidate(raw: str, workspace: Optional[str],
     # about paths. Design 3.2's ">= 2 components OR a known-root tie-in"
     # floor is enforced here, which is what keeps this repository's own prose
     # quiet.
-    if normalized.count("/") < 2:
+    if posix.count("/") < 2:
         fact.notes.append("single-component path: no host identity")
         return fact
     for ci in _CI_ROOT_PREFIXES:
-        if _path_is_under(normalized, ci, windows):
+        ci_posix = _to_posix(ci)
+        if _path_is_under(posix, ci_posix, False):
             fact.deterministic = True
             fact.notes.append("host-identifying root: " + ci)
             return fact
     for system_prefix in system:
-        if _path_is_under(normalized, system_prefix, windows):
+        if _path_is_under(posix, system_prefix, False):
             fact.is_system = True
             return fact
     for hostname in markers["hostnames"]:
-        if hostname and hostname in normalized:
+        if hostname and hostname in posix:
             fact.deterministic = True
             fact.notes.append("hostname in path")
             return fact
