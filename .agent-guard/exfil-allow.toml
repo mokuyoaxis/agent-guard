@@ -1,0 +1,46 @@
+# exfil-guard exemptions for this repository.
+#
+# This repository documents, tests and demonstrates the *topic* of secret
+# leakage. SECURITY.md already states the equivalent for code scanners
+# ("Expected scanner hits on this repository"), and this file is the same
+# discipline applied to exfil-guard: every entry below is a reviewed false
+# positive, and each one is scoped to the path where the *discussion* lives.
+#
+# Important: this file exempts PATHS, not rules. The rule set stays fully
+# active everywhere else, so the guard still protects an agent working in
+# this repository. Exemptions are read only from the workspace root, so an
+# agent cannot add one on the fly.
+#
+# Value exemptions are by `sha256:...` hash ONLY, never by value - writing a
+# secret into a tracked file is the exact bug this feature exists to prevent.
+
+[rules]
+# No rule is disabled wholesale. A blanket `secret/source-reference` disable
+# would blind the guard to the single highest-signal scenario (S3), which is
+# precisely what this file must not do.
+disable = []
+
+[values]
+# Known-benign values, identified by hash so the value never appears in a
+# tracked file. `AKIAIOSFODNN7EXAMPLE` is AWS's own documented placeholder
+# (already caught by the static allowlist; the hash entry documents the
+# mechanism a human would use for a real fixture).
+sha256 =
+  sha256:8ab1a3d2b4b8b1f0c9e0f6ad1f2f9a4b2d95c1b0d3f8f0a1c7e6a9b4d2c5f8e7
+
+[paths]
+# The guard's own rule definitions and catalogues necessarily quote the
+# shapes they detect - a pattern list that could not name `.env` would be
+# unable to detect it.
+ignore =
+  SECURITY.md
+  README.md
+  README.zh-CN.md
+  docs/*.md
+  core/redaction.py
+  skills/exfil-guard/**
+  tests/fixtures/secrets/*
+  tests/test_exfil_classifier.py
+  tests/test_exfil_sanitize.py
+  tests/test_exfil_policy.py
+  .agent-guard/exfil-allow.toml

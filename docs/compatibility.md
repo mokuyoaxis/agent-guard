@@ -8,7 +8,9 @@ may not, per release class.
 
 Harness adapters integrate against exactly four things:
 
-1. **Decision classes** - `ALLOW`, `RELOCATE`, `SNAPSHOT`, `ASK`, `BLOCK`.
+1. **Decision classes** - `ALLOW`, `SANITIZE`, `RELOCATE`, `SNAPSHOT`,
+   `ASK`, `BLOCK`. (`SANITIZE` was added in v0.2.0 for exfil-guard; it
+   ranks below `ASK`, between `ALLOW` and `RELOCATE`.)
 2. **Reason codes** - stable machine-readable strings (`RELOCATE_TREE`,
    `COMPOUND_CWD_DELETE`, `BLOCK_PROTECTED_PATH`, ...). See
    [../skills/delete-guard/references/policy.md](../skills/delete-guard/references/policy.md).
@@ -42,6 +44,12 @@ While the major version is `0`:
 | `AGENT_GUARD_DIALECT` env var | minor | Read by `check.py` and both adapters; unset means `posix` |
 | `BLOCK_DIALECT_UNKNOWN` / `BLOCK_DIALECT_INVALID` | minor | New reason codes (additive) |
 | PowerShell parameter prefix expansion | minor | `-r`/`-rec`/`-fo` now resolve; see below |
+| `SANITIZE` decision class | minor | exfil-guard; announced in both READMEs. Adapters must state their native mapping (a harness without re-write capability degrades to ASK/deny) |
+| `core/redaction.py` module (`SpanSpec`, `detect_secrets`, `detect_paths`, `scan_text`) | minor | Internal-but-documented; the fact layer for text spans |
+| `policy.decide_spans()` + the exfil reason codes | minor | New function; the ten new codes are additive |
+| `skills/exfil-guard/` (scripts, SKILL.md, references) | minor | Standalone CLI; no adapter change required to use it |
+| `check_span.py` exit codes | minor | `0` allow/sanitize, `2` block, `3` ask, `1` error - `check.py`'s contract is unchanged |
+| `.agent-guard/exfil-allow.toml` exemption file | minor | Read from the workspace root only; values exempted by `sha256:...`, never by value |
 
 Unknown dialect names raise `ValueError` from `normalize_dialect`, and the
 production paths (`check.py`, both adapters) turn an unusable selector into
