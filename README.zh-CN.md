@@ -42,8 +42,8 @@ Agent 正在越来越多地自主执行 shell 命令。当命令是 `rm -rf` 时
 稳定的跨 harness 接口不是 allow/block,而是一套 Decision Protocol:
 
 ```
-效果 → 分类器 → 策略 → Decision   ∈ { ALLOW, RELOCATE, SNAPSHOT,
-                                     ASK, BLOCK }
+效果 → 分类器 → 策略 → Decision   ∈ { ALLOW, SANITIZE, RELOCATE,
+                                     SNAPSHOT, ASK, BLOCK }
                            + ReasonCode   (稳定机器码)
                            + Explanation  (面向人类的解释)
                            + RecoveryPlan (txid 与补偿策略)
@@ -51,7 +51,7 @@ Agent 正在越来越多地自主执行 shell 命令。当命令是 `rm -rf` 时
 
 | 层级 | 判决 | Agent 的体验 |
 |---|---|---|
-| **SAFE** | `ALLOW` · `RELOCATE` · `SNAPSHOT` | 静默执行;补偿先行;凭 txid 可恢复 |
+| **SAFE** | `ALLOW` · `SANITIZE` · `RELOCATE` · `SNAPSHOT` | 静默执行;补偿先行;凭 txid 可恢复。`SANITIZE` 改写的是**载荷**而非命令,返回脱敏计划 |
 | **AMBIGUOUS** | `ASK` | 单次执行授权(`ASK_ONCE`)——例如 Guard 无法安全代办的复合形态 |
 | **FORBIDDEN** | `BLOCK` | 附理由与修正建议拒绝;永不升级为询问 |
 
@@ -59,6 +59,32 @@ Agent 正在越来越多地自主执行 shell 命令。当命令是 `rm -rf` 时
 一律走 BLOCK:放行它们等于放弃核心保证。各适配器把判决映射到原生机制——
 DSH 的 `PreToolDecision`、Claude Code PreToolUse 的 `ask`,不支持询问的
 harness 则降级为"携带解释的拒绝"。
+
+## 两个 Guard 分支
+
+`delete-guard` 回答"这次破坏还能回头吗";`exfil-guard` 回答"这份内容本该
+离开本机吗"——同一套决策协议互为镜像:删除先补偿再执行,泄露先脱敏再发出,
+而发出之后没有任何东西可以恢复。
+
+```bash
+# 扫描即将发出的载荷(stdin);退出码 0 放行/脱敏,2 拒绝,3 询问
+cat draft.md | python3 skills/exfil-guard/scripts/check_span.py --channel file-write
+
+# 应用 Guard 返回的脱敏计划
+cat draft.md | python3 skills/exfil-guard/scripts/sanitize.py --channel file-write
+```
+
+它检测已知厂商凭据特征(`secret/*`)、工作区之外本机绝对路径(`path/*`),
+以及**不读值、只按变量名**识别出的密钥环境变量与密钥库读取。信道决定处置:
+`file-write` / `llm-request` 可改写(`SANITIZE`),提交信息与推送载荷无法收回
+(`BLOCK`),终端输出既不能改写也无法抹除(`ASK`)。
+
+**exfil-guard 不做什么。** 它不是沙箱,也不阻止对抗性外泄。没有 hook 的信道
+它看不见:无代理的托管模型调用、模型自身的工具调用、程序内部产生的内容、
+人类剪贴板,在结构上不可达——对这些一律不作覆盖声明。它不是文件扫描器,
+也不改写 git 历史。它捕获的是 harness 经手信道上的**意外**披露,并留下判决
+记录;可达性依据见
+[docs/secret-guard-analysis.md](docs/secret-guard-analysis.md) §2.4。
 
 ## 快速开始
 
@@ -117,7 +143,8 @@ node_modules/(已 ignore) → ALLOW     (可证明可再生)
 ```
 agent-guard/
 ├── skills/delete-guard/   # Agent 行为层:SKILL.md + CLI 脚本
-├── core/                  # classifier · policy · recovery · audit
+├── skills/exfil-guard/    # 出口侧技能:check_span.py · sanitize.py
+├── core/                  # classifier · policy · recovery · audit · redaction
 ├── adapters/claude/       # Claude Code PreToolUse hook 适配器
 ├── tests/                 # unittest 测试套件,含跨 harness 一致性
 └── docs/                  # architecture · threat-model · friction log
@@ -151,7 +178,11 @@ fail-closed、只读 `.git` 下不污染工作树的审计预检、明确的
 的纯逻辑分词与效果映射在 `core/dialects.py`,PowerShell 无歧义参数前缀展开,
 方言选择已接入 `check.py --dialect`、`AGENT_GUARD_DIALECT` 与两个适配器,
 POSIX 行为与默认路径不变;真实 Windows 端到端验证仍需 Windows 机器),以及同一补偿引擎上的
-`database-guard` / `cloud-guard`。
+`database-guard` / `cloud-guard`。`v0.2.0` 增加第二个 Guard 分支:
+**`exfil-guard`**——新增 `SANITIZE` 判决、文本 span 分类器
+(`core/redaction.py`),以及无需改动适配器即可使用的
+`check_span.py` / `sanitize.py` 命令行。按兼容性契约这是 **minor** 版本
+(新增判决类、新增 reason code,并在 README 公告)。
 
 ## 许可证
 
