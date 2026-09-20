@@ -1,0 +1,4 @@
+interface:
+  display_name: "Exfil Guard"
+  short_description: "Disclosure discipline: no secrets or host paths in outbound payloads"
+  default_prompt: "Use $exfil-guard before any payload leaves the machine: scan it with check_span.py, apply the returned redaction plan, and stop when a channel blocks."
