@@ -53,6 +53,7 @@ RULE_JWT = "secret/jwt"
 RULE_PRIVATE_KEY_BLOCK = "secret/private-key-block"
 
 RULE_HOST_ABSOLUTE_PATH = "path/host-absolute"
+RULE_WORKSPACE_PATH = "path/workspace-relative"
 RULE_GENERIC_ABSOLUTE_PATH = "path/generic-absolute"
 RULE_SYSTEM_PATH = "path/system"
 RULE_DEVICE_PATH = "path/device"
@@ -307,4 +308,384 @@ def detect_secrets(text: str, channel: str = "") -> List[SpanSpec]:
         if not _b64url_json_has_alg(header):
             continue
         add(match, RULE_JWT, ["header segment decodes to JSON containing alg"])
+    return merge_spans(spans)
+
+
+# ------------------------------------------------------------ path detection
+#
+# Design 3.1: the workspace-relative exemption is the core rule. A path is
+# only a host identifier if it is OUTSIDE the workspace - so the guard uses
+# the one boundary it already computes confidently (delete-guard's
+# `discover_workspace`) and treats everything else as suspect UNLESS it is a
+# well-known system prefix. An absolute path with no prefix correlation at
+# all is only `contextual`, which keeps the default quiet (design 3.4/5.6).
+
+# POSIX absolute path. `~` is deliberately not a component character: it is
+# left-trimmed by the boundary, so `~/x/y` is redacted rather than being
+# lexed as a literal `~` directory name.
+# The lookbehind excludes `.` and `~` as well as word chars: without them
+# the pattern cuts a relative path in half (`./src/main.py` -> `/src/main.py`
+# is a host-absolute-looking match for a path that never left the workspace).
+# The group requires at least one separator, which is design 3.2's ">= 2
+# components" floor - without it a bare `/` (which occurs in every sentence
+# that contains a slash) would match.
+_POSIX_PATH_RE = re.compile(
+    r"(?<![\w:/~.])/(?:[A-Za-z0-9._@+-]+/)+[A-Za-z0-9._@+-]+")
+# Windows drive-absolute, UNC and device paths: `C:\a\b`, `C:/a`, `\\\\h\\s`,
+# `\\\\?\\C:\\x`, `\\\\.\\pipe\\p`.
+_WINDOWS_PATH_RE = re.compile(
+    r"(?<![\w:])[A-Za-z]:[\\/](?:[^\\/\s\"'<>|;:]+[\\/])*[^\\/\s\"'<>|;:]*"
+    r"|\\\\[^\\/\s]{1,}[\\/][^\\/\s]+(?:[\\/][^\\/\s\"'<>|;]*)*")
+# Windows environment interpolation: a path we cannot resolve (design 3.2).
+# A `%VAR%`/`$env:X` token is a *path* fact only where it introduces one;
+# `%dT%` in a strftime format string is not a path and must stay quiet.
+_WINDOWS_ENV_RE = re.compile(
+    r"(?:%[A-Za-z_][A-Za-z0-9_]*%|\$env:[A-Za-z_][A-Za-z0-9_]*)[\\/]")
+
+# System prefixes that identify the operating system, not the host. ALLOW by
+# default (design 3.1/exotic-last row), configurable via AGENT_GUARD_SYSTEM_PREFIXES.
+DEFAULT_SYSTEM_PREFIXES = (
+    "/usr", "/bin", "/sbin", "/lib", "/lib64", "/opt", "/etc", "/var",
+    "/proc", "/sys", "/dev", "/srv", "/run", "/boot", "/snap", "/nix",
+    "/Applications", "/System", "/Library", "/dev/null",
+    "C:\\Windows", "C:\\Program Files", "C:\\Program Files (x86)",
+    "C:\\ProgramData",
+)
+# Prefixes that host-qualify a location so strongly that they are treated as
+# identifying even though they sit under a system-looking root (design 3.2
+# "CI runners" / "Sandboxes" rows). Checked BEFORE the system prefixes:
+# a CI workspace is `/home/runner/work/...`, and `/var/lib/jenkins` is a
+# runner home, not a system directory.
+_CI_ROOT_PREFIXES = ("/home/", "/Users/", "/root", "/Volumes/",
+                     "/var/folders/", "/tmp/", "/workspace", "/builds",
+                     "/runner/", "/github/workspace", "/var/lib/jenkins",
+                     "/private/var/folders/", "/private/tmp", "/private/home",
+                     "/private/Users", "/private/root", "/private/var/tmp")
+# Locations that look like host paths but name a convention instead: macOS
+# ships `/Users/Shared`, and `/opt`, `/usr/local` are install roots.
+_EXEMPT_ABSOLUTE = ("/Users/Shared", "/usr/local", "/opt")
+
+
+def _split_env_list(value: str) -> List[str]:
+    return [item.strip() for item in re.split(r"[:;,]", value) if item.strip()]
+
+
+def host_markers() -> Dict[str, Any]:
+    """Derive the deny-set of host prefixes (design 3.3) - a set of literals,
+    never a pattern, and one that degrades portably when `getpass` fails.
+
+    Reads *names and shapes* only: `os.environ` is consulted for HOME-like
+    location prefixes (the actual things to redact), never for secret values.
+    """
+    names: Set[str] = set()
+    prefixes: Set[str] = set()
+    hostnames: Set[str] = set()
+
+    for key in ("HOME", "USERPROFILE", "LOCALAPPDATA", "TEMP", "TMP"):
+        value = os.environ.get(key)
+        if value and os.path.isabs(value):
+            prefixes.add(os.path.normpath(value))
+    try:
+        home = os.path.expanduser("~")
+    except Exception:                     # pragma: no cover - exotic setups
+        home = ""
+    if home and os.path.isabs(home):
+        prefixes.add(os.path.normpath(home))
+
+    try:
+        import getpass
+        user = getpass.getuser()
+    except Exception:                     # pragma: no cover - container/CI
+        user = ""
+    for candidate in (user, os.environ.get("USER"),
+                      os.environ.get("LOGNAME"), os.environ.get("USERNAME")):
+        if candidate:
+            names.add(candidate)
+    if home:
+        names.add(os.path.basename(home))
+
+    for key in ("AGENT_GUARD_HOSTNAMES", "AGENT_GUARD_HOME_MARKERS"):
+        extra = os.environ.get(key)
+        if extra:
+            names.update(_split_env_list(extra))
+    for key in ("AGENT_GUARD_HOME_PREFIXES",):
+        extra = os.environ.get(key)
+        if extra:
+            prefixes.update(_split_env_list(extra))
+
+    try:
+        hostnames.add(platform.node())
+        import socket
+        hostnames.add(socket.gethostname())
+    except Exception:                     # pragma: no cover - exotic setups
+        pass
+    hostnames.discard("")
+
+    overrides = os.environ.get("AGENT_GUARD_SYSTEM_PREFIXES")
+    system_prefixes = (tuple(_split_env_list(overrides)) if overrides
+                       else DEFAULT_SYSTEM_PREFIXES)
+    return {"prefixes": prefixes, "names": names, "hostnames": hostnames,
+            "system_prefixes": system_prefixes}
+
+
+def workspace_ancestors(workspace: Optional[str]) -> List[str]:
+    """Ancestors of the workspace root: by definition not to be echoed raw.
+
+    The filesystem root is excluded deliberately. It is *technically* an
+    ancestor of every workspace, but treating `/` as identifying would make
+    the rule a no-op (nothing is more generic than `/`), and the same is
+    true of any single-component prefix such as `/home` or `C:\` - those
+    carry no identity and are the documented generic tier (design 3.3).
+    """
+    if not workspace:
+        return []
+    physical = os.path.normpath(os.path.realpath(os.path.abspath(workspace)))
+    out: List[str] = []
+    current = physical
+    while True:
+        parent = os.path.dirname(current)
+        if parent == current:              # reached the root
+            break
+        if parent != os.path.dirname(parent) or os.sep not in parent:
+            # parent is itself a root ("/" or "C:\"): not identifying.
+            break
+        out.append(parent)
+        current = parent
+    return [p for p in out if len(p.strip(os.sep)) > 1]
+
+
+@dataclass
+class PathVerdict:
+    """One detected path with its boundary facts (facts, not decisions)."""
+
+    raw: str
+    start: int
+    end: int
+    path: str                             # normalized comparison form
+    windows: bool = False
+    absolute: bool = True
+    inside_workspace: bool = False
+    at_workspace_root: bool = False
+    is_system: bool = False
+    deterministic: bool = False           # matched the host deny-set
+    notes: List[str] = field(default_factory=list)
+
+    @property
+    def length(self) -> int:
+        return self.end - self.start
+
+
+def _normalize_candidate(raw: str, windows: bool) -> str:
+    """Normalize for comparison only; the raw spelling drives the rewrite."""
+    value = raw.rstrip(".,;:!?)\"'`")
+    # Trim a trailing separator on a rooted path ("/tmp/" -> "/tmp") so the
+    # boundary and prefix tests match; a bare "/" is never a match anyway.
+    if len(value) > 1 and value.endswith(("/", "\\")):
+        value = value[:-1]
+    if windows:
+        return os.path.normpath(value.replace("\\", "/")).replace("/", "\\")
+    return os.path.normpath(value)
+
+
+def _clean_candidate(text: str, span: "re.Match[str]") -> Optional[str]:
+    """The match, minus sentence punctuation and balanced wrapping."""
+    start, end = span.start(), span.end()
+    segment = text[start:end]
+    # A `(...)`-wrapped path (markdown link target) is redacted whole.
+    if start > 0 and end < len(text) and text[start - 1] == "(" \
+            and text[end] == ")":
+        return "(" + segment + ")"
+    return segment
+
+
+def _path_is_under(path: str, prefix: str, windows: bool) -> bool:
+    if windows:
+        a = path.replace("\\", "/").lower()
+        b = prefix.replace("\\", "/").lower()
+    else:
+        a, b = path, prefix
+    if a == b:
+        return True
+    return a.startswith(b.rstrip("/") + "/")
+
+
+def classify_path_candidate(raw: str, workspace: Optional[str],
+                            markers: Optional[Dict[str, Any]] = None,
+                            windows: Optional[bool] = None
+                            ) -> Optional[PathVerdict]:
+    """Fact extraction for one candidate path string."""
+    markers = markers or host_markers()
+    if windows is None:
+        windows = bool(_WINDOWS_PATH_RE.fullmatch(raw))
+    value = raw.rstrip(".,;:!?)\"'`")
+    if not value:
+        return None
+    if value.startswith("(") and value.endswith(")"):
+        value = value[1:-1]
+
+    # Separator normalization is only sound when the string actually IS a
+    # path: Windows accepts both separators, POSIX does not (a backslash is
+    # an ordinary filename byte), and fabricating semantics is the exact
+    # mistake `classifier._is_windows_absolute` documents.
+    normalized = _normalize_candidate(value, windows)
+    fact = PathVerdict(raw=raw, start=0, end=len(raw), path=normalized,
+                       windows=windows)
+
+    prefix_pool = list(markers["prefixes"])
+    system = tuple(markers["system_prefixes"])
+    exempt_locations = _EXEMPT_ABSOLUTE
+
+    if windows:
+        # A bare drive root (`C:\`) identifies the OS layout, not a host, and
+        # carries no path at all. Design 3.2's component floor applies here
+        # too; a real Windows path has at least two components.
+        if re.fullmatch(r"[A-Za-z]:[\\/]?", normalized):
+            fact.is_system = True
+            return fact
+        for system_prefix in system:
+            if _path_is_under(normalized, system_prefix, True):
+                fact.is_system = True
+                return fact
+
+    # A path at or under a known host prefix (HOME/TEMP/USERPROFILE) or any
+    # workspace ancestor is deterministic - a literal deny-set match, not a
+    # guess. Workspace ancestors are checked first because they are the most
+    # trusted source (design 3.3).
+    if workspace:
+        physical = os.path.normpath(
+            os.path.realpath(os.path.abspath(workspace)))
+        if _path_is_under(normalized, physical, windows):
+            fact.inside_workspace = True
+            fact.at_workspace_root = normalized == physical
+            return fact
+        for ancestor in workspace_ancestors(workspace):
+            if _path_is_under(normalized, ancestor, windows):
+                fact.deterministic = True
+                fact.notes.append("workspace ancestor")
+                return fact
+
+    for prefix in sorted(prefix_pool, key=len, reverse=True):
+        if _path_is_under(normalized, prefix, windows):
+            fact.deterministic = True
+            fact.notes.append("home/temp prefix: " + prefix)
+            return fact
+
+    for safe in exempt_locations:
+        if _path_is_under(normalized, safe, windows):
+            fact.is_system = True
+            fact.notes.append("documented non-identifying location")
+            return fact
+
+    for name in sorted(markers["names"], key=len, reverse=True):
+        if len(name) < 3:
+            continue
+        if any(_path_is_under(normalized, base + name, windows)
+               for base in ("/home/", "/Users/", "/Volumes/", "/root/")) \
+                or _path_is_under(normalized, "C:\\Users\\" + name, windows):
+            fact.deterministic = True
+            fact.notes.append("interpolated home marker")
+            return fact
+
+    if windows:
+        # UNC/device roots carry a host or device name.
+        if normalized.startswith("\\\\"):
+            fact.deterministic = True
+            fact.notes.append("UNC/device root")
+            return fact
+        return fact                          # generic drive path: contextual
+
+    # Single-component paths ("/project", "/tmp") name a *convention*, not a
+    # host: `/home`, `/Users` and `/etc` occur in every document that talks
+    # about paths. Design 3.2's ">= 2 components OR a known-root tie-in"
+    # floor is enforced here, which is what keeps this repository's own prose
+    # quiet.
+    if normalized.count("/") < 2:
+        fact.notes.append("single-component path: no host identity")
+        return fact
+    for ci in _CI_ROOT_PREFIXES:
+        if _path_is_under(normalized, ci, windows):
+            fact.deterministic = True
+            fact.notes.append("host-identifying root: " + ci)
+            return fact
+    for system_prefix in system:
+        if _path_is_under(normalized, system_prefix, windows):
+            fact.is_system = True
+            return fact
+    for hostname in markers["hostnames"]:
+        if hostname and hostname in normalized:
+            fact.deterministic = True
+            fact.notes.append("hostname in path")
+            return fact
+    return fact                              # generic absolute path
+
+
+def detect_paths(text: str, workspace: Optional[str] = None,
+                 channel: str = "") -> List[SpanSpec]:
+    """Absolute-path spans in `text`, with boundary facts in `notes`.
+
+    Fact layer only: ALLOW/SANITIZE/ASK is `policy.decide_spans`'s call.
+    """
+    markers = host_markers()
+    spans: List[SpanSpec] = []
+    occupied: List[Tuple[int, int]] = []
+
+    def emit(fact: PathVerdict, notes: Iterable[str]):
+        if "UNC/device root" in fact.notes:
+            rule_id = RULE_DEVICE_PATH
+        elif fact.inside_workspace:
+            # Not a host identifier at all (design 3.1): the exemption is a
+            # rule id of its own so the policy layer never has to infer it
+            # from the notes list.
+            rule_id = RULE_WORKSPACE_PATH
+        elif fact.is_system:
+            rule_id = RULE_SYSTEM_PATH
+        elif fact.deterministic:
+            rule_id = RULE_HOST_ABSOLUTE_PATH
+        else:
+            rule_id = RULE_GENERIC_ABSOLUTE_PATH
+        if "UNC/device root" in fact.notes and rule_id == RULE_DEVICE_PATH:
+            confidence = CONFIDENCE_DETERMINISTIC
+        else:
+            confidence = (CONFIDENCE_DETERMINISTIC
+                          if (fact.deterministic or fact.is_system)
+                          else CONFIDENCE_CONTEXTUAL)
+        span = SpanSpec(
+            raw=fact.raw, start=fact.start, end=fact.end, rule_id=rule_id,
+            family=FAMILY_PATH, confidence=confidence,
+            context=_note_context(text, fact.start), channel=channel,
+            notes=list(notes) + list(fact.notes))
+        spans.append(span)
+        occupied.append((span.start, span.end))
+
+    def overlaps(start: int, end: int) -> bool:
+        return any(start < e and end > s for s, e in occupied)
+
+    def consider(match: "re.Match[str]", windows: bool):
+        raw = _clean_candidate(text, match)
+        if raw is None:
+            return
+        start, end = match.start(), match.start() + len(raw)
+        if overlaps(start, end):
+            return
+        fact = classify_path_candidate(raw, workspace, markers, windows)
+        if fact is None:
+            return
+        fact.raw, fact.start, fact.end = raw, start, end
+        emit(fact, [])
+
+    for match in _WINDOWS_ENV_RE.finditer(text):
+        if overlaps(match.start(), match.end()):
+            continue
+        emit(PathVerdict(raw=match.group(0), start=match.start(),
+                         end=match.end(), path=match.group(0),
+                         windows=True, absolute=False,
+                         deterministic=False,
+                         notes=["unresolvable Windows environment reference"]),
+             ["interpolation: the path cannot be resolved"])
+    # Windows paths first: a backslash spelling is unambiguous, so it must
+    # not be nibbled at by the POSIX pattern.
+    for match in _WINDOWS_PATH_RE.finditer(text):
+        consider(match, True)
+    for match in _POSIX_PATH_RE.finditer(text):
+        consider(match, False)
     return merge_spans(spans)
