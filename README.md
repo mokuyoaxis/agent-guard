@@ -58,6 +58,18 @@ Effect → Classifier → Policy → Decision   ∈ { ALLOW, SANITIZE, RELOCATE,
 | **AMBIGUOUS** | `ASK` | Single-execution authorization (`ASK_ONCE`) — e.g. compound shapes the guard cannot safely automate |
 | **FORBIDDEN** | `BLOCK` | Refused with reason and remediation; never askable |
 
+Precedence when several decisions meet in one operation, weakest to
+strongest:
+
+```
+ALLOW < SANITIZE < RELOCATE < SNAPSHOT < ASK < BLOCK
+```
+
+`SANITIZE` ranks *below* `ASK` deliberately: it is automatic (SAFE tier),
+while `ASK` forfeits automation. A payload carrying both a sanitizable
+secret and a shape that cannot be rewritten must `ASK` — you cannot
+silently proceed when part of the emission is uninspectable.
+
 True effect-uncertainty (`$VAR` targets, `bash -c`, `find -delete`,
 stdin-fed lists) stays on the BLOCK path: allowing it would forfeit the
 core guarantee. Adapters map decisions onto their harness natively — DSH
@@ -70,33 +82,140 @@ explanation where no ask exists.
 `exfil-guard` answers *"if this leaves the machine, was it supposed to?"* -
 the same Decision Protocol, mirrored: where deletion compensates and
 proceeds, disclosure redacts and emits, and there is nothing to recover
-afterwards.
+afterwards. `delete-guard` guards *before a delete*; `exfil-guard` guards
+*before an emission*.
+
+## exfil-guard
+
+**What it is.** A pre-emission filter for the text an agent is about to
+write, send, commit or push. It keeps two things from leaving the machine by
+accident: **known credentials**, and **host-identifying absolute paths**.
+It is a redaction guard, not a compensation engine - there is nothing to
+recover after an emission, which is why it is built around *prevention plus a
+decision trail* rather than undo.
+
+It is **not a security sandbox** and does not stop adversarial exfiltration.
+It defends against mistakes, not against a malicious agent with equal OS
+privileges.
+
+### Decisions exfil-guard can return
+
+The full Decision Protocol applies, but only four classes are reachable for
+a text payload (`RELOCATE`/`SNAPSHOT` belong to delete-guard - the guard
+cannot rewrite what it did not write):
+
+| Decision | Meaning | Example |
+|---|---|---|
+| `ALLOW` | nothing matched, a documented placeholder, or a workspace-relative path | `echo "hello" \| check_span.py` |
+| `SANITIZE` | a redaction plan is returned; the *payload owner* rewrites and emits | a real key on `file-write` / `llm-request` |
+| `ASK` | the channel cannot be rewritten and cannot be taken back | a host path on `shell-stdout` |
+| `BLOCK` | refuse: immutable/remote history, an un-scannable payload, invalid config | a credential in `git-push-payload` |
+
+### What is detected
+
+**T1 vendor credential patterns** (`secret/*`, deterministic, near-zero
+false positives). Rule ids: `secret/openai-key`, `secret/github-token`,
+`secret/aws-access-key-id`, `secret/gitlab-token`, `secret/slack-token`,
+`secret/stripe-key` (live keys only - `sk_test_` is exempt), `secret/jwt`
+(structural: the header must base64-decode to JSON containing `alg`), and
+`secret/private-key-block` (whole `-----BEGIN ... PRIVATE KEY-----` block,
+redacted in one piece). See
+[skills/exfil-guard/references/rules.md](skills/exfil-guard/references/rules.md)
+for the frozen table.
+
+**Value-free secret references** (`secret/source-reference`). The guard
+classifies an environment variable's *name* (`*KEY*`, `*TOKEN*`,
+`*SECRET*`, `*PASSWORD*`, `*CRED*`, `*AUTH*`) and a secret-store *file name*
+(`.env`, `*.pem`, `id_rsa*`, `.netrc`, `kubeconfig`, ...), and detects
+whole-environment expansions (`printenv`, `env | ...`, `cat
+/proc/self/environ`). It **never reads the value** - that invariant is what
+keeps the guard's own output, logs and audit lines leak-free.
+
+**Host-identifying paths** (`path/*`). `path/workspace-relative` is `ALLOW`
+(the workspace is exempt); `path/system` (`/usr`, `/etc`, `C:\Windows`) is
+`ALLOW`; `path/host-absolute` (under `HOME`/`TEMP`, a CI root, or a
+workspace ancestor) is `SANITIZE`; `path/generic-absolute` (no host
+correlation) is `ASK`; `path/device` (UNC, `\\?\`, pipes) is `SANITIZE`.
+
+### Channel decide the disposition
+
+A channel is defined by two facts: can it be **rewritten**, and does the
+emission **persist**? `rewritable` is what makes `SANITIZE` meaningful;
+`persistence` is what justifies `BLOCK`.
+
+| Channel | Rewritable | Persistence | Default |
+|---|---|---|---|
+| `llm-request` | yes | remote | SANITIZE |
+| `file-write` | yes | workspace | SANITIZE |
+| `forge-comment` / `issue-body` / `pr-description` | yes | public | SANITIZE |
+| `git-commit-message` | yes (rewrite argv) | remote history | **BLOCK** |
+| `git-push-payload` | no | **remote** | **BLOCK** |
+| `shell-stdout` | **no** | local transcript | ASK |
+| `shell-file-redirect` | yes | local | ASK |
+| `archive-upload` | yes | remote | ASK |
+| `process-argv` | yes | local | ASK |
+
+An unknown channel name is a configuration defect, not "no risk":
+`check_span.py` returns `BLOCK_OUTPUT_UNSCANNABLE`, never an implicit ALLOW.
+
+### Usage
+
+`check_span.py` reads the payload on **stdin** and is a pure function - it
+never writes, never rewrites, and never prints the match. `sanitize.py`
+applies the plan the guard returned.
 
 ```bash
-# scan an outbound payload (stdin); exit 0 allow/sanitize, 2 block, 3 ask
-cat draft.md | python3 skills/exfil-guard/scripts/check_span.py --channel file-write
+# a credential on a rewritable channel -> SANITIZE, exit 0
+echo 'config: sk-proj-AbCdEf…' | python3 skills/exfil-guard/scripts/check_span.py --channel file-write
 
-# apply the redaction plan the guard returned
-cat draft.md | python3 skills/exfil-guard/scripts/sanitize.py --channel file-write
+# a credential bound for remote history -> BLOCK, exit 2
+echo 'token=ghp_abcdefghijklmnopqrstuvwxyz…' | python3 skills/exfil-guard/scripts/check_span.py --channel git-push-payload
+
+# apply the redaction plan (format preserved: sk-<REDACTED>)
+echo 'config: sk-proj-AbCdEf…' | python3 skills/exfil-guard/scripts/sanitize.py --channel file-write
 ```
 
-It detects known vendor credential patterns (`secret/*`), host-identifying
-absolute paths outside the workspace (`path/*`), and - value-free, by *name*
-only - reads of a secret-bearing environment variable or secret store.
-Channel decides the disposition: a `file-write` or `llm-request` can be
-rewritten (`SANITIZE`), a commit message or push payload cannot be taken back
-(`BLOCK`), and a terminal transcript can neither be rewritten nor recalled
-(`ASK`).
+Exit code contract: `0` = ALLOW/SANITIZED · `2` = BLOCK · `3` = ASK ·
+`1` = ERROR. Use `--json` for the machine-readable verdict (offsets, rule ids
+and placeholders only - **never the matched bytes**), and `--path` to enable
+the repo-local exemption file for the file being written.
 
-**What exfil-guard does not do.** It is not a sandbox and does not prevent
-adversarial exfiltration. It cannot see channels with no hook: a hosted model
-call with no proxy, the model's own tool calls, content produced *inside* a
-program, or the human clipboard are unreachable by construction - no coverage
-is claimed there. It is not a file scanner, and it does not rewrite git
-history. It catches *accidental* disclosure on channels the harness routes
-through a hook, with a decision trail; see
-[docs/secret-guard-analysis.md](docs/secret-guard-analysis.md) §2.4 for the
-reachability table this claim is traceable to.
+### Relationship to delete-guard
+
+They are two halves of the same promise, on opposite sides of the action:
+
+| | `delete-guard` | `exfil-guard` |
+|---|---|---|
+| Question | "can we come back?" | "was this supposed to leave?" |
+| Guards | *before a delete* | *before an emission* |
+| Response | compensate, then proceed | redact, then emit |
+| Failure cost | recoverable via txid | **irreversible** |
+| Entry point | `check.py -- <command>` | `check_span.py` (stdin) |
+
+They share the vocabulary (`core/policy.py`), the aggregation (`worst()`),
+the exemption discipline, and the audit log. `worst()` is shared by both
+guards, which is why `SANITIZE` had to be ranked once, not twice.
+
+### Coverage and limitations
+
+This is stated plainly, because a reliability tool that overstates its reach
+is a false security claim:
+
+- **Not a sandbox.** It does not prevent adversarial exfiltration. An agent
+  that obfuscates a secret to evade the scanner is out of scope; this
+  catches *accidents*.
+- **Channels with no hook are unreachable by construction.** A hosted model
+  call with no proxy, the model's own tool calls, content produced *inside* a
+  program, and the human clipboard get **no verdict at all** - no coverage is
+  claimed there. See `references/channels.md` and
+  [docs/secret-guard-analysis.md](docs/secret-guard-analysis.md) §2.4 for
+  the reachability table this claim is traceable to.
+- **Not a file scanner.** It is not a gitleaks replacement; it scans what the
+  guard can see *on the way out*.
+- **No history rewriting.** Detecting a secret already in git history is a
+  report at most. Rewriting history is a human action with its own risks.
+- **No T3 entropy detector in this release.** It is the single largest
+  false-positive source, and the named scenarios do not require it.
 
 ## Quickstart
 
@@ -178,6 +297,8 @@ compensation engine without restructuring.
 | [docs/test-report-codex-gpt-5.6-sol.md](docs/test-report-codex-gpt-5.6-sol.md) | v0.1.1 Codex evaluation (medium + high) |
 | [docs/test-report-dsh-v0.1.1.md](docs/test-report-dsh-v0.1.1.md) | v0.1.1 DSH live test (DeepSeek V4 Pro high, minimal mode) |
 | [skills/delete-guard/references/policy.md](skills/delete-guard/references/policy.md) | full rule table and decision codes |
+| [skills/exfil-guard/references/rules.md](skills/exfil-guard/references/rules.md) | exfil rule table, reason codes, exemption format, audit shape |
+| [skills/exfil-guard/references/channels.md](skills/exfil-guard/references/channels.md) | egress-channel taxonomy and the unreachable channels |
 
 ## Status & roadmap
 
