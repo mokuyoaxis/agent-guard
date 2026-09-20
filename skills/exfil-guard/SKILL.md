@@ -109,5 +109,13 @@ false security claim:
 - **Rewriting history.** Detecting a secret already in git history is a
   report at most; rewriting it is a human action with its own risks.
 
-See `references/rules.md` for the frozen rule table and `references/channels.md`
-for the egress taxonomy.
+## Exemptions
+
+`.agent-guard/exfil-allow.toml` at the workspace root declares reviewed false
+positives (path globs, and literal values **by sha256 hash only**). It is a
+host-side file: read from the workspace root, not settable per call. If a
+scan hits something you believe is benign, report it - do not weaken the
+rule, and do not route around the guard.
+
+See `references/rules.md` for the frozen rule table, the exemption format and
+the audit record shape; `references/channels.md` for the egress taxonomy.

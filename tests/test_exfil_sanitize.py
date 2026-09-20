@@ -275,5 +275,85 @@ class SourceDumpDiscipline(unittest.TestCase):
                     "BLOCK_SECRET_SOURCE_DUMP")
 
 
+class ExemptionFile(unittest.TestCase):
+    """Design 5.2: repo-local exemptions, value-exemptions by hash only."""
+
+    def test_rule_and_path_globs(self):
+        from core.redaction import Exemption, apply_exemption
+        exemption = Exemption(rules=["secret/source-reference"],
+                              paths=["docs/*.md", "tests/fixtures/*"])
+        spans = scan_text("cat .env", "file-write", ROOT).spans
+        self.assertTrue(spans)
+        self.assertEqual(apply_exemption(spans, exemption, "docs/a.md", ROOT),
+                         [])
+        self.assertEqual(apply_exemption(spans, exemption, "other.py", ROOT),
+                         [])
+
+    def test_relative_path_matching_is_workspace_scoped(self):
+        from core.redaction import Exemption
+        exemption = Exemption(paths=["docs/*.md"])
+        self.assertTrue(exemption.path_exempt(os.path.join(ROOT, "docs/a.md"),
+                                              ROOT))
+        self.assertFalse(exemption.path_exempt(
+            os.path.join(ROOT, "src/a.md"), ROOT))
+
+    def test_value_exemption_is_by_hash_only(self):
+        import hashlib
+        from core.redaction import Exemption
+        value = "EXEMPT-" + "abcdef0123456789"
+        digest = "sha256:" + hashlib.sha256(value.encode()).hexdigest()
+        exemption = Exemption(hashes=[digest])
+        self.assertTrue(exemption.value_exempt(value))
+        self.assertFalse(exemption.value_exempt(value + "x"))
+
+    def test_allowfile_parser_handles_sections_and_lists(self):
+        from core.redaction import _parse_allowfile
+        parsed = _parse_allowfile("""
+[paths]
+ignore = docs/*.md, tests/fixtures/*
+          more/x.py
+[rules]
+disable =
+[values]
+sha256 = sha256:aaaa
+""", "x")
+        self.assertEqual(parsed.rules, [])
+        self.assertEqual(parsed.paths,
+                         ["docs/*.md", "tests/fixtures/*", "more/x.py"])
+        self.assertEqual(parsed.hashes, ["sha256:aaaa"])
+
+    def test_broken_allowfile_never_disables_the_rules(self):
+        from core.redaction import _parse_allowfile
+        parsed = _parse_allowfile("this is not = = a config\n\x00", "x")
+        self.assertFalse(parsed.active)
+
+    def test_repository_own_corpus_has_zero_blocks(self):
+        """Design 5.6: the noise budget, measured rather than asserted."""
+        from core.redaction import get_channel
+        from core import policy
+        blockers = []
+        for base, dirs, files in os.walk(ROOT):
+            dirs[:] = [d for d in dirs
+                       if d not in {".git", "__pycache__", "node_modules",
+                                    ".agent-trash"}]
+            for name in files:
+                path = os.path.join(base, name)
+                try:
+                    with open(path, encoding="utf-8") as fh:
+                        text = fh.read()
+                except (OSError, UnicodeDecodeError):
+                    continue
+                scan = scan_text(text, "file-write", ROOT, path=path)
+                if not scan.scanned:
+                    blockers.append((path, "unscannable"))
+                    continue
+                for verdict in policy.decide_spans(
+                        scan.spans, channel=get_channel("file-write")):
+                    if verdict.decision == policy.DECISION_BLOCK:
+                        blockers.append((os.path.relpath(path, ROOT),
+                                         verdict.code))
+        self.assertEqual(blockers, [], f"noise budget exceeded: {blockers}")
+
+
 if __name__ == "__main__":
     unittest.main()

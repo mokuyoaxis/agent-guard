@@ -64,6 +64,9 @@ def main() -> int:
     ap.add_argument("--json", action="store_true", dest="as_json")
     ap.add_argument("--max-bytes", type=int, default=None,
                     help="override the scan size cap")
+    ap.add_argument("--path", default=None,
+                    help="path the payload will be written to; enables the "
+                         "repo-local exemption file for that path")
     args = ap.parse_args()
 
     workspace = args.workspace
@@ -111,8 +114,11 @@ def main() -> int:
                      policy.CODE_BLOCK_OUTPUT_UNSCANNABLE, [], [], args, 2)
 
     scan = scan_text(text, channel=channel_name, workspace=workspace,
-                     max_bytes=args.max_bytes)
+                     max_bytes=args.max_bytes, path=args.path)
     out["scanned"] = scan.scanned
+    out["exempted"] = scan.exempted
+    if args.path:
+        out["path"] = args.path
     if not scan.scanned:
         out["reason"] = scan.error
         return _emit(out, policy.DECISION_BLOCK,

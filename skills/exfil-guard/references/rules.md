@@ -126,6 +126,41 @@ real credential can never live in that regime.
 | `AGENT_GUARD_HOME_PREFIXES` | extra literal prefixes to treat as host-identifying |
 | `AGENT_GUARD_SYSTEM_PREFIXES` | override the system-prefix allow set |
 | `AGENT_GUARD_WORKSPACE` | workspace boundary (shared with delete-guard) |
+| `--path` (`check_span.py`) | the path the payload will be written to; enables the repo-local exemption file for that path |
+
+## Repo-local exemptions (design 5.2)
+
+`.agent-guard/exfil-allow.toml` (or `.agent-guardignore`) is read from the
+**workspace root only**, so an agent cannot add one on the fly.
+
+```toml
+[rules]
+disable = []                       # rule-id globs; [] means none
+[values]
+sha256 =                          # exempt a literal WITHOUT tracking it
+  sha256:8ab1...e7
+[paths]
+ignore =                           # path globs skipped entirely
+  docs/*.md
+  tests/fixtures/secrets/*
+```
+
+Three properties matter:
+
+1. **Value exemptions are by hash.** A human who needs one specific literal
+   exempted provides `sha256:...`; the guard compares hashes. Writing the
+   value into a tracked file *is* the bug this feature exists to prevent.
+2. **Path exemptions, not rule amnesty.** Scoping an exemption to a path
+   keeps the rule fully active everywhere else. Disabling the rule wholesale
+   is what would blind the guard.
+3. **A broken allowfile fails closed.** Malformed input is ignored and the
+   rules stay on - never the reverse.
+
+This repository ships such a file for its own documentation and fixtures,
+exactly as `SECURITY.md` documents "Expected scanner hits on this
+repository". The `[paths]` list is a *reviewed* list: it names the files
+that discuss the topic, and the noise-budget test still measures the whole
+corpus.
 
 ## Audit record shape
 
@@ -149,8 +184,6 @@ Anything else is a rule bug, not a tuning problem. Verified by
 
 ## Known limitations (V1.y)
 
-- Payloads must be ASCII. A non-ASCII payload is refused unscanned rather
-  than silently under-scanned.
 - T3 (generic entropy with a context gate) is **not in this release**: it is
   the single largest false-positive source, and the named scenarios do not
   require it (design 6.2 item 3).

@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import fnmatch
 import hashlib
 import json
 import math
@@ -59,12 +60,6 @@ RULE_WORKSPACE_PATH = "path/workspace-relative"
 RULE_GENERIC_ABSOLUTE_PATH = "path/generic-absolute"
 RULE_SYSTEM_PATH = "path/system"
 RULE_DEVICE_PATH = "path/device"
-
-# Everything the placeholder allowlist can observe is ASCII; a payload
-# containing any non-ASCII byte is therefore unscannable (fail closed,
-# see scan_text).
-_ASCII_ONLY = True
-
 
 @dataclass
 class SpanSpec:
@@ -245,13 +240,30 @@ SECRET_STORE_NAMES = frozenset({
 })
 SECRET_STORE_SUFFIXES = (".pem", ".key", ".p12", ".pfx", ".tfvars",
                          ".keystore", ".jks")
+# `.env` and its dotted variants (`.env.local`, `.env.production`): these
+# are the same secret store, and `.env.local` is the file people actually
+# commit by accident.
+SECRET_STORE_ENV_RE = re.compile(r"(?<![\w.@])\.env(?:\.[A-Za-z0-9_-]+)?"
+                                 r"(?![\w-])")
 # Whole-environment expansion: value-free detection (T2), ASK-only.
+# "Read the WHOLE environment": the *shape* of the command, not the word.
+# Design 2.4 item 4 - only the no-argument expansion forms are dumps:
+#   `env`, `env | grep X`, `printenv`, `set`, `export -p`, /proc/self/environ
+# `env FOO=bar cmd` and `printenv FOO` are *not* dumps (they name what they
+# touch), and prose that merely contains the word "env" is not a command.
+# A rule that fires on documentation is a rule that gets disabled.
+# `env`/`printenv`/`set` must also be *invoked as a command*: at the start
+# of the payload (optionally after a shell separator) or followed by a pipe.
+# Without that anchor, any line of Python (`if env:`) or any regex that
+# quotes the word would be read as a dump - and this repository's own source
+# is exactly that. Only the whole-environment expansion forms count
+# (design 2.4 item 4): `printenv FOO` and `env FOO=bar cmd` name what they
+# touch and are not dumps.
+_SHELL_AT_START = r"(?:^|[;&|]\s*|\$\s+)"
 ENV_DUMP_RE = re.compile(
-    r"(?<![\w.])(?:printenv|env)\b[^\n|;&]*\|"
-    r"|(?<![\w.])printenv\b"
-    r"|(?<![\w.])cat\s+/proc/self/environ"
-    r"|(?<![\w.])export\s+-p\b"
-    r"|(?<![\w.])set\s*$", re.MULTILINE)
+    _SHELL_AT_START + r"(?:env|printenv)\s*\|"
+    r"|" + _SHELL_AT_START + r"(?:env|printenv|export\s+-p|set)\s*$"
+    r"|(?<![\w.])cat\s+/proc/self/environ", re.MULTILINE)
 
 
 def _b64url_json_has_alg(segment: str) -> bool:
@@ -773,6 +785,7 @@ class ScanResult:
     error: str = ""
     truncated: bool = False
     size_bytes: int = 0
+    exempted: int = 0
 
     @property
     def found(self) -> bool:
@@ -800,10 +813,15 @@ _STORE_SUFFIX_ALT = "|".join(re.escape(s.lstrip(".")) for s in
                                     reverse=True))
 # A secret-store file: a path ending in a known name/suffix, optionally
 # quoted, in any position (reading it is the whole point of the payload).
+# `process.env` / `config.credentials` are property accesses, not files:
+# require the name to start a word (not follow a `.`) and to be either
+# path-qualified, quoted, or standalone. Backtick/quote/space/`=`/`/` are
+# the positions a file name really appears in.
 SECRET_STORE_RE = re.compile(
-    r"(?:[\w.@~$%{}/\\-]*[\\/])?(?:"
-    + _STORE_NAME_ALT + r")(?:\b|$)"
-    r"|[\w./\\-]+\.(?:" + _STORE_SUFFIX_ALT + r")\b")
+    r"(?<![.\w])(?:[\w@~$%{}-]*[\\/])?(?:" + _STORE_NAME_ALT + r")"
+    r"(?![\w-]|\.[A-Za-z])"
+    r"|(?<![.\w])[\w@~$%{}-]*(?:[\\/][\w.-]+)*\.(?:"
+    + _STORE_SUFFIX_ALT + r")(?![\w])")
 
 
 # A variable *name* that marks its value as secret-bearing. Classification
@@ -831,6 +849,10 @@ def _secret_source_reference(text: str) -> Optional[Tuple[str, int, int, str]]:
         raw = match.group(0).rstrip(" |\t")
         return raw, match.start(), match.start() + len(raw), \
             "environment expansion"
+    match = SECRET_STORE_ENV_RE.search(text)
+    if match:
+        return match.group(0), match.start(), match.end(), \
+            "secret store: " + match.group(0)
     match = SECRET_STORE_RE.search(text)
     if match:
         return match.group(0), match.start(), match.end(), \
@@ -843,9 +865,151 @@ def _secret_source_reference(text: str) -> Optional[Tuple[str, int, int, str]]:
     return None
 
 
+# ------------------------------------------------- repo-local exemptions
+#
+# Design 5.2: `.agent-guard/exfil-allow.toml` (or `.agent-guardignore`)
+# disables rules and exempts paths. Value exemptions are **by hash only** -
+# a human who needs a specific literal exempted provides `sha256:...`, never
+# the value, because writing the value into a tracked file is itself the bug
+# this feature exists to prevent.
+
+DEFAULT_ALLOWFILE = ".agent-guard/exfil-allow.toml"
+DEFAULT_IGNOREFILE = ".agent-guardignore"
+
+
+@dataclass
+class Exemption:
+    """Parsed exemption config. Rule/path globs plus sha256 value hashes."""
+
+    rules: List[str] = field(default_factory=list)
+    paths: List[str] = field(default_factory=list)
+    hashes: List[str] = field(default_factory=list)
+    source: str = ""
+
+    @property
+    def active(self) -> bool:
+        return bool(self.rules or self.paths or self.hashes)
+
+    def rule_disabled(self, rule_id: str) -> bool:
+        return any(fnmatch.fnmatch(rule_id, pat) for pat in self.rules)
+
+    def path_exempt(self, path: str, root: Optional[str] = None) -> bool:
+        if not self.paths or not path:
+            return False
+        candidates = [path]
+        if root:
+            try:
+                rel = os.path.relpath(os.path.abspath(path),
+                                      os.path.abspath(root))
+                candidates.append(rel)
+                # A `docs/*.md` pattern means "under the workspace docs
+                # directory", regardless of how the caller spelled the path.
+                parts = rel.split(os.sep)
+                candidates.extend(os.sep.join(parts[i:])
+                                  for i in range(1, len(parts)))
+            except ValueError:                # different drives (Windows)
+                pass
+            except ValueError:                # different drives (Windows)
+                pass
+        return any(fnmatch.fnmatch(cand, pat)
+                   for cand in candidates for pat in self.paths)
+
+    def value_exempt(self, raw: str) -> bool:
+        """Hash comparison only - the guard never stores the value."""
+        if not self.hashes or not raw:
+            return False
+        digest = "sha256:" + hashlib.sha256(
+            raw.encode("utf-8", errors="surrogatepass")).hexdigest()
+        return digest in self.hashes
+
+
+def _parse_allowfile(text: str, source: str) -> Exemption:
+    """Minimal `key = value` parser - no third-party TOML dependency.
+
+    Continuation lines are supported: a key whose value starts on its own
+    line keeps consuming the indented lines that follow, which is how the
+    lists in `.agent-guard/exfil-allow.toml` stay readable. Malformed input
+    is ignored rather than fatal - a broken allowfile must never quietly
+    turn the guard off.
+    """
+    exemption = Exemption(source=source)
+    section = ""
+    key = ""
+    values: List[str] = []
+
+    def flush():
+        if not key:
+            return
+        items = [v.strip().strip("'\"") for v in values if v.strip("'\"")]
+        if key in ("rule", "rules", "disable") or section == "rules":
+            exemption.rules.extend(items)
+        elif key in ("path", "paths", "ignore") or section == "paths":
+            exemption.paths.extend(items)
+        elif key in ("sha256", "hash", "hashes") or section == "values":
+            exemption.hashes.extend(items)
+
+    def push(raw: str):
+        """Split one value chunk on commas/whitespace, ignoring [] and ''."""
+        chunk = raw.strip().strip("[]")
+        for item in re.split(r"[,\s]+", chunk):
+            item = item.strip().strip("'\"")
+            if item:
+                values.append(item)
+
+    for raw_line in text.splitlines():
+        line = raw_line.split("#", 1)[0].rstrip()
+        if not line.strip():
+            continue
+        if line.lstrip().startswith("["):
+            flush()
+            key, values = "", []
+            section = line.strip().strip("[]").strip().lower()
+            continue
+        if "=" in line:
+            flush()
+            values = []
+            key, _, value = line.partition("=")
+            key = key.strip().lower()
+            push(value)
+            continue
+        if key:
+            push(line)
+    flush()
+    return exemption
+
+
+def load_exemption(workspace: Optional[str]) -> Exemption:
+    """Read the repo-local exemption file; absent means "no exemptions"."""
+    if not workspace:
+        return Exemption()
+    for relative in (DEFAULT_ALLOWFILE, DEFAULT_IGNOREFILE):
+        path = os.path.join(workspace, relative)
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                return _parse_allowfile(fh.read(), relative)
+        except (OSError, UnicodeDecodeError):
+            continue
+    return Exemption()
+
+
+def apply_exemption(spans: List[SpanSpec], exemption: Exemption,
+                    path: Optional[str] = None,
+                    root: Optional[str] = None) -> List[SpanSpec]:
+    """Drop spans a reviewed exemption covers. Never restores a value."""
+    if not exemption.active:
+        return spans
+    if exemption.path_exempt(path, root):
+        return []
+    return [s for s in spans
+            if not exemption.rule_disabled(s.rule_id)
+            and not exemption.value_exempt(s.raw)]
+
+
 def scan_text(text: str, channel: str = "",
               workspace: Optional[str] = None,
-              max_bytes: Optional[int] = None) -> ScanResult:
+              max_bytes: Optional[int] = None,
+              path: Optional[str] = None,
+              exemption: Optional[Exemption] = None) -> ScanResult:
     """Detect every secret/path span in `text` (facts only).
 
     Never returns a partial result as clean: an over-cap payload, a
@@ -861,12 +1025,12 @@ def scan_text(text: str, channel: str = "",
         result.truncated = True
         result.error = f"payload exceeds scan cap ({size} > {limit} bytes)"
         return result
-    if _ASCII_ONLY and not text.isascii():
-        # The placeholder allowlist compares ASCII words; a payload in
-        # another encoding could hide a match from it. Refuse to guess.
-        result.scanned = False
-        result.error = "payload is not ASCII; the allowlist cannot certify it"
-        return result
+    # Note on non-ASCII payloads: they are scanned normally. The vendor
+    # patterns are ASCII-anchored and `re` matches on characters, so a
+    # non-ASCII byte cannot smuggle a match past them, and the placeholder
+    # allowlist only ever needs to see the (ASCII) token it was handed.
+    # Refusing every document that contains an em-dash or CJK prose would
+    # make the guard unusable without buying any detection.
 
     workspace = workspace or os.environ.get("AGENT_GUARD_WORKSPACE")
     try:
@@ -892,5 +1056,9 @@ def scan_text(text: str, channel: str = "",
             family=FAMILY_SECRET, confidence=CONFIDENCE_DETERMINISTIC,
             context="env-var", channel=channel, source_dump=True,
             notes=["value-free reference detection", reason]))
-    result.spans = merge_spans(spans)
+    if exemption is None:
+        exemption = load_exemption(workspace)
+    result.spans = apply_exemption(merge_spans(spans), exemption, path,
+                                   workspace)
+    result.exempted = len(merge_spans(spans)) - len(result.spans)
     return result
