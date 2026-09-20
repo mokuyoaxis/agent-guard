@@ -51,6 +51,8 @@ RULE_SLACK_TOKEN = "secret/slack-token"
 RULE_STRIPE_KEY = "secret/stripe-key"
 RULE_JWT = "secret/jwt"
 RULE_PRIVATE_KEY_BLOCK = "secret/private-key-block"
+# A value-free reference to a secret source (env var name / secret store).
+RULE_SECRET_SOURCE = "secret/source-reference"
 
 RULE_HOST_ABSOLUTE_PATH = "path/host-absolute"
 RULE_WORKSPACE_PATH = "path/workspace-relative"
@@ -77,6 +79,12 @@ class SpanSpec:
     context: str                # "prose" | "key=..." | "env-var" | ...
     channel: str                # egress channel carrying the payload
     notes: List[str] = field(default_factory=list)
+    # Set by `scan_text`, never by a detector: the payload reads a secret
+    # store the guard cannot see into, so nothing here can be certified.
+    source_dump: bool = False
+    # Set by policy-facing callers to record that the *context gate* fired
+    # for a contextual (T3-class) match. Pure payload; no bytes.
+    context_gate: bool = False
 
     @property
     def length(self) -> int:
@@ -239,10 +247,11 @@ SECRET_STORE_SUFFIXES = (".pem", ".key", ".p12", ".pfx", ".tfvars",
                          ".keystore", ".jks")
 # Whole-environment expansion: value-free detection (T2), ASK-only.
 ENV_DUMP_RE = re.compile(
-    r"(?<![\w.])(?:printenv|env)\s+\|\s*\w+"
-    r"|(?<![\w.])printenv\s+[A-Za-z_][A-Za-z0-9_]*"
+    r"(?<![\w.])(?:printenv|env)\b[^\n|;&]*\|"
+    r"|(?<![\w.])printenv\b"
     r"|(?<![\w.])cat\s+/proc/self/environ"
-    r"|(?<![\w.])export\s+-p\b")
+    r"|(?<![\w.])export\s+-p\b"
+    r"|(?<![\w.])set\s*$", re.MULTILINE)
 
 
 def _b64url_json_has_alg(segment: str) -> bool:
@@ -745,3 +754,143 @@ def get_channel(name: str) -> Optional[Channel]:
     if not name:
         return None
     return CHANNELS.get(name.strip().lower())
+
+
+# --------------------------------------------------------------- scan entry
+
+# Explicit size cap (design 6.3): a payload we did not scan must never be
+# reported as clean, so exceeding the cap is a BLOCK-class fact, not a
+# silent truncation.
+DEFAULT_MAX_SCAN_BYTES = 4 * 1024 * 1024
+
+
+@dataclass
+class ScanResult:
+    """The outcome of scanning one payload - facts plus scanner status."""
+
+    spans: List[SpanSpec] = field(default_factory=list)
+    scanned: bool = True
+    error: str = ""
+    truncated: bool = False
+    size_bytes: int = 0
+
+    @property
+    def found(self) -> bool:
+        return bool(self.spans)
+
+
+def max_scan_bytes() -> int:
+    raw = os.environ.get("AGENT_GUARD_EXFIL_MAX_BYTES")
+    if raw:
+        try:
+            value = int(raw)
+            if value > 0:
+                return value
+        except ValueError:
+            pass
+    return DEFAULT_MAX_SCAN_BYTES
+
+
+# The secret-store *names* are data (SECRET_STORE_NAMES/SUFFIXES); the
+# regexes below only find them in a read position.
+_STORE_NAME_ALT = "|".join(re.escape(n) for n in
+                           sorted(SECRET_STORE_NAMES, key=len, reverse=True))
+_STORE_SUFFIX_ALT = "|".join(re.escape(s.lstrip(".")) for s in
+                             sorted(SECRET_STORE_SUFFIXES, key=len,
+                                    reverse=True))
+# A secret-store file: a path ending in a known name/suffix, optionally
+# quoted, in any position (reading it is the whole point of the payload).
+SECRET_STORE_RE = re.compile(
+    r"(?:[\w.@~$%{}/\\-]*[\\/])?(?:"
+    + _STORE_NAME_ALT + r")(?:\b|$)"
+    r"|[\w./\\-]+\.(?:" + _STORE_SUFFIX_ALT + r")\b")
+
+
+# A variable *name* that marks its value as secret-bearing. Classification
+# is by name only; the guard never reads the value (design 2.4 item 1).
+SECRET_NAME_RE = re.compile(
+    r"\$\{?([A-Za-z_][A-Za-z0-9_]*"
+    r"(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|CRED|AUTH|APIKEY)[A-Za-z0-9_]*)\b"
+    r"|\$env:([A-Za-z_][A-Za-z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD|CRED|AUTH))"
+    r"|%([A-Za-z_][A-Za-z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD|CRED|AUTH))%",
+    re.IGNORECASE)
+
+
+def _secret_source_reference(text: str) -> Optional[Tuple[str, int, int, str]]:
+    """(matched expression, start, end, reason) for a secret source, or None.
+
+    Value-free by construction: the match is an environment-variable *name*,
+    a whole-environment expansion, or a secret-store *file name*. Nothing
+    here resolves a value; that invariant is what keeps the guard's own
+    output from becoming the leak (design 2.4, "anti-loop rule").
+    """
+    match = ENV_DUMP_RE.search(text)
+    if match:
+        # Trim the pipe/whitespace the expansion regex uses to anchor the
+        # read position: the fact is the command, not the separator.
+        raw = match.group(0).rstrip(" |\t")
+        return raw, match.start(), match.start() + len(raw), \
+            "environment expansion"
+    match = SECRET_STORE_RE.search(text)
+    if match:
+        return match.group(0), match.start(), match.end(), \
+            "secret store: " + match.group(0)
+    match = SECRET_NAME_RE.search(text)
+    if match:
+        name = next(g for g in match.groups() if g)
+        return match.group(0), match.start(), match.end(), \
+            "secret-bearing name: " + name
+    return None
+
+
+def scan_text(text: str, channel: str = "",
+              workspace: Optional[str] = None,
+              max_bytes: Optional[int] = None) -> ScanResult:
+    """Detect every secret/path span in `text` (facts only).
+
+    Never returns a partial result as clean: an over-cap payload, a
+    non-ASCII payload or an internal scanner error is reported via
+    `scanned=False`, which `policy.decide_spans` turns into
+    BLOCK_OUTPUT_UNSCANNABLE (design 6.3, fail closed).
+    """
+    limit = max_bytes if max_bytes is not None else max_scan_bytes()
+    size = len(text.encode("utf-8", errors="replace"))
+    result = ScanResult(size_bytes=size)
+    if size > limit:
+        result.scanned = False
+        result.truncated = True
+        result.error = f"payload exceeds scan cap ({size} > {limit} bytes)"
+        return result
+    if _ASCII_ONLY and not text.isascii():
+        # The placeholder allowlist compares ASCII words; a payload in
+        # another encoding could hide a match from it. Refuse to guess.
+        result.scanned = False
+        result.error = "payload is not ASCII; the allowlist cannot certify it"
+        return result
+
+    workspace = workspace or os.environ.get("AGENT_GUARD_WORKSPACE")
+    try:
+        spans = detect_secrets(text, channel=channel)
+        spans.extend(detect_paths(text, workspace=workspace, channel=channel))
+    except Exception as exc:                # pragma: no cover - defensive
+        result.scanned = False
+        result.error = f"scanner error: {type(exc).__name__}"
+        return result
+
+    spans = merge_spans(spans)
+    source = _secret_source_reference(text)
+    if source is not None:
+        # The dump makes the whole payload unattributable. It gets a span of
+        # its own - not just a flag on an existing one - because the
+        # dangerous case (`echo "$KEY"`) frequently matches no pattern at
+        # all, and "no match" must not be reported as "clean" when the
+        # guard never saw the content. The span records the *reference
+        # expression*, which is value-free by construction (design 2.4).
+        raw, start, end, reason = source
+        spans.append(SpanSpec(
+            raw=raw, start=start, end=end, rule_id=RULE_SECRET_SOURCE,
+            family=FAMILY_SECRET, confidence=CONFIDENCE_DETERMINISTIC,
+            context="env-var", channel=channel, source_dump=True,
+            notes=["value-free reference detection", reason]))
+    result.spans = merge_spans(spans)
+    return result
