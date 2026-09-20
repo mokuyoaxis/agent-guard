@@ -58,6 +58,8 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from . import STATE_NAME, TRASH_DIRNAME
+from . import redaction
+from .redaction import get_channel
 from .classifier import (
     KIND_FS_DELETE,
     KIND_GIT_CLEAN,
@@ -647,4 +649,147 @@ def decide_ops(specs: List[OpSpec], ctx: PolicyContext) -> List[Verdict]:
             verdict.payload.setdefault("op", spec.op)
             verdict.payload.setdefault("kind", spec.kind)
             verdicts.append(verdict)
+    return verdicts
+
+
+# --------------------------------------------------------------------------
+# exfil-guard: text-span decisions (design 1.3)
+# --------------------------------------------------------------------------
+#
+# Same Decision Protocol, different input type. `decide_spans` is a pure
+# function of (spans, channel, workspace, mode) - it holds no payload bytes
+# and returns verdicts whose payload carries only offsets, rule ids and
+# placeholders (never the matched content). First-match-wins, like the
+# delete-guard rule table.
+#
+# The asymmetric tolerance from the analysis (0.1) is encoded here: secret
+# rules are strict (a false ALLOW is a permanent leak), path rules are quiet
+# (a false SANITIZE corrupts output and erodes trust).
+
+
+def _span_verdict(decision: str, code: str, span, reasons=None,
+                  **payload) -> Verdict:
+    verdict = Verdict(decision=decision, code=code, reasons=list(reasons or []))
+    verdict.payload.update({
+        "rule_id": span.rule_id,
+        "family": span.family,
+        "confidence": span.confidence,
+        "channel": span.channel,
+        "span": [span.start, span.end],
+        "length": span.length,
+    })
+    verdict.payload.update(payload)
+    return verdict
+
+
+def _span_is_unrewritable(channel) -> bool:
+    """True when the guard cannot hand back a rewritten payload."""
+    return not channel.rewritable
+
+
+def _blocked_channel(channel) -> bool:
+    """Immutable + persistent: refuse rather than emit what cannot be undone."""
+    return channel.default_decision == DECISION_BLOCK
+
+
+def decide_span(span, ctx, channel=None) -> Verdict:
+    """Map one SpanSpec to a Verdict (facts -> decision, first match wins)."""
+    if channel is None and getattr(span, "channel", ""):
+        # The caller may pass the channel on the span instead of as a
+        # Channel object; resolve it once, so an *unknown* name still
+        # reaches the fail-closed branch below rather than being ignored.
+        channel = get_channel(span.channel)
+    reasons = list(getattr(span, "notes", []) or [])
+    reasons.append("rule " + span.rule_id)
+
+    is_secret = span.family == redaction.FAMILY_SECRET
+    deterministic = span.confidence == redaction.CONFIDENCE_DETERMINISTIC
+
+    # --- 1. a secret source we cannot scan: fail closed -------------------
+    if getattr(span, "source_dump", False):
+        return _span_verdict(DECISION_BLOCK, CODE_BLOCK_SECRET_SOURCE_DUMP,
+                             span, reasons)
+
+    # --- 2. placeholder / provably benign --------------------------------
+    if getattr(span, "placeholder", False):
+        code = (CODE_ALLOW_SECRET_PLACEHOLDER if is_secret
+                else CODE_ALLOW_PATH_IN_WORKSPACE)
+        return _span_verdict(DECISION_ALLOW, code, span, reasons)
+
+    # --- 3. paths inside the workspace are not host identifiers ----------
+    if not is_secret and span.rule_id == redaction.RULE_WORKSPACE_PATH and \
+            not getattr(span, "at_workspace_root", False):
+        return _span_verdict(DECISION_ALLOW, CODE_ALLOW_PATH_IN_WORKSPACE,
+                             span, reasons)
+
+    # --- 4. RESTRICTED tightens, never loosens ---------------------------
+    restricted = ctx is not None and getattr(ctx, "mode", None) == \
+        MODE_RESTRICTED
+
+    # --- 5. channel shape decides SANITIZE vs ASK vs BLOCK ---------------
+    if channel is None:
+        # Invalid configuration: the guard cannot say what would carry the
+        # bytes, so it cannot say it is safe. Fail closed.
+        return _span_verdict(DECISION_BLOCK, CODE_BLOCK_OUTPUT_UNSCANNABLE,
+                             span, reasons + ["unknown egress channel"])
+
+    if _blocked_channel(channel):
+        # Immutable history: the emission cannot be taken back, so refuse
+        # rather than rewrite (design 4.4, first bullet). This outranks
+        # `rewritable`, which is why a commit message BLOCKs even though
+        # rewriting the argv would be technically possible.
+        code = (CODE_BLOCK_SECRET_EMISSION if is_secret
+                else CODE_BLOCK_PATH_EMISSION)
+        return _span_verdict(DECISION_BLOCK, code, span, reasons)
+
+    if _span_is_unrewritable(channel):
+        code = (CODE_ASK_SECRET_EMISSION if is_secret
+                else CODE_ASK_PATH_EMISSION)
+        return _span_verdict(DECISION_ASK, code, span, reasons)
+
+    # --- 6. rewritable: secrets are redacted, paths rewritten ------------
+    if is_secret:
+        # Deterministic (T1) matches auto-SANITIZE. A contextual match is
+        # still SANITIZE behind the context gate (design 5.3), but only
+        # where the rule is enabled; otherwise a human decides.
+        if deterministic or getattr(span, "context_gate", False):
+            return _span_verdict(DECISION_SANITIZE,
+                                 CODE_SANITIZE_SECRET_REDACT, span, reasons)
+        return _span_verdict(DECISION_ASK, CODE_ASK_SECRET_EMISSION,
+                             span, reasons)
+
+    if span.rule_id == redaction.RULE_SYSTEM_PATH:
+        # System prefixes are not host-identifying (design 3.1).
+        return _span_verdict(DECISION_ALLOW, CODE_ALLOW_PATH_IN_WORKSPACE,
+                             span, reasons)
+
+    if deterministic or getattr(span, "at_workspace_root", False):
+        return _span_verdict(DECISION_SANITIZE, CODE_SANITIZE_PATH_REWRITE,
+                             span, reasons)
+
+    # A generic absolute path with no prefix correlation is contextual: the
+    # default is quiet (design 3.4), so a human decides whether it matters.
+    if restricted:
+        return _span_verdict(DECISION_SANITIZE, CODE_SANITIZE_PATH_REWRITE,
+                             span, reasons + ["restricted mode: strict"])
+    return _span_verdict(DECISION_ASK, CODE_ASK_PATH_EMISSION, span, reasons)
+
+
+def decide_spans(spans, ctx=None, channel=None, workspace=None,
+                 mode=None) -> List[Verdict]:
+    """All decisions for a payload; empty list means nothing matched.
+
+    `ctx` is a PolicyContext when the caller has one (reuse of the existing
+    mode state), otherwise `mode` alone is accepted so `check_span.py` stays
+    usable without a workspace or quarantine.
+    """
+    if ctx is None:
+        ctx = PolicyContext(workspace=workspace or "",
+                            trash_root="", base_dir=workspace or "",
+                            mode=mode or MODE_NORMAL)
+    verdicts = []
+    for span in spans:
+        if channel is not None:
+            span.channel = channel.name
+        verdicts.append(decide_span(span, ctx, channel))
     return verdicts

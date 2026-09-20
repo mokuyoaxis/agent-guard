@@ -689,3 +689,59 @@ def detect_paths(text: str, workspace: Optional[str] = None,
     for match in _POSIX_PATH_RE.finditer(text):
         consider(match, False)
     return merge_spans(spans)
+
+
+# ------------------------------------------------------------ egress channels
+#
+# Design 4.1: a channel is defined by exactly two facts, and the decision
+# table keys off both. `rewritable` is what makes SANITIZE meaningful (the
+# guard can hand the caller a plan); `persistence` is what justifies BLOCK
+# (the emission cannot be taken back). A channel that is neither can only
+# ASK - it cannot un-print.
+
+CHANNEL_UNREACHABLE = "unreachable"
+
+
+@dataclass(frozen=True)
+class Channel:
+    name: str
+    rewritable: bool
+    persistence: str            # "none" | "local" | "workspace" | "remote" | "public"
+    default_decision: str       # SANITIZE | ASK | BLOCK
+    reachability: str = "hook"  # "hook" | "unreachable"
+
+
+# The taxonomy is closed on purpose: an unknown channel name is a
+# configuration defect (fail closed, design 6.3), never an implicit
+# "no channel, no risk".
+CHANNELS: Dict[str, Channel] = {
+    "llm-request": Channel("llm-request", True, "remote", "SANITIZE"),
+    "file-write": Channel("file-write", True, "workspace", "SANITIZE"),
+    "forge-comment": Channel("forge-comment", True, "public", "SANITIZE"),
+    "issue-body": Channel("issue-body", True, "public", "SANITIZE"),
+    "pr-description": Channel("pr-description", True, "public", "SANITIZE"),
+    "git-commit-message": Channel("git-commit-message", True, "remote",
+                                  "BLOCK"),
+    "git-push-payload": Channel("git-push-payload", False, "remote", "BLOCK"),
+    "shell-stdout": Channel("shell-stdout", False, "local", "ASK"),
+    "shell-file-redirect": Channel("shell-file-redirect", True, "local",
+                                   "ASK"),
+    "archive-upload": Channel("archive-upload", True, "remote", "ASK"),
+    "process-argv": Channel("process-argv", True, "local", "ASK"),
+}
+
+# Explicitly out of reach (design 4.4 "unreachable channel"): the guard
+# never claims coverage here, and never implies a verdict it cannot see.
+UNREACHABLE_CHANNELS = frozenset({"hosted-llm-no-proxy", "agent-tool-call",
+                                  "program-internal-output", "human-clipboard"})
+
+# A channel with no persistence at all can only ASK when it cannot rewrite:
+# there is nothing to refuse *for* once the bytes are already visible.
+_NON_PERSISTENT = frozenset({"none", "local"})
+
+
+def get_channel(name: str) -> Optional[Channel]:
+    """Look up a channel by name; None means the configuration is invalid."""
+    if not name:
+        return None
+    return CHANNELS.get(name.strip().lower())
