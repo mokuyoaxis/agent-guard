@@ -166,13 +166,13 @@ applies the plan the guard returned.
 
 ```bash
 # a credential on a rewritable channel -> SANITIZE, exit 0
-echo 'config: sk-proj-AbCdEf123456AbCdEf123456' | python3 skills/exfil-guard/scripts/check_span.py --channel file-write
+echo 'config: sk-proj-AbCdEf…' | python3 skills/exfil-guard/scripts/check_span.py --channel file-write
 
 # a credential bound for remote history -> BLOCK, exit 2
-echo 'token=ghp_abcdefghijklmnopqrstuvwxyz0123456789' | python3 skills/exfil-guard/scripts/check_span.py --channel git-push-payload
+echo 'token=ghp_abcdefghijklmnopqrstuvwxyz…' | python3 skills/exfil-guard/scripts/check_span.py --channel git-push-payload
 
 # apply the redaction plan (format preserved: sk-<REDACTED>)
-echo 'config: sk-proj-AbCdEf123456AbCdEf123456' | python3 skills/exfil-guard/scripts/sanitize.py --channel file-write
+echo 'config: sk-proj-AbCdEf…' | python3 skills/exfil-guard/scripts/sanitize.py --channel file-write
 ```
 
 Exit code contract: `0` = ALLOW/SANITIZED · `2` = BLOCK · `3` = ASK ·

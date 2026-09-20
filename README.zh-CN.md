@@ -149,13 +149,13 @@ Guard 自身的输出、日志与审计行不含密钥。
 
 ```bash
 # 可改写信道上的凭据 -> SANITIZE,退出码 0
-echo 'config: sk-proj-AbCdEf123456AbCdEf123456' | python3 skills/exfil-guard/scripts/check_span.py --channel file-write
+echo 'config: sk-proj-AbCdEf…' | python3 skills/exfil-guard/scripts/check_span.py --channel file-write
 
 # 即将进入远端历史的凭据 -> BLOCK,退出码 2
-echo 'token=ghp_abcdefghijklmnopqrstuvwxyz0123456789' | python3 skills/exfil-guard/scripts/check_span.py --channel git-push-payload
+echo 'token=ghp_abcdefghijklmnopqrstuvwxyz…' | python3 skills/exfil-guard/scripts/check_span.py --channel git-push-payload
 
 # 应用脱敏计划(保留格式:sk-<REDACTED>)
-echo 'config: sk-proj-AbCdEf123456AbCdEf123456' | python3 skills/exfil-guard/scripts/sanitize.py --channel file-write
+echo 'config: sk-proj-AbCdEf…' | python3 skills/exfil-guard/scripts/sanitize.py --channel file-write
 ```
 
 退出码契约:`0` = ALLOW/SANITIZED · `2` = BLOCK · `3` = ASK · `1` = ERROR。
