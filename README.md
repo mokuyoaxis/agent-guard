@@ -45,8 +45,8 @@ A rule runs through all four: **uncertainty increases restriction.**
 The stable interface is not allow/block — it is a Decision Protocol:
 
 ```
-Effect → Classifier → Policy → Decision   ∈ { ALLOW, RELOCATE, SNAPSHOT,
-                                            ASK, BLOCK }
+Effect → Classifier → Policy → Decision   ∈ { ALLOW, SANITIZE, RELOCATE,
+                                            SNAPSHOT, ASK, BLOCK }
                                 + ReasonCode   (stable, machine-readable)
                                 + Explanation  (human-facing)
                                 + RecoveryPlan (txids, strategy)
@@ -54,7 +54,7 @@ Effect → Classifier → Policy → Decision   ∈ { ALLOW, RELOCATE, SNAPSHOT,
 
 | Tier | Decisions | What the agent experiences |
 |---|---|---|
-| **SAFE** | `ALLOW` · `RELOCATE` · `SNAPSHOT` | Runs silently; compensation applied first; restorable via txid |
+| **SAFE** | `ALLOW` · `SANITIZE` · `RELOCATE` · `SNAPSHOT` | Runs silently; compensation applied first; restorable via txid. `SANITIZE` rewrites a *payload* (not a command) and returns a redaction plan |
 | **AMBIGUOUS** | `ASK` | Single-execution authorization (`ASK_ONCE`) — e.g. compound shapes the guard cannot safely automate |
 | **FORBIDDEN** | `BLOCK` | Refused with reason and remediation; never askable |
 
@@ -63,6 +63,40 @@ stdin-fed lists) stays on the BLOCK path: allowing it would forfeit the
 core guarantee. Adapters map decisions onto their harness natively — DSH
 `PreToolDecision`, Claude Code PreToolUse `ask`, or a deny carrying the
 explanation where no ask exists.
+
+## Two guard branches
+
+`delete-guard` answers *"if this destroys something, can we come back?"*.
+`exfil-guard` answers *"if this leaves the machine, was it supposed to?"* -
+the same Decision Protocol, mirrored: where deletion compensates and
+proceeds, disclosure redacts and emits, and there is nothing to recover
+afterwards.
+
+```bash
+# scan an outbound payload (stdin); exit 0 allow/sanitize, 2 block, 3 ask
+cat draft.md | python3 skills/exfil-guard/scripts/check_span.py --channel file-write
+
+# apply the redaction plan the guard returned
+cat draft.md | python3 skills/exfil-guard/scripts/sanitize.py --channel file-write
+```
+
+It detects known vendor credential patterns (`secret/*`), host-identifying
+absolute paths outside the workspace (`path/*`), and - value-free, by *name*
+only - reads of a secret-bearing environment variable or secret store.
+Channel decides the disposition: a `file-write` or `llm-request` can be
+rewritten (`SANITIZE`), a commit message or push payload cannot be taken back
+(`BLOCK`), and a terminal transcript can neither be rewritten nor recalled
+(`ASK`).
+
+**What exfil-guard does not do.** It is not a sandbox and does not prevent
+adversarial exfiltration. It cannot see channels with no hook: a hosted model
+call with no proxy, the model's own tool calls, content produced *inside* a
+program, or the human clipboard are unreachable by construction - no coverage
+is claimed there. It is not a file scanner, and it does not rewrite git
+history. It catches *accidental* disclosure on channels the harness routes
+through a hook, with a decision trail; see
+[docs/secret-guard-analysis.md](docs/secret-guard-analysis.md) §2.4 for the
+reachability table this claim is traceable to.
 
 ## Quickstart
 
@@ -123,7 +157,8 @@ decision + reason code through any adapter.
 ```
 agent-guard/
 ├── skills/delete-guard/   # agent-facing skill: SKILL.md + CLI scripts
-├── core/                  # classifier · policy · recovery · audit
+├── skills/exfil-guard/    # egress skill: check_span.py · sanitize.py
+├── core/                  # classifier · policy · recovery · audit · redaction
 ├── adapters/claude/       # Claude Code PreToolUse hook adapter
 ├── tests/                 # unittest suites incl. cross-harness conformance
 └── docs/                  # architecture · threat-model · friction log
@@ -162,7 +197,11 @@ prefixes, and dialect selection wired through `check.py --dialect`,
 `AGENT_GUARD_DIALECT` and both adapters - POSIX behaviour and the default
 path unchanged; real-Windows end-to-end validation still needs a Windows
 host), then `database-guard` / `cloud-guard` on
-the same compensation engine.
+the same compensation engine. `v0.2.0` adds the second guard branch:
+**`exfil-guard`** - the `SANITIZE` decision class, the text-span classifier
+(`core/redaction.py`), and a standalone `check_span.py` / `sanitize.py` CLI
+that needs no adapter change. It is a **minor** release by the compatibility
+contract (new decision class, new reason codes, README announcement).
 
 ## License
 

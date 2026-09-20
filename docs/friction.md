@@ -156,6 +156,49 @@ before creating audit storage. If protected Git metadata prevents that, retain
 the safer verdict, return an `audit unavailable` warning, and leave no new
 quarantine directory.
 
+## F12 · exfil-guard: a rule that fires on documentation is a rule that gets disabled
+
+The first exfil-guard rule set was written against the *scenarios* and then
+pointed at this repository's own corpus. It was unusable: 21 files were
+refused as "not ASCII" (the docs contain em-dashes and CJK prose), and the
+source-reference rule fired on `if env:` in `core/audit.py`, on the string
+`"env AGENT_GUARD_DIALECT"`, and on the rule's own regex source.
+
+Three fixes, in order of value:
+
+1. **The non-ASCII refusal was removed.** It was over-defensive: the vendor
+   patterns are ASCII-anchored and `re` matches on characters, so a
+   non-ASCII byte cannot smuggle a match past them. Refusing every document
+   containing an em-dash bought no detection and made the guard unusable.
+2. **The environment-dump rule now requires the *shape* of a dump.**
+   `env`/`printenv` must be invoked at the start of a command (optionally
+   after a separator) or piped; `printenv FOO` and `env FOO=bar cmd` name
+   what they touch and are not dumps (design 2.4 item 4). A bare-name
+   property access (`process.env`) is not a file read either.
+3. **The repo-local exemption file (design 5.2) covers the rest.** The guard
+   cannot both quote `.env` in its own pattern table and detect `.env`;
+   `SECURITY.md` already documents this class of expected hit for other
+   scanners. Exemptions are scoped to *paths*, so the rules stay fully
+   active everywhere else, and values are exempted by hash only.
+
+Measured result: **zero BLOCK across the whole repository corpus**, enforced
+by `tests/test_exfil_sanitize.py::ExemptionFile::test_repository_own_corpus_has_zero_blocks`.
+A verdict that changes for an existing shape is a rule bug here, not a
+tuning problem (design 5.6).
+
+## F13 · A new decision class must not renumber the old ranks
+
+`worst()` is shared by both guards, and exfil-guard needed `SANITIZE` to rank
+*below* `ASK`. Renumbering the existing entries (`ALLOW 0, SANITIZE 1,
+RELOCATE 2, SNAPSHOT 2, ASK 3, BLOCK 4`) preserves the relative order and
+the ties exactly, so no delete-guard verdict can change. Verified as a pure
+order-equivalence over all pairs before shipping, not by inspection.
+
+`SANITIZE < ASK` is deliberate: `SANITIZE` is automatic (SAFE tier, like
+`RELOCATE`), while `ASK` forfeits automation. A payload carrying both a
+sanitizable secret and an un-rewritable shape must `ASK` - you cannot
+silently proceed when part of the emission is uninspectable.
+
 ## Verdict accuracy observed
 
 | Command | Verdict | Correct? |

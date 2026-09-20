@@ -12,6 +12,11 @@ Decision classes (docs/architecture.md):
     ALLOW      safe to run as-is (noop / provably regenerable / trash GC)
     RELOCATE   compensate by quarantine, then run
     SNAPSHOT   compensate by git snapshot, then run
+    SANITIZE   rewrite the PAYLOAD (not the command) before it is emitted:
+               the degraded compensation of an irreversible channel. It
+               restores nothing; it only records what was removed
+               (core/redaction.py, exfil-guard). Ranks below ASK: it is
+               automatic (SAFE tier), while ASK forfeits automation
     ASK        guard cannot safely automate, but user intent may be legit:
                single-execution authorization (ASK_ONCE, never a rule
                exemption); adapters map to their native ask, or degrade to
@@ -53,6 +58,8 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from . import STATE_NAME, TRASH_DIRNAME
+from . import redaction
+from .redaction import get_channel
 from .classifier import (
     KIND_FS_DELETE,
     KIND_GIT_CLEAN,
@@ -72,6 +79,7 @@ from .classifier import (
 DECISION_ALLOW = "ALLOW"
 DECISION_RELOCATE = "RELOCATE"
 DECISION_SNAPSHOT = "SNAPSHOT"
+DECISION_SANITIZE = "SANITIZE"
 DECISION_ASK = "ASK"
 DECISION_BLOCK = "BLOCK"
 
@@ -96,6 +104,18 @@ CODE_BLOCK_FORCE_PUSH = "BLOCK_FORCE_PUSH"
 CODE_BLOCK_DIALECT_UNKNOWN = "BLOCK_DIALECT_UNKNOWN"        # config
 CODE_BLOCK_DIALECT_INVALID = "BLOCK_DIALECT_INVALID"        # config
 CODE_BLOCK_RELOCATE_FAILED_STORAGE = "RELOCATE_FAILED_STORAGE"
+# exfil-guard (span decisions). Rule ids (`secret/*`, `path/*`) are payload,
+# never verdict codes; these codes name the *disposition*, not the pattern.
+CODE_SANITIZE_SECRET_REDACT = "SANITIZE_SECRET_REDACT"
+CODE_SANITIZE_PATH_REWRITE = "SANITIZE_PATH_REWRITE"
+CODE_BLOCK_SECRET_EMISSION = "BLOCK_SECRET_EMISSION"
+CODE_BLOCK_PATH_EMISSION = "BLOCK_PATH_EMISSION"
+CODE_BLOCK_SECRET_SOURCE_DUMP = "BLOCK_SECRET_SOURCE_DUMP"
+CODE_BLOCK_OUTPUT_UNSCANNABLE = "BLOCK_OUTPUT_UNSCANNABLE"
+CODE_ASK_SECRET_EMISSION = "ASK_SECRET_EMISSION"
+CODE_ASK_PATH_EMISSION = "ASK_PATH_EMISSION"
+CODE_ALLOW_SECRET_PLACEHOLDER = "ALLOW_SECRET_PLACEHOLDER"
+CODE_ALLOW_PATH_IN_WORKSPACE = "ALLOW_PATH_IN_WORKSPACE"
 CODE_BLOCK_COMPENSATION_FAILED = "COMPENSATION_FAILED"
 
 # Human-facing one-liners: why the guard cannot just do it (or did do it).
@@ -159,6 +179,43 @@ EXPLANATIONS: Dict[str, str] = {
                                         "fall back to permanent deletion.",
     CODE_BLOCK_COMPENSATION_FAILED: "Compensation failed before execution; "
                                     "refusing to proceed unrecoverable.",
+    CODE_SANITIZE_SECRET_REDACT: "A credential would leave the machine on this "
+                                 "payload; it is replaced in place before "
+                                 "emission. Apply the redaction plan to the "
+                                 "payload you hold - the guard never rewrites "
+                                 "it for you.",
+    CODE_SANITIZE_PATH_REWRITE: "A host-identifying path would leave the "
+                                "machine on this payload; it is rewritten to a "
+                                "stable placeholder before emission. Apply the "
+                                "redaction plan to the payload you hold.",
+    CODE_BLOCK_SECRET_EMISSION: "A credential would enter an immutable or "
+                                "remote history on this channel, where it "
+                                "cannot be taken back. Remove it and retry "
+                                "(amend the message / rewrite before pushing).",
+    CODE_BLOCK_PATH_EMISSION: "A host-identifying path would enter an "
+                              "immutable or remote history on this channel. "
+                              "Remove it and retry.",
+    CODE_BLOCK_SECRET_SOURCE_DUMP: "This payload reads a secret source (a "
+                                   "credential file, or the whole "
+                                   "environment) whose content cannot be "
+                                   "scanned or rewritten here. Fail closed: "
+                                   "such a dump is not a clean emission.",
+    CODE_BLOCK_OUTPUT_UNSCANNABLE: "The payload was never scanned (scanner "
+                                   "unavailable or the text exceeds the "
+                                   "supported size). An unscanned egress is "
+                                   "not a clean egress.",
+    CODE_ASK_SECRET_EMISSION: "A credential would leave the machine on a "
+                              "channel the guard cannot rewrite and cannot "
+                              "take back (it cannot un-print). Allow once to "
+                              "proceed as-is, or remove the value first.",
+    CODE_ASK_PATH_EMISSION: "A host-identifying path would leave the machine "
+                            "on a channel the guard cannot rewrite. Low "
+                            "severity; allow once to proceed as-is.",
+    CODE_ALLOW_SECRET_PLACEHOLDER: "Every match is a documented placeholder "
+                                   "or an already-redacted marker; nothing to "
+                                   "remove.",
+    CODE_ALLOW_PATH_IN_WORKSPACE: "Every path lies inside the workspace, so "
+                                  "it identifies no host.",
 }
 
 # ------------------------------------------------------------------- verdict
@@ -185,11 +242,22 @@ class Verdict:
     def asks(self) -> bool:
         return self.decision == DECISION_ASK
 
+    @property
+    def sanitizes(self) -> bool:
+        return self.decision == DECISION_SANITIZE
+
 
 def worst(verdicts: List[Verdict]) -> Verdict:
-    """Aggregate a command line: BLOCK > ASK > RELOCATE/SNAPSHOT > ALLOW."""
-    rank = {DECISION_ALLOW: 0, DECISION_RELOCATE: 1, DECISION_SNAPSHOT: 1,
-            DECISION_ASK: 2, DECISION_BLOCK: 3}
+    """Aggregate: BLOCK > ASK > RELOCATE/SNAPSHOT > SANITIZE > ALLOW.
+
+    SANITIZE ranks *below* ASK deliberately (design 1.3): it is automatic
+    (SAFE tier, like RELOCATE/SNAPSHOT) while ASK forfeits automation. A
+    payload carrying both a sanitizable secret and an uninspectable,
+    un-rewritable shape must ASK - you cannot silently proceed when part of
+    the emission cannot be inspected.
+    """
+    rank = {DECISION_ALLOW: 0, DECISION_SANITIZE: 1, DECISION_RELOCATE: 2,
+            DECISION_SNAPSHOT: 2, DECISION_ASK: 3, DECISION_BLOCK: 4}
     if not verdicts:
         return Verdict(DECISION_ALLOW, CODE_ALLOW_NOOP,
                        explanation=EXPLANATIONS[CODE_ALLOW_NOOP])
@@ -581,4 +649,147 @@ def decide_ops(specs: List[OpSpec], ctx: PolicyContext) -> List[Verdict]:
             verdict.payload.setdefault("op", spec.op)
             verdict.payload.setdefault("kind", spec.kind)
             verdicts.append(verdict)
+    return verdicts
+
+
+# --------------------------------------------------------------------------
+# exfil-guard: text-span decisions (design 1.3)
+# --------------------------------------------------------------------------
+#
+# Same Decision Protocol, different input type. `decide_spans` is a pure
+# function of (spans, channel, workspace, mode) - it holds no payload bytes
+# and returns verdicts whose payload carries only offsets, rule ids and
+# placeholders (never the matched content). First-match-wins, like the
+# delete-guard rule table.
+#
+# The asymmetric tolerance from the analysis (0.1) is encoded here: secret
+# rules are strict (a false ALLOW is a permanent leak), path rules are quiet
+# (a false SANITIZE corrupts output and erodes trust).
+
+
+def _span_verdict(decision: str, code: str, span, reasons=None,
+                  **payload) -> Verdict:
+    verdict = Verdict(decision=decision, code=code, reasons=list(reasons or []))
+    verdict.payload.update({
+        "rule_id": span.rule_id,
+        "family": span.family,
+        "confidence": span.confidence,
+        "channel": span.channel,
+        "span": [span.start, span.end],
+        "length": span.length,
+    })
+    verdict.payload.update(payload)
+    return verdict
+
+
+def _span_is_unrewritable(channel) -> bool:
+    """True when the guard cannot hand back a rewritten payload."""
+    return not channel.rewritable
+
+
+def _blocked_channel(channel) -> bool:
+    """Immutable + persistent: refuse rather than emit what cannot be undone."""
+    return channel.default_decision == DECISION_BLOCK
+
+
+def decide_span(span, ctx, channel=None) -> Verdict:
+    """Map one SpanSpec to a Verdict (facts -> decision, first match wins)."""
+    if channel is None and getattr(span, "channel", ""):
+        # The caller may pass the channel on the span instead of as a
+        # Channel object; resolve it once, so an *unknown* name still
+        # reaches the fail-closed branch below rather than being ignored.
+        channel = get_channel(span.channel)
+    reasons = list(getattr(span, "notes", []) or [])
+    reasons.append("rule " + span.rule_id)
+
+    is_secret = span.family == redaction.FAMILY_SECRET
+    deterministic = span.confidence == redaction.CONFIDENCE_DETERMINISTIC
+
+    # --- 1. a secret source we cannot scan: fail closed -------------------
+    if getattr(span, "source_dump", False):
+        return _span_verdict(DECISION_BLOCK, CODE_BLOCK_SECRET_SOURCE_DUMP,
+                             span, reasons)
+
+    # --- 2. placeholder / provably benign --------------------------------
+    if getattr(span, "placeholder", False):
+        code = (CODE_ALLOW_SECRET_PLACEHOLDER if is_secret
+                else CODE_ALLOW_PATH_IN_WORKSPACE)
+        return _span_verdict(DECISION_ALLOW, code, span, reasons)
+
+    # --- 3. paths inside the workspace are not host identifiers ----------
+    if not is_secret and span.rule_id == redaction.RULE_WORKSPACE_PATH and \
+            not getattr(span, "at_workspace_root", False):
+        return _span_verdict(DECISION_ALLOW, CODE_ALLOW_PATH_IN_WORKSPACE,
+                             span, reasons)
+
+    # --- 4. RESTRICTED tightens, never loosens ---------------------------
+    restricted = ctx is not None and getattr(ctx, "mode", None) == \
+        MODE_RESTRICTED
+
+    # --- 5. channel shape decides SANITIZE vs ASK vs BLOCK ---------------
+    if channel is None:
+        # Invalid configuration: the guard cannot say what would carry the
+        # bytes, so it cannot say it is safe. Fail closed.
+        return _span_verdict(DECISION_BLOCK, CODE_BLOCK_OUTPUT_UNSCANNABLE,
+                             span, reasons + ["unknown egress channel"])
+
+    if _blocked_channel(channel):
+        # Immutable history: the emission cannot be taken back, so refuse
+        # rather than rewrite (design 4.4, first bullet). This outranks
+        # `rewritable`, which is why a commit message BLOCKs even though
+        # rewriting the argv would be technically possible.
+        code = (CODE_BLOCK_SECRET_EMISSION if is_secret
+                else CODE_BLOCK_PATH_EMISSION)
+        return _span_verdict(DECISION_BLOCK, code, span, reasons)
+
+    if _span_is_unrewritable(channel):
+        code = (CODE_ASK_SECRET_EMISSION if is_secret
+                else CODE_ASK_PATH_EMISSION)
+        return _span_verdict(DECISION_ASK, code, span, reasons)
+
+    # --- 6. rewritable: secrets are redacted, paths rewritten ------------
+    if is_secret:
+        # Deterministic (T1) matches auto-SANITIZE. A contextual match is
+        # still SANITIZE behind the context gate (design 5.3), but only
+        # where the rule is enabled; otherwise a human decides.
+        if deterministic or getattr(span, "context_gate", False):
+            return _span_verdict(DECISION_SANITIZE,
+                                 CODE_SANITIZE_SECRET_REDACT, span, reasons)
+        return _span_verdict(DECISION_ASK, CODE_ASK_SECRET_EMISSION,
+                             span, reasons)
+
+    if span.rule_id == redaction.RULE_SYSTEM_PATH:
+        # System prefixes are not host-identifying (design 3.1).
+        return _span_verdict(DECISION_ALLOW, CODE_ALLOW_PATH_IN_WORKSPACE,
+                             span, reasons)
+
+    if deterministic or getattr(span, "at_workspace_root", False):
+        return _span_verdict(DECISION_SANITIZE, CODE_SANITIZE_PATH_REWRITE,
+                             span, reasons)
+
+    # A generic absolute path with no prefix correlation is contextual: the
+    # default is quiet (design 3.4), so a human decides whether it matters.
+    if restricted:
+        return _span_verdict(DECISION_SANITIZE, CODE_SANITIZE_PATH_REWRITE,
+                             span, reasons + ["restricted mode: strict"])
+    return _span_verdict(DECISION_ASK, CODE_ASK_PATH_EMISSION, span, reasons)
+
+
+def decide_spans(spans, ctx=None, channel=None, workspace=None,
+                 mode=None) -> List[Verdict]:
+    """All decisions for a payload; empty list means nothing matched.
+
+    `ctx` is a PolicyContext when the caller has one (reuse of the existing
+    mode state), otherwise `mode` alone is accepted so `check_span.py` stays
+    usable without a workspace or quarantine.
+    """
+    if ctx is None:
+        ctx = PolicyContext(workspace=workspace or "",
+                            trash_root="", base_dir=workspace or "",
+                            mode=mode or MODE_NORMAL)
+    verdicts = []
+    for span in spans:
+        if channel is not None:
+            span.channel = channel.name
+        verdicts.append(decide_span(span, ctx, channel))
     return verdicts
