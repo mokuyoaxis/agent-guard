@@ -1,6 +1,6 @@
 {
   "name": "agent-guard",
-  "version": "0.2.0-rc1",
+  "version": "0.2.0-rc2",
   "private": true,
   "description": "Harness-neutral reliability infrastructure for AI coding agents: reversible destructive actions, pre-emission redaction, recovery evidence, and a shared Decision Protocol with optional native adapters.",
   "type": "module",

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="160" viewBox="0 0 1000 160" role="img" aria-labelledby="title desc">
+  <title id="title">LINUX DO community link</title>
+  <desc id="desc">A project-made banner linking to the LINUX DO community, not an official endorsement.</desc>
+  <defs>
+    <linearGradient id="background" x2="1" y2="1">
+      <stop offset="0" stop-color="#111827"/>
+      <stop offset="1" stop-color="#263b55"/>
+    </linearGradient>
+  </defs>
+  <rect width="1000" height="160" rx="18" fill="url(#background)"/>
+  <rect x="0" y="0" width="12" height="160" rx="6" fill="#f59e0b"/>
+  <rect x="40" y="33" width="11" height="11" fill="#f59e0b"/>
+  <rect x="55" y="33" width="11" height="11" fill="#f59e0b"/>
+  <rect x="40" y="48" width="11" height="11" fill="#f59e0b"/>
+  <rect x="55" y="48" width="11" height="11" fill="#f59e0b"/>
+  <text x="86" y="79" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="49" font-weight="700" letter-spacing="2">LINUX DO</text>
+  <text x="87" y="115" fill="#cbd5e1" font-family="Arial, Helvetica, sans-serif" font-size="22">COMMUNITY LINK · 社区友链</text>
+  <path d="M790 80h145m-27-27 27 27-27 27" fill="none" stroke="#f59e0b" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

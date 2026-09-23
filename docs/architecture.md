@@ -31,16 +31,21 @@ Anything the classifier cannot resolve statically - shell variables, command
 substitution, unbalanced quotes, indirect shells, stdin-fed target lists -
 becomes a BLOCK verdict, never a guess.
 
-## Data flow
+## Data flow: supported delete-guard shell path
+
+This diagram shows a supported native adapter path. An explicit CLI caller
+joins at `check.py`, skipping the adapter prefilter. Neither path implies that
+every harness or tool call is intercepted. Exfil-guard's cooperative text CLI
+is separate; see [harness capabilities](harness-capabilities.md).
 
 ```
-shell command (from any harness)
+shell command (from a supported native adapter)
         │
         ▼
 [harness adapter]  ── fast prefilter: destructive keywords present? ──no──▶ run unchanged
         │ yes
         ▼
-scripts/check.py --enforce -- <command>
+skills/delete-guard/scripts/check.py --enforce -- <command>
         │
         ▼
 classifier.classify_command(dialect=posix|cmd|powershell)
@@ -50,9 +55,9 @@ classifier.classify_command(dialect=posix|cmd|powershell)
 [OpSpec...]                                      facts, not decisions
         │
         ▼
-policy.decide_ops ──▶ [Verdict...]               ALLOW / RELOCATE / COMPENSATE / BLOCK
+policy.decide_ops ──▶ [Verdict...]               ALLOW / RELOCATE / SNAPSHOT / ASK / BLOCK
         │                     │
-        │              any BLOCK? ──▶ refuse, audit, exit 2
+        │              BLOCK or ASK? ──▶ return 2 or 3; no mutation
         ▼ no
 recovery.RecoveryEngine                Compensation Strategy
         │                              ├─ relocate   (fs targets → .agent-trash/<txid>/)
@@ -62,7 +67,7 @@ recovery.RecoveryEngine                Compensation Strategy
 audit.append (JSONL, one line per decision)
         │
         ▼
-PROCEED with txids ──▶ original command runs
+PROCEED with txids ──▶ host may run the original command
 ```
 
 Explicit-path tools skip the shell parsing front half:

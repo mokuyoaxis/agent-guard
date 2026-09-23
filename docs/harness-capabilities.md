@@ -1,4 +1,4 @@
-# Harness capability and evidence matrix (0.2.0-rc1)
+# Harness capability and evidence matrix (0.2.0-rc2)
 
 The Python Core and CLI are harness-neutral. A Skill or CLI being usable in a
 host does **not** mean that host intercepts tool calls, and an adapter returning

@@ -1,8 +1,8 @@
-# 0.2.0-rc1 release notes (draft)
+# 0.2.0-rc1 source-preview notes
 
-This is a release-candidate **source preview**, not a security sandbox or a
-claim of universal tool interception. Publishing, tagging and pushing remain
-separate maintainer decisions.
+The `0.2.0-rc1` Git tag is a **source preview**. It is not a GitHub Release,
+an npm package, a security sandbox, or a claim of universal tool interception.
+Those distribution steps remain separate maintainer decisions.
 
 ## What changed since 0.1.1
 

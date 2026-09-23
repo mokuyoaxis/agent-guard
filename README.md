@@ -1,33 +1,51 @@
 # AGENT-GUARD
 
 [![CI](https://github.com/mokuyoaxis/agent-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/mokuyoaxis/agent-guard/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/mokuyoaxis/agent-guard)](https://github.com/mokuyoaxis/agent-guard/releases)
 [![License](https://img.shields.io/github/license/mokuyoaxis/agent-guard)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![Node.js 20 smoke](https://img.shields.io/badge/Node.js-20%20smoke-339933?logo=nodedotjs&logoColor=white)](.github/workflows/ci.yml)
+[![Source preview tags](https://img.shields.io/badge/Source-preview%20tags-5B6B7A)](https://github.com/mokuyoaxis/agent-guard/tags)
 
 **Make destructive agent actions reversible by default.** · [简体中文](README.zh-CN.md)
 
-Agents increasingly run shell commands autonomously. When the command is
-`rm -rf`, a wrong variable or one misjudged context switch is all it takes
-to lose a repository — or worse. agent-guard makes destruction *reversible
-by default* and records durable intent before supported mutations, across any
-harness that can run Python.
+Agent Guard is a reliability layer for coding agents. It makes supported
+high-impact actions recoverable instead of permanently destructive, while
+keeping routine work automatic.
 
-The shared Core, Decision Protocol, and Skills are the product. Harness
-adapters are replaceable integration bridges: they add native interception
-where a host exposes the necessary hooks, but no single adapter defines the
-project.
+- **Destructive file operations** can be relocated to `.agent-trash/` with a
+  recovery manifest instead of being permanently deleted.
+- **Destructive Git operations** can snapshot recoverable state before they
+  overwrite the working tree.
+- **Accidental outbound disclosure** of known credentials or host-identifying
+  absolute paths can be checked through a cooperative text CLI. A caller that
+  owns the emission can apply its redaction plan, escalate, or block.
 
-> **Agent Guard is not an approval system. It is an automatic recovery
-> system with human escalation.** The agent works uninterrupted while
-> operations stay reversible; only when the guard cannot safely automate —
-> but user intent may be legitimate — does a decision escalate to a human.
->
-> It is reliability infrastructure, **not a security sandbox**: it defends
-> against mistakes, not against a malicious agent with equal OS privileges.
+The Core is harness-neutral and supports Python 3.9+ and Git. Automatic
+interception still depends on whether the host exposes a compatible hook; a
+Skill by itself does not intercept tool calls. The shared Core, Decision
+Protocol, and Skills define the product; harness adapters are replaceable
+integration bridges rather than the product boundary.
 
-## Quick start: let your coding agent set it up
+> **Agent Guard keeps reversible actions automatic and escalates only when it
+> cannot safely automate them.** It is reliability infrastructure, not a
+> security sandbox: it protects against mistakes, not a malicious agent with
+> equal OS privileges.
+
+## What it looks like
+
+```text
+rm -rf build/       → RELOCATE   # an in-scope tree moves to quarantine
+rm -rf .            → BLOCK      # the workspace root is protected
+git reset --hard    → SNAPSHOT   # snapshot first when Git state supports it
+git push --force    → BLOCK      # remote history is not automated
+```
+
+These are illustrative verdicts for supported inputs, not commands to run or
+proof that every harness intercepts them. Ignored, regenerable targets may be
+`ALLOW`; a Git snapshot that cannot be made fails closed. When recovery or safe
+rewriting is possible, the agent can keep working. Otherwise, the guard asks
+the human or blocks the operation.
+
+## Quick start with your coding agent
 
 Keep a stable local checkout of this repository (skip the clone if you already
 have one):
@@ -38,8 +56,8 @@ cd agent-guard
 ```
 
 Python 3.9+ and Git are required for the Core; native interception depends on
-the host's hook support. Give your coding agent this prompt (replace the path
-with your checkout):
+the host's hook support. Then give your coding agent the following setup prompt
+(replace the path with your checkout):
 
 ```text
 Set up agent-guard from /absolute/path/to/agent-guard for this workspace.
@@ -57,23 +75,27 @@ check.py; never execute a destructive test command. Report what was actually
 installed, what the host intercepted, and any unverified paths.
 ```
 
-For manual setup and evidence limits, see the [adapter matrix](docs/harness-capabilities.md)
-and the adapter README for your host. A Skill alone does not intercept tools.
+For manual setup and evidence limits, see the
+[adapter matrix](docs/harness-capabilities.md) and the adapter README for your
+host.
 
-## The four pillars
+## Design principles
 
-| Pillar | Guarantee |
+| Principle | Guarantee |
 |---|---|
-| **Scope** | Workspace boundary, `.git`, and outside paths are never deletable |
-| **Recoverability** | Deletions relocate to `.agent-trash/` with a manifest; git overwrites snapshot first |
-| **Authorization** | Session-scoped capability; a veto downgrades one-way, only humans restore |
-| **Auditability** | Enforced verdicts, compensation intents, outcomes, and restores use append-only JSONL; mutation fails closed if its intent cannot be stored |
+| **Stay in scope** | The guard blocks deletion of the workspace root, `.git`, and outside paths when the operation reaches it |
+| **Make it recoverable** | Supported deletions relocate to `.agent-trash/` with a manifest; destructive Git overwrites snapshot first |
+| **Constrain authorization** | Authorization is session-scoped; a veto downgrades one-way, and only a human restores it |
+| **Leave a durable trail** | Enforced verdicts, compensation intents, outcomes, and restores use append-only JSONL; mutation fails closed if its intent cannot be stored |
 
-A rule runs through all four: **uncertainty increases restriction.**
+One rule runs through all four: **uncertainty increases restriction.**
 
 ## How it decides
 
-The stable interface is not allow/block — it is a Decision Protocol:
+Each inspected operation is classified by its effect and then mapped to the
+least restrictive decision that preserves the relevant safety or recovery
+guarantee. The stable interface is a Decision Protocol, not a binary
+allow/block check:
 
 ```
 Effect → Classifier → Policy → Decision   ∈ { ALLOW, SANITIZE, RELOCATE,
@@ -85,41 +107,50 @@ Effect → Classifier → Policy → Decision   ∈ { ALLOW, SANITIZE, RELOCATE,
 
 | Tier | Decisions | What the agent experiences |
 |---|---|---|
-| **SAFE** | `ALLOW` · `SANITIZE` · `RELOCATE` · `SNAPSHOT` | Runs silently; compensation applied first; restorable via txid. `SANITIZE` rewrites a *payload* (not a command) and returns a redaction plan |
+| **SAFE** | `ALLOW` · `SANITIZE` · `RELOCATE` · `SNAPSHOT` | Runs silently; compensation is applied first where needed; recoverable mutations are restorable via txid. `SANITIZE` returns a plan for the *payload owner* to rewrite (not a command rewrite) |
 | **AMBIGUOUS** | `ASK` | Single-execution authorization (`ASK_ONCE`) — e.g. compound shapes the guard cannot safely automate |
 | **FORBIDDEN** | `BLOCK` | Refused with reason and remediation; never askable |
 
-Precedence when several decisions meet in one operation, weakest to
-strongest:
+Precedence when several decisions meet in one operation, weakest to strongest:
 
 ```
 ALLOW < SANITIZE < RELOCATE < SNAPSHOT < ASK < BLOCK
 ```
 
 `SANITIZE` ranks *below* `ASK` deliberately: it is automatic (SAFE tier),
-while `ASK` forfeits automation. A payload carrying both a sanitizable
-secret and a shape that cannot be rewritten must `ASK` — you cannot
-silently proceed when part of the emission is uninspectable.
+while `ASK` forfeits automation. A payload carrying both a sanitizable secret
+and a shape that cannot be rewritten must `ASK` — you cannot silently proceed
+when part of the emission is uninspectable.
 
-True effect-uncertainty (`$VAR` targets, `bash -c`, `find -delete`,
-stdin-fed lists) stays on the BLOCK path: allowing it would forfeit the
-core guarantee. Adapters map decisions onto their harness natively — DSH
-`PreToolDecision`, Claude Code PreToolUse `ask`, or a deny carrying the
-explanation where no ask exists.
+True effect uncertainty (`$VAR` targets, `bash -c`, `find -delete`, stdin-fed
+lists) stays on the BLOCK path: allowing it would forfeit the core guarantee.
+Adapters map decisions onto their harness natively — DSH `PreToolDecision`,
+Claude Code PreToolUse `ask`, or a deny carrying the explanation where no ask
+exists.
 
-## Two guard branches
+## What Agent Guard includes
 
-`delete-guard` answers *"if this destroys something, can we come back?"*.
-`exfil-guard` answers *"if this leaves the machine, was it supposed to?"* -
-the same Decision Protocol, mirrored: where deletion compensates and
-proceeds, disclosure redacts and emits, and there is nothing to recover
-afterwards. `delete-guard` guards *before a delete*; `exfil-guard` guards
-*before an emission*.
+### `delete-guard`
 
-`recovery-audit` is their incident-response companion. It establishes source
-precedence, distinguishes recovered bytes from reconstructed behavior and
-known gaps, audits replay tooling, and keeps commit/push/release as separate
-authorization gates.
+Answers *"if this destroys something, can we come back?"* It runs before a
+delete or destructive Git action when invoked through a supported adapter or
+CLI, and compensates first when recovery is possible.
+
+### `exfil-guard`
+
+Answers *"if this leaves the machine, was it supposed to?"* Its cooperative
+CLI checks text before an emission when the payload owner invokes it, returning
+a redaction or escalation decision for supported patterns.
+
+### `recovery-audit`
+
+The incident-response companion for cases where prevention never ran or did not
+cover the path. It establishes source precedence, distinguishes recovered bytes
+from reconstructed behavior and known gaps, audits replay tooling, and keeps
+landing, commit, push, and release as separate authorization gates.
+
+`delete-guard` and `exfil-guard` are the two preventive guard branches;
+`recovery-audit` handles evidence-led recovery after the fact.
 
 ## recovery-audit
 
@@ -143,21 +174,21 @@ the evidence actually supports, with gaps reported instead of hidden.
 
 ## exfil-guard
 
-**What it is.** A pre-emission filter for the text an agent is about to
-write, send, commit or push. It keeps two things from leaving the machine by
-accident: **known credentials**, and **host-identifying absolute paths**.
-It is a redaction guard, not a compensation engine - there is nothing to
-recover after an emission, which is why it is built around *prevention plus a
-decision trail* rather than undo.
+`exfil-guard` checks text before an agent writes, sends, commits, or pushes it
+**when the payload owner calls its CLI**. It is designed to catch two accidental
+disclosure classes: **known credentials** and **host-identifying absolute
+paths**. Depending on the channel, it can allow the payload, return a redaction
+plan, ask for a human decision, or block the emission.
 
-It is **not a security sandbox** and does not stop adversarial exfiltration.
-It defends against mistakes, not against a malicious agent with equal OS
+It is a prevention and redaction guard, not a compensation engine: after an
+emission there is nothing to recover. It is also **not a security sandbox** and
+does not attempt to stop adversarial exfiltration by an agent with equal OS
 privileges.
 
 ### Decisions exfil-guard can return
 
 The full Decision Protocol applies, but only four classes are reachable for
-a text payload (`RELOCATE`/`SNAPSHOT` belong to delete-guard - the guard
+a text payload (`RELOCATE`/`SNAPSHOT` belong to delete-guard — the guard
 cannot rewrite what it did not write):
 
 | Decision | Meaning | Example |
@@ -172,7 +203,7 @@ cannot rewrite what it did not write):
 **T1 vendor credential patterns** (`secret/*`, deterministic, near-zero
 false positives). Rule ids: `secret/openai-key`, `secret/github-token`,
 `secret/aws-access-key-id`, `secret/gitlab-token`, `secret/slack-token`,
-`secret/stripe-key` (live keys only - `sk_test_` is exempt), `secret/jwt`
+`secret/stripe-key` (live keys only — `sk_test_` is exempt), `secret/jwt`
 (structural: the header must base64-decode to JSON containing `alg`), and
 `secret/private-key-block` (whole `-----BEGIN ... PRIVATE KEY-----` block,
 redacted in one piece). See
@@ -184,7 +215,7 @@ classifies an environment variable's *name* (`*KEY*`, `*TOKEN*`,
 `*SECRET*`, `*PASSWORD*`, `*CRED*`, `*AUTH*`) and a secret-store *file name*
 (`.env`, `*.pem`, `id_rsa*`, `.netrc`, `kubeconfig`, ...), and detects
 whole-environment expansions (`printenv`, `env | ...`, `cat
-/proc/self/environ`). It **never reads the value** - that invariant is what
+/proc/self/environ`). It **never reads the value** — that invariant is what
 keeps the guard's own output, logs and audit lines leak-free.
 
 **Host-identifying paths** (`path/*`). `path/workspace-relative` is `ALLOW`
@@ -193,7 +224,7 @@ keeps the guard's own output, logs and audit lines leak-free.
 workspace ancestor) is `SANITIZE`; `path/generic-absolute` (no host
 correlation) is `ASK`; `path/device` (UNC, `\\?\`, pipes) is `SANITIZE`.
 
-### Channel decide the disposition
+### Channels determine the disposition
 
 A channel is defined by two facts: can it be **rewritten**, and does the
 emission **persist**? `rewritable` is what makes `SANITIZE` meaningful;
@@ -216,7 +247,7 @@ An unknown channel name is a configuration defect, not "no risk":
 
 ### Usage
 
-`check_span.py` reads the payload on **stdin** and is a pure function - it
+`check_span.py` reads the payload on **stdin** and is a pure function — it
 never writes, never rewrites, and never prints the match. `sanitize.py`
 applies the plan the guard returned.
 
@@ -233,7 +264,7 @@ echo 'config: sk-proj-AbCdEf…' | python3 skills/exfil-guard/scripts/sanitize.p
 
 Exit code contract: `0` = ALLOW/SANITIZED · `2` = BLOCK · `3` = ASK ·
 `1` = ERROR. Use `--json` for the machine-readable verdict (offsets, rule ids
-and placeholders only - **never the matched bytes**), and `--path` to enable
+and placeholders only — **never the matched bytes**), and `--path` to enable
 the repo-local exemption file for the file being written.
 
 ### Relationship to delete-guard
@@ -262,21 +293,21 @@ is a false security claim:
   catches *accidents*.
 - **Channels with no hook are unreachable by construction.** A hosted model
   call with no proxy, the model's own tool calls, content produced *inside* a
-  program, and the human clipboard get **no verdict at all** - no coverage is
+  program, and the human clipboard get **no verdict at all** — no coverage is
   claimed there. See `references/channels.md` and
   [docs/secret-guard-analysis.md](docs/secret-guard-analysis.md) §2.4 for
   the reachability table this claim is traceable to.
 - **Not a file scanner.** It is not a gitleaks replacement; it scans what the
   guard can see *on the way out*.
-- **No history rewriting.** Detecting a secret already in git history is a
+- **No history rewriting.** Detecting a secret already in Git history is a
   report at most. Rewriting history is a human action with its own risks.
 - **No T3 entropy detector in this release.** It is the single largest
   false-positive source, and the named scenarios do not require it.
 
-## Harness-neutral quickstart
+## Manual, harness-neutral usage
 
-Zero third-party dependencies. Requirements: Python 3.9+, POSIX shell,
-git.
+The Core has zero third-party dependencies. Requirements: Python 3.9+, POSIX
+shell, and Git.
 
 ```bash
 # delete something - it is quarantined, not destroyed:
@@ -291,14 +322,22 @@ python3 skills/delete-guard/scripts/restore.py <txid>
 python3 skills/delete-guard/scripts/gc.py
 ```
 
-Harness adapter - intercept before executing any shell command:
+A harness adapter can invoke the guard before a supported shell command and
+map its exit status to the host's own tool decision:
 
-```bash
+```text
 python3 skills/delete-guard/scripts/check.py --enforce -- "$COMMAND"
-case $? in 0) run "$COMMAND" ;; 2) refuse ;; 3) ask-the-human ;; esac
+exit 0 → host may run the original command
+exit 2 → deny
+exit 3 → ask the human if supported; otherwise deny
+exit 1 → guard error; fail closed
 ```
 
 ## What gets protected
+
+These examples assume the command reaches the guard and its targets meet the
+stated conditions; see the [capability matrix](docs/harness-capabilities.md)
+for what each host has actually demonstrated.
 
 ```text
 rm -rf build/            → RELOCATE  (tree quarantined, command proceeds)
@@ -308,13 +347,20 @@ rm *.log                 → BLOCK     (opaque glob; safe_delete expands it)
 cd X && rm -rf build     → ASK_ONCE  (COMPOUND_CWD_DELETE)
 touch f && rm f          → ASK_ONCE  (COMPOUND_CREATE_DELETE)
 git clean -fd            → RELOCATE  (enumerate via -n, relocate, proceed)
-git reset --hard         → SNAPSHOT  (stash first, apply to recover)
+git reset --hard         → SNAPSHOT  (when a Git snapshot can be made)
 git push --force         → BLOCK     (remote history is never automated)
 node_modules/ (ignored)  → ALLOW     (provably regenerable)
 quarantine full          → BLOCK     (never fall back to permanent delete)
 ```
 
 ## Integration and validation matrix
+
+[![Node.js 20 smoke](https://img.shields.io/badge/Node.js-20%20smoke-339933?logo=nodedotjs&logoColor=white)](.github/workflows/ci.yml)
+[![Codex Skill/CLI tested](https://img.shields.io/badge/Codex-Skill%2FCLI%20tested-000000?logo=openai&logoColor=white)](docs/test-report-codex-gpt-6-astra-high.md)
+[![DSH v0.1.1 live-tested](https://img.shields.io/badge/DSH-v0.1.1%20live--tested-4D6BFE)](docs/test-report-dsh-v0.1.1.md)
+[![ZCode win32 CLI evaluated](https://img.shields.io/badge/ZCode-win32%20CLI%20evaluated-7C5CE0)](docs/test-report-zcode-glm-flash.md)
+[![Claude Code hook tested with scripted model](https://img.shields.io/badge/Claude%20Code-hook%20tested%20%28scripted%20model%29-D97757?logo=anthropic&logoColor=white)](docs/test-report-claude-code-harness.md)
+[![Kimi Code K3 hook observed](https://img.shields.io/badge/Kimi%20Code-K3%20hook%20observed-5B9BD5)](docs/harness-capabilities.md)
 
 "The Core works", "a Skill-guided agent used it", and "the harness
 intercepts every matching tool call" are separate claims. This table keeps
@@ -373,11 +419,14 @@ compensation engine without restructuring.
 
 ## Status & roadmap
 
-The current development line is **v0.2.0-rc1**. It keeps the hardened
+The current development line is **v0.2.0-rc2**. It keeps the hardened
 v0.1.1 recovery path (write-ahead relocation intent, Git snapshot safety,
 clean audit preflight, and explicit `RESTORABLE` / `RESTORED` lifecycle),
 then adds cmd/PowerShell dialect parsing, the `SANITIZE` decision class,
 `exfil-guard`, and the evidence-led `recovery-audit` Skill.
+
+**v0.2.0-rc2** is a documentation and presentation revision of `v0.2.0-rc1`:
+the decision protocol, the Core, and the adapter contracts are unchanged.
 
 The release identity is harness-neutral. Existing DSH and Claude adapters,
 Codex/ZCode acceptance evidence, and the bounded Kimi exercise are entries
@@ -390,7 +439,7 @@ also remain explicit gaps. Later Guard branches (`git-guard`, `database-guard`,
 
 ## 0.2.x preview: guard-lab
 
-Planned, **not included in 0.2.0-rc1**: an opt-in, offline honeytoken lab
+Planned, **not included in 0.2.0-rc2**: an opt-in, offline honeytoken lab
 using disposable projects and synthetic, non-secret markers. It will compare
 normal tasks with prompt-injection attempts, and separately observe whether a
 harness indexes or exports files without an agent-requested read. Positive and
@@ -402,8 +451,11 @@ or harness.
 
 ## Community
 
-We plan to share agent-guard with the [LINUX DO](https://linux.do) community.
-The project post will be linked here after it is published.
+[![LINUX DO community link](assets/linux-do-community.svg)](https://linux.do/t/topic/2942799)
+
+This project-made banner links to our
+[LINUX DO project post](https://linux.do/t/topic/2942799). It does not imply
+official endorsement by the community.
 
 ## License
 

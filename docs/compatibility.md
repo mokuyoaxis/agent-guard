@@ -9,8 +9,9 @@ may not, per release class.
 Harness adapters integrate against exactly four things:
 
 1. **Decision classes** - `ALLOW`, `SANITIZE`, `RELOCATE`, `SNAPSHOT`,
-   `ASK`, `BLOCK`. (`SANITIZE` was added in v0.2.0 for exfil-guard; it
-   ranks below `ASK`, between `ALLOW` and `RELOCATE`.)
+   `ASK`, `BLOCK`. (`SANITIZE` first appears in the `0.2.0-rc1` source
+   preview for exfil-guard; it ranks below `ASK`, between `ALLOW` and
+   `RELOCATE`.)
 2. **Reason codes** - stable machine-readable strings (`RELOCATE_TREE`,
    `COMPOUND_CWD_DELETE`, `BLOCK_PROTECTED_PATH`, ...). See
    [../skills/delete-guard/references/policy.md](../skills/delete-guard/references/policy.md).
@@ -41,7 +42,7 @@ While the major version is `0`:
 | `OpSpec.dialect` field | minor | New field; unknown fields stay opaque to consumers |
 | `Ask` on PowerShell `-WhatIf` | minor | A dry run is an `ALLOW_NOOP`; a real delete keeps existing rules |
 | `check.py --dialect` flag | minor | Defaults to `posix`; omitting it is byte-for-byte the old behaviour |
-| `AGENT_GUARD_DIALECT` env var | minor | Read by `check.py` and both adapters; unset means `posix` |
+| `AGENT_GUARD_DIALECT` env var | minor | Read by `check.py` and the native shell adapters; unset means `posix` |
 | `BLOCK_DIALECT_UNKNOWN` / `BLOCK_DIALECT_INVALID` | minor | New reason codes (additive) |
 | `BLOCK_PROTECTED_ANCESTOR` | minor | New reason code (additive). Filesystem roots (`/`, `/home`, `/usr`, `$HOME`, ...) are refused by identity rather than by falling outside the workspace |
 | PowerShell parameter prefix expansion | minor | `-r`/`-rec`/`-fo` now resolve; see below |
@@ -53,8 +54,8 @@ While the major version is `0`:
 | `.agent-guard/exfil-allow.toml` exemption file | minor | Read from the workspace root only; values exempted by `sha256:...`, never by value |
 
 Unknown dialect names raise `ValueError` from `normalize_dialect`, and the
-production paths (`check.py`, both adapters) turn an unusable selector into
-an explicit `BLOCK` rather than a silent POSIX fallback. That is a
+production paths (`check.py` and the native shell adapters) turn an unusable
+selector into an explicit `BLOCK` rather than a silent POSIX fallback. That is a
 deliberate *closed* failure: a silent fallback would lex a Windows command
 line with POSIX rules and could under-restrict it.
 
