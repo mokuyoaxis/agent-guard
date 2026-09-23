@@ -9,6 +9,11 @@ leaves a recovery path and an evidence trail when anything destructive does
 happen. It is explicitly *not* a sandbox or security boundary (see
 `threat-model.md`).
 
+The shared Core, Decision Protocol, and Skills are the product boundary.
+Harness adapters are replaceable translations onto host-native hooks; DSH,
+Claude Code, Codex, or any future host is a compatibility target rather than
+the identity of the project.
+
 ## The four pillars and where they live
 
 | Pillar | Question it answers | Component |
@@ -68,8 +73,8 @@ Explicit-path tools skip the shell parsing front half:
 The stable cross-harness interface is not allow/block:
 
 ```
-Effect -> Classifier -> Policy -> Decision  ∈ {ALLOW, RELOCATE, SNAPSHOT,
-                                                ASK, BLOCK}
+Effect -> Classifier -> Policy -> Decision  ∈ {ALLOW, SANITIZE, RELOCATE,
+                                                SNAPSHOT, ASK, BLOCK}
                                  + ReasonCode   (stable, machine-readable)
                                  + Explanation  (human-facing)
                                  + RecoveryPlan (payload: txids, strategy)
@@ -175,7 +180,8 @@ order of value:
 
 1. **Interception hook** (recommended): before executing a shell command,
    run `check.py --enforce -- <command>`; proceed on exit 0, refuse on
-   exit 2. This is the DSH plugin's `tools/pre-execute` listener today.
+   exit 2, and map exit 3 only when the host has a real human-approval path.
+   Existing adapters translate this contract onto their host-specific hook.
 2. **Agent-facing tools**: expose `safe_delete` / `restore` / `status` as
    model tools so the supported path is also the easiest path.
 3. **Prompt section**: inject a short instruction pointing the model at the
@@ -195,11 +201,15 @@ order of value:
     fail-closed handling of variables, subexpressions, piped target sets
     and nested hosts. Unit-tested on Linux CI; POSIX stays the default
     dialect so no existing adapter changes behaviour.
-  - **Phase 2 (not started, needs a real Windows host).** End-to-end
+  - **Phase 2 (done at the pure-logic/adapter-test level).** Differential
+    and regression suites (`tests/test_dialects.py`,
+    `tests/test_dialect_phase2.py`) cover further cmd/PowerShell spellings,
+    option aliases and fail-closed edge cases. Hook payload dialect forwarding
+    has adapter tests; this is not a Windows host execution claim.
+  - **Phase 3 (not done; needs a real Windows host).** End-to-end
     validation: real cmd/PowerShell execution, relocation across Windows
-    path semantics, adapter wiring that selects the dialect from the host
-    shell, and the Windows portability gaps reported in
-    `test-report-zcode-glm-flash.md`.
+    path semantics, host-selected dialect wiring, UNC/device paths and the
+    portability gaps reported in `test-report-zcode-glm-flash.md`.
 - V2: `git-guard` skill (remote ref protection with lease semantics);
   adapter hardening (host-side mode storage, tamper-evident audit).
 - V3+: `database-guard` (compensations = transaction / backup /

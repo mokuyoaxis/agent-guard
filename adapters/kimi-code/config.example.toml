@@ -1,0 +1,24 @@
+# Kimi Code adapter - agent-guard
+#
+# Append to ~/.kimi-code/config.toml. Hooks are read at session start, so
+# restart the session after editing.
+#
+# `matcher` is a REGULAR EXPRESSION tested against the tool name
+# (`matches()` in the Kimi Code bundle uses `new RegExp(pattern).test(value)`;
+# an empty pattern matches everything). Anchor it to the shell tool.
+
+# Give the model the delete-guard / exfil-guard / recovery-audit skills too,
+# so it learns the discipline instead of only meeting the enforcement.
+# Keep this pointed at the checkout rather than copying, so there is one
+# source of truth for the rule engine.
+extraSkillDirs = ["/absolute/path/to/agent-guard/skills"]
+
+[[hooks]]
+event = "PreToolUse"
+matcher = "Bash"
+command = "python3 /absolute/path/to/agent-guard/adapters/kimi-code/pre_tool_use.py"
+timeout = 90
+
+# Optional: surface the raw Core verdict on stderr for troubleshooting.
+# [experimental]
+# agent_guard_debug = true

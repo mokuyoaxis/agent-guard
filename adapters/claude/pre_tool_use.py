@@ -74,7 +74,7 @@ def allow_reason(code: str, compensations: list) -> str:
             f"({len(compensations)} relocation(s)); restorable via txid")
 
 
-def main() -> int:
+def main(ask_is_block: bool = False) -> int:
     raw = sys.stdin.read()
     try:
         payload = json.loads(raw)
@@ -103,9 +103,14 @@ def main() -> int:
         source="payload" if dialect_raw is not None
         else "env AGENT_GUARD_DIALECT")
 
-    prefilter = (DESTRUCTIVE_PREFILTER_RE if resolution.dialect == DIALECT_POSIX
-                 else DESTRUCTIVE_PREFILTER_RE_WINDOWS)
-    if resolution.ok and not prefilter.search(command):
+    # The fast path screens on BOTH vocabularies. It is a cost filter only:
+    # a `del`/`rd`/`erase` line must reach check.py even when the session
+    # never configured a dialect (default posix), or it would execute with
+    # no verdict and no audit record. Selecting the lexer by dialect stays
+    # the core's job - deciding whether to look at all does not.
+    if resolution.ok and not (
+            DESTRUCTIVE_PREFILTER_RE.search(command)
+            or DESTRUCTIVE_PREFILTER_RE_WINDOWS.search(command)):
         return 0  # fast path: regex cost only
 
     cwd = payload.get("cwd") or os.getcwd()
@@ -162,6 +167,14 @@ def main() -> int:
         return 0
 
     if decision == "ASK":
+        if ask_is_block:
+            # Kimi Code 0.42.0 ignores permissionDecision="ask" and treats
+            # it as allow. Its adapter opts into this conservative mapping.
+            sys.stderr.write(
+                f"[agent-guard] BLOCKED [{code}] host cannot enforce ASK: "
+                "split the destructive operation into a standalone command "
+                "and retry; no approval was granted.\n")
+            return 2
         # ASK_ONCE: Claude Code prompts the user; the reason is shown to
         # the human. Splitting the command avoids future prompts.
         emit({"hookSpecificOutput": {

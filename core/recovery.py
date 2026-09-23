@@ -24,6 +24,7 @@ import shutil
 import subprocess
 import time
 import errno
+import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from . import MANIFEST_NAME, TRASH_DIRNAME
@@ -40,6 +41,11 @@ _STORAGE_ERRNOS = {
     getattr(errno, "ENOSPC", None),
     getattr(errno, "EDQUOT", None),
 } - {None}
+
+# A transaction directory is one direct child of the quarantine, never a
+# caller-supplied path. Accept simple historical identifiers too, but no
+# separators or dots that could turn an ID into a path traversal.
+_GC_TXID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*\Z")
 
 
 class StorageUnavailable(OSError):
@@ -651,23 +657,44 @@ class RecoveryEngine:
             "remaining_bytes_after_gc": max(remaining, 0),
         }
 
+    def validate_gc_targets(self, txids: List[str]) -> List[Tuple[str, str]]:
+        """Resolve only manifest-owned direct children of the quarantine."""
+        # Validate the whole batch before touching anything: an unsafe ID
+        # after a valid one must not cause a partial purge. A directory that
+        # is not backed by a manifest transaction is not ours to delete.
+        known = self.transactions()
+        trash_physical = os.path.realpath(self.trash_root)
+        targets: List[Tuple[str, str]] = []
+        for txid in txids:
+            if not isinstance(txid, str) or not _GC_TXID_RE.fullmatch(txid):
+                raise ValueError(f"invalid quarantine transaction id: {txid!r}")
+            tx_dir = os.path.join(self.trash_root, txid)
+            if os.path.islink(tx_dir):
+                raise ValueError(f"refusing symlinked transaction: {txid}")
+            if os.path.isdir(tx_dir):
+                if txid not in known or known[txid].get("purged"):
+                    raise ValueError(f"unmanaged quarantine directory: {txid}")
+                if os.path.dirname(os.path.realpath(tx_dir)) != trash_physical:
+                    raise ValueError(f"transaction escapes quarantine: {txid}")
+            targets.append((txid, tx_dir))
+
+        return targets
+
     def gc_execute(self, txids: List[str]) -> Dict[str, Any]:
-        """Purge explicit transactions; write manifest tombstones.
+        """Purge validated transactions; write tombstones after removal.
 
         Audit records are NEVER removed - the QUARANTINED -> RESTORABLE ->
         GC_ELIGIBLE -> PURGED lifecycle stays fully reconstructible.
         """
+        targets = self.validate_gc_targets(txids)
         purged: List[str] = []
         missing: List[str] = []
-        records: List[Dict[str, Any]] = []
-        for txid in txids:
-            tx_dir = os.path.join(self.trash_root, txid)
+        for txid, tx_dir in targets:
             if not os.path.isdir(tx_dir):
                 missing.append(txid)
                 continue
-            shutil.rmtree(tx_dir, ignore_errors=True)
-            records.append({"type": "purged", "txid": txid})
+            # Never report PURGED after a failed or partial filesystem remove.
+            shutil.rmtree(tx_dir)
+            self._manifest_append([{"type": "purged", "txid": txid}])
             purged.append(txid)
-        if records:
-            self._manifest_append(records)
         return {"purged": purged, "missing": missing}

@@ -31,6 +31,7 @@ import argparse
 import json
 import os
 import sys
+import time
 
 import _bootstrap  # noqa: F401
 
@@ -39,6 +40,65 @@ from core.redaction import (
     CHANNELS, UNREACHABLE_CHANNELS, get_channel, scan_text,
 )
 from core import policy
+
+
+# A non-interactive caller that opens a pipe but never writes to it would
+# otherwise sit in `sys.stdin.read()` until the *host's* tool timeout kills
+# the call: the guard presents as a hang instead of a refusal, and a
+# mistyped invocation costs the caller a whole timeout window. Wait a
+# bounded time for the first byte - once a producer has spoken, read to EOF
+# as usual - and refuse loudly if nothing ever arrives. Interactive use is
+# unchanged. Override with AGENT_GUARD_STDIN_TIMEOUT (seconds).
+DEFAULT_STDIN_TIMEOUT_SEC = 10.0
+
+
+class StdinIdle(Exception):
+    """No payload arrived on stdin within the caller's patience."""
+
+
+def _stdin_timeout() -> float:
+    try:
+        value = float(os.environ.get("AGENT_GUARD_STDIN_TIMEOUT", ""))
+    except (TypeError, ValueError):
+        return DEFAULT_STDIN_TIMEOUT_SEC
+    return value if value > 0 else DEFAULT_STDIN_TIMEOUT_SEC
+
+
+def read_payload(stream=None, timeout=None) -> str:
+    """Read the payload from stdin without hanging a non-interactive caller.
+
+    A TTY is a human ending the stream with Ctrl-D: keep blocking. Anything
+    else is a producer that is expected to have spoken already, so the wait
+    for its first byte is bounded. A pipe that closes without data (EOF) is
+    a legitimately empty payload and returns "" for the normal scan path.
+    """
+    stdin = stream if stream is not None else sys.stdin
+    if stdin.isatty():
+        sys.stderr.write("exfil-guard: reading payload from stdin "
+                         "(Ctrl-D to finish)\n")
+        return stdin.read()
+    try:
+        import select
+    except ImportError:                 # pragma: no cover - non-POSIX
+        return stdin.read()
+    budget = _stdin_timeout() if timeout is None else timeout
+    deadline = time.monotonic() + budget
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise StdinIdle(
+                f"no payload arrived on stdin within {budget:g}s; pipe the "
+                "text in, or run it on a terminal to type it")
+        try:
+            ready, _, _ = select.select([stdin], [], [],
+                                        min(remaining, 0.5))
+        except (OSError, ValueError):
+            # stdin is not selectable on this platform (e.g. a Windows
+            # pipe). Fall back to the blocking read rather than refusing a
+            # caller whose payload may be perfectly good.
+            return stdin.read()
+        if ready:
+            return stdin.read()
 
 
 def build_redaction_plan(spans, decisions, channel) -> list:
@@ -87,7 +147,9 @@ def main() -> int:
     channel = get_channel(channel_name)
 
     try:
-        text = sys.stdin.read()
+        text = read_payload()
+    except StdinIdle as exc:
+        return _fail(str(exc), args.as_json)
     except (OSError, UnicodeDecodeError) as exc:
         return _fail(f"could not read stdin: {exc}", args.as_json)
 

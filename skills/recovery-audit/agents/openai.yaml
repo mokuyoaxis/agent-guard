@@ -1,0 +1,4 @@
+interface:
+  display_name: "Recovery Audit"
+  short_description: "Recover deleted work from Git and AI session evidence"
+  default_prompt: "Use $recovery-audit to recover this deleted workspace from surviving Git and AI session evidence, with provenance and gaps clearly reported."

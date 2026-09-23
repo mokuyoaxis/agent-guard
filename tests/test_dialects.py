@@ -451,8 +451,39 @@ class DefaultPathUnchanged(unittest.TestCase):
         self.assertEqual([s.targets for s in with_dialect],
                          [s.targets for s in without])
 
-    def test_cmd_vocabulary_is_not_posix(self):
-        self.assertEqual(classify_command("del /s /q build")[0], [])
+    def test_cmd_vocabulary_is_recognised_on_default_posix(self):
+        """Windows delete verbs must never be invisible.
+
+        Regression: the default dialect is posix, so a harness that never
+        set AGENT_GUARD_DIALECT handed every `del`/`rd`/`erase` through the
+        adapter's fast path with no verdict and no audit record. Vocabulary
+        is now dialect-independent; only the *lexer* follows the dialect.
+        """
+        specs, _ = classify_command("del /s /q build")
+        self.assertEqual(len(specs), 1)
+        self.assertEqual((specs[0].op, specs[0].kind), ("del", KIND_FS_DELETE))
+        self.assertEqual(specs[0].targets, ["build"])
+        self.assertTrue(specs[0].recursive and specs[0].force)
+        self.assertEqual(specs[0].dialect, "posix")
+
+    def test_windows_target_keeps_its_separator(self):
+        # shlex treats \ as an escape; without normalization this would
+        # lex as the single filename `buildo.js`.
+        specs, _ = classify_command("del build\\o.js")
+        self.assertEqual(specs[0].targets, ["build/o.js"])
+
+    def test_rd_is_a_tree_removal(self):
+        specs, _ = classify_command("rd /s /q build")
+        self.assertTrue(specs[0].recursive)
+        self.assertEqual(specs[0].targets, ["build"])
+        # bare `rd` removes a directory, like `rm -r`
+        specs2, _ = classify_command("rd build")
+        self.assertTrue(specs2[0].recursive)
+
+    def test_posix_verbs_are_unchanged(self):
+        self.assertEqual(classify_command("ls -la")[0], [])
+        self.assertEqual(classify_command("git status")[0], [])
+        self.assertEqual(classify_command("echo hello")[0], [])
 
     def test_posix_alias_expansion_absent(self):
         specs, _ = classify_command("rd /s /q build", "powershell")

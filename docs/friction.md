@@ -15,6 +15,16 @@ yields decision=ASK (COMPOUND_CWD_DELETE) - single-execution authorization
 instead of a dead end. Verified live: the ask surfaced to the human, who
 declined; splitting the command avoids the prompt entirely.
 
+**Corrected by the 2026-09-20 incident (P1).** That live validation assumed
+an interactive human on the other end. Under an auto-approving host the ASK
+is granted without anyone seeing it, so F1 converted a guaranteed refusal
+into a silent execution - in the incident, `cd /tmp && rm -rf "$PWD/../home"`
+resolved to `/home`. A shape rule describes *compensation* difficulty, never
+effect scope: F1 now evaluates the target set first and lets any hard
+boundary (out-of-workspace, protected path, undeterminable effect) win. The
+legitimate single-execution ASK survives for in-workspace, resolvable
+targets. Regression: `tests/test_incident_regression.py`.
+
 ## F2 · Create-then-delete in one line is a timing blind spot
 
 Observed live: `touch junk_a.tmp junk_b.tmp && mkdir -p empty_dir && git clean -fd`.
@@ -210,3 +220,47 @@ silently proceed when part of the emission is uninspectable.
 | `git clean -fd`, junk created by same line | proceeded unprotected | ✗ → F2 |
 | `safe_delete` mixed glob + file | relocate file, report no-match | ✓ after F3 fix |
 | heredoc write quoting destructive text | false BLOCK → fixed by strip_heredocs | ✓ after F5 |
+
+## F14 · An unknowable target set was reported as a broken compensation
+
+`git clean -fdx` outside a repository refused correctly but named the wrong
+reason: `COMPENSATION_FAILED` ("Compensation failed before execution")
+describes a compensation that was attempted and broke. Nothing was
+attempted here - the *target set* could not be enumerated, so the guard
+never learned what it was about to protect. The label sends a reader
+hunting for a fault in the quarantine engine that does not exist, and it
+buries the actual remedy (name the paths explicitly).
+
+**Fixed in v0.2.0-rc1:** enumeration failure raises
+`EnumerationUnavailable` and takes its own refusal arm with
+`BLOCK_UNDETERMINABLE_EFFECT` - the same verdict class as every other
+unknowable target set (policy.md row 11b). A genuine compensation fault
+(`git stash create` failing, audit intent not persisting) keeps
+`COMPENSATION_FAILED`.
+
+The same defect had a second half. Every refusal arm rewrites `decision`
+and `code`, but none of them rewrote `explanation`, which had been built
+from the verdict policy *proposed*. A `BLOCK_UNDETERMINABLE_EFFECT` was
+therefore explained as "git clean was dry-run enumerated and every match
+relocated before the real command ran" - a sentence describing an action
+that never happened. All three arms now restate the explanation with the
+code, and the CLI suite pins that invariant.
+
+## F15 · check_span hung on a pipe nobody wrote to
+
+`check.py` takes its command line from argv, but `check_span.py` reads its
+payload from stdin, and `sys.stdin.read()` blocks until EOF. A caller that
+opened a pipe and never wrote to it - the payload omitted, or `--path`
+passed on its own - left the CLI pinned until the *host's* tool timeout
+killed the call (300 s under DSH). The guard presented as a hang rather
+than a refusal, and every such mistake cost a full timeout window in which
+nothing else could run.
+
+**Fixed in v0.2.0-rc1:** the wait for a producer's first byte is bounded
+(`AGENT_GUARD_STDIN_TIMEOUT`, default 10 s) and the refusal is loud - exit
+1, "no payload arrived on stdin within Ns". Deliberately unchanged:
+interactive use still blocks for a human's Ctrl-D; a pipe that closes
+without data is still a legitimately empty payload (ALLOW, since nothing
+can leak); and on platforms where stdin is not selectable the code falls
+back to the blocking read rather than refusing a caller whose payload may
+be perfectly good.

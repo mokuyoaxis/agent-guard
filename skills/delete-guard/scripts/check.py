@@ -30,6 +30,17 @@ from core import AUDIT_NAME, TRASH_DIRNAME
 from core import audit, classifier, dialects, policy, recovery
 
 
+class EnumerationUnavailable(Exception):
+    """The target set could not be enumerated, so the effect is unknown.
+
+    Deliberately NOT a compensation failure: nothing was attempted and
+    nothing was mutated. `git clean -fdx` outside a repository (or with a
+    `git` that cannot run) has an unknown blast radius, which is the same
+    fact as every other effect-uncertainty shape - so it takes the same
+    verdict (policy.md row 11b), not COMPENSATION_FAILED.
+    """
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--cwd")
@@ -188,7 +199,8 @@ def main() -> int:
                 paths, err = engine.enumerate_git_clean(
                     base, flags, getattr(spec, "targets", []))
                 if err:
-                    raise RuntimeError(f"git clean enumeration failed: {err}")
+                    raise EnumerationUnavailable(
+                        f"git clean enumeration failed: {err}")
                 target_specs = classifier.classify_paths(
                     paths, base, workspace, trash_root)
                 report = engine.relocate(target_specs, meta={
@@ -216,10 +228,22 @@ def main() -> int:
                 compensations.append({"strategy": "snapshot",
                                       "txid": snap["txid"],
                                       "sha": snap["sha"]})
+    except EnumerationUnavailable as exc:
+        # The targets exist but their set is unknowable; refusing is the
+        # only honest verdict. Nothing was mutated, so this is not a
+        # compensation failure and must not be reported as one.
+        out["decision"], out["code"] = "BLOCK", \
+            policy.CODE_BLOCK_UNDETERMINABLE_EFFECT
+        out["explanation"] = policy.EXPLANATIONS[out["code"]]
+        out["reasons"] = [str(exc)]
+        record({"event": "enforce-block", "code": out["code"],
+                "command": cmd[:500], "reasons": out["reasons"]})
+        return finish(2)
     except recovery.StorageUnavailable as exc:
         # Hard principle: never fall back to permanent deletion.
         out["decision"], out["code"] = "BLOCK", \
             policy.CODE_BLOCK_RELOCATE_FAILED_STORAGE
+        out["explanation"] = policy.EXPLANATIONS[out["code"]]
         out["reasons"] = [str(exc)]
         record({"event": "enforce-block", "code": out["code"],
                 "command": cmd[:500], "reasons": out["reasons"]})
@@ -227,6 +251,7 @@ def main() -> int:
     except Exception as exc:  # compensation failed: refuse to proceed
         out["decision"], out["code"] = "BLOCK", \
             policy.CODE_BLOCK_COMPENSATION_FAILED
+        out["explanation"] = policy.EXPLANATIONS[out["code"]]
         out["reasons"] = [f"compensation error: {exc}"]
         record({"event": "enforce-error", "command": cmd[:500],
                 "code": out["code"], "error": str(exc)})

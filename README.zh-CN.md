@@ -1,23 +1,19 @@
+# AGENT-GUARD
+
 [![CI](https://github.com/mokuyoaxis/agent-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/mokuyoaxis/agent-guard/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/mokuyoaxis/agent-guard)](https://github.com/mokuyoaxis/agent-guard/releases)
 [![License](https://img.shields.io/github/license/mokuyoaxis/agent-guard)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Node.js 20 smoke](https://img.shields.io/badge/Node.js-20%20smoke-339933?logo=nodedotjs&logoColor=white)](.github/workflows/ci.yml)
 
-[![Codex tested](https://img.shields.io/badge/Codex-gpt--5.6--sol%20medium%20%2B%20high-000000?logo=openai&logoColor=white)](docs/test-report-codex-gpt-5.6-sol.md)
-[![DSH live-tested](https://img.shields.io/badge/DSH-v0.1.1%20DeepSeek%20V4%20Pro%20high%20minimal-4D6BFE)](docs/test-report-dsh-v0.1.1.md)
-[![ZCode live-tested](https://img.shields.io/badge/ZCode-GLM--Flash%20win32%20live--tested-7C5CE0)](docs/test-report-zcode-glm-flash.md)
-[![Claude Code live-tested](https://img.shields.io/badge/Claude%20Code-2.1.270%20hook%20live--tested%20mock%20model-D97757?logo=anthropic&logoColor=white)](docs/test-report-claude-code-harness.md)
-[![DSH v0.1.0 history](https://img.shields.io/badge/DSH-v0.1.0%20friction%20log-8B8B8B)](docs/friction.md)
-
-# agent-guard
-
-**让 AI Agent 的破坏性操作默认可逆。**
-**[English](README.md)**
+**让 AI Agent 的破坏性操作默认可逆。** · [English](README.md)
 
 Agent 正在越来越多地自主执行 shell 命令。当命令是 `rm -rf` 时,一个错误的变量、
 一次误判的上下文,就足以让整个仓库灰飞烟灭。agent-guard 让破坏*默认可逆*，
 并在支持的修改前持久记录 intent，可接入任何能跑 Python 的 harness。
+
+共享 Core、决策协议与 Skills 才是产品本体。各 harness adapter 是可替换的
+接入桥：宿主提供足够 hook 时，它负责原生拦截；任何单一 adapter 都不定义项目身份。
 
 > **Agent Guard 不是审批系统,而是带人工升级的自动恢复系统。**
 > 只要操作保持可逆,Agent 就不被打断;只有当 Guard 无法安全代办、
@@ -25,6 +21,33 @@ Agent 正在越来越多地自主执行 shell 命令。当命令是 `rm -rf` 时
 >
 > 它是可靠性基础设施,**不是安全沙箱**:它防的是判断失误与上下文错误,
 > 不是拥有相同 OS 权限的恶意 Agent。
+
+## 快速开始：让编码 Agent 帮你接入
+
+先把本仓库放在稳定的本地路径；如果已经有 checkout，跳过克隆：
+
+```sh
+git clone https://github.com/mokuyoaxis/agent-guard.git
+cd agent-guard
+```
+
+Core 需要 Python 3.9+ 和 Git；是否能自动拦截取决于当前宿主是否提供相应 hook。
+把下面这段交给编码 Agent，并替换路径：
+
+```text
+请从 /absolute/path/to/agent-guard 为当前工作区接入 agent-guard。
+先识别当前 harness 实际支持的 hook 与 Skill，阅读本 README 和对应 adapter
+说明，并检查 Python、Git。安装适用的 Skills；只有宿主确实支持时才配置
+原生 shell hook。保留现有设置；修改用户级配置或安装依赖前先展示差异并征求确认。
+Claude Code 参考 adapters/claude/README.md，Kimi Code 参考
+adapters/kimi-code/README.md，DSH 参考 adapters/dsh/README.md。
+Codex 或没有已验证 hook 的宿主只接入 Skill/CLI，并明确说明没有自动拦截。
+用无害命令和仅作为数据传给 check.py 的 BLOCK 样例验证；不要真正执行
+破坏性测试命令。最后报告实际安装内容、宿主确实拦截的范围和未验证路径。
+```
+
+手动接入与证据边界见 [harness 能力矩阵](docs/harness-capabilities.md)及对应
+adapter README。安装 Skill 本身不等于自动拦截工具调用。
 
 ## 四根支柱
 
@@ -76,6 +99,27 @@ harness 则降级为"携带解释的拒绝"。
 离开本机吗"——同一套决策协议互为镜像:删除先补偿再执行,泄露先脱敏再发出,
 而发出之后没有任何东西可以恢复。`delete-guard` 把守**删除之前**,
 `exfil-guard` 把守**发出之前**。
+
+`recovery-audit` 是两者的事故响应配套 Skill：建立证据优先级，区分原文恢复、
+依据重建与确认缺失，审计回放工具，并把提交、推送、发布保持为独立授权门。
+
+## recovery-audit
+
+有时预防根本没有机会运行：harness 没有 adapter、子代理绕开预期路径，或范围过大的
+命令在人工介入前删掉了 workspace。工作树可能已经消失，但编码 Agent 的会话缓存里
+仍可能保存成功 patch、文件快照、工具结果、diff 与命令上下文。
+
+`recovery-audit` 把这些残留，与 Git remote/reflog/stash、编辑器或工具缓存、构建产物
+和项目计划一起组织成证据驱动的恢复流程：
+
+- 每个单元明确标记为**原文恢复（recovered）**、**依据重建（reconstructed）**或
+  **确认缺失（missing）**；
+- 按真实时间顺序回放工具效果，并检查记录与回放是否分歧；
+- 同一份冻结证据重复回放，必须得到逐字节一致的树；
+- 落地、commit、push 与 release 始终是互相独立的授权门。
+
+它不是文件系统 undelete，也不能创造任何幸存来源从未保存过的字节。它承诺的是：
+尽快恢复到证据真正支持的最强项目状态，并把缺口写清楚，而不是藏起来。
 
 ## exfil-guard
 
@@ -194,7 +238,7 @@ echo 'config: sk-proj-AbCdEf…' | python3 skills/exfil-guard/scripts/sanitize.p
   改写历史是需要人类执行、且自带风险的动作。
 - **本版本不含 T3 熵检测器。** 它是最大的单一误报来源,而目标场景并不需要它。
 
-## 快速开始
+## Harness 无关的快速开始
 
 零第三方依赖。要求:Python 3.9+、POSIX shell、git。
 
@@ -234,17 +278,25 @@ node_modules/(已 ignore) → ALLOW     (可证明可再生)
 隔离区写满               → BLOCK     (绝不回退到永久删除)
 ```
 
-## 适配器
+## 接入与验证矩阵
 
-| Harness | 状态 | 机制 |
+“Core 可用”、“受 Skill 引导的 Agent 使用过”和“harness 会强制拦截每次匹配的
+工具调用”是三种不同强度的结论：
+
+| Harness | 接入层级 | 证据与边界 |
 |---|---|---|
-| **DSH**(DeepSeek Harness) | **已发布插件**；`v0.1.1` 真机测试(DeepSeek V4 Pro high,极简模式) | `dsh plugin --profile <p> add github:mokuyoaxis/agent-guard`——瀑布拦截 + 工具 + 提示层 |
-| **Codex** | 主审(`gpt-5.6-sol`,high)；先 medium，后 medium + high 前向测试 | `delete-guard` skill + `workspace-write` 下的 CLI；`.git` 只读时支持预先 ignore 的 `.agent-trash/` |
-| **Claude Code** | 就绪(`adapters/claude/`) | PreToolUse hook → `permissionDecision` allow/ask/deny |
-| OpenCode / MCP | 规划中 | 待一致性保证在两个适配器上验证后再扩 |
+| **Claude Code** | 原生 `PreToolUse` adapter | 使用真实 CLI 与 hook、模拟模型端点完成真机测试；映射 allow/ask/deny |
+| **DSH**（DeepSeek Harness） | 原生 adapter | `v0.1.1` 真机测试；提供瀑布拦截、模型工具与提示层。安装：`dsh plugin --profile <p> add github:mokuyoaxis/agent-guard` |
+| **Codex** | Skill + 生产 CLI 验收 | 已主审及前向测试；本仓库不声称存在 Codex 原生透明拦截 hook |
+| **ZCode** | Windows 上的 Skill/CLI 评估 | 已用 GLM-Flash 在 win32 真机测试；证明可移植路径，不等于通用 hook 保证 |
+| **Kimi Code 0.42.0** | 原生 `PreToolUse` adapter（Bash） | 两个独立沙盒使用同一 `local/kimi-k3` 模型，观察到 root、单子代理、并发双子代理的可恢复操作进入 hook；Core `ASK` 在适配器处被拒绝，不会提示确认。宿主对 `BLOCK` 判决的执行级拦截仍未证实。 |
+| OpenCode / MCP | 规划中 | 尚无支持声明 |
 
-跨 harness 保证(由 `tests/test_conformance.py` 强制):同一命令、同一 cwd、
-同一 workspace 状态,经任何适配器必须产出完全一致的 decision + reason code。
+`tests/test_conformance.py` 覆盖共享 Core 和 Claude adapter；DSH 有 smoke 测试，
+Kimi 有针对性 adapter 测试。上述 Kimi 观察只覆盖实测调用，不构成所有 Shell
+语法或一般并发子代理安全保证。
+各宿主的覆盖范围、证据等级和执行级验收条件见
+[harness 能力矩阵](docs/harness-capabilities.md)。
 
 ## 目录结构
 
@@ -252,8 +304,12 @@ node_modules/(已 ignore) → ALLOW     (可证明可再生)
 agent-guard/
 ├── skills/delete-guard/   # Agent 行为层:SKILL.md + CLI 脚本
 ├── skills/exfil-guard/    # 出口侧技能:check_span.py · sanitize.py
+├── skills/recovery-audit/ # 证据驱动的仓库审计与恢复
 ├── core/                  # classifier · policy · recovery · audit · redaction
 ├── adapters/claude/       # Claude Code PreToolUse hook 适配器
+├── adapters/kimi-code/   # Kimi Code PreToolUse hook 适配器
+├── adapters/dsh/          # DeepSeek Harness 接入桥
+├── adapters/codex/harness/# CLI 验收 driver；不是原生 hook
 ├── tests/                 # unittest 测试套件,含跨 harness 一致性
 └── docs/                  # architecture · threat-model · friction log
 ```
@@ -268,31 +324,39 @@ Skill 负责 Agent 行为引导,约束全部下沉 Core。未来的 `git-guard`�
 | [docs/architecture.md](docs/architecture.md) | 四柱↔组件映射、数据流、关键设计决定 |
 | [docs/threat-model.md](docs/threat-model.md) | 诚实边界:它是什么、不是什么 |
 | [docs/friction.md](docs/friction.md) | 真实 Agent 撞出来的教训(F1–F11) |
+| [docs/development-note-unguarded-deletion.md](docs/development-note-unguarded-deletion.md) | 去标识化事故探索与面向恢复的后续方向 |
 | [docs/test-report-codex-gpt-5.6-sol.md](docs/test-report-codex-gpt-5.6-sol.md) | v0.1.1 Codex 评估(medium + high) |
 | [docs/test-report-dsh-v0.1.1.md](docs/test-report-dsh-v0.1.1.md) | v0.1.1 DSH 真机测试(DeepSeek V4 Pro high,极简模式) |
+| [skills/recovery-audit/SKILL.md](skills/recovery-audit/SKILL.md) | 证据优先级、确定性回放、恢复与落地门禁 |
 | [skills/delete-guard/references/policy.md](skills/delete-guard/references/policy.md) | 完整规则表与判决码 |
 | [skills/exfil-guard/references/rules.md](skills/exfil-guard/references/rules.md) | exfil 规则表、reason code、豁免格式与审计结构 |
 | [skills/exfil-guard/references/channels.md](skills/exfil-guard/references/channels.md) | 出口信道分类与不可达信道 |
 
 ## 状态与路线图
 
-`v0.1.1` 是在 DSH `v0.1.0` 真机使用、首次 `gpt-5.6-sol` medium
-前向测试、high 主审、第二轮 medium + high 并行前向测试，以及 DSH
-极简模式下 DeepSeek V4 Pro `high` 真机运行之后的可靠性加固版。
-它加入预写式迁移 intent、Git 转义路径安全、Git 补偿
-fail-closed、只读 `.git` 下不污染工作树的审计预检、明确的
-`RESTORABLE` / `RESTORED` 生命周期状态和 DSH 运行时 smoke test。
-仍使用 patch 版本是有意的:当前验证矩阵只覆盖两个模型家族、两个 harness。
-下一步将扩展 Codex/Claude/DSH 的模型与 reasoning level，
-并推进 Windows 原生 shell 方言(Phase 1-2 已落地:cmd/PowerShell
-的纯逻辑分词与效果映射在 `core/dialects.py`,PowerShell 无歧义参数前缀展开,
-方言选择已接入 `check.py --dialect`、`AGENT_GUARD_DIALECT` 与两个适配器,
-POSIX 行为与默认路径不变;真实 Windows 端到端验证仍需 Windows 机器),以及同一补偿引擎上的
-`database-guard` / `cloud-guard`。`v0.2.0` 增加第二个 Guard 分支:
-**`exfil-guard`**——新增 `SANITIZE` 判决、文本 span 分类器
-(`core/redaction.py`),以及无需改动适配器即可使用的
-`check_span.py` / `sanitize.py` 命令行。按兼容性契约这是 **minor** 版本
-(新增判决类、新增 reason code,并在 README 公告)。
+当前开发线为 **v0.2.0-rc1**。它保留 v0.1.1 已加固的恢复路径（预写式迁移
+intent、Git 快照安全、干净的审计预检和明确的 `RESTORABLE` / `RESTORED`
+生命周期），并新增 cmd/PowerShell 方言解析、`SANITIZE` 判决、`exfil-guard`
+以及证据驱动的 `recovery-audit` Skill。
+
+该版本的项目身份与 harness 无关。现有 DSH、Claude adapter，Codex/ZCode
+验收证据，以及有边界的 Kimi 实测，只是不断扩展的兼容矩阵，不分别定义产品。
+Kimi 结果证明所测调用走通了 hook 补偿路径，不证明宿主强制执行所有 `BLOCK`，
+也不意味着任意 Agent 操作都受保护。真实 Windows 端到端覆盖与一般并发子代理
+安全仍是明确缺口。
+后续 `git-guard`、`database-guard`、`cloud-guard` 继续复用同一协议与补偿引擎。
+
+## 0.2.x 预告：guard-lab 合成蜜罐
+
+这是规划中的可选实验，**不属于 0.2.0-rc1**。它会在离线、一次性的测试项目
+里放入无认证能力的合成标记，对照正常任务与提示词注入诱导；另设试次观察
+harness 是否在 Agent 未请求读取时自行索引或外发文件。正负对照、独立观察器
+和证据分级将区分“提出读取”“本地接触”与“证实越过外部边界”。不使用真实
+凭据，不默认常驻后台；它也不是抵抗恶意模型或宿主的安全保证。
+
+## 社区友链
+
+计划在 [LINUX DO](https://linux.do) 社区分享 agent-guard；帖子发布后再补充直达链接。
 
 ## 许可证
 

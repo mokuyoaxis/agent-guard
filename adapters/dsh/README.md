@@ -35,13 +35,15 @@ dsh plugin --profile <your-profile> add github:mokuyoaxis/agent-guard
 ## Shell dialect
 
 Interception forwards a shell dialect to `check.py` so Windows-native
-command lines are lexed with the right rules. Precedence: the tool
-argument (`dialect`), then `AGENT_GUARD_DIALECT`, then the `dialect` config
-key, then `posix`. The prefilter follows the dialect (the POSIX regex
-cannot see `ri build -r -fo`); the POSIX prefilter and the default path are
-unchanged. An unrecognised selector is forwarded verbatim rather than
-swapped for POSIX, so `check.py` returns `BLOCK_DIALECT_UNKNOWN` and the
-call is denied with that code.
+command lines are lexed with the right rules. Explicitly invalid plugin
+configuration (including unknown field names) is rejected by Standard Schema
+validation; only omitted fields receive defaults. Precedence for valid
+configuration: the tool argument (`dialect`), then `AGENT_GUARD_DIALECT`,
+then the `dialect` config
+key, then `posix`. The fast prefilter screens both POSIX and Windows
+vocabularies regardless of dialect. An unrecognised tool/environment selector
+is forwarded verbatim rather than swapped for POSIX, so `check.py` returns
+`BLOCK_DIALECT_UNKNOWN` and the call is denied with that code.
 
 ## Notes
 

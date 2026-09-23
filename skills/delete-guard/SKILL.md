@@ -55,7 +55,7 @@ can receive:
 | `ALLOW` (harness may show `PROCEED`) | safe as-is or compensation already applied | continue; record and verify any `txid` |
 | `BLOCK_UNDETERMINABLE_EFFECT` | targets unresolvable (`$VAR`, `bash -c`, `find -delete`, `xargs`) | restate with explicit paths, or use `safe_delete` |
 | `BLOCK_WILDCARD` | glob target set is opaque | use `safe_delete` with the glob |
-| `BLOCK_OUT_OF_WORKSPACE` / `BLOCK_PROTECTED_PATH` | outside boundary, workspace root, or `.git` | do not retry; this is a hard boundary. Ask the human if it is truly needed |
+| `BLOCK_OUT_OF_WORKSPACE` / `BLOCK_PROTECTED_PATH` / `BLOCK_PROTECTED_ANCESTOR` | outside boundary, workspace root, `.git`, or a filesystem root (`/`, `/home`, `/usr`, `$HOME`) | do not retry; this is a hard boundary. Ask the human if it is truly needed |
 | `BLOCK_RESTRICTED_MODE` | session is downgraded | only explicit single-file deletes are permitted; ask the human for anything more |
 | `BLOCK_FORCE_PUSH` | remote history destruction | do not retry; escalate to the human |
 

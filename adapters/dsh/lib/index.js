@@ -36,19 +36,84 @@ export const inject = ["tools", "shell", "systemPrompt"];
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // lib -> adapters/dsh -> repository root (where core/ and skills/ live).
 const PACKAGE_ROOT = path.resolve(__dirname, "..", "..", "..");
+// Keep the configuration boundary aligned with core/dialects.py. Tool- or
+// environment-supplied names still go to Core for a BLOCK_DIALECT_* verdict.
+const CONFIG_DIALECTS = new Set([
+  "posix", "sh", "bash", "zsh", "cmd", "cmd.exe", "batch", "bat",
+  "powershell", "pwsh", "ps",
+]);
+const CONFIG_FIELDS = new Set([
+  "repoRoot", "defaultCwd", "promptSection", "sectionOrder", "dialect",
+]);
 
-/** Composition-row configuration (cordis.patch.yml). */
+/**
+ * Composition-row configuration (cordis.patch.yml).
+ *
+ * The loader validates this export through the Standard Schema interface
+ * (`Config["~standard"].validate`), so a plain property bag cannot be used
+ * here - resolveConfig would read `undefined.validate` and the whole plugin
+ * tree would fail to load. Kept dependency-free on purpose: the guard ships
+ * with no third-party imports, so the tiny standard-schema surface is
+ * written by hand rather than pulling in schemastery.
+ */
 export const Config = {
-  /** Absolute path to an agent-guard checkout; empty = use this package. */
-  repoRoot: { type: "string", default: "" },
-  /** Default working directory for guard invocations; empty = session cwd. */
-  defaultCwd: { type: "string", default: "" },
-  /** Register the deletion-discipline prompt section. */
-  promptSection: { type: "boolean", default: true },
-  /** System-prompt section order (persona 0, tool guidance 100-199). */
-  sectionOrder: { type: "number", default: 105 },
-  /** Default shell dialect for guard invocations; empty = posix. */
-  dialect: { type: "string", default: "" },
+  "~standard": {
+    version: 1,
+    vendor: "agent-guard",
+    validate(value) {
+      // Only an absent config gets defaults. An explicit null or wrong field
+      // must not quietly turn a requested Windows dialect into POSIX.
+      const input = value === undefined ? {} : value;
+      if (input === null || typeof input !== "object" || Array.isArray(input)) {
+        return { issues: [{ message: "agent-guard config must be an object" }] };
+      }
+      const issues = [];
+      const config = {
+        repoRoot: "",
+        defaultCwd: "",
+        promptSection: true,
+        sectionOrder: 105,
+        dialect: "",
+      };
+      for (const key of Object.keys(input)) {
+        if (!CONFIG_FIELDS.has(key)) {
+          issues.push({ message: `unknown agent-guard config field: ${key}`, path: [key] });
+        }
+      }
+      for (const key of ["repoRoot", "defaultCwd"]) {
+        if (!Object.prototype.hasOwnProperty.call(input, key)) continue;
+        if (typeof input[key] !== "string") {
+          issues.push({ message: `${key} must be a string`, path: [key] });
+        } else {
+          config[key] = input[key];
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(input, "promptSection")) {
+        if (typeof input.promptSection !== "boolean") {
+          issues.push({ message: "promptSection must be a boolean", path: ["promptSection"] });
+        } else {
+          config.promptSection = input.promptSection;
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(input, "sectionOrder")) {
+        if (typeof input.sectionOrder !== "number" || !Number.isFinite(input.sectionOrder)) {
+          issues.push({ message: "sectionOrder must be a finite number", path: ["sectionOrder"] });
+        } else {
+          config.sectionOrder = input.sectionOrder;
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(input, "dialect")) {
+        const requested = input.dialect;
+        if (typeof requested !== "string" ||
+            (requested !== "" && !CONFIG_DIALECTS.has(requested.trim().toLowerCase()))) {
+          issues.push({ message: "dialect must name a supported shell dialect", path: ["dialect"] });
+        } else {
+          config.dialect = requested;
+        }
+      }
+      return issues.length ? { issues } : { value: config };
+    },
+  },
 };
 
 // Aligned with core/classifier.py vocabulary (V1: Linux/macOS).
@@ -58,20 +123,15 @@ const DESTRUCTIVE_RE = new RegExp(
     "|\\bgit\\s+(clean|reset|restore|checkout|push)\\b"
 );
 
-// Windows-native vocabulary (cmd / PowerShell). Used only when the session
-// requested a non-posix dialect: `ri build -r -fo` never matches the POSIX
-// regex, so a Windows session would otherwise skip the guard entirely.
+// Windows-native vocabulary (cmd / PowerShell). Screen both vocabularies
+// regardless of dialect: the selector chooses the lexer, not whether a
+// destructive-looking command reaches the guard at all.
 const DESTRUCTIVE_RE_WINDOWS = new RegExp(
   "(^|[\\s;&|(\\\\/])(rm|ri|rd|rmdir|del|erase|remove-item)\\b" +
     "|-\\s?(recurse|force|whatif|literalpath)\\b" +
     "|\\bgit\\s+(clean|reset|restore|checkout|push)\\b",
   "i"
 );
-
-// Dialect selectors recognised by core/dialects.py. Kept here only to pick
-// the prefilter and to decide whether to pass `--dialect`; the authoritative
-// validation (and the BLOCK for an unusable selector) stays in check.py.
-const POSIX_ALIASES = new Set(["posix", "sh", "bash", "zsh"]);
 
 function dialectSelector(args, config, env) {
   const fromArgs = args && args.dialect;
@@ -82,11 +142,6 @@ function dialectSelector(args, config, env) {
     return config.dialect;
   }
   return undefined;
-}
-
-function isPosixDialect(selector) {
-  if (selector === undefined) return true;
-  return POSIX_ALIASES.has(String(selector).trim().toLowerCase());
 }
 
 /**
@@ -183,11 +238,12 @@ export function apply(ctx, config) {
         const args = exec.arguments || {};
         const command =
           typeof args.command === "string" ? args.command : "";
-        // Dialect first: the prefilter cannot see Windows-native syntax.
+        // A dialect selector is still forwarded to the Core for validation.
         const selector = dialectSelector(args, config, process.env);
-        const posix = isPosixDialect(selector);
-        const prefilter = posix ? DESTRUCTIVE_RE : DESTRUCTIVE_RE_WINDOWS;
-        if (!command || !prefilter.test(command)) return next();
+        if (!command ||
+            !(DESTRUCTIVE_RE.test(command) || DESTRUCTIVE_RE_WINDOWS.test(command))) {
+          return next();
+        }
 
         // An unusable selector is still forwarded: check.py owns the
         // verdict and BLOCKs it explicitly instead of silently guessing
@@ -371,7 +427,7 @@ export function apply(ctx, config) {
       disposers.push(
         systemPrompt.section({
           name: "agent-guard-delete-discipline",
-          order: config.sectionOrder || 105,
+          order: config.sectionOrder ?? 105,
           text: [
             "## Deletion discipline (agent-guard)",
             "",

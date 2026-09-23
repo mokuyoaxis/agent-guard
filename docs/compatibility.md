@@ -43,6 +43,7 @@ While the major version is `0`:
 | `check.py --dialect` flag | minor | Defaults to `posix`; omitting it is byte-for-byte the old behaviour |
 | `AGENT_GUARD_DIALECT` env var | minor | Read by `check.py` and both adapters; unset means `posix` |
 | `BLOCK_DIALECT_UNKNOWN` / `BLOCK_DIALECT_INVALID` | minor | New reason codes (additive) |
+| `BLOCK_PROTECTED_ANCESTOR` | minor | New reason code (additive). Filesystem roots (`/`, `/home`, `/usr`, `$HOME`, ...) are refused by identity rather than by falling outside the workspace |
 | PowerShell parameter prefix expansion | minor | `-r`/`-rec`/`-fo` now resolve; see below |
 | `SANITIZE` decision class | minor | exfil-guard; announced in both READMEs. Adapters must state their native mapping (a harness without re-write capability degrades to ASK/deny) |
 | `core/redaction.py` module (`SpanSpec`, `detect_secrets`, `detect_paths`, `scan_text`) | minor | Internal-but-documented; the fact layer for text spans |
@@ -84,6 +85,25 @@ fact; otherwise it stays an unknown parameter, which policy BLOCKs. `-wi`
 is the interesting case: `-WhatIf` stops the delete while `-WarningAction`
 does not, so a wrong guess is asymmetric and the guard will not make it.
 Every expansion is recorded in the op notes for audit.
+
+## Verdict changes since v0.1.1
+
+A changed default verdict for an existing shape is a **minor** release and
+requires an entry in [friction.md](friction.md) - never a silent behaviour
+shift. Additive reason codes are listed above; this table is for shapes
+whose *existing* verdict moved.
+
+| Shape | Was | Now | Why |
+|---|---|---|---|
+| `git clean -f...` whose target set cannot be enumerated (not a repository, `git` unavailable) | `BLOCK` / `COMPENSATION_FAILED` | `BLOCK` / `BLOCK_UNDETERMINABLE_EFFECT` | Nothing was attempted, so the verdict must not claim a compensation broke; this is the same effect-uncertainty class as every other unknowable target set (F14, policy.md row 11b) |
+| `cd ... && git push --force` | `ASK` / `COMPOUND_CWD_DELETE` | `BLOCK` / `BLOCK_FORCE_PUSH` | A shape rule cannot downgrade a position-independent hard refusal (F1) |
+| `cd ... && rm` with an out-of-workspace, protected, or unknowable target | `ASK` / `COMPOUND_CWD_DELETE` | The applicable hard `BLOCK` | F1 describes compensation difficulty, not permission to cross a boundary |
+| Attached or newline-separated destructive commands (`echo ok;rm ...`, `echo ok` followed by newline and `rm ...`) | Could miss the destructive segment | Classifies and applies its normal policy | POSIX command boundaries must be preserved by the lexer |
+
+Unchanged on purpose: a genuine compensation fault (`git stash create`
+failing, a relocation that does not cover every target, an audit intent
+that cannot persist) still reports `COMPENSATION_FAILED`. The distinction
+is *was anything attempted* - not how serious the outcome would have been.
 
 ## What is explicitly NOT frozen
 

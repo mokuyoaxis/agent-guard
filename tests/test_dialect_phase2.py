@@ -475,13 +475,31 @@ class ClaudeAdapterDialect(unittest.TestCase):
         self.assertEqual(proc.returncode, 0)
         self.assertEqual(proc.stdout.strip(), "")
 
-    def test_windows_prefilter_not_used_for_posix(self):
-        """A cmd-looking line under the POSIX dialect stays untouched."""
-        proc = self.run_hook(self.payload("ri build -r -fo"))
+    def test_windows_vocabulary_reaches_the_guard_on_posix(self):
+        """A cmd-looking line must reach check.py even without a dialect.
+
+        Regression: the fast path screened on the POSIX vocabulary only, so
+        a session that never set AGENT_GUARD_DIALECT executed `del`, `rd`
+        and `ri` with no verdict and no audit record. The prefilter is now
+        a cost filter over BOTH vocabularies; it never decides that a
+        command is harmless because of the dialect it was lexed with.
+        """
+        proc = self.run_hook(self.payload("ri build -r -fo"),
+                             env={"AGENT_GUARD_DEBUG": "1"})
+        # `ri` is recognised (no longer invisible), but the POSIX lexer
+        # cannot resolve the PowerShell prefix `-fo`, so the line fails
+        # CLOSED rather than being treated as harmless. That is the point:
+        # before this fix it was silently allowed with no record at all.
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("BLOCK", proc.stderr)
+
+    def test_cmd_vocabulary_is_compensated_on_posix(self):
+        """A plain cmd delete is relocated even without a dialect set."""
+        proc = self.run_hook(self.payload("del /s /q build"),
+                             env={"AGENT_GUARD_DEBUG": "1"})
         self.assertEqual(proc.returncode, 0)
-        self.assertEqual(proc.stdout.strip(), "")
-        self.assertFalse(os.path.isdir(
-            os.path.join(self.root, ".agent-trash")))
+        self.assertIn('"code": "RELOCATE_TREE"', proc.stderr)
+        self.assertTrue(os.path.isdir(os.path.join(self.root, ".agent-trash")))
 
 
 if __name__ == "__main__":

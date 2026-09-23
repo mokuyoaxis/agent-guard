@@ -28,8 +28,8 @@ check.py exit codes: 0 proceed/advisory-ok · 2 blocked · 3 ask · 1 error.
 ### Dialects
 
 `check.py` lexes the command line for a shell dialect: `--dialect posix`
-(default) `| cmd | powershell`, or `AGENT_GUARD_DIALECT`. The Claude and
-DSH adapters forward it from the payload / tool arguments / environment.
+(default) `| cmd | powershell`, or `AGENT_GUARD_DIALECT`. Native adapters
+forward it from the payload, tool arguments, configuration, or environment.
 An unusable selector is a BLOCK, never a silent POSIX fallback:
 
 | Condition | Verdict code | Effect |
@@ -50,8 +50,9 @@ different effects (`-wi`, `-c`, `-p`) stays unknown and BLOCKs.
 |---|---|---|---|
 | 1 | dry run / no targets | `ALLOW_NOOP` | proceed unchanged |
 | 2 | unresolvable targets: shell vars, command substitution, unbalanced quotes, `bash -c` with destructive smell, `find -delete`, `find -exec rm`, stdin-fed (`xargs`) | `BLOCK_UNDETERMINABLE_EFFECT` | refuse - allowing it would forfeit the core guarantee |
-| 2a | SHAPE F1: destructive op preceded by `cd` in the same command line | `ASK` (`COMPOUND_CWD_DELETE`) | single-execution authorization; splitting the command avoids the prompt |
+| 2a | SHAPE F1: destructive op preceded by `cd` in the same command line, target in-workspace and resolvable | `ASK` (`COMPOUND_CWD_DELETE`) | single-execution authorization; splitting the command avoids the prompt. A shape rule describes *compensation* difficulty, never effect scope: if the target set also trips rule 2, 4, 5 or 6, that BLOCK wins (`tests/test_incident_regression.py`) |
 | 2b | SHAPE F2: file-creation op (`touch/mkdir/cp/mv/install/ln/tee`, `>`/`>>`) precedes a target-dependent destructive op in the same line | `ASK` (`COMPOUND_CREATE_DELETE`) | single-execution authorization; `reset --hard`/force-push exempt (position-independent) |
+| 2c | target *is* a filesystem root (`/`, `/home`, `/usr`, `/etc`, `/var`, `/tmp`, `/opt`, `/boot`, `$HOME`, ...) | `BLOCK_PROTECTED_ANCESTOR` | refuse. Matched exactly, so paths *under* these roots keep the ordinary codes; enforced by identity rather than workspace geometry, so it holds even when the workspace is `/` |
 | 3 | any target inside quarantine (`.agent-trash/`) | `ALLOW_TRASH_GC` | direct delete permitted (housekeeping) |
 | 4 | target outside workspace | `BLOCK_OUT_OF_WORKSPACE` | refuse |
 | 5 | target is workspace root or `.git` (any depth) | `BLOCK_PROTECTED_PATH` | refuse |
@@ -62,6 +63,7 @@ different effects (`-wi`, `-c`, `-p`) stays unknown and BLOCKs.
 | 10 | `git clean` dry run | `ALLOW_NOOP` | proceed |
 | 11 | supported `git clean -f...` | `RELOCATE_VIA_CLEAN_ENUMERATE` | enumerate via `clean -n`, decode every Git-quoted path, relocate every match, proceed only on full coverage |
 | 11a | `git clean -ff`, interactive `-i`, or exclude `-e` | `BLOCK_UNDETERMINABLE_EFFECT` | refuse; nested-repository and interactive/exclusion semantics are not safely mirrored |
+| 11b | supported `git clean -f...` whose target set cannot be enumerated (not a repository, `git` cannot run) | `BLOCK_UNDETERMINABLE_EFFECT` | refuse; the targets exist but their set is unknowable, so nothing was attempted and nothing may be reported as a failed compensation |
 | 12 | `git reset --hard`, `git restore <path>`, `git checkout -- <path>` | `SNAPSHOT_GIT_STASH` | `git stash create`+`store` first; any create/store failure blocks |
 | 13 | all targets git-ignored AND match artifact patterns | `ALLOW_REGENERABLE` | direct delete |
 | 14 | rooted recursive delete | `RELOCATE_TREE` | quarantine whole tree, proceed |

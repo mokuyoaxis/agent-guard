@@ -38,11 +38,62 @@ from . import dialects
 # ---------------------------------------------------------------- vocabulary
 
 FS_DELETE_CMDS = {"rm", "rmdir", "unlink", "shred"}
+# Windows-native delete verbs. Recognised on EVERY dialect: a harness that
+# never configured `AGENT_GUARD_DIALECT` still defaults to posix, and a
+# posix-lexed `del /s /q build` must not be treated as an unknown verb.
+# See docs/development-note-unguarded-deletion.md (lesson: the normalized
+# target decides, not the spelling).
+WINDOWS_DELETE_CMDS = {"del", "erase", "rd", "rmdir", "ri"}
 SHELL_PREFIXES = {"sudo", "env", "nice", "nohup", "command", "time", "stdbuf", "xargs"}
 INTERPRETER_CMDS = {"sh", "bash", "zsh", "ksh", "eval", "source", "."}
-SEPARATORS = {";", "&", "&&", "|", "||"}
+SEPARATORS = {";", "&", "&&", "|", "||", "\n"}
 GLOB_CHARS = ("*", "?", "[")
 INDETERMINACY_CHARS = ("$", "`")
+
+# Filesystem roots that must never be a deletion target, whatever the
+# workspace setting says. `rm -rf /home` blocks today only because /home
+# happens to sit outside the workspace root - an accident of configuration,
+# not a policy (see docs/development-note-unguarded-deletion.md).
+#
+# Matching is EXACT: the rule fires when a target *is* one of these roots,
+# never when it merely lives under one, so `rm -rf /home/alice/build` stays
+# an ordinary (out-of-workspace) target and `rm -rf /tmp/work` is untouched.
+PROTECTED_ANCESTOR_ROOTS = frozenset({
+    "/", "/home", "/root", "/Users", "/Volumes", "/tmp", "/var", "/usr",
+    "/etc", "/opt", "/srv", "/bin", "/sbin", "/lib", "/lib64", "/boot",
+    "/proc", "/sys", "/dev", "/mnt", "/media", "/Applications", "/System",
+    "/Library", "/private",
+})
+
+# Windows drive root (`C:\`, `D:`), which has no POSIX spelling.
+_DRIVE_ROOT_RE = re.compile(r"[A-Za-z]:[\\/]?")
+
+
+def protected_ancestor_root(path: Optional[str]) -> Optional[str]:
+    """The protected root this path *is*, or None.
+
+    Exact-match on purpose: `rm -rf /home` is a catastrophe while
+    `rm -rf /home/alice/build` is an ordinary target the boundary rules
+    already handle. `$HOME` is matched dynamically because it is the one
+    root whose location is per-user.
+    """
+    if not path:
+        return None
+    try:
+        norm = os.path.normpath(path)
+    except (TypeError, ValueError):
+        return None
+    if norm in PROTECTED_ANCESTOR_ROOTS:
+        return norm
+    try:
+        home = os.path.expanduser("~")
+    except Exception:  # pragma: no cover - exotic passwd setups
+        home = None
+    if home and home != "~" and os.path.normpath(home) == norm:
+        return norm
+    if _DRIVE_ROOT_RE.fullmatch(norm):
+        return norm
+    return None
 
 # Single-source keyword prefilter: harness adapters use it to skip
 # non-destructive traffic at regex cost before invoking check.py.
@@ -133,7 +184,8 @@ class PathSpec:
     link_target: Optional[str] = None   # realpath when is_symlink
     inside_workspace: bool = False
     inside_trash: bool = False
-    protected: Optional[str] = None     # None | workspace-root | outside-workspace | git-metadata
+    protected: Optional[str] = None     # None | ancestor-root | workspace-root
+                                        # | outside-workspace | git-metadata
     error: Optional[str] = None
 
 # ------------------------------------------------------------- path analysis
@@ -292,7 +344,16 @@ def classify_paths(
         if trash_root:
             trash_physical = _physical(os.path.normpath(trash_root))
             spec.inside_trash = inside_path(physical, trash_physical)
-        if physical == workspace or physical == trash_physical:
+        # Both spellings are checked: the caller's lexical path and the
+        # physicalized one. On macOS `/tmp` resolves to `/private/tmp`, so a
+        # physical-only test would miss the root the user actually named.
+        if (protected_ancestor_root(absolute)
+                or protected_ancestor_root(physical)):
+            # Before every other boundary rule: a system root is refused
+            # because of what it *is*, not because of where the workspace
+            # happens to sit. Hard boundary - never askable.
+            spec.protected = "ancestor-root"
+        elif physical == workspace or physical == trash_physical:
             # Anchored at a boundary root itself: a workspace root and the
             # quarantine centre are both "the root of their tree", never
             # content. `rm -rf .` stays a hard BLOCK. (When no trash_root is
@@ -400,6 +461,65 @@ def _parse_fs_delete(head: str, segment: List[str], from_xargs: bool) -> OpSpec:
         spec.note("target list arrives via stdin (xargs)")
     _scan_targets(spec)
     return spec
+
+
+def _parse_windows_delete(head: str, segment: List[str]) -> OpSpec:
+    """A Windows delete verb seen on a non-Windows dialect.
+
+    `del /s /q build` lexed by the POSIX lexer yields `/s` and `/q` as
+    ordinary words; treating them as filenames would relocate two files
+    that do not exist and let `build` through unguarded. cmd spells its
+    switches with `/`, so they are recognised here, and `rd`/`rmdir`
+    remove a tree the way `rm -r` does.
+
+    This exists because the default dialect is posix: a harness that never
+    set AGENT_GUARD_DIALECT would otherwise hand every `del`/`rd`/`erase`
+    through untouched - no verdict, no audit record.
+    """
+    spec = OpSpec(op=head, kind=KIND_FS_DELETE)
+    for tok in segment[1:]:
+        low = tok.lower()
+        if low in ("/s", "/q", "/f", "/a", "/p"):
+            if low == "/s":
+                spec.recursive = True
+            elif low == "/q":
+                spec.force = True
+            continue
+        if tok == "--":
+            continue
+        if tok.startswith("-") and len(tok) > 1:
+            for ch in tok[1:]:
+                if ch in "rR":
+                    spec.recursive = True
+                elif ch == "f":
+                    spec.force = True
+                else:
+                    spec.undeterminable = True
+                    spec.note(f"unknown flag -{ch}")
+            continue
+        spec.targets.append(tok)
+    if head in ("rd", "rmdir", "ri"):
+        # `rd`/`rmdir` only ever remove directories; on cmd a bare
+        # `rd build` is already a tree removal. `ri` is the PowerShell
+        # alias for Remove-Item.
+        spec.recursive = True
+    spec.note("windows delete verb on %s dialect" % (spec.dialect or "posix"))
+    _scan_targets(spec)
+    return spec
+
+
+def _normalize_windows_separators(cmd: str) -> str:
+    r"""Turn a backslash into a slash so `del build\o.js` survives POSIX.
+
+    `shlex.split(..., posix=True)` treats `\` as an escape and silently
+    yields `buildo.js` - one wrong filename instead of a path. Only the
+    segment following a Windows delete verb is rewritten, and only on a
+    non-Windows host, matching `_classify_windows_dialect`: separation is a
+    host concern, not a dialect concern.
+    """
+    if os.name == "nt":
+        return cmd
+    return cmd.replace("\\", "/")
 
 
 def _parse_find(segment: List[str]) -> OpSpec:
@@ -649,10 +769,40 @@ def _parse_error_spec(exc: str,
     return spec
 
 
+_WINDOWS_PREFIX_RE = "|".join(sorted(SHELL_PREFIXES - {"xargs"}))
+_WINDOWS_COMMAND_RE = re.compile(
+    r"(^|[;&|\n])\s*(?:(?:" + _WINDOWS_PREFIX_RE + r")\s+)*"
+    r"(?:del|erase|rd|ri)\b", re.IGNORECASE)
+
+
+def _posix_tokens(cmd: str) -> List[str]:
+    """Preserve unquoted command separators, including attached ones.
+
+    `shlex.split` treats newlines as whitespace and `x;rm` as one word,
+    although Bash executes a second command. Punctuation-aware shlex keeps
+    quoted punctuation in filenames while exposing actual operators.
+    """
+    lexer = shlex.shlex(cmd, posix=True, punctuation_chars=";&|\n")
+    lexer.whitespace_split = True
+    lexer.whitespace = " \t\r"
+    lexer.commenters = ""
+    return list(lexer)
+
+
 def _classify_posix(cmd: str) -> Tuple[List[OpSpec], Optional[str]]:
-    """The historical POSIX/`shlex` pipeline (unchanged behaviour)."""
+    """POSIX lexer with explicit shell command boundaries."""
+    text = strip_heredocs(cmd)
+    if "\\" in text and _WINDOWS_COMMAND_RE.search(text):
+        # The cmd-style backslash rewrite is safe only for a standalone
+        # Windows verb. Rewriting a compound line changes POSIX `rm a\ b`
+        # into a different target. Refuse mixed syntax rather than inspect
+        # bytes different from those the host shell will execute.
+        if re.search(r"[;&|\n]", text):
+            reason = "mixed Windows delete and POSIX command separators"
+            return [_parse_error_spec(reason)], reason
+        text = _normalize_windows_separators(text)
     try:
-        tokens = shlex.split(strip_heredocs(cmd), posix=True)
+        tokens = _posix_tokens(text)
     except ValueError as exc:
         return [_parse_error_spec(str(exc))], str(exc)
     if not tokens:
@@ -693,6 +843,8 @@ def _classify_posix(cmd: str) -> Tuple[List[OpSpec], Optional[str]]:
 
         if head in FS_DELETE_CMDS:
             emit(_parse_fs_delete(head, seg, from_xargs), index)
+        elif head in WINDOWS_DELETE_CMDS:
+            emit(_parse_windows_delete(head, seg), index)
         elif head == "find":
             emit(_parse_find(seg), index)
         elif head == "git":

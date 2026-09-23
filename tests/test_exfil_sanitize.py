@@ -256,6 +256,46 @@ class CLIExitCodes(unittest.TestCase):
                          "BLOCK_OUTPUT_UNSCANNABLE")
 
 
+class StdinContract(unittest.TestCase):
+    """A caller that pipes nothing must be refused, not left hanging.
+
+    `sys.stdin.read()` blocks until EOF, so an open-but-unwritten pipe used
+    to pin this CLI until the *host's* tool timeout killed the call (300 s
+    in the DSH harness) - the guard presented as a hang instead of a
+    refusal. The wait for a producer's first byte is now bounded.
+    """
+
+    def test_open_unwritten_stdin_fails_fast(self):
+        env = {**os.environ, "AGENT_GUARD_WORKSPACE": ROOT,
+               "AGENT_GUARD_STDIN_TIMEOUT": "0.5"}
+        with subprocess.Popen(
+                [sys.executable, CHECK_SPAN, "--json"],
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE, text=True, env=env) as proc:
+            try:
+                # Never write and never close stdin: this is exactly the
+                # shape a harness produces when the payload is omitted.
+                rc = proc.wait(timeout=30)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+                self.fail("check_span.py hung on an open, unwritten stdin")
+            out = proc.stdout.read()
+        self.assertEqual(rc, 1, out)
+        self.assertIn("no payload arrived on stdin", out)
+
+    def test_empty_stdin_is_an_empty_payload_not_an_error(self):
+        """EOF without bytes is a legitimately empty payload: nothing can
+        leak, so it scans clean instead of failing."""
+        with open(os.devnull) as devnull:
+            proc = subprocess.run(
+                [sys.executable, CHECK_SPAN, "--json"],
+                stdin=devnull, capture_output=True, text=True, timeout=60,
+                env={**os.environ, "AGENT_GUARD_WORKSPACE": ROOT})
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(json.loads(proc.stdout)["decision"], "ALLOW")
+
+
 class SourceDumpDiscipline(unittest.TestCase):
     def test_env_reference_blocks_without_reading_a_value(self):
         # The variable is never resolved: the guard classifies the NAME.
@@ -334,8 +374,8 @@ sha256 = sha256:aaaa
         blockers = []
         for base, dirs, files in os.walk(ROOT):
             dirs[:] = [d for d in dirs
-                       if d not in {".git", "__pycache__", "node_modules",
-                                    ".agent-trash"}]
+                       if d not in {".git", ".internal", "__pycache__",
+                                    "node_modules", ".agent-trash"}]
             for name in files:
                 path = os.path.join(base, name)
                 try:

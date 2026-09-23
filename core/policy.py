@@ -98,6 +98,7 @@ CODE_ASK_COMPOUND_CREATE_DELETE = "COMPOUND_CREATE_DELETE"  # F2
 CODE_BLOCK_UNDETERMINABLE_EFFECT = "BLOCK_UNDETERMINABLE_EFFECT"
 CODE_BLOCK_OUT_OF_WORKSPACE = "BLOCK_OUT_OF_WORKSPACE"
 CODE_BLOCK_PROTECTED_PATH = "BLOCK_PROTECTED_PATH"
+CODE_BLOCK_PROTECTED_ANCESTOR = "BLOCK_PROTECTED_ANCESTOR"
 CODE_BLOCK_WILDCARD = "BLOCK_WILDCARD"
 CODE_BLOCK_RESTRICTED_MODE = "BLOCK_RESTRICTED_MODE"
 CODE_BLOCK_FORCE_PUSH = "BLOCK_FORCE_PUSH"
@@ -154,6 +155,11 @@ EXPLANATIONS: Dict[str, str] = {
                                       "paths.",
     CODE_BLOCK_OUT_OF_WORKSPACE: "Target lies outside the workspace "
                                  "boundary. Hard boundary - not askable.",
+    CODE_BLOCK_PROTECTED_ANCESTOR: "Target is a filesystem root that must "
+                                   "never be deleted (/, /home, $HOME, "
+                                   "/usr, /etc, ...), regardless of the "
+                                   "workspace setting. Hard boundary - not "
+                                   "askable.",
     CODE_BLOCK_PROTECTED_PATH: "Target is the workspace root or git "
                                "metadata. Hard boundary - not askable.",
     CODE_BLOCK_WILDCARD: "Glob target sets are opaque; use safe_delete, "
@@ -478,6 +484,13 @@ def decide_path_batch(specs: List[PathSpec], ctx: PolicyContext,
         return Verdict(DECISION_BLOCK, CODE_BLOCK_UNDETERMINABLE_EFFECT,
                        reasons)
 
+    protected_ancestor = [s for s in specs
+                          if s.protected == "ancestor-root"]
+    if protected_ancestor:
+        return Verdict(DECISION_BLOCK, CODE_BLOCK_PROTECTED_ANCESTOR,
+                       [f"protected filesystem root: {s.raw}"
+                        for s in protected_ancestor[:5]])
+
     if specs and all(s.inside_trash for s in specs):
         return Verdict(DECISION_ALLOW, CODE_ALLOW_TRASH_GC)
 
@@ -577,15 +590,38 @@ def decide_op(spec: OpSpec, ctx: PolicyContext) -> Optional[Verdict]:
         return Verdict(DECISION_BLOCK, CODE_BLOCK_RESTRICTED_MODE,
                        [f"restricted mode disables {spec.kind} operations"])
 
-    # Shape facts ask; they never masquerade as effect-uncertainty.
-    if spec.shape == "F1":
-        return _ask_compound(spec, CODE_ASK_COMPOUND_CWD_DELETE)
-    if spec.shape == "F2":
-        return _ask_compound(spec, CODE_ASK_COMPOUND_CREATE_DELETE)
+    # Hard refusals must win over any F1/F2 request for authorization. In
+    # particular, `cd x && git push --force` is still a force push; letting
+    # the shape return ASK first silently grants it on auto-approving hosts.
+    if spec.kind == KIND_GIT_PUSH_FORCE:
+        return Verdict(DECISION_BLOCK, CODE_BLOCK_FORCE_PUSH,
+                       list(spec.notes) or ["remote history destruction"])
+    if spec.undeterminable:
+        return _block_undeterminable_effect(spec)
+    if spec.wildcard and spec.kind in (KIND_GIT_CLEAN, KIND_GIT_DISCARD):
+        return Verdict(DECISION_BLOCK, CODE_BLOCK_WILDCARD,
+                       ["Git target globs are opaque"])
+
+    # Shape facts ask; they never masquerade as effect-uncertainty. But a
+    # shape rule describes *compensation* difficulty, never effect scope:
+    # when the target set also trips a hard boundary, that boundary wins.
+    # Without this, `cd /tmp && rm -rf /home` degrades a hard refusal into
+    # an ASK - and any auto-approving host grants an ASK silently, which is
+    # the incident finding described in docs/development-note-unguarded-deletion.md.
+    if spec.shape in ("F1", "F2"):
+        ask_code = (CODE_ASK_COMPOUND_CWD_DELETE if spec.shape == "F1"
+                    else CODE_ASK_COMPOUND_CREATE_DELETE)
+        if spec.kind == KIND_FS_DELETE and spec.targets:
+            path_specs = classify_paths(
+                spec.targets, ctx.base_dir, ctx.workspace, ctx.trash_root)
+            boundary = decide_path_batch(
+                path_specs, ctx, recursive=spec.recursive)
+            hard = [boundary] if boundary.blocked else []
+            if hard:
+                return worst(hard)
+        return _ask_compound(spec, ask_code)
 
     if spec.kind == KIND_FS_DELETE:
-        if spec.undeterminable:
-            return _block_undeterminable_effect(spec)
         if spec.dry_run:
             # A dry run mutates nothing: PowerShell's `-WhatIf` (and only a
             # literal `$true`, never a variable - that stays undeterminable)
@@ -602,11 +638,6 @@ def decide_op(spec: OpSpec, ctx: PolicyContext) -> Optional[Verdict]:
         if spec.dry_run:
             return Verdict(DECISION_ALLOW, CODE_ALLOW_NOOP,
                            ["git clean dry run"])
-        if spec.undeterminable:
-            return _block_undeterminable_effect(spec)
-        if spec.wildcard:
-            return Verdict(DECISION_BLOCK, CODE_BLOCK_WILDCARD,
-                           ["git clean path globs are opaque"])
         return Verdict(
             DECISION_RELOCATE, CODE_RELOCATE_VIA_CLEAN_ENUMERATE,
             ["enumerate via git clean -n, relocate matches, then let the "
@@ -622,20 +653,11 @@ def decide_op(spec: OpSpec, ctx: PolicyContext) -> Optional[Verdict]:
         )
 
     if spec.kind == KIND_GIT_DISCARD:
-        if spec.undeterminable:
-            return _block_undeterminable_effect(spec)
-        if spec.wildcard:
-            return Verdict(DECISION_BLOCK, CODE_BLOCK_WILDCARD,
-                           ["discard globs are opaque"])
         return Verdict(
             DECISION_SNAPSHOT, CODE_SNAPSHOT_GIT_STASH,
             ["snapshot tracked modifications before discarding "
              "working-tree changes"],
         )
-
-    if spec.kind == KIND_GIT_PUSH_FORCE:
-        return Verdict(DECISION_BLOCK, CODE_BLOCK_FORCE_PUSH,
-                       list(spec.notes) or ["remote history destruction"])
 
     return None
 

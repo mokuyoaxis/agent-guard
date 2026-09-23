@@ -39,6 +39,7 @@ ignore =
   docs/*.md
   core/redaction.py
   skills/exfil-guard/**
+  skills/recovery-audit/**
   tests/fixtures/secrets/*
   tests/test_exfil_classifier.py
   tests/test_exfil_sanitize.py

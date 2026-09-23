@@ -1,25 +1,23 @@
+# AGENT-GUARD
+
 [![CI](https://github.com/mokuyoaxis/agent-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/mokuyoaxis/agent-guard/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/mokuyoaxis/agent-guard)](https://github.com/mokuyoaxis/agent-guard/releases)
 [![License](https://img.shields.io/github/license/mokuyoaxis/agent-guard)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Node.js 20 smoke](https://img.shields.io/badge/Node.js-20%20smoke-339933?logo=nodedotjs&logoColor=white)](.github/workflows/ci.yml)
 
-[![Codex tested](https://img.shields.io/badge/Codex-gpt--5.6--sol%20medium%20%2B%20high-000000?logo=openai&logoColor=white)](docs/test-report-codex-gpt-5.6-sol.md)
-[![DSH live-tested](https://img.shields.io/badge/DSH-v0.1.1%20DeepSeek%20V4%20Pro%20high%20minimal-4D6BFE)](docs/test-report-dsh-v0.1.1.md)
-[![ZCode live-tested](https://img.shields.io/badge/ZCode-GLM--Flash%20win32%20live--tested-7C5CE0)](docs/test-report-zcode-glm-flash.md)
-[![Claude Code live-tested](https://img.shields.io/badge/Claude%20Code-2.1.270%20hook%20live--tested%20mock%20model-D97757?logo=anthropic&logoColor=white)](docs/test-report-claude-code-harness.md)
-[![DSH v0.1.0 history](https://img.shields.io/badge/DSH-v0.1.0%20friction%20log-8B8B8B)](docs/friction.md)
-
-# agent-guard
-
-**Make destructive agent actions reversible by default.**
-**[简体中文](README.zh-CN.md)**
+**Make destructive agent actions reversible by default.** · [简体中文](README.zh-CN.md)
 
 Agents increasingly run shell commands autonomously. When the command is
 `rm -rf`, a wrong variable or one misjudged context switch is all it takes
 to lose a repository — or worse. agent-guard makes destruction *reversible
 by default* and records durable intent before supported mutations, across any
 harness that can run Python.
+
+The shared Core, Decision Protocol, and Skills are the product. Harness
+adapters are replaceable integration bridges: they add native interception
+where a host exposes the necessary hooks, but no single adapter defines the
+project.
 
 > **Agent Guard is not an approval system. It is an automatic recovery
 > system with human escalation.** The agent works uninterrupted while
@@ -28,6 +26,39 @@ harness that can run Python.
 >
 > It is reliability infrastructure, **not a security sandbox**: it defends
 > against mistakes, not against a malicious agent with equal OS privileges.
+
+## Quick start: let your coding agent set it up
+
+Keep a stable local checkout of this repository (skip the clone if you already
+have one):
+
+```sh
+git clone https://github.com/mokuyoaxis/agent-guard.git
+cd agent-guard
+```
+
+Python 3.9+ and Git are required for the Core; native interception depends on
+the host's hook support. Give your coding agent this prompt (replace the path
+with your checkout):
+
+```text
+Set up agent-guard from /absolute/path/to/agent-guard for this workspace.
+First identify the current harness and its actual hook/skill capabilities;
+read this README and the matching adapter README. Check Python and Git.
+Install the relevant Skills, then configure a native shell hook only if this
+harness supports one. Preserve existing settings and show me the proposed
+diff before editing user-wide configuration or installing dependencies.
+For Claude Code use adapters/claude/README.md; for Kimi Code use
+adapters/kimi-code/README.md; for DSH use adapters/dsh/README.md.
+For Codex or a host without a verified hook, set up Skill/CLI use and say
+plainly that automatic interception is not enabled.
+Verify a harmless command and pass a BLOCK-shaped command only as data to
+check.py; never execute a destructive test command. Report what was actually
+installed, what the host intercepted, and any unverified paths.
+```
+
+For manual setup and evidence limits, see the [adapter matrix](docs/harness-capabilities.md)
+and the adapter README for your host. A Skill alone does not intercept tools.
 
 ## The four pillars
 
@@ -84,6 +115,31 @@ the same Decision Protocol, mirrored: where deletion compensates and
 proceeds, disclosure redacts and emits, and there is nothing to recover
 afterwards. `delete-guard` guards *before a delete*; `exfil-guard` guards
 *before an emission*.
+
+`recovery-audit` is their incident-response companion. It establishes source
+precedence, distinguishes recovered bytes from reconstructed behavior and
+known gaps, audits replay tooling, and keeps commit/push/release as separate
+authorization gates.
+
+## recovery-audit
+
+Sometimes prevention never ran: a harness had no adapter, a subagent bypassed
+the expected path, or an over-broad command removed the workspace before anyone
+could intervene. The working tree may be gone while the coding agent's session
+cache still preserves successful patches, file snapshots, tool results, diffs,
+and command context.
+
+`recovery-audit` turns those remnants, Git remotes/reflogs/stashes, editor or
+tool caches, build artifacts, and project plans into an evidence-led recovery:
+
+- every unit is labelled **recovered**, **reconstructed**, or **missing**;
+- recorded tool effects are replayed in chronology and checked for divergence;
+- repeated replay must produce a byte-identical tree;
+- landing, commit, push, and release remain separate authorization gates.
+
+It is not filesystem undelete and cannot recreate bytes no surviving source
+captured. Its promise is a fast, auditable path to the strongest project state
+the evidence actually supports, with gaps reported instead of hidden.
 
 ## exfil-guard
 
@@ -217,7 +273,7 @@ is a false security claim:
 - **No T3 entropy detector in this release.** It is the single largest
   false-positive source, and the named scenarios do not require it.
 
-## Quickstart
+## Harness-neutral quickstart
 
 Zero third-party dependencies. Requirements: Python 3.9+, POSIX shell,
 git.
@@ -258,18 +314,27 @@ node_modules/ (ignored)  → ALLOW     (provably regenerable)
 quarantine full          → BLOCK     (never fall back to permanent delete)
 ```
 
-## Adapters
+## Integration and validation matrix
 
-| Harness | Status | Mechanism |
+"The Core works", "a Skill-guided agent used it", and "the harness
+intercepts every matching tool call" are separate claims. This table keeps
+those evidence levels explicit:
+
+| Harness | Integration level | Evidence and limit |
 |---|---|---|
-| **DSH** (DeepSeek Harness) | **published plugin**; live-tested at `v0.1.1` (DeepSeek V4 Pro high, minimal mode) | `dsh plugin --profile <p> add github:mokuyoaxis/agent-guard` — waterfall interception + tools + prompt section |
-| **Codex** | reviewed (`gpt-5.6-sol`, high); forward-tested at medium, then medium + high | `delete-guard` skill + CLI under `workspace-write`; preflight supports a pre-ignored `.agent-trash/` when `.git` is read-only |
-| **Claude Code** | ready (`adapters/claude/`) | PreToolUse hook → `permissionDecision` allow/ask/deny |
-| OpenCode / MCP | planned | once conformance has proven out twice |
+| **Claude Code** | Native `PreToolUse` adapter | Real CLI and hook path live-tested with a mock model endpoint; maps allow/ask/deny |
+| **DSH** (DeepSeek Harness) | Native adapter | Live-tested at `v0.1.1`; waterfall interception, model tools, and prompt guidance. Install: `dsh plugin --profile <p> add github:mokuyoaxis/agent-guard` |
+| **Codex** | Skill + production CLI acceptance | Reviewed and forward-tested; no native interception hook is claimed by this repository |
+| **ZCode** | Skill/CLI evaluation on Windows | GLM-Flash live-tested on win32; this is evidence for the portable path, not a universal hook claim |
+| **Kimi Code 0.42.0** | Native `PreToolUse` adapter (Bash) | Two isolated `local/kimi-k3` runs observed recoverable root, single-subagent, and two-subagent calls reaching the hook; Core ASK is refused, not prompted. Harness enforcement of a BLOCK verdict remains unproven. |
+| OpenCode / MCP | Planned | No support claim yet |
 
-Cross-harness guarantee, enforced by `tests/test_conformance.py`:
-identical command + cwd + workspace state must produce identical core
-decision + reason code through any adapter.
+`tests/test_conformance.py` checks the shared Core and Claude adapter; DSH
+has a smoke test and Kimi has targeted adapter tests. The Kimi observations
+above cover only the tested calls, not every shell construct or a general
+concurrent-agent safety guarantee.
+See [harness capabilities and evidence levels](docs/harness-capabilities.md)
+for the per-host scope and execution-level acceptance criteria.
 
 ## Repository layout
 
@@ -277,8 +342,12 @@ decision + reason code through any adapter.
 agent-guard/
 ├── skills/delete-guard/   # agent-facing skill: SKILL.md + CLI scripts
 ├── skills/exfil-guard/    # egress skill: check_span.py · sanitize.py
+├── skills/recovery-audit/ # evidence-led repository audit and recovery
 ├── core/                  # classifier · policy · recovery · audit · redaction
 ├── adapters/claude/       # Claude Code PreToolUse hook adapter
+├── adapters/kimi-code/   # Kimi Code PreToolUse hook adapter
+├── adapters/dsh/          # DeepSeek Harness integration bridge
+├── adapters/codex/harness/# CLI acceptance driver; not a native hook
 ├── tests/                 # unittest suites incl. cross-harness conformance
 └── docs/                  # architecture · threat-model · friction log
 ```
@@ -294,35 +363,47 @@ compensation engine without restructuring.
 | [docs/architecture.md](docs/architecture.md) | pillars ↔ components, data flow, design decisions |
 | [docs/threat-model.md](docs/threat-model.md) | honest limits: what this is and is not |
 | [docs/friction.md](docs/friction.md) | what real agents taught us (F1–F11) |
+| [docs/development-note-unguarded-deletion.md](docs/development-note-unguarded-deletion.md) | de-identified incident exploration and the recovery-aware direction |
 | [docs/test-report-codex-gpt-5.6-sol.md](docs/test-report-codex-gpt-5.6-sol.md) | v0.1.1 Codex evaluation (medium + high) |
 | [docs/test-report-dsh-v0.1.1.md](docs/test-report-dsh-v0.1.1.md) | v0.1.1 DSH live test (DeepSeek V4 Pro high, minimal mode) |
+| [skills/recovery-audit/SKILL.md](skills/recovery-audit/SKILL.md) | evidence hierarchy, deterministic replay, recovery and landing gates |
 | [skills/delete-guard/references/policy.md](skills/delete-guard/references/policy.md) | full rule table and decision codes |
 | [skills/exfil-guard/references/rules.md](skills/exfil-guard/references/rules.md) | exfil rule table, reason codes, exemption format, audit shape |
 | [skills/exfil-guard/references/channels.md](skills/exfil-guard/references/channels.md) | egress-channel taxonomy and the unreachable channels |
 
 ## Status & roadmap
 
-`v0.1.1` is the reliability-hardening release after live DSH `v0.1.0`
-usage, an initial fresh Codex forward test at `gpt-5.6-sol` medium, a high
-reasoning review, a second paired forward test at medium and high, and a live
-DSH minimal-mode run with DeepSeek V4 Pro `high` reasoning. It adds
-write-ahead relocation intents, Git-quoted path safety, fail-closed Git
-compensation, clean audit preflight under read-only `.git`, explicit
-`RESTORABLE` / `RESTORED` lifecycle state, and a DSH runtime smoke test.
-The patch version is deliberate: the model/harness validation matrix still
-covers only two model families across two harnesses. Next:
-additional Codex/Claude/DSH models and reasoning levels,
-Windows shell dialects (Phases 1-2 landed: cmd/PowerShell lexing and
-effect mapping in `core/dialects.py`, unambiguous PowerShell parameter
-prefixes, and dialect selection wired through `check.py --dialect`,
-`AGENT_GUARD_DIALECT` and both adapters - POSIX behaviour and the default
-path unchanged; real-Windows end-to-end validation still needs a Windows
-host), then `database-guard` / `cloud-guard` on
-the same compensation engine. `v0.2.0` adds the second guard branch:
-**`exfil-guard`** - the `SANITIZE` decision class, the text-span classifier
-(`core/redaction.py`), and a standalone `check_span.py` / `sanitize.py` CLI
-that needs no adapter change. It is a **minor** release by the compatibility
-contract (new decision class, new reason codes, README announcement).
+The current development line is **v0.2.0-rc1**. It keeps the hardened
+v0.1.1 recovery path (write-ahead relocation intent, Git snapshot safety,
+clean audit preflight, and explicit `RESTORABLE` / `RESTORED` lifecycle),
+then adds cmd/PowerShell dialect parsing, the `SANITIZE` decision class,
+`exfil-guard`, and the evidence-led `recovery-audit` Skill.
+
+The release identity is harness-neutral. Existing DSH and Claude adapters,
+Codex/ZCode acceptance evidence, and the bounded Kimi exercise are entries
+in a growing compatibility matrix, not separate definitions of the product.
+The Kimi result is a witnessed hook-compensation path, not proof that its
+host enforces every BLOCK or that arbitrary agent actions are protected.
+Real Windows end-to-end coverage and general concurrent-subagent safety
+also remain explicit gaps. Later Guard branches (`git-guard`, `database-guard`,
+`cloud-guard`) reuse the same protocol and compensation engine.
+
+## 0.2.x preview: guard-lab
+
+Planned, **not included in 0.2.0-rc1**: an opt-in, offline honeytoken lab
+using disposable projects and synthetic, non-secret markers. It will compare
+normal tasks with prompt-injection attempts, and separately observe whether a
+harness indexes or exports files without an agent-requested read. Positive and
+negative controls, an independent observer, and evidence labels will keep a
+mere read request distinct from a confirmed external transfer. No real
+credentials or automatic background monitoring are part of the plan. This is
+a bounded diagnostic experiment, not a guarantee against a malicious model
+or harness.
+
+## Community
+
+We plan to share agent-guard with the [LINUX DO](https://linux.do) community.
+The project post will be linked here after it is published.
 
 ## License
 

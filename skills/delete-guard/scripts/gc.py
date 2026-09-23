@@ -28,7 +28,7 @@ import sys
 
 import _bootstrap  # noqa: F401
 
-from core import TRASH_DIRNAME, audit
+from core import AUDIT_NAME, TRASH_DIRNAME, audit
 from core import classifier, recovery
 
 
@@ -73,12 +73,17 @@ def main() -> int:
               file=sys.stderr)
         return 1
 
+    # Preflight both identity and audit durability before irreversible purge.
+    # A failed final receipt still leaves this intent plus manifest tombstones.
+    engine.validate_gc_targets(txids)
+    audit.append({"event": "gc-intent", "txids": txids},
+                 os.path.join(trash_root, AUDIT_NAME))
     report = engine.gc_execute(txids)
     audit.append({"event": "gc", "action": "PURGED",
                   "purged": report["purged"], "missing": report["missing"],
                   "plan_reasons": {e["txid"]: e["reason"]
                                    for e in plan["eligible"]}},
-                 os.path.join(trash_root, audit.AUDIT_NAME))
+                 os.path.join(trash_root, AUDIT_NAME))
     if args.as_json:
         print(json.dumps({"mode": "execute", **report}, ensure_ascii=False,
                          indent=2))

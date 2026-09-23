@@ -6,6 +6,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const sourcePath = path.join(repoRoot, "adapters", "dsh", "lib", "index.js");
+const manifest = JSON.parse(await fs.readFile(path.join(repoRoot, "package.json"), "utf8"));
+const patch = await fs.readFile(path.join(repoRoot, "adapters", "dsh", "cordis.patch.yml"), "utf8");
+assert.match(patch, new RegExp(`\\bname:\\s*['\"]?${manifest.name}['\"]?(?:\\s|$)`));
 let source = await fs.readFile(sourcePath, "utf8");
 source = source.replace(
   'import { defineTool } from "@deepseek-ai/dsh-tools";',
@@ -18,23 +21,64 @@ await fs.writeFile(modulePath, source);
 
 try {
   const adapter = await import(pathToFileURL(modulePath).href);
+  const validate = adapter.Config["~standard"].validate;
+  const defaults = {
+    repoRoot: "", defaultCwd: "", promptSection: true,
+    sectionOrder: 105, dialect: "",
+  };
+  assert.deepEqual(validate(undefined), { value: defaults });
+  assert.deepEqual(validate({}), { value: defaults });
+  assert.deepEqual(validate({
+    repoRoot: "/checkout", defaultCwd: "/workspace",
+    promptSection: false, sectionOrder: 0, dialect: "PWSH",
+  }), { value: {
+    repoRoot: "/checkout", defaultCwd: "/workspace",
+    promptSection: false, sectionOrder: 0, dialect: "PWSH",
+  } });
+  for (const value of [null, false, 4, "posix", []]) {
+    const result = validate(value);
+    assert.ok(result.issues?.length, `invalid config accepted: ${String(value)}`);
+    assert.equal(result.value, undefined);
+  }
+  for (const [key, values] of Object.entries({
+    repoRoot: [null, 5], defaultCwd: [false, null],
+    promptSection: ["false", 0], sectionOrder: ["105", NaN, Infinity, -Infinity],
+    dialect: [null, 42, " ", "bogus"],
+  })) {
+    for (const value of values) {
+      const result = validate({ [key]: value });
+      assert.ok(result.issues?.some((issue) => issue.path?.[0] === key),
+        `${key}=${String(value)} silently defaulted`);
+      assert.equal(result.value, undefined);
+    }
+  }
+  const multiError = validate({ dialect: 42, promptSection: "yes" });
+  assert.deepEqual(multiError.issues.map((issue) => issue.path[0]),
+    ["promptSection", "dialect"]);
+  assert.deepEqual(validate({ dialetc: "cmd" }).issues[0].path, ["dialetc"]);
+
   const registered = [];
   const handlers = [];
   const sections = [];
   const requests = [];
+  let guardReport = {
+    decision: "BLOCK",
+    code: "BLOCK_PROTECTED_PATH",
+    explanation: "protected workspace root",
+    reasons: ["protected: workspace-root (.)"],
+  };
+  let guardThrows = false;
   let cleanup;
 
   const shell = {
     resolve: (request) => request,
     run: async (request) => {
       requests.push(request);
+      if (guardThrows && request.command.includes("check.py")) {
+        throw new Error("synthetic guard failure");
+      }
       const report = request.command.includes("check.py")
-        ? {
-            decision: "BLOCK",
-            code: "BLOCK_PROTECTED_PATH",
-            explanation: "protected workspace root",
-            reasons: ["protected: workspace-root (.)"],
-          }
+        ? guardReport
         : {};
       return {
         stdout: { text: JSON.stringify(report) },
@@ -70,7 +114,7 @@ try {
     repoRoot,
     defaultCwd: "",
     promptSection: true,
-    sectionOrder: 105,
+    sectionOrder: 0,
   });
 
   assert.equal(registered.length, 3);
@@ -81,6 +125,7 @@ try {
   assert.equal(handlers.length, 1);
   assert.equal(handlers[0].name, "tools/pre-execute");
   assert.equal(sections.length, 1);
+  assert.equal(sections[0].order, 0);
   assert.match(sections[0].text, /Never circumvent the guard/);
 
   let continued = 0;
@@ -99,9 +144,46 @@ try {
   );
   assert.equal(blocked.kind, "deny");
   assert.match(blocked.reason, /BLOCK_PROTECTED_PATH/);
+  const windowsVerb = await handlers[0].handler(
+    { name: "bash", arguments: { command: "del /s /q build" } },
+    next
+  );
+  assert.equal(windowsVerb.kind, "deny");
   assert.equal(continued, 1);
-  assert.equal(requests.length, 1);
+  assert.equal(requests.length, 2);
   assert.match(requests[0].command, /check\.py/);
+  assert.match(requests[1].command, /del \/s \/q build/);
+
+  guardReport = { decision: "ASK", code: "COMPOUND_CWD_DELETE",
+    explanation: "split the command" };
+  const asked = await handlers[0].handler(
+    { name: "bash", arguments: { command: "cd src && rm item" } }, next
+  );
+  assert.equal(asked.kind, "ask");
+  assert.match(asked.reason, /COMPOUND_CWD_DELETE/);
+  assert.equal(continued, 1);
+
+  guardReport = { decision: "ALLOW", compensations: [{ txid: "fixture" }] };
+  const allowed = await handlers[0].handler(
+    { name: "bash", arguments: { command: "rm build" } }, next
+  );
+  assert.equal(allowed.kind, "continued");
+  assert.equal(continued, 2);
+
+  guardReport = {};
+  const malformed = await handlers[0].handler(
+    { name: "bash", arguments: { command: "rm build" } }, next
+  );
+  assert.equal(malformed.kind, "deny");
+  assert.match(malformed.reason, /fail-closed/);
+  guardThrows = true;
+  const failed = await handlers[0].handler(
+    { name: "bash", arguments: { command: "rm build" } }, next
+  );
+  assert.equal(failed.kind, "deny");
+  assert.match(failed.reason, /fail-closed/);
+  assert.equal(continued, 2);
+  guardThrows = false;
 
   const statusTool = registered.find(
     (tool) => tool.name === "agent_guard_status"
@@ -109,8 +191,8 @@ try {
   const toolResult = await statusTool.execute({}, {});
   assert.equal(toolResult.ok, true);
   assert.equal(toolResult.exitCode, 0);
-  assert.equal(requests.length, 2);
-  assert.match(requests[1].command, /status\.py/);
+  assert.equal(requests.length, 7);
+  assert.match(requests[6].command, /status\.py/);
   assert.equal(typeof cleanup, "function");
   cleanup();
   console.log("DSH adapter smoke test passed");

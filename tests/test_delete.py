@@ -9,6 +9,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from core import policy
 from tests.helpers import RepoFixture, git_available
 
 SCRIPTS = os.path.join(
@@ -198,14 +199,29 @@ class CheckCLI(RepoFixture):
         self.assertEqual(out["decision"], "BLOCK")
         self.assertEqual(out["code"], "COMPENSATION_FAILED")
 
-    def test_git_clean_enumeration_failure_blocks(self):
+    def test_git_clean_enumeration_failure_is_undeterminable_effect(self):
+        """An unknowable target set is effect-uncertainty, not a broken
+        compensation (policy.md row 11b). Nothing was mutated, so the
+        verdict must not claim a compensation was attempted and failed."""
         with tempfile.TemporaryDirectory(prefix="agent-guard-nonrepo-") as root:
             proc = run("check.py", "--enforce", "--json", "--",
                        "git clean -fd", cwd=root)
         self.assertEqual(proc.returncode, 2, proc.stderr)
         out = json.loads(proc.stdout)
         self.assertEqual(out["decision"], "BLOCK")
-        self.assertEqual(out["code"], "COMPENSATION_FAILED")
+        self.assertEqual(out["code"], "BLOCK_UNDETERMINABLE_EFFECT")
+        self.assertIn("enumeration failed", " ".join(out["reasons"]))
+
+    def test_restated_verdict_never_keeps_the_proposed_explanation(self):
+        """A refusal arm rewrites decision+code, so the explanation must be
+        rewritten with it: leaving the policy's *proposed* explanation in
+        place made a BLOCK describe the RELOCATE it never performed."""
+        with tempfile.TemporaryDirectory(prefix="agent-guard-nonrepo-") as root:
+            proc = run("check.py", "--enforce", "--json", "--",
+                       "git clean -fd", cwd=root)
+        out = json.loads(proc.stdout)
+        self.assertEqual(out["explanation"],
+                         policy.EXPLANATIONS[out["code"]])
 
 
 @unittest.skipUnless(git_available(), "git required")
@@ -218,6 +234,48 @@ class StatusCLI(RepoFixture):
         js = json.loads(run("status.py", "--json", cwd=self.root).stdout)
         self.assertEqual(js["mode"], "NORMAL")
         self.assertIn("usage", js)
+
+
+@unittest.skipUnless(git_available(), "git required")
+class WindowsVerbNoDialect(RepoFixture):
+    """A Windows delete verb must be guarded even with no dialect set.
+
+    Regression: the default dialect is posix, and the adapter's fast path
+    screened on the POSIX vocabulary only - so `del`, `rd`, `erase` and
+    `ri` ran with no verdict and no audit record on any session that never
+    configured AGENT_GUARD_DIALECT. Vocabulary is now dialect-independent;
+    only the lexer follows the dialect.
+    """
+
+    def test_cmd_tree_delete_is_relocated_without_dialect(self):
+        self.write("build/o.js", "x")
+        proc = run("check.py", "--enforce", "--json", "--",
+                   "del /s /q build", cwd=self.root)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(json.loads(proc.stdout)["code"], "RELOCATE_TREE")
+        self.assertFalse(os.path.exists(os.path.join(self.root, "build")))
+
+    def test_backslash_target_is_not_swallowed_by_shlex(self):
+        """`del build\o.js` must not lex as the single file `buildo.js`."""
+        self.write("build/o.js", "x")
+        proc = run("check.py", "--enforce", "--json", "--",
+                   "del build\\o.js", cwd=self.root)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(json.loads(proc.stdout)["code"], "RELOCATE_PATHS")
+        self.assertFalse(os.path.exists(os.path.join(self.root, "build",
+                                                     "o.js")))
+
+    def test_powershell_prefix_fails_closed(self):
+        self.write("build/o.js", "x")
+        proc = run("check.py", "--enforce", "--json", "--",
+                   "ri build -r -fo", cwd=self.root)
+        self.assertEqual(proc.returncode, 2)
+        # `ri` is recognised now, but the POSIX lexer cannot resolve `-fo`:
+        # BLOCK is correct, silence is not.
+        self.assertEqual(json.loads(proc.stdout)["code"],
+                         "BLOCK_UNDETERMINABLE_EFFECT")
+        self.assertTrue(os.path.exists(os.path.join(self.root, "build",
+                                                    "o.js")))
 
 
 if __name__ == "__main__":
