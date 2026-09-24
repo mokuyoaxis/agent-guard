@@ -170,7 +170,37 @@ try {
   assert.equal(allowed.kind, "continued");
   assert.equal(continued, 2);
 
+  const marker = "private_marker_7392_do_not_copy";
+  const messages = [];
+  const originalLog = console.log;
+  const originalError = console.error;
+  console.log = (...parts) => messages.push(parts.join(" "));
+  console.error = (...parts) => messages.push(parts.join(" "));
+  try {
+    await handlers[0].handler(
+      { name: "bash", arguments: { command: "rm build && printf " + marker } },
+      () => ({ kind: "continued" })
+    );
+    guardReport = {};
+    await handlers[0].handler(
+      { name: "bash", arguments: { command: "rm " + marker } },
+      () => ({ kind: "continued" })
+    );
+    guardThrows = true;
+    await handlers[0].handler(
+      { name: "bash", arguments: { command: "rm " + marker } },
+      () => ({ kind: "continued" })
+    );
+  } finally {
+    console.log = originalLog;
+    console.error = originalError;
+    guardThrows = false;
+  }
+  assert.ok(messages.length >= 3);
+  assert.ok(messages.every((message) => !message.includes(marker)));
+
   guardReport = {};
+
   const malformed = await handlers[0].handler(
     { name: "bash", arguments: { command: "rm build" } }, next
   );
@@ -191,8 +221,8 @@ try {
   const toolResult = await statusTool.execute({}, {});
   assert.equal(toolResult.ok, true);
   assert.equal(toolResult.exitCode, 0);
-  assert.equal(requests.length, 7);
-  assert.match(requests[6].command, /status\.py/);
+  assert.equal(requests.length, 10);
+  assert.match(requests[9].command, /status\.py/);
   assert.equal(typeof cleanup, "function");
   cleanup();
   console.log("DSH adapter smoke test passed");

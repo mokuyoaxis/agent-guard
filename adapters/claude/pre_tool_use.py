@@ -134,9 +134,9 @@ def main(ask_is_block: bool = False) -> int:
         proc = subprocess.run(
             argv, capture_output=True, text=True, timeout=90, cwd=cwd, env=env,
         )
-    except Exception as exc:
+    except Exception:
         sys.stderr.write(
-            f"[agent-guard] guard infrastructure error (fail-closed): {exc}\n")
+            "[agent-guard] guard infrastructure error (fail-closed)\n")
         return 2
 
     try:
@@ -197,6 +197,6 @@ def main(ask_is_block: bool = False) -> int:
 if __name__ == "__main__":
     try:
         sys.exit(main())
-    except Exception as exc:  # never fail open on adapter bugs
-        sys.stderr.write(f"[agent-guard] adapter error (fail-closed): {exc}\n")
+    except Exception:  # never fail open on adapter bugs
+        sys.stderr.write("[agent-guard] adapter error (fail-closed)\n")
         sys.exit(2)

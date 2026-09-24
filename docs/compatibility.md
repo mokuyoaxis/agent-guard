@@ -53,6 +53,24 @@ While the major version is `0`:
 | `check_span.py` exit codes | minor | `0` allow/sanitize, `2` block, `3` ask, `1` error - `check.py`'s contract is unchanged |
 | `.agent-guard/exfil-allow.toml` exemption file | minor | Read from the workspace root only; values exempted by `sha256:...`, never by value |
 
+### 0.2.0 check output minimization
+
+`check.py` still returns the same decision class, reason code, static
+explanation, and exit code. Its `command` field is now `<redacted>` rather
+than a copy of the input; `check_id` correlates the result with new audit
+events and compensation metadata. `reasons` no longer carries target
+spellings or parser fragments, and `ops` retains only bounded operation
+identity and kind fields, not raw notes or shape details. Invalid dialect
+selectors are reported by class without echoing the supplied string.
+Adapters must not log the command while reporting a guard verdict.
+
+New check audit events and compensation metadata do not copy raw commands.
+`status --json` projects legacy audit records onto a small field set rather
+than re-emitting their historical free-form fields. Historical append-only
+files are **not rewritten**, and recovery manifests still need real target
+paths for restoration. These changes do not sanitize a harness's own tool
+logs or OS process arguments.
+
 Unknown dialect names raise `ValueError` from `normalize_dialect`, and the
 production paths (`check.py` and the native shell adapters) turn an unusable
 selector into an explicit `BLOCK` rather than a silent POSIX fallback. That is a

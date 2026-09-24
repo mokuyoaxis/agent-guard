@@ -139,6 +139,12 @@ class Conformance(RepoFixture):
         self.assertIn("BLOCK_PROTECTED_PATH", proc.stderr)
         self.assertIn("Do NOT circumvent", proc.stderr)
 
+    def test_adapter_debug_and_denial_do_not_echo_command(self):
+        marker = "private_marker_7392_do_not_copy"
+        proc = run_adapter(self.root, "rm -rf ../" + marker)
+        self.assertEqual(proc.returncode, 2)
+        self.assertNotIn(marker, proc.stdout + proc.stderr)
+
     def test_non_bash_tool_is_untouched(self):
         proc = run_adapter(self.root, "rm -rf build", tool_name="Write")
         self.assertEqual(proc.returncode, 0)

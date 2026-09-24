@@ -3,9 +3,9 @@ name: exfil-guard
 description: >-
   Disclosure discipline for AI agents. Use before text leaves the machine:
   writing files, sending model requests, posting forge comments, committing or
-  pushing. Scans payloads for credentials and host-identifying paths, returns
-  a redaction plan instead of the bytes, and refuses emissions that cannot be
-  taken back.
+  pushing, or when inspecting a JSON/dotenv config without exposing its values.
+  Scans payloads for credentials and host-identifying paths, and offers an
+  explicit read-only, value-free config view.
 ---
 
 # exfil-guard
@@ -44,6 +44,27 @@ python3 <repo>/skills/exfil-guard/scripts/sanitize.py --channel file-write < dra
 never writes, never rewrites, and never prints the match. Exit codes are the
 contract: `0` allow/sanitize, `2` block, `3` ask, `1` error.
 
+## Safe config view
+
+When you need to learn a JSON or dotenv config's shape, use the explicit
+read-only view instead of printing the file:
+
+```bash
+python3 <repo>/skills/exfil-guard/scripts/view.py --workspace <workspace> .env
+python3 <repo>/skills/exfil-guard/scripts/view.py --workspace <workspace> config.json
+```
+
+The argument is a workspace-relative path. The JSON result contains field
+names, types, and `set`/`empty` states, **never scalar values**. Known
+secret-shaped field names are hidden too; arbitrary field names are not a
+proof of secrecy. The view accepts only small, valid UTF-8 JSON and a strict
+single-line dotenv subset. It refuses symlinks, hardlinks, special files,
+unsafe paths, and unsupported platforms instead of falling back to a raw
+read. Exit `0` means a view was produced; `2` means refused; `1` is an
+internal error. Do not write the value-free view back over the original
+config: it is diagnostic output, not an editable copy. This CLI does not
+intercept a harness's ordinary file-read tool.
+
 ## What you can receive
 
 | Verdict | Meaning | Your move |
@@ -77,8 +98,8 @@ The guard detects a secret *reference* without ever reading the secret. It
 classifies a variable's **name** (`*KEY*`, `*TOKEN*`, `*SECRET*`,
 `*PASSWORD*`, `*CRED*`, `*AUTH*`) and a secret-store **file name**
 (`.env`, `*.pem`, `id_rsa*`, `.netrc`, `kubeconfig`, …), never a value.
-This is the invariant that keeps the guard's own output, logs and audit
-lines value-free - a guard that leaks what it protects is worse than none.
+This keeps this scanner from creating a second value copy; it does not
+certify unrelated CLI output or existing audit records as secret-free.
 
 Consequence you will notice: if `$OPENAI_API_KEY` actually holds `"test"`,
 the guard still ASKs. That is intentional. The cost of a false ASK is one
@@ -104,8 +125,9 @@ false security claim:
 - **Channels with no hook.** A hosted model call with no proxy, the model's
   own tool calls, content produced *inside* a program, and the human
   clipboard are unreachable by construction.
-- **Secrets at rest.** This is not a file scanner and not a gitleaks
-  replacement. It scans what the guard can see on the way out.
+- **At-rest secrecy.** The explicit safe view does not encrypt files or
+  prevent other tools from reading them. The text scanner is not a
+  repository-wide file scanner or a gitleaks replacement.
 - **Rewriting history.** Detecting a secret already in git history is a
   report at most; rewriting it is a human action with its own risks.
 

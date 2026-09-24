@@ -88,7 +88,12 @@ def main() -> int:
 
 
 def audit_tail(trash_root, n):
-    return audit.tail(os.path.join(trash_root, AUDIT_NAME), n)
+    # Historical append-only records can contain raw commands. Never copy
+    # their free-form fields into an agent-visible status result.
+    fields = ("ts", "event", "action", "decision", "code", "txid",
+              "check_id", "guard_latency_ms")
+    return [{key: record[key] for key in fields if key in record}
+            for record in audit.tail(os.path.join(trash_root, AUDIT_NAME), n)]
 
 
 DECISION_EVENTS = {"check", "enforce-block", "enforce-proceed", "ask",

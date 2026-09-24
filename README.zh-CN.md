@@ -3,7 +3,7 @@
 [![CI](https://github.com/mokuyoaxis/agent-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/mokuyoaxis/agent-guard/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/mokuyoaxis/agent-guard)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![源码预览标签](https://img.shields.io/badge/%E6%BA%90%E7%A0%81%E9%A2%84%E8%A7%88-Git%20tags-5B6B7A)](https://github.com/mokuyoaxis/agent-guard/tags)
+[![v0.2.0 源码](https://img.shields.io/badge/%E6%BA%90%E7%A0%81-v0.2.0-5B6B7A)](https://github.com/mokuyoaxis/agent-guard/releases)
 
 **让 AI Agent 的破坏性操作默认可逆。** · [English](README.md)
 
@@ -151,7 +151,8 @@ DSH 的 `PreToolDecision`、Claude Code PreToolUse 的 `ask`，或在不支持
 ## exfil-guard
 
 `exfil-guard` 检查 Agent 即将写入、发送、提交或推送的文本，前提是
-**载荷持有方主动调用它的 CLI**。它针对两类意外外发：**已知凭据**和
+**载荷持有方主动调用它的 CLI**。它还提供对指定 JSON/dotenv 配置文件的
+显式只读安全视图。文本扫描针对两类意外外发：**已知凭据**和
 **带本机标识的绝对路径**。依据信道，Guard 可放行、返回脱敏计划、
 请求人处理或阻断。
 
@@ -184,8 +185,8 @@ DSH 的 `PreToolDecision`、Claude Code PreToolUse 的 `ask`，或在不支持
 (`*KEY*`、`*TOKEN*`、`*SECRET*`、`*PASSWORD*`、`*CRED*`、`*AUTH*`)与
 密钥库**文件名**(`.env`、`*.pem`、`id_rsa*`、`.netrc`、`kubeconfig` 等)
 分类,并识别整环境展开(`printenv`、`env | ...`、
-`cat /proc/self/environ`)。它**从不读取值**——正是这条不变量保证了
-Guard 自身的输出、日志与审计行不含密钥。
+`cat /proc/self/environ`)。这个扫描器**不解析变量的值**；这不代表其他
+Guard 输出或已有审计记录都已证明不含秘密。
 
 **带本机标识的路径**(`path/*`)。`path/workspace-relative` 为 `ALLOW`
 (工作区豁免);`path/system`(`/usr`、`/etc`、`C:\Windows`)为 `ALLOW`;
@@ -232,6 +233,24 @@ echo 'config: sk-proj-AbCdEf…' | python3 skills/exfil-guard/scripts/sanitize.p
 退出码契约:`0` = ALLOW/SANITIZED · `2` = BLOCK · `3` = ASK · `1` = ERROR。
 `--json` 输出机器可读判决(仅偏移、rule id 与占位符——**绝不含匹配到的
 字节**);`--path` 为即将写入的文件启用仓库本地豁免文件。
+
+### 不打印值地查看配置
+
+此 CLI 从 `0.2.0` 源码开始提供，**不属于**此前的 `0.2.0-rc2`
+源码预览标签。
+
+```bash
+python3 skills/exfil-guard/scripts/view.py --workspace /path/to/workspace .env
+python3 skills/exfil-guard/scripts/view.py --workspace /path/to/workspace config.json
+```
+
+文件路径必须相对该工作区。JSON 结果保留字段名与结构，以及标量类型和
+`set`/`empty` 状态，**不返回标量值**；已知密钥形态的字段名也会隐藏，
+但未知秘密藏在字段名中仍是局限。仅支持 UTF-8 JSON 与严格的单行 dotenv
+子集（最多 256 KiB、16 层、2048 个节点）。符号链接、硬链接、特殊文件、
+越界路径、无效格式或平台缺少安全的相对目录描述符读取能力时一律拒绝。
+退出码 `0` 表示产生视图，`2` 表示拒绝，`1` 表示内部错误。视图仅供诊断，
+不能写回覆盖原配置；它也不会拦截 harness 的普通文件读取工具。
 
 ### 与 delete-guard 的关系
 
@@ -363,6 +382,7 @@ Skill 负责 Agent 行为引导,约束全部下沉 Core。未来的 `git-guard`�
 | 阅读 | 内容 |
 |---|---|
 | [docs/architecture.md](docs/architecture.md) | 四柱↔组件映射、数据流、关键设计决定 |
+| [docs/release-notes-0.2.0.md](docs/release-notes-0.2.0.md) | 0.2.0 变更、证据等级与已知限制 |
 | [docs/threat-model.md](docs/threat-model.md) | 诚实边界:它是什么、不是什么 |
 | [docs/friction.md](docs/friction.md) | 真实 Agent 撞出来的教训(F1–F11) |
 | [docs/development-note-unguarded-deletion.md](docs/development-note-unguarded-deletion.md) | 去标识化事故探索与面向恢复的后续方向 |
@@ -375,13 +395,15 @@ Skill 负责 Agent 行为引导,约束全部下沉 Core。未来的 `git-guard`�
 
 ## 状态与路线图
 
-当前开发线为 **v0.2.0-rc2**。它保留 v0.1.1 已加固的恢复路径（预写式迁移
+当前源码版本为 **v0.2.0**。它保留 v0.1.1 已加固的恢复路径（预写式迁移
 intent、Git 快照安全、干净的审计预检和明确的 `RESTORABLE` / `RESTORED`
 生命周期），并新增 cmd/PowerShell 方言解析、`SANITIZE` 判决、`exfil-guard`
 以及证据驱动的 `recovery-audit` Skill。
 
-**v0.2.0-rc2** 是 `v0.2.0-rc1` 的文档与展示修订：Decision Protocol、
-Core 与 adapter 契约均未改变。
+相较 `v0.2.0-rc2` 源码预览，本工作树还加入显式只读配置安全视图，并减少
+新 `check.py` 结果与本地记录中的原始命令副本；历史追加式记录不会自动
+改写。已发布产物及状态请以
+[GitHub Releases](https://github.com/mokuyoaxis/agent-guard/releases) 为准。
 
 该版本的项目身份与 harness 无关。现有 DSH、Claude adapter，Codex/ZCode
 验收证据，以及有边界的 Kimi 实测，只是不断扩展的兼容矩阵，不分别定义产品。
@@ -392,7 +414,7 @@ Kimi 结果证明所测调用走通了 hook 补偿路径，不证明宿主强制
 
 ## 0.2.x 预告：guard-lab 合成蜜罐
 
-这是规划中的可选实验，**不属于 0.2.0-rc2**。它会在离线、一次性的测试项目
+这是规划中的可选实验，**不属于 0.2.0**。它会在离线、一次性的测试项目
 里放入无认证能力的合成标记，对照正常任务与提示词注入诱导；另设试次观察
 harness 是否在 Agent 未请求读取时自行索引或外发文件。正负对照、独立观察器
 和证据分级将区分“提出读取”“本地接触”与“证实越过外部边界”。不使用真实

@@ -263,21 +263,16 @@ export function apply(ctx, config) {
             90000,
             exec
           );
-        } catch (err) {
-          console.error("[agent-guard] check.py threw:", err);
+        } catch (_err) {
+          console.error("[agent-guard] check.py infrastructure error");
           return {
             kind: "deny",
-            reason:
-              "[agent-guard] guard infrastructure error (fail-closed): " + err,
+            reason: "[agent-guard] guard infrastructure error (fail-closed)",
           };
         }
         const verdict = rt.parseJson(rt.outText(result.stdout));
         if (!verdict || !verdict.decision) {
-          console.error(
-            "[agent-guard] unparseable guard output:",
-            rt.outText(result.stdout),
-            rt.outText(result.stderr)
-          );
+          console.error("[agent-guard] unparseable guard output");
           return {
             kind: "deny",
             reason: "[agent-guard] unparseable guard output (fail-closed)",
@@ -288,9 +283,8 @@ export function apply(ctx, config) {
           if (comps.length > 0) {
             console.log(
               "[agent-guard] compensated",
-              JSON.stringify(comps),
-              "<-",
-              command.slice(0, 120)
+              comps.length,
+              "check_id=" + (verdict.check_id || "unknown")
             );
           }
           return next();

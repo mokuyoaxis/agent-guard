@@ -3,7 +3,7 @@
 [![CI](https://github.com/mokuyoaxis/agent-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/mokuyoaxis/agent-guard/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/mokuyoaxis/agent-guard)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![Source preview tags](https://img.shields.io/badge/Source-preview%20tags-5B6B7A)](https://github.com/mokuyoaxis/agent-guard/tags)
+[![v0.2.0 source](https://img.shields.io/badge/Source-v0.2.0-5B6B7A)](https://github.com/mokuyoaxis/agent-guard/releases)
 
 **Make destructive agent actions reversible by default.** · [简体中文](README.zh-CN.md)
 
@@ -175,10 +175,12 @@ the evidence actually supports, with gaps reported instead of hidden.
 ## exfil-guard
 
 `exfil-guard` checks text before an agent writes, sends, commits, or pushes it
-**when the payload owner calls its CLI**. It is designed to catch two accidental
-disclosure classes: **known credentials** and **host-identifying absolute
-paths**. Depending on the channel, it can allow the payload, return a redaction
-plan, ask for a human decision, or block the emission.
+**when the payload owner calls its CLI**. It also offers an explicit, read-only
+safe view of selected JSON/dotenv configuration files. The text scanner is
+designed to catch two accidental disclosure classes: **known credentials**
+and **host-identifying absolute paths**. Depending on the channel, it can
+allow the payload, return a redaction plan, ask for a human decision, or block
+the emission.
 
 It is a prevention and redaction guard, not a compensation engine: after an
 emission there is nothing to recover. It is also **not a security sandbox** and
@@ -215,8 +217,9 @@ classifies an environment variable's *name* (`*KEY*`, `*TOKEN*`,
 `*SECRET*`, `*PASSWORD*`, `*CRED*`, `*AUTH*`) and a secret-store *file name*
 (`.env`, `*.pem`, `id_rsa*`, `.netrc`, `kubeconfig`, ...), and detects
 whole-environment expansions (`printenv`, `env | ...`, `cat
-/proc/self/environ`). It **never reads the value** — that invariant is what
-keeps the guard's own output, logs and audit lines leak-free.
+/proc/self/environ`). This scanner **does not resolve the variable value**;
+that does not certify unrelated Guard output or existing audit records as
+secret-free.
 
 **Host-identifying paths** (`path/*`). `path/workspace-relative` is `ALLOW`
 (the workspace is exempt); `path/system` (`/usr`, `/etc`, `C:\Windows`) is
@@ -266,6 +269,27 @@ Exit code contract: `0` = ALLOW/SANITIZED · `2` = BLOCK · `3` = ASK ·
 `1` = ERROR. Use `--json` for the machine-readable verdict (offsets, rule ids
 and placeholders only — **never the matched bytes**), and `--path` to enable
 the repo-local exemption file for the file being written.
+
+### Read a config without printing its values
+
+Introduced in the `0.2.0` source; this CLI is **not** in the earlier
+`0.2.0-rc2` preview tag.
+
+```bash
+python3 skills/exfil-guard/scripts/view.py --workspace /path/to/workspace .env
+python3 skills/exfil-guard/scripts/view.py --workspace /path/to/workspace config.json
+```
+
+The path must be relative to that workspace. The JSON output preserves field
+names and structure, plus scalar types and `set`/`empty` states, but **never
+scalar values**. Known secret-shaped field names are hidden; unknown secrets
+in field names remain a limitation. Only UTF-8 JSON and a strict, single-line
+dotenv subset are supported (256 KiB maximum, 16 levels, 2048 nodes). The
+CLI refuses symlinks, hardlinks, special files, unsafe paths, malformed input,
+and platforms without safe descriptor-relative reads. Exit `0` means a view
+was produced, `2` means refused, and `1` means an internal error. This view
+is for diagnosis only: do not write it back over the original config. It
+does not intercept ordinary file reads made by a harness.
 
 ### Relationship to delete-guard
 
@@ -407,6 +431,7 @@ compensation engine without restructuring.
 | Read | For |
 |---|---|
 | [docs/architecture.md](docs/architecture.md) | pillars ↔ components, data flow, design decisions |
+| [docs/release-notes-0.2.0.md](docs/release-notes-0.2.0.md) | 0.2.0 changes, evidence levels, and known limits |
 | [docs/threat-model.md](docs/threat-model.md) | honest limits: what this is and is not |
 | [docs/friction.md](docs/friction.md) | what real agents taught us (F1–F11) |
 | [docs/development-note-unguarded-deletion.md](docs/development-note-unguarded-deletion.md) | de-identified incident exploration and the recovery-aware direction |
@@ -419,14 +444,17 @@ compensation engine without restructuring.
 
 ## Status & roadmap
 
-The current development line is **v0.2.0-rc2**. It keeps the hardened
+The source version is **v0.2.0**. It keeps the hardened
 v0.1.1 recovery path (write-ahead relocation intent, Git snapshot safety,
 clean audit preflight, and explicit `RESTORABLE` / `RESTORED` lifecycle),
 then adds cmd/PowerShell dialect parsing, the `SANITIZE` decision class,
 `exfil-guard`, and the evidence-led `recovery-audit` Skill.
 
-**v0.2.0-rc2** is a documentation and presentation revision of `v0.2.0-rc1`:
-the decision protocol, the Core, and the adapter contracts are unchanged.
+Compared with the `v0.2.0-rc2` source preview, this tree adds the explicit
+read-only config view and minimizes raw command copies in new `check.py`
+results and local records. Historical append-only records are not rewritten.
+Check [GitHub Releases](https://github.com/mokuyoaxis/agent-guard/releases)
+for published artifacts and their status.
 
 The release identity is harness-neutral. Existing DSH and Claude adapters,
 Codex/ZCode acceptance evidence, and the bounded Kimi exercise are entries
@@ -439,7 +467,7 @@ also remain explicit gaps. Later Guard branches (`git-guard`, `database-guard`,
 
 ## 0.2.x preview: guard-lab
 
-Planned, **not included in 0.2.0-rc2**: an opt-in, offline honeytoken lab
+Planned, **not included in 0.2.0**: an opt-in, offline honeytoken lab
 using disposable projects and synthetic, non-secret markers. It will compare
 normal tasks with prompt-injection attempts, and separately observe whether a
 harness indexes or exports files without an agent-requested read. Positive and

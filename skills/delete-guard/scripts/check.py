@@ -30,6 +30,19 @@ from core import AUDIT_NAME, TRASH_DIRNAME
 from core import audit, classifier, dialects, policy, recovery
 
 
+_REDACTED_COMMAND = "<redacted>"
+_SAFE_OPS = frozenset({
+    "rm", "rmdir", "unlink", "shred", "find", "git", "del", "erase",
+    "rd", "ri", "remove-item",
+})
+
+
+def _safe_op(op: str) -> str:
+    """Only emit known verb names, never a verb copied unchecked from input."""
+    name = op.lower()
+    return name if name in _SAFE_OPS else "<opaque>"
+
+
 class EnumerationUnavailable(Exception):
     """The target set could not be enumerated, so the effect is unknown.
 
@@ -90,33 +103,46 @@ def main() -> int:
 
     top = policy.worst(verdicts)
     latency_ms = round((time.monotonic() - started) * 1000, 1)
+    check_id = audit.new_txid()
+    requested = resolution.requested
+    if requested is None:
+        safe_requested = None
+    elif resolution.ok and isinstance(requested, str):
+        safe_requested = requested.strip().lower() or None
+    else:
+        safe_requested = "<redacted>"
 
     out = {
-        "command": cmd,
+        "command": _REDACTED_COMMAND,
+        "check_id": check_id,
         "mode": mode,
         "dialect": resolution.dialect,
-        "dialect_requested": resolution.requested,
+        "dialect_requested": safe_requested,
         "dialect_outcome": "ok" if resolution.ok else "unusable",
         "decision": top.decision,
         "code": top.code,
-        "explanation": top.explanation,
-        "reasons": top.reasons,
+        "explanation": policy.EXPLANATIONS.get(top.code, "Guard decision."),
+        # Policy notes can contain raw target spellings or parser fragments.
+        # The stable reason code and static explanation are the public detail.
+        "reasons": [],
         "guard_latency_ms": latency_ms,
-        "ops": [{"op": s.op, "kind": s.kind, "shape": s.shape,
+        "ops": [{"op": _safe_op(s.op), "kind": s.kind,
                  "dialect": getattr(s, "dialect", resolution.dialect),
-                 "undeterminable": s.undeterminable, "notes": s.notes}
+                 "undeterminable": s.undeterminable}
                 for s in specs],
         "enforced": bool(args.enforce),
     }
-    if not resolution.ok and resolution.reason:
-        out["dialect_error"] = resolution.reason
+    if not resolution.ok:
+        out["dialect_error"] = ("invalid dialect selector" if
+                                resolution.kind == "invalid" else
+                                "unknown dialect selector")
 
     def finish(code):
         out["exit"] = code
         if args.as_json:
             print(json.dumps(out, ensure_ascii=False, indent=2))
         else:
-            summary = f"{out['decision']} [{out['code']}] {cmd[:120]}"
+            summary = f"{out['decision']} [{out['code']}]"
             print(summary)
             for reason in out["reasons"][:4]:
                 print(f"  - {reason}")
@@ -131,18 +157,18 @@ def main() -> int:
         """
         try:
             engine.ensure_layout()
-            audit.append(entry, audit_path)
+            audit.append({"check_id": check_id, **entry}, audit_path)
             return True
-        except Exception as exc:
+        except Exception:
             out.setdefault("warnings", []).append(
-                f"audit unavailable: {exc}")
+                "audit unavailable: record could not be stored")
             return False
 
     if not args.enforce:
         record({"event": "check", "decision": top.decision,
-                "code": top.code, "command": cmd[:500],
+                "code": top.code, "command": _REDACTED_COMMAND,
                 "dialect": resolution.dialect,
-                "dialect_requested": resolution.requested,
+                "dialect_requested": safe_requested,
                 "dialect_outcome": "ok" if resolution.ok else "unusable",
                 "guard_latency_ms": latency_ms})
         return finish(0)
@@ -152,12 +178,12 @@ def main() -> int:
         # native ask UI; a harness without ask support degrades to deny
         # while keeping the explanation (never silently allow).
         record({"event": "ask", "code": top.code,
-                "command": cmd[:500], "reasons": top.reasons})
+                "command": _REDACTED_COMMAND, "reasons": out["reasons"]})
         return finish(3)
 
     if top.blocked:
         record({"event": "enforce-block", "code": top.code,
-                "command": cmd[:500], "reasons": top.reasons,
+                "command": _REDACTED_COMMAND, "reasons": out["reasons"],
                 "guard_latency_ms": latency_ms})
         return finish(2)
 
@@ -183,7 +209,8 @@ def main() -> int:
                 target_specs = classifier.classify_paths(
                     spec.targets, base, workspace, trash_root)
                 report = engine.relocate(target_specs, meta={
-                    "tool": "check --enforce", "command": cmd[:300]})
+                    "tool": "check --enforce", "check_id": check_id,
+                    "command": _REDACTED_COMMAND})
                 if report.get("storage_failure"):
                     raise recovery.StorageUnavailable(
                         "quarantine storage unavailable during relocation")
@@ -205,7 +232,7 @@ def main() -> int:
                     paths, base, workspace, trash_root)
                 report = engine.relocate(target_specs, meta={
                     "tool": "check --enforce", "strategy": "clean-enumerate",
-                    "command": cmd[:300]})
+                    "check_id": check_id, "command": _REDACTED_COMMAND})
                 if report.get("storage_failure"):
                     raise recovery.StorageUnavailable(
                         "quarantine storage unavailable during git clean")
@@ -220,7 +247,8 @@ def main() -> int:
                                       "moved": len(report["moved"])})
             elif verdict.code == policy.CODE_SNAPSHOT_GIT_STASH:
                 snap = engine.snapshot_git(cwd=base, meta={
-                    "tool": "check --enforce", "command": cmd[:300]})
+                    "tool": "check --enforce", "check_id": check_id,
+                    "command": _REDACTED_COMMAND})
                 if not snap.get("ok"):
                     raise RuntimeError(
                         "git snapshot failed: " +
@@ -228,38 +256,38 @@ def main() -> int:
                 compensations.append({"strategy": "snapshot",
                                       "txid": snap["txid"],
                                       "sha": snap["sha"]})
-    except EnumerationUnavailable as exc:
+    except EnumerationUnavailable:
         # The targets exist but their set is unknowable; refusing is the
         # only honest verdict. Nothing was mutated, so this is not a
         # compensation failure and must not be reported as one.
         out["decision"], out["code"] = "BLOCK", \
             policy.CODE_BLOCK_UNDETERMINABLE_EFFECT
         out["explanation"] = policy.EXPLANATIONS[out["code"]]
-        out["reasons"] = [str(exc)]
+        out["reasons"] = ["git clean enumeration failed"]
         record({"event": "enforce-block", "code": out["code"],
-                "command": cmd[:500], "reasons": out["reasons"]})
+                "command": _REDACTED_COMMAND, "reasons": out["reasons"]})
         return finish(2)
-    except recovery.StorageUnavailable as exc:
+    except recovery.StorageUnavailable:
         # Hard principle: never fall back to permanent deletion.
         out["decision"], out["code"] = "BLOCK", \
             policy.CODE_BLOCK_RELOCATE_FAILED_STORAGE
         out["explanation"] = policy.EXPLANATIONS[out["code"]]
-        out["reasons"] = [str(exc)]
+        out["reasons"] = ["quarantine storage unavailable"]
         record({"event": "enforce-block", "code": out["code"],
-                "command": cmd[:500], "reasons": out["reasons"]})
+                "command": _REDACTED_COMMAND, "reasons": out["reasons"]})
         return finish(2)
-    except Exception as exc:  # compensation failed: refuse to proceed
+    except Exception:  # compensation failed: refuse to proceed
         out["decision"], out["code"] = "BLOCK", \
             policy.CODE_BLOCK_COMPENSATION_FAILED
         out["explanation"] = policy.EXPLANATIONS[out["code"]]
-        out["reasons"] = [f"compensation error: {exc}"]
-        record({"event": "enforce-error", "command": cmd[:500],
-                "code": out["code"], "error": str(exc)})
+        out["reasons"] = ["compensation failed"]
+        record({"event": "enforce-error", "command": _REDACTED_COMMAND,
+                "code": out["code"], "error": "compensation failed"})
         return finish(2)
 
     out["compensations"] = compensations
     out["decision"] = "ALLOW"
-    record({"event": "enforce-proceed", "command": cmd[:500],
+    record({"event": "enforce-proceed", "command": _REDACTED_COMMAND,
             "compensations": compensations,
             "guard_latency_ms": latency_ms})
     return finish(0)
@@ -268,6 +296,6 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         sys.exit(main())
-    except Exception as exc:
-        print(f"agent-guard internal error: {exc}", file=sys.stderr)
+    except Exception:
+        print("agent-guard internal error", file=sys.stderr)
         sys.exit(1)

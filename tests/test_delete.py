@@ -116,6 +116,39 @@ class SafeDeleteCLI(RepoFixture):
 
 @unittest.skipUnless(git_available(), "git required")
 class CheckCLI(RepoFixture):
+    def test_command_text_is_not_echoed_or_written_to_audit(self):
+        marker = "private_marker_7392_do_not_copy"
+        self.write("build/o.js", "generated")
+        command = "rm -rf build && printf " + marker
+        proc = run("check.py", "--enforce", "--json", "--", command,
+                   cwd=self.root)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        result = json.loads(proc.stdout)
+        self.assertEqual(result["command"], "<redacted>")
+        self.assertTrue(result["check_id"])
+        self.assertNotIn(marker, proc.stdout + proc.stderr)
+        trash = Path(self.root, ".agent-trash")
+        for name in ("audit.jsonl", "manifest.jsonl"):
+            self.assertNotIn(marker, (trash / name).read_text())
+        human = run("check.py", "--", command, cwd=self.root)
+        self.assertNotIn(marker, human.stdout + human.stderr)
+
+    def test_block_reasons_and_bad_dialect_hide_input(self):
+        marker = "private_marker_7392_do_not_copy"
+        target = "../" + marker
+        proc = run("check.py", "--enforce", "--json", "--",
+                   "rm -rf " + target, cwd=self.root)
+        self.assertEqual(proc.returncode, 2)
+        self.assertNotIn(marker, proc.stdout + proc.stderr)
+        self.assertNotIn(marker, Path(self.root, ".agent-trash",
+                                     "audit.jsonl").read_text())
+        bad = run("check.py", "--enforce", "--json", "--dialect",
+                  "fish-" + marker, "--", "rm -rf build", cwd=self.root)
+        self.assertEqual(bad.returncode, 2)
+        self.assertNotIn(marker, bad.stdout + bad.stderr)
+        self.assertNotIn(marker, Path(self.root, ".agent-trash",
+                                     "audit.jsonl").read_text())
+
     def test_advisory_block_exit_0(self):
         proc = run("check.py", "--json", "--", "rm -rf /", cwd=self.root)
         self.assertEqual(proc.returncode, 0)          # advisory never fails
@@ -226,6 +259,21 @@ class CheckCLI(RepoFixture):
 
 @unittest.skipUnless(git_available(), "git required")
 class StatusCLI(RepoFixture):
+    def test_json_tail_masks_legacy_free_form_audit_fields(self):
+        marker = "private_marker_7392_do_not_copy"
+        trash = Path(self.root, ".agent-trash")
+        trash.mkdir()
+        (trash / "audit.jsonl").write_text(json.dumps({
+            "event": "enforce-block", "code": "BLOCK_PROTECTED_PATH",
+            "command": "rm -rf " + marker,
+            "reasons": [marker], "meta": {"command": marker},
+        }) + "\n")
+        proc = run("status.py", "--json", cwd=self.root)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertNotIn(marker, proc.stdout + proc.stderr)
+        self.assertEqual(json.loads(proc.stdout)["recent_audit"][0], {
+            "event": "enforce-block", "code": "BLOCK_PROTECTED_PATH"})
+
     def test_json_and_human_modes(self):
         run("safe_delete.py", "s.txt", cwd=self.root) if self.write("s.txt") else None
         human = run("status.py", cwd=self.root)
