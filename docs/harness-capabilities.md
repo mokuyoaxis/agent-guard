@@ -3,6 +3,8 @@
 The Python Core and CLI are harness-neutral. A Skill or CLI being usable in a
 host does **not** mean that host intercepts tool calls, and an adapter returning
 `BLOCK` does **not** by itself prove the host prevented execution.
+For an unlisted host, use the [self-adaptation guide](../adapters/INTEGRATION.md)
+and keep its native-interception status `UNVERIFIED` until independently tested.
 
 ## Evidence levels
 
@@ -31,11 +33,11 @@ trial with an independent non-execution check can establish the bounded
 | Host / tested version | Entry and scope | ASK mapping | Highest evidence for current path | Important gap |
 |---|---|---|---|---|
 | Claude Code 2.1.270 / 2.1.273 (post-0.2.0 bridge) | `PreToolUse` for `Bash`; shared Core via Python and POSIX startup bridge | Native `permissionDecision: ask` (headless runs need an approver) | Real CLI/hook with scripted model endpoint: ALLOW, BLOCK, headless ASK, injected Python failure; see [report](test-report-claude-code-harness.md) | Hook absence/timeout, Windows bridge, other tools, arbitrary subagents and real model behavior are not covered. |
-| DSH 0.1.5-rc.1 | `tools/pre-execute` for `bash`, plus model tools and prompt section | `kind: ask` | Adapter smoke with mocked services; [older v0.1.1 report](test-report-dsh-v0.1.1.md) is not current-version proof | Current-version plugin loading and execution-level `BLOCK` remain unverified. |
+| DSH 0.1.5-rc.1 | `tools/pre-execute` for `bash`, plus model tools and prompt section | `kind: ask` | Adapter smoke with mocked services; [older Agent Guard v0.1.1 report](test-report-dsh-v0.1.1.md) did not pin the DSH host version and is not current-version proof | Current-version plugin loading and execution-level `BLOCK` remain unverified. |
 | Kimi Code 0.42.0 (post-0.2.0 bridge) | `PreToolUse` for `Bash`; reuses Claude mapping with a host-specific ASK override | Hard deny (`exit 2`), because this version treats `ask` as allow | Two earlier `local/kimi-k3` hook sandboxes; [bounded host-level tests](test-report-kimi-code-block.md) for root, single child and two same-turn children under two request model IDs; recoverable deletion/restore; old direct-Python hook failure allowed Bash, new bridge host test blocked a pre-adapter Python failure | Hook absence/timeout/bridge-spawn failure, simultaneous hook calls, non-Bash tools, backend identity and upgrades remain unverified. |
-| Codex (tested sessions) | Skill and production CLI; no native interception adapter in this repository | CLI reports ASK; agent/user must decide | CLI acceptance only; see [report](test-report-codex-gpt-6-astra-high.md) | No automatic tool-call enforcement claim. |
-| ZCode (tested Windows session) | Skill/CLI evaluation | CLI reports ASK | [Windows evaluation](test-report-zcode-glm-flash.md) | No native hook or general Windows end-to-end guarantee. |
-| OpenCode / MCP | No adapter | Not applicable | Not supported | Requires separate host contract and evidence. |
+| Codex CLI 0.154.0 (tested session) | Skill and production CLI on older source; no native interception adapter in this repository | CLI reports ASK; agent/user must decide | CLI acceptance only; see [report](test-report-codex-gpt-6-astra-high.md) | No automatic tool-call enforcement claim. |
+| ZCode (Windows session; host version unrecorded) | Historical Skill/CLI and process-type `PreToolUse` trial | One ASK prompted the user; persistent approval then skipped the hook | [Windows evaluation](test-report-zcode-glm-flash.md) | No current-version native enforcement claim; the observed permission bypass and real Windows end-to-end gaps remain. |
+| Other / unlisted hosts | No supported adapter by default | Host-specific | [Self-adaptation checklist](../adapters/INTEGRATION.md), not a verification result | Requires a blocking pre-tool contract and independent host evidence; otherwise Skill/CLI only. |
 
 These adapters currently address destructive **shell** calls. Exfil-guard is a
 separate CLI/cooperative path; this table does not imply native interception of

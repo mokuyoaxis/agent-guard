@@ -3,7 +3,7 @@
 [![CI](https://github.com/mokuyoaxis/agent-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/mokuyoaxis/agent-guard/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/mokuyoaxis/agent-guard)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![v0.2.0 source](https://img.shields.io/badge/Source-v0.2.0-5B6B7A)](https://github.com/mokuyoaxis/agent-guard/releases)
+[![v0.2.1 source](https://img.shields.io/badge/Source-v0.2.1-5B6B7A)](https://github.com/mokuyoaxis/agent-guard/releases)
 
 **Make destructive agent actions reversible by default.** · [简体中文](README.zh-CN.md)
 
@@ -68,11 +68,14 @@ harness supports one. Preserve existing settings and show me the proposed
 diff before editing user-wide configuration or installing dependencies.
 For Claude Code use adapters/claude/README.md; for Kimi Code use
 adapters/kimi-code/README.md; for DSH use adapters/dsh/README.md.
-For Codex or a host without a verified hook, set up Skill/CLI use and say
+For another host, read adapters/INTEGRATION.md and do not invent a native
+hook. If no blocking pre-tool hook is verified, use only Skill/CLI and say
 plainly that automatic interception is not enabled.
 Verify a harmless command and pass a BLOCK-shaped command only as data to
-check.py; never execute a destructive test command. Report what was actually
-installed, what the host intercepted, and any unverified paths.
+check.py; never execute a destructive test command. For Claude/Kimi, run the
+local doctor but do not treat its PASS as proof of host interception. Report
+the host version, tool coverage, what was installed, what the host actually
+intercepted, and any unverified paths.
 ```
 
 For manual setup and evidence limits, see the
@@ -381,7 +384,7 @@ quarantine full          → BLOCK     (never fall back to permanent delete)
 
 [![Node.js 20 smoke](https://img.shields.io/badge/Node.js-20%20smoke-339933?logo=nodedotjs&logoColor=white)](.github/workflows/ci.yml)
 [![Codex Skill/CLI tested](https://img.shields.io/badge/Codex-Skill%2FCLI%20tested-000000?logo=openai&logoColor=white)](docs/test-report-codex-gpt-6-astra-high.md)
-[![DSH v0.1.1 live-tested](https://img.shields.io/badge/DSH-v0.1.1%20live--tested-4D6BFE)](docs/test-report-dsh-v0.1.1.md)
+[![DSH older AG v0.1.1 trial](https://img.shields.io/badge/DSH-AG%20v0.1.1%20trial-4D6BFE)](docs/test-report-dsh-v0.1.1.md)
 [![ZCode win32 CLI evaluated](https://img.shields.io/badge/ZCode-win32%20CLI%20evaluated-7C5CE0)](docs/test-report-zcode-glm-flash.md)
 [![Claude Code hook tested with scripted model](https://img.shields.io/badge/Claude%20Code-hook%20tested%20%28scripted%20model%29-D97757?logo=anthropic&logoColor=white)](docs/test-report-claude-code-harness.md)
 [![Kimi Code sampled Bash BLOCK](https://img.shields.io/badge/Kimi%20Code-sampled%20Bash%20BLOCK-5B9BD5)](docs/test-report-kimi-code-block.md)
@@ -390,14 +393,21 @@ quarantine full          → BLOCK     (never fall back to permanent delete)
 intercepts every matching tool call" are separate claims. This table keeps
 those evidence levels explicit:
 
-| Harness | Integration level | Evidence and limit |
+| Harness / tested version | Integration path | Evidence and limit |
 |---|---|---|
-| **Claude Code** | Native `PreToolUse` adapter | Real CLI and hook path live-tested with a mock model endpoint; maps allow/ask/deny |
-| **DSH** (DeepSeek Harness) | Native adapter | Live-tested at `v0.1.1`; waterfall interception, model tools, and prompt guidance. Install: `dsh plugin --profile <p> add github:mokuyoaxis/agent-guard` |
-| **Codex** | Skill + production CLI acceptance | Reviewed and forward-tested; no native interception hook is claimed by this repository |
-| **ZCode** | Skill/CLI evaluation on Windows | GLM-Flash live-tested on win32; this is evidence for the portable path, not a universal hook claim |
-| **Kimi Code 0.42.0** | Native `PreToolUse` adapter (Bash) | [Bounded host tests](docs/test-report-kimi-code-block.md): sampled root/child BLOCK, ASK denial, and recoverable deletion under two request model IDs. The old direct-Python hook failed open; the newer bridge blocked a sampled Python-startup failure when it ran. Missing or timed-out hooks remain fail-open. |
-| OpenCode / MCP | Planned | No support claim yet |
+| **Claude Code 2.1.270 / 2.1.273** | [Native `PreToolUse` for Bash](adapters/claude/README.md) | [Real CLI + scripted model](docs/test-report-claude-code-harness.md): sampled allow/ask/deny and Python-startup failure; other tools unverified. |
+| **DSH (older host version unrecorded)** | [Native pre-execute adapter](adapters/dsh/README.md) | [Agent Guard v0.1.1 trial](docs/test-report-dsh-v0.1.1.md); DSH 0.1.5-rc.1 lacks verified plugin loading/refusal. |
+| **Codex CLI 0.154.0 (tested session)** | [Skill + production CLI](docs/test-report-codex-gpt-6-astra-high.md) | Older-source cooperative acceptance; no native hook claim. |
+| **ZCode (version unrecorded; win32)** | [Historical Skill/CLI + hook trial](docs/test-report-zcode-glm-flash.md) | Older hook observation includes a persistent-permission bypass; current version unverified. |
+| **Kimi Code 0.42.0** | [Native `PreToolUse` for Bash](adapters/kimi-code/README.md) | [Bounded tests](docs/test-report-kimi-code-block.md): root/child BLOCK, ASK denial, one Python-failure refusal; hook absence/timeout remains fail-open. |
+| **Other / unlisted hosts** | [Self-adaptation guide](adapters/INTEGRATION.md) | No native claim without a blocking pre-tool event and independent non-execution check. |
+
+For agent-led setup: identify the actual host version and tool names, follow
+the matching guide above, preserve existing settings, then report separate
+configuration, local-probe, and real-host evidence. For an unlisted host,
+follow the [self-adaptation checklist](adapters/INTEGRATION.md); a prompt or
+adapter exit code alone is not proof of interception. Ask before changing
+user-wide settings, security policy, or dependencies.
 
 `tests/test_conformance.py` checks the shared Core and Claude adapter; DSH
 has a smoke test and Kimi has targeted adapter tests. The Kimi observations
@@ -408,6 +418,8 @@ to check a selected configuration file and the local shell bridge without a
 model call. Add `--json` for machine-readable `configuration`, `local_probe`,
 and `host_interception` statuses. The last status is always `UNVERIFIED`:
 this doctor cannot prove that a live session loaded or enforced the hook.
+The optional Kimi doctor needs Python 3.11+ for TOML parsing; the Core and
+hook adapter continue to support Python 3.9+.
 See the [Kimi](adapters/kimi-code/README.md) and
 [Claude](adapters/claude/README.md) adapter guides.
 See [harness capabilities and evidence levels](docs/harness-capabilities.md)
@@ -422,6 +434,7 @@ agent-guard/
 ├── skills/recovery-audit/ # evidence-led repository audit and recovery
 ├── core/                  # classifier · policy · recovery · audit · redaction
 ├── doctor.py              # local harness configuration and optional probes
+├── adapters/INTEGRATION.md # checklist for an unlisted host
 ├── adapters/claude/       # Claude Code PreToolUse hook adapter
 ├── adapters/kimi-code/   # Kimi Code PreToolUse hook adapter
 ├── adapters/dsh/          # DeepSeek Harness integration bridge
@@ -439,7 +452,9 @@ compensation engine without restructuring.
 | Read | For |
 |---|---|
 | [docs/architecture.md](docs/architecture.md) | pillars ↔ components, data flow, design decisions |
+| [docs/release-notes-0.2.1.md](docs/release-notes-0.2.1.md) | 0.2.1 adapter/doctor changes and bounded evidence |
 | [docs/release-notes-0.2.0.md](docs/release-notes-0.2.0.md) | 0.2.0 changes, evidence levels, and known limits |
+| [adapters/INTEGRATION.md](adapters/INTEGRATION.md) | self-adaptation checklist for an unlisted host |
 | [docs/threat-model.md](docs/threat-model.md) | honest limits: what this is and is not |
 | [docs/friction.md](docs/friction.md) | what real agents taught us (F1–F11) |
 | [docs/development-note-unguarded-deletion.md](docs/development-note-unguarded-deletion.md) | de-identified incident exploration and the recovery-aware direction |
@@ -452,17 +467,14 @@ compensation engine without restructuring.
 
 ## Status & roadmap
 
-The source version is **v0.2.0**. It keeps the hardened
-v0.1.1 recovery path (write-ahead relocation intent, Git snapshot safety,
-clean audit preflight, and explicit `RESTORABLE` / `RESTORED` lifecycle),
-then adds cmd/PowerShell dialect parsing, the `SANITIZE` decision class,
-`exfil-guard`, and the evidence-led `recovery-audit` Skill.
-
-Compared with the `v0.2.0-rc2` source preview, this tree adds the explicit
-read-only config view and minimizes raw command copies in new `check.py`
-results and local records. Historical append-only records are not rewritten.
-Check [GitHub Releases](https://github.com/mokuyoaxis/agent-guard/releases)
-for published artifacts and their status.
+The source version is **v0.2.1**. The published `v0.2.0` baseline includes
+recoverable destructive actions, cmd/PowerShell dialect parsing, the
+`exfil-guard` text CLI, a read-only config view, and `recovery-audit`.
+This source adds Claude/Kimi POSIX hook bridges, bounded host evidence,
+and a local `doctor` for their selected configurations and bridge probes.
+See the [0.2.1 notes](docs/release-notes-0.2.1.md) for exact scope and
+[GitHub Releases](https://github.com/mokuyoaxis/agent-guard/releases) for
+publication status; a source version is not itself a published Release.
 
 The release identity is harness-neutral. Existing DSH and Claude adapters,
 Codex/ZCode acceptance evidence, and the bounded Kimi exercise are entries
@@ -479,7 +491,7 @@ also remain explicit gaps. Later Guard branches (`git-guard`, `database-guard`,
 
 ## 0.2.x preview: guard-lab
 
-Planned, **not included in 0.2.0**: an opt-in, offline honeytoken lab
+Planned, **not included in 0.2.1**: an opt-in, offline honeytoken lab
 using disposable projects and synthetic, non-secret markers. It will compare
 normal tasks with prompt-injection attempts, and separately observe whether a
 harness indexes or exports files without an agent-requested read. Positive and

@@ -1,7 +1,8 @@
 # agent-guard adapter for Claude Code
 
-Wraps Claude Code's `PreToolUse` hook so every Bash command passes through
-the shared core (`skills/delete-guard/scripts/check.py`) before execution.
+Wraps Claude Code's `PreToolUse` hook so matching Bash calls that reach the
+hook pass through the shared core (`skills/delete-guard/scripts/check.py`)
+before execution. A missing, mismatched, or timed-out hook is not covered.
 The rule engine is not duplicated here - this adapter only translates the
 Decision Protocol onto Claude Code's native hook semantics.
 
