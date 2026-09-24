@@ -14,7 +14,7 @@ network-free while every hook, permission, and guard code path stays real.
 | File | Role |
 |---|---|
 | `mock_anthropic_api.mjs` | Minimal Anthropic Messages API. Serves one scripted turn per request and advances the script only when the client sends back a `tool_result`, so one scripted turn == one harness turn. |
-| `run_scenario.sh` | Fresh git project + real hook in `.claude/settings.json` + CLI run, capturing transcript, HTTP request log, and `.agent-trash/`. |
+| `run_scenario.sh` | Fresh git project + real POSIX hook bridge in `.claude/settings.json` + CLI run, capturing transcript, HTTP request log, and `.agent-trash/`. |
 | `run_scenario_no_python3.sh` | Same, but the hook is invoked as `python` and the CLI runs on a `PATH` with **no `python3`** - the Windows / minimal-image shape that made the adapter fail closed. |
 
 ## Run
@@ -36,6 +36,13 @@ bash adapters/claude/harness/run_scenario_no_python3.sh \
 ```
 
 `HARNESS_OUT` selects the output root (default `/tmp/agent-guard-harness`).
+The runner refuses to overwrite an existing scenario directory. Set
+`HOOK_PYTHON_BIN=/bin/false` to inject a process-local Python failure; it
+does not change the user's Claude configuration. The runner requests only the
+project setting source, skips unrelated MCP config, and does not persist the
+session (managed settings, if present, are outside this switch).
+The no-`python3` runner intentionally retains its direct `python` entrypoint
+to test that older platform boundary.
 
 ## Outputs (per scenario)
 

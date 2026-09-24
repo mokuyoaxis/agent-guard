@@ -423,3 +423,40 @@ this report still stands as the closest available approximation of that host.
 Note also that the symlink-ancestor path fixes delivered later (F9/F9b in
 macOS CI) are outside this report's scope; see
 `tests/test_workspace_symlink.py`.
+
+## 2026-09-24 addendum: Claude Code 2.1.273 POSIX bridge
+
+This addendum is a **new local checkout test**, not a revision of the
+2.1.270 evidence above. It used the installed Claude Code CLI 2.1.273 on
+Linux ARM64/PRoot, the same scripted model endpoint, and separate synthetic
+Git projects. The project `.claude/settings.json` selected `PreToolUse:Bash`
+and invoked `/bin/sh adapters/claude/hook_bridge.sh` with an absolute Python
+path. The runner requested the project setting source and did not change the
+user's global Claude configuration. No Claude AI model was called.
+
+| Scenario | Hook evidence | Independent project state |
+|---|---|---|
+| `rm -rf build`, healthy Python | `RELOCATE_TREE`, `permissionDecision: "allow"`, exit 0; Bash completed | `build/` absent; quarantine transaction listed `RESTORABLE` |
+| `rm -rf .`, healthy Python | `BLOCK_PROTECTED_PATH`, exit 2; Bash tool result is a hook error | tracked `NOTES.md` still exists |
+| `touch f && rm f`, healthy Python | `COMPOUND_CREATE_DELETE`, `permissionDecision: "ask"`; headless `dontAsk` denied it | `f` absent; no approval was given |
+| `rm -rf build`, bridge with process-local `/bin/false` in place of Python | bridge mapped exit 1 to exit 2 for both the recon and target Bash calls | `build/` and its artifact still exist |
+
+The failing-interpreter trial is a **host-level injected process failure**,
+not merely a direct bridge unit test. A separate healthy run proves this
+same `build/` operation otherwise proceeds after quarantine. An ordinary
+`touch` sentinel was *not* used as the comparison: under this headless
+permission mode Claude Code independently refused `touch`, making its absence
+ambiguous. The fixture runner now refuses to overwrite prior output.
+
+The Claude adapter also now rejects malformed `PreToolUse` envelopes with
+exit 2, aligning the shared adapter's default with Kimi's already-strict
+entrypoint. New local tests cover malformed input, non-Bash pass-through,
+the bridge's interpreter-failure mapping and the example settings command.
+After updating an older dialect fixture to include its required event name,
+the complete local `npm test` run passed 398 Python tests and the DSH adapter
+smoke test. The shell scripts passed syntax checks.
+
+**Boundary:** the bridge helps only when Claude actually starts it. It cannot
+make a missing hook, unmatched tool, bridge-spawn failure, or host timeout
+fail closed. This was a scripted-model test of host interception, not a
+real-Claude-model, Windows, interactive ASK, or subagent acceptance test.

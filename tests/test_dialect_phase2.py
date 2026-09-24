@@ -437,7 +437,8 @@ class ClaudeAdapterDialect(unittest.TestCase):
             capture_output=True, text=True, env=base_env, timeout=60)
 
     def payload(self, command, **extra):
-        body = {"tool_name": "bash", "cwd": self.root,
+        body = {"hook_event_name": "PreToolUse", "tool_name": "bash",
+                "cwd": self.root,
                 "tool_input": {"command": command}}
         body.update(extra)
         return body

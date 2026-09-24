@@ -8,7 +8,15 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 CLAUDE_BIN="${CLAUDE_BIN:-claude}"
 NAME="$1"; CMD="$2"; PORT="$3"
 RUNS="${HARNESS_OUT:-/tmp/agent-guard-harness}/$NAME"
-rm -rf "$RUNS"; mkdir -p "$RUNS/project/.claude"
+case "$NAME" in
+  ''|.|..|*/*) echo "Scenario name must be a single directory name" >&2; exit 1 ;;
+esac
+mkdir -p "$(dirname "$RUNS")" || exit 1
+if ! mkdir "$RUNS"; then
+  echo "Refusing to overwrite existing harness output: $RUNS" >&2
+  exit 1
+fi
+mkdir -p "$RUNS/project/.claude" || exit 1
 P="$RUNS/project"
 git -C "$P" init -q && git -C "$P" config user.email h@l && git -C "$P" config user.name h && git -C "$P" config commit.gpgsign false
 printf 'node_modules/\n*.log\n' > "$P/.gitignore"
@@ -33,6 +41,7 @@ cd "$P"
 timeout 180 env PATH=/tmp/nopy3bin ANTHROPIC_BASE_URL="http://127.0.0.1:$PORT" ANTHROPIC_AUTH_TOKEN=mock-token \
   "$CLAUDE_BIN" -p "Clean up build output." \
   --output-format stream-json --verbose --include-hook-events \
+  --setting-sources project --strict-mcp-config --no-session-persistence \
   --model claude-sonnet-4-5 --permission-mode dontAsk \
   > "$RUNS/transcript.jsonl" 2> "$RUNS/stderr.txt"
 echo "claude exit=$?" > "$RUNS/exit.txt"

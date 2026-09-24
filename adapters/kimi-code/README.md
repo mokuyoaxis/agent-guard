@@ -36,8 +36,13 @@ allowed. `blockDecision()` collects any hook result with `action === "block"`.
 1. Add the hook and the skill root to `~/.kimi-code/config.toml` — see
    [`config.example.toml`](config.example.toml). `matcher` is a **regular
    expression** matched against the tool name; an empty string matches every
-   tool. Keep it anchored to the shell tool (`Bash`) unless you have a reason
-   to widen it.
+   tool. Use `^Bash$` to select only the shell tool. An unanchored `Bash`
+   pattern can also match future tool names containing that word. The example
+   invokes the POSIX [shell bridge](hook_bridge.sh) with absolute shell and
+   Python paths. Replace all three example paths with paths on your machine;
+   quote paths containing spaces for the shell command string. Directly
+   invoking `python3 pre_tool_use.py` leaves Python startup failures exposed
+   to Kimi's fail-open behavior.
 
 2. Keep `extraSkillDirs` pointing at this repository's `skills/` directory so
    the model also gets the discipline, not just the enforcement:
@@ -47,6 +52,14 @@ allowed. `blockDecision()` collects any hook result with `action === "block"`.
    ```
 
 3. Restart the session. Hooks are read at session start.
+
+4. From the repository root, run `python3 doctor.py kimi --probe`. The doctor
+   checks the configured matcher and command, then exercises the bridge with
+   harmless payloads, a Bash→Core policy refusal, and a deliberately missing
+   interpreter. It also rejects an invalid `AGENT_GUARD_DIALECT` in the
+   current process. It does **not** invoke a model, edit the configuration, or
+   prove that a Kimi session actually loaded the hook. The optional doctor uses Python 3.11+ for TOML
+   parsing; the guard adapter itself continues to support Python 3.9+.
 
 ## Decision mapping
 
@@ -59,7 +72,12 @@ sets `ask_is_block=True` because this CLI cannot enforce a prompt:
 | `ALLOW`, compensations applied | exit 0 + `permissionDecision: "allow"` (reason names the quarantine) |
 | `ASK` | exit 2, stderr explains that the command must be split/restated |
 | `BLOCK` | exit 2, stderr fed back to the model |
-| guard failure / adapter bug | exit 2 (fail-closed) |
+| Malformed `PreToolUse` JSON or missing required Bash fields | exit 2 (fail-closed) |
+| guard failure / adapter bug caught after Python starts | exit 2 (fail-closed for that call) |
+| Python fails to start, but the shell bridge runs | bridge converts the failure to exit 2 |
+
+This table describes adapter output **when the adapter actually starts**.
+It does not describe a missing hook or a failed hook command.
 
 ## Known limitations — read before claiming interception
 
@@ -78,10 +96,40 @@ sets `ask_is_block=True` because this CLI cannot enforce a prompt:
 - **Subagent inheritance is observational, not a blanket guarantee.** In two
   isolated `local/kimi-k3` sandboxes, single and concurrent subagent Bash
   calls reached the native hook and produced recoverable audit records.
-  Other commands, models and scheduling patterns remain untested. Host-side
-  enforcement of a `BLOCK` verdict remains unproven.
+  A third isolated project then showed [execution-level `BLOCK` enforcement](../../docs/test-report-kimi-code-block.md)
+  for one root and one single-subagent inert Bash probe. Its separate root
+  `ASK` probe was denied. A fourth isolated project reproduced these bounded
+  paths using the separate `kimi-code/kimi-for-coding` request model ID and
+  verified a recoverable deletion/restore cycle. Two same-turn subagents
+  each received `BLOCK`, but their Bash calls reached the hook seconds apart;
+  simultaneous hook execution, other tools/routes, backend model identity,
+  and broader scheduling patterns remain untested.
 - **Config is read at session start**, so a running session keeps its old hook
   set until restarted.
+- Strict payload refusal only applies **after this hook is invoked**. It cannot
+  detect or block a missing hook, a mismatched `Bash` matcher, or a host that
+  stops emitting `PreToolUse`.
+- **Host fail-open was observed when the old direct-Python hook command failed
+  before Python started.** In an isolated Kimi 0.42.0 trial, a process-local failing
+  `python3` shim made a Bash call execute even though the correctly started
+  adapter would have returned `BLOCK_DIALECT_UNKNOWN`. The sentinel appeared
+  and no guard audit event was added. See the [bounded report](../../docs/test-report-kimi-code-block.md).
+  The bridge changes this particular failure into exit 2 **if the bridge
+  itself starts**. It cannot block a hook that is absent, skipped by the
+  matcher, fails to spawn, or times out. The host remains fail-open for those
+  cases; a verified interpreter path is risk reduction, not a hard boundary.
+- **The bridge was exercised through a new Kimi 0.42.0 host session** using
+  the `kimi-code/kimi-for-coding` request model ID: one harmless Bash call was
+  blocked under a process-local invalid dialect, and a separate harmless
+  Bash call ran under the normal dialect. The denied sentinel was absent,
+  the allowed sentinel was present, and the block was audited. A later
+  process-local Python startup fault returned exit 1 before the adapter ran;
+  the bridge converted it to Kimi's hard refusal, and the sentinel stayed
+  absent. This does not test a bridge-spawn failure or timeout; see the
+  [bounded report](../../docs/test-report-kimi-code-block.md).
+- Kimi's `doctor config` accepted a hook-free test config and an invalid
+  regex matcher; it checks configuration validity, not live interception.
+  In the installed 0.42.0 bundle, a matcher regex error yields no match.
 - This adapter covers `Bash` only, matching the Claude adapter's scope.
 
 ## Verification

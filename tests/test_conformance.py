@@ -156,12 +156,13 @@ class Conformance(RepoFixture):
         self.assertEqual(proc.returncode, 0)
         self.assertEqual(proc.stdout.strip(), "")
 
-    def test_unparseable_stdin_stays_out_of_the_way(self):
+    def test_unparseable_stdin_is_refused(self):
         proc = subprocess.run(
             [sys.executable, ADAPTER], input="not-json{",
             capture_output=True, text=True, timeout=30,
             env={**os.environ, "AGENT_GUARD_WORKSPACE": self.root})
-        self.assertEqual(proc.returncode, 0)
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("malformed hook payload", proc.stderr)
 
 
     def test_adapter_spawns_guard_with_sys_executable(self):

@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 /absolute/path/to/agent-guard/adapters/claude/pre_tool_use.py",
+            "command": "/bin/sh /absolute/path/to/agent-guard/adapters/claude/hook_bridge.sh /absolute/path/to/python3",
             "timeout": 120
           }
         ]

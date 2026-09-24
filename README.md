@@ -384,7 +384,7 @@ quarantine full          → BLOCK     (never fall back to permanent delete)
 [![DSH v0.1.1 live-tested](https://img.shields.io/badge/DSH-v0.1.1%20live--tested-4D6BFE)](docs/test-report-dsh-v0.1.1.md)
 [![ZCode win32 CLI evaluated](https://img.shields.io/badge/ZCode-win32%20CLI%20evaluated-7C5CE0)](docs/test-report-zcode-glm-flash.md)
 [![Claude Code hook tested with scripted model](https://img.shields.io/badge/Claude%20Code-hook%20tested%20%28scripted%20model%29-D97757?logo=anthropic&logoColor=white)](docs/test-report-claude-code-harness.md)
-[![Kimi Code K3 hook observed](https://img.shields.io/badge/Kimi%20Code-K3%20hook%20observed-5B9BD5)](docs/harness-capabilities.md)
+[![Kimi Code sampled Bash BLOCK](https://img.shields.io/badge/Kimi%20Code-sampled%20Bash%20BLOCK-5B9BD5)](docs/test-report-kimi-code-block.md)
 
 "The Core works", "a Skill-guided agent used it", and "the harness
 intercepts every matching tool call" are separate claims. This table keeps
@@ -396,13 +396,15 @@ those evidence levels explicit:
 | **DSH** (DeepSeek Harness) | Native adapter | Live-tested at `v0.1.1`; waterfall interception, model tools, and prompt guidance. Install: `dsh plugin --profile <p> add github:mokuyoaxis/agent-guard` |
 | **Codex** | Skill + production CLI acceptance | Reviewed and forward-tested; no native interception hook is claimed by this repository |
 | **ZCode** | Skill/CLI evaluation on Windows | GLM-Flash live-tested on win32; this is evidence for the portable path, not a universal hook claim |
-| **Kimi Code 0.42.0** | Native `PreToolUse` adapter (Bash) | Two isolated `local/kimi-k3` runs observed recoverable root, single-subagent, and two-subagent calls reaching the hook; Core ASK is refused, not prompted. Harness enforcement of a BLOCK verdict remains unproven. |
+| **Kimi Code 0.42.0** | Native `PreToolUse` adapter (Bash) | [Bounded host tests](docs/test-report-kimi-code-block.md): sampled root/child BLOCK, ASK denial, and recoverable deletion under two request model IDs. The old direct-Python hook failed open; the newer bridge blocked a sampled Python-startup failure when it ran. Missing or timed-out hooks remain fail-open. |
 | OpenCode / MCP | Planned | No support claim yet |
 
 `tests/test_conformance.py` checks the shared Core and Claude adapter; DSH
 has a smoke test and Kimi has targeted adapter tests. The Kimi observations
 above cover only the tested calls, not every shell construct or a general
 concurrent-agent safety guarantee.
+For a Kimi installation, `python3 doctor.py kimi --probe` checks the configured
+shell bridge locally without a model call; see the [Kimi adapter guide](adapters/kimi-code/README.md).
 See [harness capabilities and evidence levels](docs/harness-capabilities.md)
 for the per-host scope and execution-level acceptance criteria.
 
@@ -414,6 +416,7 @@ agent-guard/
 ├── skills/exfil-guard/    # egress skill: check_span.py · sanitize.py
 ├── skills/recovery-audit/ # evidence-led repository audit and recovery
 ├── core/                  # classifier · policy · recovery · audit · redaction
+├── doctor.py              # local harness configuration and optional probes
 ├── adapters/claude/       # Claude Code PreToolUse hook adapter
 ├── adapters/kimi-code/   # Kimi Code PreToolUse hook adapter
 ├── adapters/dsh/          # DeepSeek Harness integration bridge
@@ -459,8 +462,12 @@ for published artifacts and their status.
 The release identity is harness-neutral. Existing DSH and Claude adapters,
 Codex/ZCode acceptance evidence, and the bounded Kimi exercise are entries
 in a growing compatibility matrix, not separate definitions of the product.
-The Kimi result is a witnessed hook-compensation path, not proof that its
-host enforces every BLOCK or that arbitrary agent actions are protected.
+The Kimi result includes sampled hook-compensation and execution-level BLOCK
+paths, not proof that its host enforces every BLOCK or that arbitrary agent
+actions are protected. A tested direct-Python hook startup failure was
+fail-open. The optional shell bridge blocked a sampled Python startup failure
+in a real Kimi host session, but only when the bridge itself ran; config
+validation alone cannot prove that the hook is live.
 Real Windows end-to-end coverage and general concurrent-subagent safety
 also remain explicit gaps. Later Guard branches (`git-guard`, `database-guard`,
 `cloud-guard`) reuse the same protocol and compensation engine.

@@ -19,12 +19,14 @@ PreToolUse hook. Verified against @moonshot-ai/kimi-code 0.42.0
     Kimi Code 0.42.0 treats permissionDecision="ask" as allow. The shared
     adapter therefore runs with ask_is_block=True: a Core ASK is refused
     until the agent restates it as separately checkable commands.
+    Kimi also opts into strict_payload=True: a malformed PreToolUse payload
+    received by this hook is refused instead of silently accepted.
 
     config (TOML, ~/.kimi-code/config.toml)
         [[hooks]]
         event = "PreToolUse"
-        matcher = "Bash"          # regular expression over the tool name
-        command = "python3 /path/to/agent-guard/adapters/kimi-code/pre_tool_use.py"
+        matcher = "^Bash$"        # regular expression over the tool name
+        command = "/bin/sh /path/to/agent-guard/adapters/kimi-code/hook_bridge.sh /absolute/path/to/python3"
         timeout = 90
 
 Because the two contracts match, this adapter **delegates to the shared
@@ -57,7 +59,7 @@ if __name__ == "__main__":
         if not os.path.isfile(_CLAUDE_ADAPTER):
             raise FileNotFoundError(_CLAUDE_ADAPTER)
         shared = runpy.run_path(_CLAUDE_ADAPTER)
-        sys.exit(shared["main"](ask_is_block=True))
+        sys.exit(shared["main"](ask_is_block=True, strict_payload=True))
     except Exception as exc:  # never fail open on adapter bugs
         sys.stderr.write(
             f"[agent-guard] Kimi adapter error (fail-closed): {exc}\n")

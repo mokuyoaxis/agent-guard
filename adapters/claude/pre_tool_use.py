@@ -23,7 +23,7 @@ Install - project .claude/settings.json:
         "hooks": [
           {
             "type": "command",
-            "command": "python3 /path/to/agent-guard/adapters/claude/pre_tool_use.py"
+            "command": "/bin/sh /path/to/agent-guard/adapters/claude/hook_bridge.sh /absolute/path/to/python3"
           }
         ]
       }
@@ -31,8 +31,9 @@ Install - project .claude/settings.json:
   }
 }
 
-On Windows, spell the interpreter `python` (there is no `python3` alias in
-a stock install); the example above is the POSIX form. The adapter itself
+The shell bridge is for POSIX hosts. On Windows, use an absolute `python`
+path (there is no `python3` alias in a stock install); this direct form does
+not protect against interpreter startup failure. The adapter itself
 spawns the guard with `sys.executable`, so the interpreter that runs the
 hook is the interpreter that runs the guard.
 
@@ -74,17 +75,41 @@ def allow_reason(code: str, compensations: list) -> str:
             f"({len(compensations)} relocation(s)); restorable via txid")
 
 
-def main(ask_is_block: bool = False) -> int:
+def main(ask_is_block: bool = False, strict_payload: bool = True) -> int:
+    # Both native Bash hook entrypoints reject malformed event envelopes.
+    # A valid non-Bash payload remains out of this adapter's scope.
+    def malformed_payload() -> int:
+        sys.stderr.write("[agent-guard] malformed hook payload (fail-closed)\n")
+        return 2
+
     raw = sys.stdin.read()
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError:
-        return 0  # not our payload shape: stay out of the way
+        if strict_payload:
+            return malformed_payload()
+        return 0
+    if strict_payload:
+        if not isinstance(payload, dict):
+            return malformed_payload()
+        if payload.get("hook_event_name") != "PreToolUse":
+            return malformed_payload()
+        if (not isinstance(payload.get("tool_name"), str)
+                or not payload["tool_name"]):
+            return malformed_payload()
     if str(payload.get("tool_name", "")).lower() != "bash":
         return 0
+    if strict_payload:
+        if not isinstance(payload.get("tool_input"), dict):
+            return malformed_payload()
+        if (not isinstance(payload.get("cwd"), str)
+                or not payload["cwd"].strip()):
+            return malformed_payload()
     tool_input = payload.get("tool_input") or {}
     command = tool_input.get("command")
     if not isinstance(command, str) or not command:
+        if strict_payload:
+            return malformed_payload()
         return 0
     # Dialect resolution must happen BEFORE the prefilter: the POSIX regex
     # cannot see `ri build -r -fo`, so a Windows-native payload would be

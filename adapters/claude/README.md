@@ -13,7 +13,8 @@ Decision Protocol onto Claude Code's native hook semantics.
 | `ALLOW` (compensation applied) | `permissionDecision: "allow"` + reason naming what was quarantined and the txid |
 | `ASK` (`COMPOUND_CWD_DELETE`, `COMPOUND_CREATE_DELETE`) | `permissionDecision: "ask"` - ASK_ONCE, reason shown to the human; splitting the command avoids future prompts |
 | `BLOCK` | exit 2 - stderr is fed back to **Claude**, so the model sees the code, the explanation, and the remediation |
-| guard failure | exit 2 (fail-closed) |
+| malformed hook payload / guard failure after adapter starts | exit 2 (fail-closed for that call) |
+| Python launch/runtime failure while bridge runs | bridge converts non-0/2 exits to exit 2 |
 
 Note the deliberate asymmetry: allow/ask reasons are user-facing, while
 BLOCK uses the stderr channel so the *model* learns the remediation.
@@ -39,7 +40,7 @@ prompt.
         "hooks": [
           {
             "type": "command",
-            "command": "python3 /absolute/path/to/agent-guard/adapters/claude/pre_tool_use.py",
+            "command": "/bin/sh /absolute/path/to/agent-guard/adapters/claude/hook_bridge.sh /absolute/path/to/python3",
             "timeout": 120
           }
         ]
@@ -49,10 +50,15 @@ prompt.
 }
 ```
 
-   On Windows, write that interpreter as `python`: a stock install has no
-   `python3` alias, so the hook would fail before the adapter ever runs.
-   Only that one token changes; the path and the rest of the command stay
-   as they are.
+   This bridge is for POSIX hosts. Replace both repository and interpreter
+   paths with absolute paths on your machine; quote paths containing spaces
+   for the shell command. A direct `python3 pre_tool_use.py` hook may be
+   skipped by Claude Code if Python fails before the adapter starts.
+
+   On Windows, use an absolute path to `python` with a direct adapter command;
+   a stock install may not have a `python3` alias. The POSIX shell bridge does
+   not run natively there, and this direct form has **not** been validated
+   against Python startup failure on a real Windows Claude Code host.
 
 3. Optionally copy `skills/delete-guard/SKILL.md` into the project's skill
    directory so the model prefers the safe-delete flow proactively.
@@ -91,7 +97,7 @@ for POSIX - `check.py` returns `BLOCK_DIALECT_UNKNOWN` and the hook exits 2.
 
 ## Live-tested
 
-Validated end-to-end against a real Claude Code session (2.1.270) with a
+Validated end-to-end against real Claude Code sessions (2.1.270 and 2.1.273) with a
 scripted mock Anthropic endpoint standing in for the model, plus the
 `python3`-free regression tests. See
 [`docs/test-report-claude-code-harness.md`](../../docs/test-report-claude-code-harness.md)
@@ -101,3 +107,9 @@ The guard child is spawned with `sys.executable`, never `python3` from
 `PATH`: on a host with only `python`, a hardcoded `python3` made every
 interception fail closed and the guard silently unusable. See the report's
 A/B evidence.
+
+The 2.1.273 run used the POSIX bridge and checked healthy compensation,
+hard BLOCK, headless ASK denial, and an injected Python process failure.
+This does **not** prove that a missing hook, unmatched tool, or timed-out hook
+is blocked: those are host-level fail-open boundaries. The adapter only
+matches `Bash`; other tools and real-model behavior are outside this test.

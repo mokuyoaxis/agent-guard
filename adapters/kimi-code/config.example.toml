@@ -15,8 +15,10 @@ extraSkillDirs = ["/absolute/path/to/agent-guard/skills"]
 
 [[hooks]]
 event = "PreToolUse"
-matcher = "Bash"
-command = "python3 /absolute/path/to/agent-guard/adapters/kimi-code/pre_tool_use.py"
+matcher = "^Bash$"
+# Replace all three paths for your machine. Use an absolute POSIX sh and Python.
+# The shell bridge turns Python launch failures into Kimi's blocking exit 2.
+command = "/bin/sh /absolute/path/to/agent-guard/adapters/kimi-code/hook_bridge.sh /absolute/path/to/python3"
 timeout = 90
 
 # Optional: surface the raw Core verdict on stderr for troubleshooting.
