@@ -403,8 +403,13 @@ those evidence levels explicit:
 has a smoke test and Kimi has targeted adapter tests. The Kimi observations
 above cover only the tested calls, not every shell construct or a general
 concurrent-agent safety guarantee.
-For a Kimi installation, `python3 doctor.py kimi --probe` checks the configured
-shell bridge locally without a model call; see the [Kimi adapter guide](adapters/kimi-code/README.md).
+Run `python3 doctor.py kimi --probe` or `python3 doctor.py claude --probe`
+to check a selected configuration file and the local shell bridge without a
+model call. Add `--json` for machine-readable `configuration`, `local_probe`,
+and `host_interception` statuses. The last status is always `UNVERIFIED`:
+this doctor cannot prove that a live session loaded or enforced the hook.
+See the [Kimi](adapters/kimi-code/README.md) and
+[Claude](adapters/claude/README.md) adapter guides.
 See [harness capabilities and evidence levels](docs/harness-capabilities.md)
 for the per-host scope and execution-level acceptance criteria.
 

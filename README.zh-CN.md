@@ -355,8 +355,13 @@ node_modules/(已 ignore) → ALLOW     (可证明可再生)
 `tests/test_conformance.py` 覆盖共享 Core 和 Claude adapter；DSH 有 smoke 测试，
 Kimi 有针对性 adapter 测试。上述 Kimi 观察只覆盖实测调用，不构成所有 Shell
 语法或一般并发子代理安全保证。
-Kimi 安装可运行 `python3 doctor.py kimi --probe`，无需模型调用即可检查
-本地桥接配置；参见 [Kimi adapter 指南](adapters/kimi-code/README.md)。
+Kimi 或 Claude 安装可分别运行 `python3 doctor.py kimi --probe`、
+`python3 doctor.py claude --probe`，无需模型调用即可检查所选配置文件与
+本地 shell 桥。加 `--json` 可获取 `configuration`、`local_probe`、
+`host_interception` 机器可读状态；最后一项始终为 `UNVERIFIED`，
+因为本工具不能证明实际会话加载或强制执行了 hook。参见
+[Kimi](adapters/kimi-code/README.md) 与 [Claude](adapters/claude/README.md)
+适配指南。
 各宿主的覆盖范围、证据等级和执行级验收条件见
 [harness 能力矩阵](docs/harness-capabilities.md)。
 

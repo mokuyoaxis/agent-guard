@@ -55,11 +55,15 @@ allowed. `blockDecision()` collects any hook result with `action === "block"`.
 
 4. From the repository root, run `python3 doctor.py kimi --probe`. The doctor
    checks the configured matcher and command, then exercises the bridge with
-   harmless payloads, a Bash→Core policy refusal, and a deliberately missing
-   interpreter. It also rejects an invalid `AGENT_GUARD_DIALECT` in the
-   current process. It does **not** invoke a model, edit the configuration, or
-   prove that a Kimi session actually loaded the hook. The optional doctor uses Python 3.11+ for TOML
-   parsing; the guard adapter itself continues to support Python 3.9+.
+   harmless Bash payloads, a Bash→Core policy refusal, the host-specific
+   ASK→hard-refusal mapping, and a deliberately missing interpreter. `--json`
+   reports `configuration`, `local_probe`, and
+   `host_interception` separately; the latter remains `UNVERIFIED` even when
+   the local probe passes. The doctor also rejects an invalid
+   `AGENT_GUARD_DIALECT` in the current process. It does **not** invoke a
+   model, edit the configuration, inspect a running Kimi session, or prove
+   host-level interception. The optional Kimi doctor uses Python 3.11+ for
+   TOML parsing; the guard adapter itself continues to support Python 3.9+.
 
 ## Decision mapping
 

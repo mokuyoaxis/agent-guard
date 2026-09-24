@@ -17,6 +17,15 @@ Evidence is version-, tool-, and configuration-specific. A test with a mock
 model endpoint may prove host behavior without proving model behavior. A
 subagent observation is not a guarantee for every subagent, tool, or schedule.
 
+`doctor.py kimi|claude [--config PATH] [--probe] [--json]` checks one selected
+configuration file and optionally runs local bridge/adapter verdict probes
+in a temporary workspace with controlled dialect input.
+Its `configuration: PASS` is a *file-shape check*, not an effective merged
+host-settings check; `local_probe: PASS` is not host interception. The doctor
+always reports `host_interception: UNVERIFIED`. Only a separate real-host
+trial with an independent non-execution check can establish the bounded
+"Enforcement observed" level above. Neither doctor mode starts a model.
+
 ## Current coverage
 
 | Host / tested version | Entry and scope | ASK mapping | Highest evidence for current path | Important gap |

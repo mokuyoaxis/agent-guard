@@ -63,7 +63,25 @@ prompt.
 3. Optionally copy `skills/delete-guard/SKILL.md` into the project's skill
    directory so the model prefers the safe-delete flow proactively.
 
+4. From the project directory, run:
+
+   ```sh
+   python3 /absolute/path/to/agent-guard/doctor.py claude --probe
+   ```
+
+   By default it checks only this project's
+   `.claude/settings.json`; use `--config` to select another settings file,
+   such as `.claude/settings.local.json` or a user-level file. It checks the
+   exact `Bash` matcher, synchronous POSIX bridge and interpreter, then sends
+   harmless payloads to that bridge. `--json` prints machine-readable status.
+   A passing check does **not** inspect Claude's merged settings, prove a
+   running session loaded the hook, or verify host-level interception. For
+   those claims, use the isolated host acceptance in the
+   [capability matrix](../../docs/harness-capabilities.md).
+
 Requirements: Python 3.9+, POSIX shell, git. No third-party packages.
+The optional Claude doctor uses only standard-library modules; the adapter
+does not require it at runtime.
 
 ## Conformance
 
