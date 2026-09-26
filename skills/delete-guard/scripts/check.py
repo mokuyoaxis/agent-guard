@@ -54,6 +54,10 @@ class EnumerationUnavailable(Exception):
     """
 
 
+class DurableAuditUnavailable(Exception):
+    """An execution/ASK intent could not cross the durable audit boundary."""
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--cwd")
@@ -148,21 +152,36 @@ def main() -> int:
                 print(f"  - {reason}")
         return code
 
-    def record(entry):
-        """Append enforcement audit without ever changing the verdict.
+    def record(entry, required=False):
+        """Append audit, optionally making durability an authorization gate.
 
         Establishing the ignore rule before the audit directory prevents a
         blocked request from dirtying a fresh Git worktree. If audit storage
-        is unavailable, keep the safer decision and report the degradation.
+        is unavailable, blocked/advisory requests keep their safer decision.
+        An execution authorization uses ``required=True`` and fails closed.
         """
         try:
             engine.ensure_layout()
             audit.append({"check_id": check_id, **entry}, audit_path)
             return True
         except Exception:
+            if required:
+                raise DurableAuditUnavailable from None
             out.setdefault("warnings", []).append(
                 "audit unavailable: record could not be stored")
             return False
+
+    def block_for_audit(reason, compensations=None):
+        """Refuse execution when its durable audit boundary is unavailable."""
+        out["decision"], out["code"] = "BLOCK", \
+            policy.CODE_BLOCK_COMPENSATION_FAILED
+        out["explanation"] = policy.EXPLANATIONS[out["code"]]
+        out["reasons"] = [reason]
+        out.setdefault("warnings", []).append(
+            "audit unavailable: execution was not authorized")
+        if compensations:
+            out["compensations"] = compensations
+        return finish(2)
 
     if not args.enforce:
         record({"event": "check", "decision": top.decision,
@@ -177,8 +196,13 @@ def main() -> int:
         # Single-execution authorization point. Adapters map this to their
         # native ask UI; a harness without ask support degrades to deny
         # while keeping the explanation (never silently allow).
-        record({"event": "ask", "code": top.code,
-                "command": _REDACTED_COMMAND, "reasons": out["reasons"]})
+        try:
+            record({"event": "ask", "code": top.code,
+                    "command": _REDACTED_COMMAND,
+                    "reasons": out["reasons"], "phase": "intent"},
+                   required=True)
+        except Exception:
+            return block_for_audit("durable ASK audit intent unavailable")
         return finish(3)
 
     if top.blocked:
@@ -187,40 +211,53 @@ def main() -> int:
                 "guard_latency_ms": latency_ms})
         return finish(2)
 
-    # Execute compensations in order; collect evidence of recoverability.
+    # Execute compensations in order; collect public recovery evidence before
+    # every attempt so even an exception after a partial move retains a txid.
     compensations = []
+    mutating_codes = {
+        policy.CODE_ALLOW_REGENERABLE,
+        policy.CODE_ALLOW_TRASH_GC,
+        policy.CODE_RELOCATE_PATHS,
+        policy.CODE_RELOCATE_TREE,
+        policy.CODE_RELOCATE_NARROW,
+        policy.CODE_RELOCATE_VIA_CLEAN_ENUMERATE,
+        policy.CODE_SNAPSHOT_GIT_STASH,
+    }
+    needs_durable_audit = any(
+        verdict.code in mutating_codes for verdict in verdicts)
     try:
-        # Preflight quarantine metadata before enumeration or any mutation.
-        # This also excludes `.agent-trash` before `git clean -n` can see it.
-        mutating_codes = {
-            policy.CODE_ALLOW_REGENERABLE,
-            policy.CODE_ALLOW_TRASH_GC,
-            policy.CODE_RELOCATE_PATHS,
-            policy.CODE_RELOCATE_TREE,
-            policy.CODE_RELOCATE_NARROW,
-            policy.CODE_RELOCATE_VIA_CLEAN_ENUMERATE,
-            policy.CODE_SNAPSHOT_GIT_STASH,
-        }
-        if any(verdict.code in mutating_codes for verdict in verdicts):
-            engine.ensure_layout()
+        # Authorization must be durable before enumeration, compensation or
+        # a direct regenerable/GC delete is allowed to reach the host shell.
+        if needs_durable_audit:
+            record({"event": "enforce-intent", "code": top.code,
+                    "command": _REDACTED_COMMAND,
+                    "guard_latency_ms": latency_ms}, required=True)
         for spec, verdict in zip(specs, verdicts):
             if spec.kind == classifier.KIND_FS_DELETE and \
                     verdict.decision == policy.DECISION_RELOCATE:
                 target_specs = classifier.classify_paths(
                     spec.targets, base, workspace, trash_root)
-                report = engine.relocate(target_specs, meta={
+                txid = audit.new_txid()
+                compensation = {"strategy": "relocate", "txid": txid,
+                                "status": "started", "moved": 0,
+                                "skipped": 0}
+                compensations.append(compensation)
+                report = engine.relocate(target_specs, txid=txid, meta={
                     "tool": "check --enforce", "check_id": check_id,
                     "command": _REDACTED_COMMAND})
+                compensation.update({
+                    "moved": len(report["moved"]),
+                    "skipped": len(report.get("skipped", [])),
+                    "status": "complete",
+                })
                 if report.get("storage_failure"):
+                    compensation["status"] = "storage-failed"
                     raise recovery.StorageUnavailable(
                         "quarantine storage unavailable during relocation")
                 if report.get("skipped"):
+                    compensation["status"] = "partial"
                     raise RuntimeError(
-                        "relocation did not cover every requested target: " +
-                        repr(report["skipped"][:3]))
-                compensations.append({"strategy": "relocate",
-                                      "txid": report["txid"],
-                                      "moved": len(report["moved"])})
+                        "relocation did not cover every requested target")
             elif verdict.code == policy.CODE_RELOCATE_VIA_CLEAN_ENUMERATE:
                 flags = getattr(spec, "extra_flags", [])
                 paths, err = engine.enumerate_git_clean(
@@ -230,32 +267,46 @@ def main() -> int:
                         f"git clean enumeration failed: {err}")
                 target_specs = classifier.classify_paths(
                     paths, base, workspace, trash_root)
-                report = engine.relocate(target_specs, meta={
+                txid = audit.new_txid()
+                compensation = {"strategy": "clean-enumerate",
+                                "txid": txid, "status": "started",
+                                "moved": 0, "skipped": 0,
+                                "enumerated": len(paths)}
+                compensations.append(compensation)
+                report = engine.relocate(target_specs, txid=txid, meta={
                     "tool": "check --enforce", "strategy": "clean-enumerate",
                     "check_id": check_id, "command": _REDACTED_COMMAND})
+                compensation.update({
+                    "moved": len(report["moved"]),
+                    "skipped": len(report.get("skipped", [])),
+                    "status": "complete",
+                })
                 if report.get("storage_failure"):
+                    compensation["status"] = "storage-failed"
                     raise recovery.StorageUnavailable(
                         "quarantine storage unavailable during git clean")
                 if report.get("skipped") or len(report["moved"]) != len(paths):
+                    compensation["status"] = "partial"
                     raise RuntimeError(
-                        "git clean compensation did not cover every enumerated "
-                        f"target (enumerated={len(paths)}, "
-                        f"moved={len(report['moved'])}, "
-                        f"skipped={report.get('skipped', [])[:3]})")
-                compensations.append({"strategy": "clean-enumerate",
-                                      "txid": report["txid"],
-                                      "moved": len(report["moved"])})
+                        "git clean compensation did not cover every target")
             elif verdict.code == policy.CODE_SNAPSHOT_GIT_STASH:
-                snap = engine.snapshot_git(cwd=base, meta={
+                txid = audit.new_txid()
+                compensation = {"strategy": "snapshot", "txid": txid,
+                                "status": "started", "sha": None}
+                compensations.append(compensation)
+                snap = engine.snapshot_git(cwd=base, txid=txid, meta={
                     "tool": "check --enforce", "check_id": check_id,
                     "command": _REDACTED_COMMAND})
                 if not snap.get("ok"):
+                    compensation["status"] = "failed"
                     raise RuntimeError(
                         "git snapshot failed: " +
                         (snap.get("error") or "unknown snapshot failure"))
-                compensations.append({"strategy": "snapshot",
-                                      "txid": snap["txid"],
-                                      "sha": snap["sha"]})
+                compensation.update({"status": "complete",
+                                     "sha": snap["sha"]})
+    except DurableAuditUnavailable:
+        return block_for_audit("durable execution audit intent unavailable",
+                               compensations)
     except EnumerationUnavailable:
         # The targets exist but their set is unknowable; refusing is the
         # only honest verdict. Nothing was mutated, so this is not a
@@ -264,6 +315,8 @@ def main() -> int:
             policy.CODE_BLOCK_UNDETERMINABLE_EFFECT
         out["explanation"] = policy.EXPLANATIONS[out["code"]]
         out["reasons"] = ["git clean enumeration failed"]
+        if compensations:
+            out["compensations"] = compensations
         record({"event": "enforce-block", "code": out["code"],
                 "command": _REDACTED_COMMAND, "reasons": out["reasons"]})
         return finish(2)
@@ -273,6 +326,11 @@ def main() -> int:
             policy.CODE_BLOCK_RELOCATE_FAILED_STORAGE
         out["explanation"] = policy.EXPLANATIONS[out["code"]]
         out["reasons"] = ["quarantine storage unavailable"]
+        if compensations:
+            for item in compensations:
+                if item.get("status") == "started":
+                    item["status"] = "incomplete"
+            out["compensations"] = compensations
         record({"event": "enforce-block", "code": out["code"],
                 "command": _REDACTED_COMMAND, "reasons": out["reasons"]})
         return finish(2)
@@ -281,15 +339,26 @@ def main() -> int:
             policy.CODE_BLOCK_COMPENSATION_FAILED
         out["explanation"] = policy.EXPLANATIONS[out["code"]]
         out["reasons"] = ["compensation failed"]
+        if compensations:
+            for item in compensations:
+                if item.get("status") == "started":
+                    item["status"] = "incomplete"
+            out["compensations"] = compensations
         record({"event": "enforce-error", "command": _REDACTED_COMMAND,
                 "code": out["code"], "error": "compensation failed"})
         return finish(2)
 
     out["compensations"] = compensations
     out["decision"] = "ALLOW"
-    record({"event": "enforce-proceed", "command": _REDACTED_COMMAND,
-            "compensations": compensations,
-            "guard_latency_ms": latency_ms})
+    try:
+        record({"event": "enforce-proceed", "command": _REDACTED_COMMAND,
+                "compensations": compensations,
+                "guard_latency_ms": latency_ms},
+               required=needs_durable_audit)
+    except Exception:
+        return block_for_audit(
+            "durable execution audit unavailable after compensation",
+            compensations)
     return finish(0)
 
 

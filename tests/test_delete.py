@@ -169,6 +169,67 @@ class CheckCLI(RepoFixture):
         self.assertFalse(os.path.exists(os.path.join(self.root, "tmpbuild")))
         self.assertGreaterEqual(out["compensations"][0]["moved"], 1)
 
+    def test_partial_relocation_reports_recovery_transaction(self):
+        self.write("first.txt", "recoverable")
+        proc = run("check.py", "--enforce", "--json", "--",
+                   "rm first.txt missing.txt", cwd=self.root)
+        self.assertEqual(proc.returncode, 2, proc.stderr)
+        out = json.loads(proc.stdout)
+        self.assertEqual(out["code"], policy.CODE_BLOCK_COMPENSATION_FAILED)
+        compensation = out["compensations"][0]
+        self.assertEqual(compensation["status"], "partial")
+        self.assertEqual(compensation["moved"], 1)
+        self.assertEqual(compensation["skipped"], 1)
+        self.assertTrue(compensation["txid"])
+        self.assertFalse(os.path.exists(os.path.join(self.root, "first.txt")))
+        restored = run("restore.py", compensation["txid"], "--json",
+                       cwd=self.root)
+        self.assertEqual(restored.returncode, 0, restored.stderr)
+        self.assertEqual(Path(self.root, "first.txt").read_text(),
+                         "recoverable")
+
+    def test_enforce_fails_closed_if_audit_intent_cannot_persist(self):
+        with open(os.path.join(self.root, ".gitignore"), "a") as fh:
+            fh.write(".agent-trash/\n")
+        trash = os.path.join(self.root, ".agent-trash")
+        os.makedirs(trash)
+        audit_path = os.path.join(trash, "audit.jsonl")
+        Path(audit_path).write_text("")
+        os.chmod(audit_path, 0o444)
+        target = self.write("node_modules/pkg/index.js", "generated")
+        try:
+            proc = run("check.py", "--enforce", "--json", "--",
+                       "rm -rf node_modules", cwd=self.root)
+        finally:
+            os.chmod(audit_path, 0o644)
+        self.assertEqual(proc.returncode, 2, proc.stderr)
+        out = json.loads(proc.stdout)
+        self.assertEqual(out["decision"], "BLOCK")
+        self.assertEqual(out["code"], policy.CODE_BLOCK_COMPENSATION_FAILED)
+        self.assertIn("audit unavailable", out["warnings"][0])
+        self.assertTrue(os.path.exists(target))
+
+    def test_ask_fails_closed_if_audit_intent_cannot_persist(self):
+        with open(os.path.join(self.root, ".gitignore"), "a") as fh:
+            fh.write(".agent-trash/\n")
+        trash = os.path.join(self.root, ".agent-trash")
+        os.makedirs(trash)
+        audit_path = os.path.join(trash, "audit.jsonl")
+        Path(audit_path).write_text("")
+        os.chmod(audit_path, 0o444)
+        try:
+            proc = run("check.py", "--enforce", "--json", "--",
+                       "cd src && rm main.py", cwd=self.root)
+        finally:
+            os.chmod(audit_path, 0o644)
+        self.assertEqual(proc.returncode, 2, proc.stderr)
+        out = json.loads(proc.stdout)
+        self.assertEqual(out["decision"], "BLOCK")
+        self.assertEqual(out["code"], policy.CODE_BLOCK_COMPENSATION_FAILED)
+        self.assertIn("ASK audit", out["reasons"][0])
+        self.assertTrue(os.path.exists(os.path.join(
+            self.root, "src", "main.py")))
+
     def test_enforce_blocked_leaves_fs_untouched(self):
         proc = run("check.py", "--enforce", "--", "rm -rf .", cwd=self.root)
         self.assertEqual(proc.returncode, 2)

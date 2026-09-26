@@ -149,8 +149,18 @@ try {
     next
   );
   assert.equal(windowsVerb.kind, "deny");
+  const gitWithGlobalOption = await handlers[0].handler(
+    { name: "bash", arguments: { command: "git -C . reset --hard" } },
+    next
+  );
+  assert.equal(gitWithGlobalOption.kind, "deny");
+  const stdinScript = await handlers[0].handler(
+    { name: "bash", arguments: { command: "printf 'rm -rf .' | sh" } },
+    next
+  );
+  assert.equal(stdinScript.kind, "deny");
   assert.equal(continued, 1);
-  assert.equal(requests.length, 2);
+  assert.equal(requests.length, 4);
   assert.match(requests[0].command, /check\.py/);
   assert.match(requests[1].command, /del \/s \/q build/);
 
@@ -221,8 +231,15 @@ try {
   const toolResult = await statusTool.execute({}, {});
   assert.equal(toolResult.ok, true);
   assert.equal(toolResult.exitCode, 0);
-  assert.equal(requests.length, 10);
-  assert.match(requests[9].command, /status\.py/);
+  assert.equal(requests.length, 12);
+  assert.match(requests[11].command, /status\.py/);
+  const restoreTool = registered.find(
+    (tool) => tool.name === "agent_guard_restore"
+  );
+  assert.equal(restoreTool.parameters.force, undefined);
+  await restoreTool.execute({ txid: "fixture", force: true }, {});
+  assert.equal(requests.length, 13);
+  assert.doesNotMatch(requests[12].command, /--force/);
   assert.equal(typeof cleanup, "function");
   cleanup();
   console.log("DSH adapter smoke test passed");

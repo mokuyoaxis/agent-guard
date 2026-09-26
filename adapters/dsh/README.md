@@ -18,7 +18,7 @@ dsh plugin --profile <your-profile> add github:mokuyoaxis/agent-guard
 |---|---|---|
 | Interception | `tools/pre-execute` waterfall | destructive-looking bash runs through `check.py --enforce` first; ALLOW proceeds (compensation applied), ASK escalates once to the human, BLOCK denies with explanation and remediation |
 | `agent_guard_safe_delete` | model tool | recoverable delete with explicit glob expansion and manifest |
-| `agent_guard_restore` | model tool | list / restore quarantine transactions |
+| `agent_guard_restore` | model tool | list / non-overwriting restore of quarantine transactions; forced overwrite remains human-only CLI functionality |
 | `agent_guard_status` | model tool | mode, usage, retention view, recent decisions |
 | Prompt section | system prompt (order 105) | deletion discipline for the model |
 

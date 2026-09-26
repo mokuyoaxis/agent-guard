@@ -44,7 +44,10 @@ FS_DELETE_CMDS = {"rm", "rmdir", "unlink", "shred"}
 # See docs/development-note-unguarded-deletion.md (lesson: the normalized
 # target decides, not the spelling).
 WINDOWS_DELETE_CMDS = {"del", "erase", "rd", "rmdir", "ri"}
-SHELL_PREFIXES = {"sudo", "env", "nice", "nohup", "command", "time", "stdbuf", "xargs"}
+SHELL_PREFIXES = {
+    "sudo", "env", "nice", "nohup", "command", "time", "stdbuf",
+    "xargs", "exec",
+}
 INTERPRETER_CMDS = {"sh", "bash", "zsh", "ksh", "eval", "source", "."}
 SEPARATORS = {";", "&", "&&", "|", "||", "\n"}
 GLOB_CHARS = ("*", "?", "[")
@@ -98,9 +101,9 @@ def protected_ancestor_root(path: Optional[str]) -> Optional[str]:
 # Single-source keyword prefilter: harness adapters use it to skip
 # non-destructive traffic at regex cost before invoking check.py.
 DESTRUCTIVE_PREFILTER_RE = re.compile(
-    r"(^|[\s;&|(\/])(rm|rmdir|unlink|shred)\b"
+    r"\b(rm|rmdir|unlink|shred)\b"
     r"|\bfind\b[^\n|;&]*-delete\b"
-    r"|\bgit\s+(clean|reset|restore|checkout|push)\b")
+    r"|\bgit\b[^\n|;&]*\b(clean|reset|restore|checkout|push)\b")
 
 # Windows-native prefilter vocabulary. The POSIX regex above never matches
 # `ri build -r -fo`/`rd /s /q build`, so a Windows-native harness would hand
@@ -108,9 +111,9 @@ DESTRUCTIVE_PREFILTER_RE = re.compile(
 # only consult this when the *requested* dialect is non-POSIX, so the POSIX
 # fast path keeps its exact historical cost and behaviour.
 DESTRUCTIVE_PREFILTER_RE_WINDOWS = re.compile(
-    r"(^|[\s;&|(\\/])(rm|ri|rd|rmdir|del|erase|remove-item)\b"
+    r"\b(rm|ri|rd|rmdir|del|erase|remove-item)\b"
     r"|-\s?(recurse|force|whatif|literalpath)\b"
-    r"|\bgit\s+(clean|reset|restore|checkout|push)\b",
+    r"|\bgit\b[^\n|;&]*\b(clean|reset|restore|checkout|push)\b",
     re.IGNORECASE)
 
 
@@ -118,8 +121,9 @@ DESTRUCTIVE_PREFILTER_RE_WINDOWS = re.compile(
 # Only used for indirect execution (bash -c '...'), where the guard cannot
 # parse structure and therefore only needs a yes/no smell test.
 DESTRUCTIVE_SMELL_RE = re.compile(
-    r"(?:^|[\s;&|(=/])(rm|rmdir|unlink|shred)\b|find\s+\S.*-delete|"
-    r"git\s+clean\b|git\s+reset\b|mkfs\b",
+    r"\b(rm|rmdir|unlink|shred|del|erase|remove-item)\b|"
+    r"find\s+\S.*-delete|"
+    r"git\b[^\n|;&]*\b(clean|reset|restore|checkout|push)\b|mkfs\b",
     re.IGNORECASE,
 )
 
@@ -400,6 +404,183 @@ def _basename(path: str) -> str:
     return os.path.basename(path)
 
 
+_ENV_ASSIGNMENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=.*\Z", re.DOTALL)
+
+
+def _unknown_op(note: str, target: str = "") -> OpSpec:
+    """Return a redacted, fail-closed fact for an opaque shell effect."""
+    spec = OpSpec(op="<opaque>", kind=KIND_UNKNOWN, undeterminable=True)
+    if target:
+        spec.targets = [target[:200]]
+    spec.note(note)
+    return spec
+
+
+def _has_active_shell_substitution(text: str) -> bool:
+    """Detect executable substitution while respecting POSIX quoting."""
+    quote = None
+    escaped = False
+    for index, char in enumerate(text):
+        if escaped:
+            escaped = False
+            continue
+        if char == "\\" and quote != "'":
+            escaped = True
+            continue
+        if quote == "'":
+            if char == "'":
+                quote = None
+            continue
+        if char == "'" and quote is None:
+            quote = "'"
+            continue
+        if char == '"':
+            quote = None if quote == '"' else '"'
+            continue
+        following = text[index + 1:index + 2]
+        if char == "`" or (char == "$" and following == "(") or \
+                (char in "<>" and following == "("):
+            return True
+    return False
+
+
+def _consume_prefix_options(tokens: List[str], no_arg: set,
+                            with_arg: set,
+                            attached: Tuple[str, ...] = (),
+                            long_equals: Tuple[str, ...] = (),
+                            assignments: bool = False,
+                            stop_options: Tuple[str, ...] = (),
+                            ) -> Tuple[List[str], bool, bool]:
+    """Consume wrapper options without guessing unknown option arity."""
+    rest = list(tokens)
+    while rest:
+        tok = rest[0]
+        if tok == "--":
+            return rest[1:], False, False
+        if assignments and _ENV_ASSIGNMENT_RE.fullmatch(tok):
+            rest.pop(0)
+            continue
+        if tok in stop_options:
+            return [], False, True
+        if tok in no_arg:
+            rest.pop(0)
+            continue
+        if tok in with_arg:
+            if len(rest) < 2:
+                return [], True, False
+            rest = rest[2:]
+            continue
+        if any(tok.startswith(prefix) and len(tok) > len(prefix)
+               for prefix in attached):
+            rest.pop(0)
+            continue
+        if any(tok.startswith(prefix + "=") for prefix in long_equals):
+            rest.pop(0)
+            continue
+        if tok.startswith("-") and tok != "-":
+            return rest, True, False
+        return rest, False, False
+    return rest, False, False
+
+
+def _unwrap_shell_prefixes(segment: List[str]
+                           ) -> Tuple[List[str], bool, bool]:
+    """Strip supported wrappers; return (command, from_xargs, ambiguous)."""
+    seg = list(segment)
+    from_xargs = False
+    while seg and _ENV_ASSIGNMENT_RE.fullmatch(seg[0]):
+        seg.pop(0)
+
+    while seg and _basename(seg[0]) in SHELL_PREFIXES:
+        head = _basename(seg.pop(0))
+        uncertain = False
+        stop_execution = False
+        if head == "env":
+            if any(tok in ("-S", "--split-string") or
+                   tok.startswith("-S") or
+                   tok.startswith("--split-string=") for tok in seg):
+                return seg, from_xargs, True
+            seg, uncertain, stop_execution = _consume_prefix_options(
+                seg,
+                {"-i", "--ignore-environment", "-0", "--null"},
+                {"-u", "--unset", "-C", "--chdir", "-S", "--split-string"},
+                attached=("-u", "-C", "-S"),
+                long_equals=("--unset", "--chdir", "--split-string"),
+                assignments=True,
+                stop_options=("--help", "--version"),
+            )
+        elif head == "sudo":
+            if any(tok in ("-s", "--shell", "-i", "--login")
+                   for tok in seg):
+                return seg, from_xargs, True
+            seg, uncertain, stop_execution = _consume_prefix_options(
+                seg,
+                {"-A", "-b", "-E", "-H", "-k", "-n",
+                 "-P", "-S", "--background", "--non-interactive",
+                 "--preserve-env", "--remove-timestamp", "--reset-timestamp",
+                 "--stdin"},
+                {"-C", "-D", "-g", "-h", "-p", "-R", "-r", "-T", "-t", "-u",
+                 "--chdir", "--close-from", "--group", "--host", "--prompt",
+                 "--role", "--type", "--user"},
+                attached=("-C", "-D", "-g", "-h", "-p", "-R", "-r", "-T", "-t", "-u"),
+                long_equals=("--chdir", "--close-from", "--group", "--host",
+                             "--prompt", "--role", "--type", "--user"),
+                stop_options=("-e", "--edit", "-K", "-V", "-v",
+                              "--help", "--validate", "--version"),
+            )
+        elif head == "nice":
+            if seg and re.fullmatch(r"-[0-9]+", seg[0]):
+                seg.pop(0)
+            seg, uncertain, stop_execution = _consume_prefix_options(
+                seg, set(), {"-n", "--adjustment"}, attached=("-n",),
+                long_equals=("--adjustment",),
+                stop_options=("--help", "--version"))
+        elif head == "nohup":
+            seg, uncertain, stop_execution = _consume_prefix_options(
+                seg, set(), set(), stop_options=("--help", "--version"))
+        elif head == "command":
+            seg, uncertain, stop_execution = _consume_prefix_options(
+                seg, {"-p"}, set(), stop_options=("-v", "-V"))
+        elif head == "time":
+            seg, uncertain, stop_execution = _consume_prefix_options(
+                seg,
+                {"-a", "-p", "-v", "--append", "--portability", "--verbose"},
+                {"-f", "-o", "--format", "--output"},
+                attached=("-f", "-o"), long_equals=("--format", "--output"),
+                stop_options=("--help", "--version"))
+        elif head == "stdbuf":
+            seg, uncertain, stop_execution = _consume_prefix_options(
+                seg, set(),
+                {"-i", "-o", "-e", "--input", "--output", "--error"},
+                attached=("-i", "-o", "-e"),
+                long_equals=("--input", "--output", "--error"),
+                stop_options=("--help", "--version"))
+        elif head == "xargs":
+            from_xargs = True
+            seg, uncertain, stop_execution = _consume_prefix_options(
+                seg,
+                {"-0", "-p", "-r", "-t", "-x", "--null", "--interactive",
+                 "--no-run-if-empty", "--verbose", "--exit"},
+                {"-a", "-d", "-E", "-I", "-L", "-n", "-P", "-s",
+                 "--arg-file", "--delimiter", "--eof", "--replace",
+                 "--max-lines", "--max-args", "--max-procs", "--max-chars"},
+                attached=("-a", "-d", "-E", "-I", "-L", "-n", "-P", "-s"),
+                long_equals=("--arg-file", "--delimiter", "--eof", "--replace",
+                             "--max-lines", "--max-args", "--max-procs",
+                             "--max-chars"),
+                stop_options=("--help", "--show-limits", "--version"))
+        else:  # exec
+            seg, uncertain, stop_execution = _consume_prefix_options(
+                seg, {"-c", "-l"}, {"-a"}, attached=("-a",))
+        if uncertain:
+            return seg, from_xargs, True
+        if stop_execution:
+            return [], from_xargs, False
+        while seg and _ENV_ASSIGNMENT_RE.fullmatch(seg[0]):
+            seg.pop(0)
+    return seg, from_xargs, False
+
+
 # Windows path shapes, meaningful to the dialect layer on ANY host (a
 # Linux CI run must still reason about `C:/Windows` and `/etc`-style
 # targets arriving in a cmd line).
@@ -545,9 +726,44 @@ def _parse_find(segment: List[str]) -> OpSpec:
 
 def _parse_git(segment: List[str]) -> OpSpec:
     tokens = segment[1:]
+    global_uncertainty: List[str] = []
+    while tokens and tokens[0].startswith("-"):
+        tok = tokens.pop(0)
+        if tok in ("--no-pager", "--paginate", "-P"):
+            continue
+        if tok in ("-C", "-c", "--git-dir", "--work-tree", "--namespace",
+                   "--config-env", "--exec-path"):
+            if tokens:
+                tokens.pop(0)
+            global_uncertainty.append(tok)
+            continue
+        if (tok.startswith("-C") and tok != "-C") or \
+                (tok.startswith("-c") and tok != "-c"):
+            global_uncertainty.append(tok[:2])
+            continue
+        if any(tok.startswith(name + "=") for name in
+               ("--git-dir", "--work-tree", "--namespace", "--config-env",
+                "--exec-path")):
+            global_uncertainty.append(tok.split("=", 1)[0])
+            continue
+        global_uncertainty.append("unknown global option")
+        break
+    destructive_subcommands = {"clean", "reset", "restore", "checkout", "push"}
+    if global_uncertainty and (not tokens or
+                               tokens[0] not in destructive_subcommands):
+        for offset, token in enumerate(tokens):
+            if token in destructive_subcommands:
+                tokens = tokens[offset:]
+                break
     sub = tokens[0] if tokens else ""
     rest = tokens[1:]
     spec = OpSpec(op="git", kind=KIND_OTHER, sub=sub)
+
+    def apply_global_uncertainty() -> None:
+        if global_uncertainty:
+            spec.undeterminable = True
+            spec.note("git global options may change repository context: " +
+                      ", ".join(global_uncertainty[:4]))
 
     if sub == "clean":
         spec.kind = KIND_GIT_CLEAN
@@ -618,6 +834,7 @@ def _parse_git(segment: List[str]) -> OpSpec:
         if not spec.targets and not spec.force and not dry:
             spec.dry_run = True  # git clean without -f is a dry run anyway
         _scan_targets(spec)
+        apply_global_uncertainty()
         return spec
 
     if sub == "reset":
@@ -629,6 +846,7 @@ def _parse_git(segment: List[str]) -> OpSpec:
             ]
             if not spec.targets:
                 spec.note("whole-tree reset (no path limit)")
+        apply_global_uncertainty()
         return spec
 
     if sub == "restore":
@@ -637,16 +855,19 @@ def _parse_git(segment: List[str]) -> OpSpec:
         )
         if staged_only:
             spec.note("staged-only restore does not touch working tree files")
+            apply_global_uncertainty()
             return spec  # kind stays OTHER
         if "-p" in rest or "--patch" in rest:
             spec.kind = KIND_GIT_DISCARD
             spec.undeterminable = True
             spec.note("interactive patch selection")
+            apply_global_uncertainty()
             return spec
         spec.kind = KIND_GIT_DISCARD
         spec.targets = [t for t in rest if not t.startswith("-") or t == "--"]
         spec.targets = [t for t in spec.targets if t != "--"]
         _scan_targets(spec)
+        apply_global_uncertainty()
         return spec
 
     if sub == "checkout":
@@ -658,6 +879,7 @@ def _parse_git(segment: List[str]) -> OpSpec:
             spec.kind = KIND_GIT_DISCARD
             spec.undeterminable = True
             spec.note("interactive patch selection")
+        apply_global_uncertainty()
         return spec
 
     if sub == "push":
@@ -676,6 +898,7 @@ def _parse_git(segment: List[str]) -> OpSpec:
             spec.kind = KIND_GIT_PUSH_FORCE
             spec.force = True
             spec.note("remote mutation: " + ", ".join(destructive[:4]))
+        apply_global_uncertainty()
         return spec
 
     return spec  # other git subcommands are out of V1 scope
@@ -808,6 +1031,17 @@ def _classify_posix(cmd: str) -> Tuple[List[OpSpec], Optional[str]]:
     if not tokens:
         return [], None
 
+    # The lexer deliberately does not execute nested shell programs. A
+    # destructive command hidden in substitution, or piped as program text
+    # to an interpreter, has no safely enumerable target set.
+    if (_has_active_shell_substitution(text)
+            and DESTRUCTIVE_SMELL_RE.search(text)):
+        return [_unknown_op(
+            "destructive command inside shell substitution")], None
+    if (re.search(r"\|\s*(?:/[^\s|;&]+/)?(?:sh|bash|zsh|ksh)\b", text)
+            and DESTRUCTIVE_SMELL_RE.search(text)):
+        return [_unknown_op("shell program arrives via stdin")], None
+
     specs: List[OpSpec] = []
     cd_positions: List[int] = []
     creation_positions: List[int] = []
@@ -817,12 +1051,14 @@ def _classify_posix(cmd: str) -> Tuple[List[OpSpec], Optional[str]]:
         specs.append(spec)
 
     for index, segment in enumerate(_split_segments(tokens)):
-        seg = segment
-        from_xargs = False
-        while seg and _basename(seg[0]) in SHELL_PREFIXES:
-            if _basename(seg[0]) == "xargs":
-                from_xargs = True
-            seg = seg[1:]
+        seg, from_xargs, prefix_uncertain = _unwrap_shell_prefixes(segment)
+        if prefix_uncertain:
+            opaque = " ".join(segment)
+            if (DESTRUCTIVE_PREFILTER_RE.search(opaque) or
+                    DESTRUCTIVE_PREFILTER_RE_WINDOWS.search(opaque)):
+                emit(_unknown_op(
+                    "command wrapper options have ambiguous arity"), index)
+            continue
         if not seg:
             continue
         head = _basename(seg[0])

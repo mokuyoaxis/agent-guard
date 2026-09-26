@@ -29,6 +29,9 @@ MATRIX = [
     ("cd sub && rm -rf build", "ASK", "COMPOUND_CWD_DELETE"),
     ("touch a.tmp && rm a.tmp", "ASK", "COMPOUND_CREATE_DELETE"),
     ("git push --force origin main", "BLOCK", "BLOCK_FORCE_PUSH"),
+    ("env FLAG=1 rm -rf .", "BLOCK", "BLOCK_PROTECTED_PATH"),
+    ("git -C . reset --hard", "BLOCK", "BLOCK_UNDETERMINABLE_EFFECT"),
+    ("printf 'rm -rf .' | sh", "BLOCK", "BLOCK_UNDETERMINABLE_EFFECT"),
 ]
 
 

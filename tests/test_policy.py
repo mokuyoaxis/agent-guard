@@ -55,6 +55,51 @@ class ClassifierFacts(unittest.TestCase):
         spec = one(classify_command('bash -c "rm -rf /tmp/x"')[0])
         self.assertEqual(spec.kind, KIND_UNKNOWN)
 
+    def test_common_wrappers_do_not_hide_delete(self):
+        commands = (
+            "env FLAG=1 rm -rf .",
+            "FLAG=1 rm -rf .",
+            "sudo -u root rm -rf .",
+            "nice -n 5 rm -rf .",
+            "nice -5 rm -rf .",
+            "command -- rm -rf .",
+            "exec rm -rf .",
+            "stdbuf -o0 rm -rf .",
+        )
+        for command in commands:
+            with self.subTest(command=command):
+                self.assertEqual(one(classify_command(command)[0]).kind,
+                                 KIND_FS_DELETE)
+
+    def test_xargs_options_keep_stdin_effect_undeterminable(self):
+        for command in ("xargs -0 rm -rf", "xargs -I{} rm -rf {}"):
+            with self.subTest(command=command):
+                spec = one(classify_command(command)[0])
+                self.assertEqual(spec.kind, KIND_FS_DELETE)
+                self.assertTrue(spec.undeterminable)
+
+    def test_substitution_and_stdin_script_fail_closed(self):
+        for command in ('echo "$(rm -rf .)"',
+                        "printf 'rm -rf .' | sh"):
+            with self.subTest(command=command):
+                spec = one(classify_command(command)[0])
+                self.assertEqual(spec.kind, KIND_UNKNOWN)
+                self.assertTrue(spec.undeterminable)
+        self.assertEqual(classify_command("echo '$(rm -rf .)'")[0], [])
+
+    def test_env_split_string_is_opaque(self):
+        spec = one(classify_command("env -S 'rm -rf .'")[0])
+        self.assertEqual(spec.kind, KIND_UNKNOWN)
+        self.assertTrue(spec.undeterminable)
+
+    def test_wrapper_terminal_options_do_not_trigger_compensation(self):
+        for command in ("env --help rm", "sudo --help rm", "sudo -e rm",
+                        "nice --version rm", "nohup --help rm",
+                        "time --version rm", "stdbuf --help rm",
+                        "xargs --show-limits rm"):
+            with self.subTest(command=command):
+                self.assertEqual(classify_command(command)[0], [])
+
     def test_find_delete(self):
         spec = one(classify_command("find . -name '*.pyc' -delete")[0])
         self.assertEqual(spec.kind, KIND_FS_DELETE)
@@ -83,6 +128,24 @@ class ClassifierFacts(unittest.TestCase):
     def test_git_reset_hard(self):
         self.assertEqual(one(classify_command("git reset --hard")[0]).kind,
                          KIND_GIT_RESET_HARD)
+
+    def test_git_global_options_cannot_hide_reset(self):
+        changed_context = one(classify_command(
+            "git -C . reset --hard")[0])
+        self.assertEqual(changed_context.kind, KIND_GIT_RESET_HARD)
+        self.assertTrue(changed_context.undeterminable)
+        harmless = one(classify_command(
+            "git --no-pager reset --hard")[0])
+        self.assertEqual(harmless.kind, KIND_GIT_RESET_HARD)
+        self.assertFalse(harmless.undeterminable)
+
+    def test_prefilter_sees_wrapped_and_quoted_destructive_forms(self):
+        for command in ("git -C . reset --hard",
+                        "printf 'rm -rf .' | sh",
+                        "env FLAG=1 rm -rf ."):
+            with self.subTest(command=command):
+                self.assertIsNotNone(
+                    classifier.DESTRUCTIVE_PREFILTER_RE.search(command))
 
     def test_restore_staged_only_not_destructive(self):
         specs, _ = classify_command("git restore --staged src/main.py")

@@ -118,18 +118,18 @@ export const Config = {
 
 // Aligned with core/classifier.py vocabulary (V1: Linux/macOS).
 const DESTRUCTIVE_RE = new RegExp(
-  "(^|[\\s;&|(\\/])(rm|rmdir|unlink|shred)\\b" +
+  "\\b(rm|rmdir|unlink|shred)\\b" +
     "|\\bfind\\b[^\\n|;&]*-delete\\b" +
-    "|\\bgit\\s+(clean|reset|restore|checkout|push)\\b"
+    "|\\bgit\\b[^\\n|;&]*\\b(clean|reset|restore|checkout|push)\\b"
 );
 
 // Windows-native vocabulary (cmd / PowerShell). Screen both vocabularies
 // regardless of dialect: the selector chooses the lexer, not whether a
 // destructive-looking command reaches the guard at all.
 const DESTRUCTIVE_RE_WINDOWS = new RegExp(
-  "(^|[\\s;&|(\\\\/])(rm|ri|rd|rmdir|del|erase|remove-item)\\b" +
+  "\\b(rm|ri|rd|rmdir|del|erase|remove-item)\\b" +
     "|-\\s?(recurse|force|whatif|literalpath)\\b" +
-    "|\\bgit\\s+(clean|reset|restore|checkout|push)\\b",
+    "|\\bgit\\b[^\\n|;&]*\\b(clean|reset|restore|checkout|push)\\b",
   "i"
 );
 
@@ -396,21 +396,19 @@ export function apply(ctx, config) {
       ctx.tools.register(
         makeTool(
           "agent_guard_restore",
-          "List quarantine transactions, or restore one by txid (non-destructive: refuses overwrites unless force).",
+          "List quarantine transactions, or restore one by txid. Refuses to overwrite an occupied origin path.",
           {
             txid: { type: "string", description: "Omit to list transactions." },
-            force: {
-              type: "boolean",
-              description: "Overwrite existing origin paths (human decision).",
-            },
             cwd: CWD_PROP,
           },
           (args) => {
             if (!args.txid)
               return { script: "restore.py", argString: "list --json", workdir: args.cwd };
-            let s = "restore " + rt.shQuote(args.txid) + " --json";
-            if (args.force) s += " --force";
-            return { script: "restore.py", argString: s, workdir: args.cwd };
+            return {
+              script: "restore.py",
+              argString: "restore " + rt.shQuote(args.txid) + " --json",
+              workdir: args.cwd,
+            };
           }
         )
       )
