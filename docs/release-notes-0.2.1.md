@@ -23,6 +23,19 @@ tag or Release has been published. The root npm manifest remains private.
   links each documented host path and its tested-version boundary. The
   [unlisted-host guide](../adapters/INTEGRATION.md) gives an agent a safe
   self-adaptation and evidence checklist, not automatic support.
+- POSIX command classification no longer loses destructive operations behind
+  common wrappers and options such as `env`, `sudo`, `nice`, `xargs`, or Git
+  global options. Shell substitution and scripts piped to an interpreter fail
+  closed when their effects cannot be enumerated. Repository-changing Git
+  options such as `-C`, `-c`, `--git-dir`, and `--work-tree` are refused
+  instead of applying compensation to a possibly different repository.
+- DSH's model-facing restore tool can only perform a non-overwriting restore.
+  The destructive `--force` path remains available only through the explicit
+  human CLI and is no longer exposed in the model tool schema.
+- Enforced ASK and mutation-capable ALLOW paths now require a durable audit
+  intent before authorization. Audit failure blocks execution; partial
+  compensation reports a transaction id and bounded status/count fields so
+  the user can locate and restore already-moved content.
 
 ## Evidence and limits
 
@@ -55,7 +68,7 @@ are **not** part of 0.2.1.
 
 ## Verification and start point
 
-The local source passes `npm test`: 405 Python tests plus the DSH adapter
+The local source passes `npm test`: 415 Python tests plus the DSH adapter
 smoke test. This is regression evidence, not a substitute for the bounded
 real-host observations above or CI on the published commit.
 
