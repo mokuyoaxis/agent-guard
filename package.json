@@ -1,22 +1,38 @@
 {
-  "name": "agent-guard",
-  "version": "0.2.1",
-  "private": true,
+  "name": "@mokuyoaxis/agent-guard",
+  "version": "0.2.2",
   "description": "Harness-neutral reliability infrastructure for AI coding agents: reversible destructive actions, pre-emission redaction, recovery evidence, and a shared Decision Protocol with optional native adapters.",
   "type": "module",
   "main": "./adapters/dsh/lib/index.js",
   "exports": {
-    ".": "./adapters/dsh/lib/index.js"
+    ".": "./adapters/dsh/lib/index.js",
+    "./dsh": "./adapters/dsh/lib/index.js",
+    "./cordis.patch.yml": "./adapters/dsh/cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "agent-guard-doctor": "./doctor.py",
+    "agent-guard-live-sentinel": "./live_sentinel.py",
+    "agent-guard-check": "./skills/delete-guard/scripts/check.py",
+    "agent-guard-safe-delete": "./skills/delete-guard/scripts/safe_delete.py",
+    "agent-guard-restore": "./skills/delete-guard/scripts/restore.py",
+    "agent-guard-status": "./skills/delete-guard/scripts/status.py",
+    "agent-guard-exfil-check": "./skills/exfil-guard/scripts/check_span.py",
+    "agent-guard-exfil-sanitize": "./skills/exfil-guard/scripts/sanitize.py",
+    "agent-guard-config-view": "./skills/exfil-guard/scripts/view.py"
   },
   "scripts": {
     "test": "python3 -m unittest discover tests -v && node tests/test_dsh_adapter.mjs",
-    "test:dsh": "node tests/test_dsh_adapter.mjs"
+    "test:dsh": "node tests/test_dsh_adapter.mjs",
+    "prepublishOnly": "npm test"
   },
   "files": [
-    "adapters/dsh",
+    "adapters",
     "core",
     "skills",
     "docs",
+    "doctor.py",
+    "live_sentinel.py",
     "LICENSE",
     "README.md",
     "README.zh-CN.md",
@@ -24,6 +40,9 @@
     "!**/*.py[cod]"
   ],
   "dsh": {
+    "engines": {
+      "dsh": "0.1.5-rc.1"
+    },
     "bundle": {
       "patch": "./adapters/dsh/cordis.patch.yml"
     }
@@ -35,6 +54,9 @@
     "deepseek-harness", "dsh", "dsh-plugin", "cordis"
   ],
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/mokuyoaxis/agent-guard.git"

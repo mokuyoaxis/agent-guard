@@ -62,7 +62,7 @@ class DoctorTests(unittest.TestCase):
                 print("2.1.273 (Claude Code)")
                 raise SystemExit(0)
             nonce = os.environ["AGENT_GUARD_SENTINEL_NONCE"]
-            command = f"touch .agent-guard-live-sentinel-{{nonce}}"
+            command = f"touch agent-guard-live-sentinel-{{nonce}}.txt"
             receipt = {{
                 "schema_version": 1,
                 "nonce": nonce,
@@ -306,6 +306,16 @@ class DoctorTests(unittest.TestCase):
         report = json.loads(proc.stdout)
         self.assertEqual(report["profile"], "kimi-code-pretooluse-bash-v1")
         self.assertEqual(report["host_version"], "0.42.0")
+        self.assertEqual(report["drift_status"], "CURRENT")
+
+        current_host = self.host_executable(
+            "Kimi Code CLI 2.1.1", "kimi-current-2")
+        proc = self.run_doctor(
+            "kimi", config, "--check-drift",
+            "--host-executable", str(current_host))
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        report = json.loads(proc.stdout)
+        self.assertEqual(report["host_version"], "2.1.1")
         self.assertEqual(report["drift_status"], "CURRENT")
 
 

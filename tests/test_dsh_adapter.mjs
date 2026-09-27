@@ -10,10 +10,7 @@ const manifest = JSON.parse(await fs.readFile(path.join(repoRoot, "package.json"
 const patch = await fs.readFile(path.join(repoRoot, "adapters", "dsh", "cordis.patch.yml"), "utf8");
 assert.match(patch, new RegExp(`\\bname:\\s*['\"]?${manifest.name}['\"]?(?:\\s|$)`));
 let source = await fs.readFile(sourcePath, "utf8");
-source = source.replace(
-  'import { defineTool } from "@deepseek-ai/dsh-tools";',
-  "const defineTool = (definition) => definition;"
-);
+assert.doesNotMatch(source, /from ["']@deepseek-ai\/dsh-tools["']/);
 
 const scratch = await fs.mkdtemp(path.join(os.tmpdir(), "agent-guard-dsh-smoke-"));
 const modulePath = path.join(scratch, "index.mjs");
@@ -236,10 +233,23 @@ try {
   const restoreTool = registered.find(
     (tool) => tool.name === "agent_guard_restore"
   );
-  assert.equal(restoreTool.parameters.force, undefined);
+  assert.equal(restoreTool.parameters.type, "object");
+  assert.equal(restoreTool.parameters.properties.force, undefined);
   await restoreTool.execute({ txid: "fixture", force: true }, {});
   assert.equal(requests.length, 13);
   assert.doesNotMatch(requests[12].command, /--force/);
+  const safeDeleteTool = registered.find(
+    (tool) => tool.name === "agent_guard_safe_delete"
+  );
+  assert.deepEqual(safeDeleteTool.parameters.required, ["paths"]);
+  await assert.rejects(
+    safeDeleteTool.execute({}, {}),
+    /missing required argument paths/
+  );
+  await assert.rejects(
+    safeDeleteTool.execute({ paths: ["valid", 42] }, {}),
+    /paths items must be strings/
+  );
   assert.equal(typeof cleanup, "function");
   cleanup();
   console.log("DSH adapter smoke test passed");

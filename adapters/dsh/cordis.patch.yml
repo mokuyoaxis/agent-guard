@@ -21,7 +21,7 @@
 #                 value is refused by the guard with an explicit BLOCK code.
 - insert:
     - id: agent_guard
-      name: 'agent-guard'
+      name: '@mokuyoaxis/agent-guard'
       config:
         repoRoot: ''
         defaultCwd: ''

@@ -3,7 +3,7 @@
 [![CI](https://github.com/mokuyoaxis/agent-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/mokuyoaxis/agent-guard/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/mokuyoaxis/agent-guard)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![v0.2.1 source](https://img.shields.io/badge/Source-v0.2.1-5B6B7A)](https://github.com/mokuyoaxis/agent-guard/releases)
+[![v0.2.2 source](https://img.shields.io/badge/Source-v0.2.2-5B6B7A)](https://github.com/mokuyoaxis/agent-guard/releases)
 
 **Make destructive agent actions reversible by default.** · [简体中文](README.zh-CN.md)
 
@@ -384,10 +384,10 @@ quarantine full          → BLOCK     (never fall back to permanent delete)
 
 [![Node.js 20 smoke](https://img.shields.io/badge/Node.js-20%20smoke-339933?logo=nodedotjs&logoColor=white)](.github/workflows/ci.yml)
 [![Codex Skill/CLI tested](https://img.shields.io/badge/Codex-Skill%2FCLI%20tested-000000?logo=openai&logoColor=white)](docs/test-report-codex-gpt-6-astra-high.md)
-[![DSH older AG v0.1.1 trial](https://img.shields.io/badge/DSH-AG%20v0.1.1%20trial-4D6BFE)](docs/test-report-dsh-v0.1.1.md)
+[![DSH 0.1.5-rc.1 host BLOCK tested](https://img.shields.io/badge/DSH%200.1.5--rc.1-host%20BLOCK%20tested-4D6BFE)](docs/test-report-dsh-0.1.5-rc.1.md)
 [![ZCode win32 CLI evaluated](https://img.shields.io/badge/ZCode-win32%20CLI%20evaluated-7C5CE0)](docs/test-report-zcode-glm-flash.md)
 [![Claude Code hook tested with scripted model](https://img.shields.io/badge/Claude%20Code-hook%20tested%20%28scripted%20model%29-D97757?logo=anthropic&logoColor=white)](docs/test-report-claude-code-harness.md)
-[![Kimi Code sampled Bash BLOCK](https://img.shields.io/badge/Kimi%20Code-sampled%20Bash%20BLOCK-5B9BD5)](docs/test-report-kimi-code-block.md)
+[![Kimi Code 2.1.1 K3 Bash BLOCK](https://img.shields.io/badge/Kimi%20Code%202.1.1-K3%20Bash%20BLOCK-5B9BD5)](docs/test-report-kimi-code-block.md)
 
 "The Core works", "a Skill-guided agent used it", and "the harness
 intercepts every matching tool call" are separate claims. This table keeps
@@ -396,10 +396,10 @@ those evidence levels explicit:
 | Harness / tested version | Integration path | Evidence and limit |
 |---|---|---|
 | **Claude Code 2.1.270 / 2.1.273** | [Native `PreToolUse` for Bash](adapters/claude/README.md) | [Real CLI + scripted model](docs/test-report-claude-code-harness.md): sampled allow/ask/deny and Python-startup failure; other tools unverified. |
-| **DSH (older host version unrecorded)** | [Native pre-execute adapter](adapters/dsh/README.md) | [Agent Guard v0.1.1 trial](docs/test-report-dsh-v0.1.1.md); DSH 0.1.5-rc.1 lacks verified plugin loading/refusal. |
+| **DSH 0.1.5-rc.1** | [Native pre-execute adapter](adapters/dsh/README.md) | [Real-host, no-model packaged-plugin probe](docs/test-report-dsh-0.1.5-rc.1.md): benign execution, execution-level `BLOCK`, absent bypass marker and loaded-adapter Core failure; model/Agent and non-`bash` paths unverified. |
 | **Codex CLI 0.154.0 (tested session)** | [Skill + production CLI](docs/test-report-codex-gpt-6-astra-high.md) | Older-source cooperative acceptance; no native hook claim. |
 | **ZCode (version unrecorded; win32)** | [Historical Skill/CLI + hook trial](docs/test-report-zcode-glm-flash.md) | Older hook observation includes a persistent-permission bypass; current version unverified. |
-| **Kimi Code 0.42.0** | [Native `PreToolUse` for Bash](adapters/kimi-code/README.md) | [Bounded tests](docs/test-report-kimi-code-block.md): root/child BLOCK, ASK denial, one Python-failure refusal; hook absence/timeout remains fail-open. |
+| **Kimi Code 0.42.0 / 2.1.1** | [Native `PreToolUse` for Bash](adapters/kimi-code/README.md) | [Bounded tests](docs/test-report-kimi-code-block.md): authenticated 2.1.1 root-Bash PASS on an OAuth official model and maintainer-confirmed official K3 relay; older 0.42.0 root/child BLOCK, ASK denial and Python-failure refusal. Hook absence/timeout remains fail-open. |
 | **Other / unlisted hosts** | [Self-adaptation guide](adapters/INTEGRATION.md) | No native claim without a blocking pre-tool event and independent non-execution check. |
 
 For agent-led setup: identify the actual host version and tool names, follow
@@ -465,6 +465,7 @@ compensation engine without restructuring.
 |---|---|
 | [docs/architecture.md](docs/architecture.md) | pillars ↔ components, data flow, design decisions |
 | [docs/host-drift.md](docs/host-drift.md) | zero-token host/version drift states and privacy-minimal baselines |
+| [docs/release-notes-0.2.2.md](docs/release-notes-0.2.2.md) | 0.2.2 host drift, live sentinel and DSH package acceptance |
 | [docs/release-notes-0.2.1.md](docs/release-notes-0.2.1.md) | 0.2.1 adapter/doctor changes and bounded evidence |
 | [docs/release-notes-0.2.0.md](docs/release-notes-0.2.0.md) | 0.2.0 changes, evidence levels, and known limits |
 | [adapters/INTEGRATION.md](adapters/INTEGRATION.md) | self-adaptation checklist for an unlisted host |
@@ -472,6 +473,7 @@ compensation engine without restructuring.
 | [docs/friction.md](docs/friction.md) | what real agents taught us (F1–F11) |
 | [docs/development-note-unguarded-deletion.md](docs/development-note-unguarded-deletion.md) | de-identified incident exploration and the recovery-aware direction |
 | [docs/test-report-codex-gpt-5.6-sol.md](docs/test-report-codex-gpt-5.6-sol.md) | v0.1.1 Codex evaluation (medium + high) |
+| [docs/test-report-dsh-0.1.5-rc.1.md](docs/test-report-dsh-0.1.5-rc.1.md) | current DSH packaged-plugin and execution-level `bash` acceptance |
 | [docs/test-report-dsh-v0.1.1.md](docs/test-report-dsh-v0.1.1.md) | v0.1.1 DSH live test (DeepSeek V4 Pro high, minimal mode) |
 | [skills/recovery-audit/SKILL.md](skills/recovery-audit/SKILL.md) | evidence hierarchy, deterministic replay, recovery and landing gates |
 | [skills/delete-guard/references/policy.md](skills/delete-guard/references/policy.md) | full rule table and decision codes |
@@ -480,12 +482,13 @@ compensation engine without restructuring.
 
 ## Status & roadmap
 
-The source version is **v0.2.1**. The published `v0.2.0` baseline includes
+The source version is **v0.2.2**. The published `v0.2.0` baseline includes
 recoverable destructive actions, cmd/PowerShell dialect parsing, the
 `exfil-guard` text CLI, a read-only config view, and `recovery-audit`.
-This source adds Claude/Kimi POSIX hook bridges, bounded host evidence,
-and a local `doctor` for their selected configurations and bridge probes.
-See the [0.2.1 notes](docs/release-notes-0.2.1.md) for exact scope and
+Later source releases add Claude/Kimi POSIX hook bridges, bounded host
+evidence, a local `doctor`, host-drift checks, an opt-in live sentinel and
+current DSH package acceptance. See the
+[0.2.2 notes](docs/release-notes-0.2.2.md) for exact scope and
 [GitHub Releases](https://github.com/mokuyoaxis/agent-guard/releases) for
 publication status; a source version is not itself a published Release.
 
@@ -504,7 +507,7 @@ also remain explicit gaps. Later Guard branches (`git-guard`, `database-guard`,
 
 ## 0.2.x preview: guard-lab
 
-Planned, **not included in 0.2.1**: an opt-in, offline honeytoken lab
+Planned, **not included in 0.2.2**: an opt-in, offline honeytoken lab
 using disposable projects and synthetic, non-secret markers. It will compare
 normal tasks with prompt-injection attempts, and separately observe whether a
 harness indexes or exports files without an agent-requested read. Positive and

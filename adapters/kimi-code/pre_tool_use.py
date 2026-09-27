@@ -22,6 +22,12 @@ PreToolUse hook. Verified against @moonshot-ai/kimi-code 0.42.0
     Kimi also opts into strict_payload=True: a malformed PreToolUse payload
     received by this hook is refused instead of silently accepted.
 
+Authenticated Kimi Code 2.1.1 live sentinels later observed the same
+PreToolUse Bash exit-2 block path on an OAuth official model and on official
+K3 through a maintainer-confirmed relay. The detailed field/source comparison
+above remains versioned to 0.42.0; each 2.1.1 claim is deliberately limited
+to the observed root Bash call recorded in the public test report.
+
     config (TOML, ~/.kimi-code/config.toml)
         [[hooks]]
         event = "PreToolUse"

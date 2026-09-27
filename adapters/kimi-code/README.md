@@ -1,15 +1,21 @@
 # Kimi Code adapter
 
 PreToolUse interception for [Kimi Code CLI](https://github.com/MoonshotAI/kimi-code),
-built on the shared Core and Claude Code adapter with one required
-host-specific difference: Core `ASK` is a hard refusal on Kimi 0.42.0.
+built on the shared Core and Claude Code adapter with one conservative
+host-specific difference: Core `ASK` is mapped to a hard refusal rather than
+being allowed when the host cannot enforce an approval.
 Kimi Code ships an external-hook system
 (`packages/agent-core-v2/src/features/externalHooks`) whose event names,
 payload field names and decision contract are field-compatible with Claude
 Code's hooks, so `pre_tool_use.py` here delegates to
 `../claude/pre_tool_use.py` instead of reimplementing the mapping.
 
-Verified against **@moonshot-ai/kimi-code 0.42.0**.
+Verified against **@moonshot-ai/kimi-code 0.42.0 and 2.1.1**. The detailed
+contract comparison below was established against 0.42.0; the 2.1.1 trials
+independently observed authenticated root `Bash` blocks through the same
+exit-2 hook path on an OAuth official route and on official K3 through a
+maintainer-confirmed trusted relay. See the
+[bounded report](../../docs/test-report-kimi-code-block.md).
 
 ## Contract (what was checked, not assumed)
 
@@ -71,7 +77,9 @@ allowed. `blockDecision()` collects any hook result with `action === "block"`.
    An explicit `--live-sentinel` may then use one configured model call in a
    private fixture and requires adapter, audit, host-feedback, and marker
    evidence. The selected file must be named `config.toml`; the runner does
-   not rewrite it.
+   not rewrite it. Kimi prompt mode uses its machine-readable stream; adding
+   `--auto` or `--yolo` is neither needed nor valid alongside `--prompt` in
+   Kimi 2.x.
 
 ## Decision mapping
 
@@ -105,6 +113,8 @@ It does not describe a missing hook or a failed hook command.
   returns before the hard boundaries are evaluated. Regression suite:
   `tests/test_incident_regression.py`. A genuinely shape-only ASK now asks
   the agent to split and retry instead of proceeding without compensation.
+  The 2.1.1 live sentinel exercised a hard `BLOCK`, not a live ASK path, so
+  this conservative mapping is not advertised as a 2.1.1 approval-UI test.
 - **Subagent inheritance is observational, not a blanket guarantee.** In two
   isolated `local/kimi-k3` sandboxes, single and concurrent subagent Bash
   calls reached the native hook and produced recoverable audit records.

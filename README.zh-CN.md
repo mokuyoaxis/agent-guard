@@ -3,7 +3,7 @@
 [![CI](https://github.com/mokuyoaxis/agent-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/mokuyoaxis/agent-guard/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/mokuyoaxis/agent-guard)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![v0.2.1 源码](https://img.shields.io/badge/%E6%BA%90%E7%A0%81-v0.2.1-5B6B7A)](https://github.com/mokuyoaxis/agent-guard/releases)
+[![v0.2.2 源码](https://img.shields.io/badge/%E6%BA%90%E7%A0%81-v0.2.2-5B6B7A)](https://github.com/mokuyoaxis/agent-guard/releases)
 
 **让 AI Agent 的破坏性操作默认可逆。** · [English](README.md)
 
@@ -337,10 +337,10 @@ node_modules/(已 ignore) → ALLOW     (可证明可再生)
 
 [![Node.js 20 smoke](https://img.shields.io/badge/Node.js-20%20smoke-339933?logo=nodedotjs&logoColor=white)](.github/workflows/ci.yml)
 [![Codex Skill/CLI tested](https://img.shields.io/badge/Codex-Skill%2FCLI%20tested-000000?logo=openai&logoColor=white)](docs/test-report-codex-gpt-6-astra-high.md)
-[![DSH older AG v0.1.1 trial](https://img.shields.io/badge/DSH-AG%20v0.1.1%20trial-4D6BFE)](docs/test-report-dsh-v0.1.1.md)
+[![DSH 0.1.5-rc.1 宿主 BLOCK 实测](https://img.shields.io/badge/DSH%200.1.5--rc.1-%E5%AE%BF%E4%B8%BB%20BLOCK%20%E5%AE%9E%E6%B5%8B-4D6BFE)](docs/test-report-dsh-0.1.5-rc.1.md)
 [![ZCode win32 CLI evaluated](https://img.shields.io/badge/ZCode-win32%20CLI%20evaluated-7C5CE0)](docs/test-report-zcode-glm-flash.md)
 [![Claude Code hook tested with scripted model](https://img.shields.io/badge/Claude%20Code-hook%20tested%20%28scripted%20model%29-D97757?logo=anthropic&logoColor=white)](docs/test-report-claude-code-harness.md)
-[![Kimi Code sampled Bash BLOCK](https://img.shields.io/badge/Kimi%20Code-sampled%20Bash%20BLOCK-5B9BD5)](docs/test-report-kimi-code-block.md)
+[![Kimi Code 2.1.1 K3 Bash BLOCK](https://img.shields.io/badge/Kimi%20Code%202.1.1-K3%20Bash%20BLOCK-5B9BD5)](docs/test-report-kimi-code-block.md)
 
 “Core 可用”、“受 Skill 引导的 Agent 使用过”和“harness 会强制拦截每次匹配的
 工具调用”是三种不同强度的结论：
@@ -348,10 +348,10 @@ node_modules/(已 ignore) → ALLOW     (可证明可再生)
 | Harness／实测版本 | 接入路径 | 证据与边界 |
 |---|---|---|
 | **Claude Code 2.1.270 / 2.1.273** | [Bash 原生 `PreToolUse`](adapters/claude/README.md) | [真实 CLI＋脚本模型](docs/test-report-claude-code-harness.md)：抽样 allow/ask/deny 与 Python 启动故障；其他工具未验证。 |
-| **DSH（旧试次未记录宿主版本）** | [原生 pre-execute adapter](adapters/dsh/README.md) | [Agent Guard v0.1.1 试次](docs/test-report-dsh-v0.1.1.md)；DSH 0.1.5-rc.1 尚未证实插件加载／拒绝。 |
+| **DSH 0.1.5-rc.1** | [原生 pre-execute adapter](adapters/dsh/README.md) | [真实宿主、无模型、打包插件探针](docs/test-report-dsh-0.1.5-rc.1.md)：无害放行、执行级 `BLOCK`、旁路标记缺席和已加载 adapter 的 Core 故障拒绝；模型／Agent 与非 `bash` 路径未验证。 |
 | **Codex CLI 0.154.0（所测会话）** | [Skill + 生产 CLI](docs/test-report-codex-gpt-6-astra-high.md) | 较早源码的合作式验收；不声称原生 hook。 |
 | **ZCode（版本未记录；win32）** | [历史 Skill/CLI＋hook 试次](docs/test-report-zcode-glm-flash.md) | 旧报告记录了持久许可绕过 hook；当前版本未验证。 |
-| **Kimi Code 0.42.0** | [Bash 原生 `PreToolUse`](adapters/kimi-code/README.md) | [有界实测](docs/test-report-kimi-code-block.md)：主／子代理 BLOCK、ASK 硬拒绝、一次 Python 故障拒绝；hook 缺席／超时仍可能放行。 |
+| **Kimi Code 0.42.0 / 2.1.1** | [Bash 原生 `PreToolUse`](adapters/kimi-code/README.md) | [有界实测](docs/test-report-kimi-code-block.md)：2.1.1 在 OAuth 官模和维护者确认的官方 K3 可信中转上均取得根 Bash PASS；0.42.0 另有主／子代理 BLOCK、ASK 硬拒绝和 Python 故障拒绝。hook 缺席／超时仍可能放行。 |
 | **其他／未列出宿主** | [自适配指南](adapters/INTEGRATION.md) | 未独立验证调用前阻断与目标未执行前，不作原生支持声明。 |
 
 由 Agent 协助接入时，先识别真实宿主版本与工具名称，阅读上表对应指南，
@@ -409,6 +409,7 @@ Skill 负责 Agent 行为引导,约束全部下沉 Core。未来的 `git-guard`�
 |---|---|
 | [docs/architecture.md](docs/architecture.md) | 四柱↔组件映射、数据流、关键设计决定 |
 | [docs/host-drift.md](docs/host-drift.md) | 零 Token 宿主／版本漂移状态与最小化基线 |
+| [docs/release-notes-0.2.2.md](docs/release-notes-0.2.2.md) | 0.2.2 宿主漂移、实时哨兵与 DSH 打包验收 |
 | [docs/release-notes-0.2.1.md](docs/release-notes-0.2.1.md) | 0.2.1 adapter／doctor 变更与证据边界 |
 | [docs/release-notes-0.2.0.md](docs/release-notes-0.2.0.md) | 0.2.0 变更、证据等级与已知限制 |
 | [adapters/INTEGRATION.md](adapters/INTEGRATION.md) | 未列出宿主的自适配检查清单 |
@@ -416,6 +417,7 @@ Skill 负责 Agent 行为引导,约束全部下沉 Core。未来的 `git-guard`�
 | [docs/friction.md](docs/friction.md) | 真实 Agent 撞出来的教训(F1–F11) |
 | [docs/development-note-unguarded-deletion.md](docs/development-note-unguarded-deletion.md) | 去标识化事故探索与面向恢复的后续方向 |
 | [docs/test-report-codex-gpt-5.6-sol.md](docs/test-report-codex-gpt-5.6-sol.md) | v0.1.1 Codex 评估(medium + high) |
+| [docs/test-report-dsh-0.1.5-rc.1.md](docs/test-report-dsh-0.1.5-rc.1.md) | 当前 DSH 打包插件与执行级 `bash` 验收 |
 | [docs/test-report-dsh-v0.1.1.md](docs/test-report-dsh-v0.1.1.md) | v0.1.1 DSH 真机测试(DeepSeek V4 Pro high,极简模式) |
 | [skills/recovery-audit/SKILL.md](skills/recovery-audit/SKILL.md) | 证据优先级、确定性回放、恢复与落地门禁 |
 | [skills/delete-guard/references/policy.md](skills/delete-guard/references/policy.md) | 完整规则表与判决码 |
@@ -424,11 +426,11 @@ Skill 负责 Agent 行为引导,约束全部下沉 Core。未来的 `git-guard`�
 
 ## 状态与路线图
 
-当前源码版本为 **v0.2.1**。已发布的 `v0.2.0` 基线包含可恢复的破坏性
+当前源码版本为 **v0.2.2**。已发布的 `v0.2.0` 基线包含可恢复的破坏性
 操作、cmd/PowerShell 方言解析、`exfil-guard` 文本 CLI、只读配置安全视图
-和 `recovery-audit`。本版源码新增 Claude/Kimi POSIX hook 桥、有界宿主
-证据及检查所选配置与本地桥的 `doctor`。准确范围见
-[0.2.1 说明](docs/release-notes-0.2.1.md)；是否已正式发布以
+和 `recovery-audit`。后续源码版新增 Claude/Kimi POSIX hook 桥、有界宿主
+证据、`doctor`、宿主漂移检查、可选实时哨兵与当前 DSH 打包验收。准确范围见
+[0.2.2 说明](docs/release-notes-0.2.2.md)；是否已正式发布以
 [GitHub Releases](https://github.com/mokuyoaxis/agent-guard/releases) 为准，
 源码版本号本身不代表已有 Release。
 
@@ -443,7 +445,7 @@ Kimi 结果包含所测调用的 hook 补偿与执行级 BLOCK 证据，不证�
 
 ## 0.2.x 预告：guard-lab 合成蜜罐
 
-这是规划中的可选实验，**不属于 0.2.1**。它会在离线、一次性的测试项目
+这是规划中的可选实验，**不属于 0.2.2**。它会在离线、一次性的测试项目
 里放入无认证能力的合成标记，对照正常任务与提示词注入诱导；另设试次观察
 harness 是否在 Agent 未请求读取时自行索引或外发文件。正负对照、独立观察器
 和证据分级将区分“提出读取”“本地接触”与“证实越过外部边界”。不使用真实

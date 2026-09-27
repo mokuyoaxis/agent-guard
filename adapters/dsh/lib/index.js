@@ -23,7 +23,6 @@
  * infrastructure, not a security sandbox. See docs/threat-model.md.
  */
 
-import { defineTool } from "@deepseek-ai/dsh-tools";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -45,6 +44,54 @@ const CONFIG_DIALECTS = new Set([
 const CONFIG_FIELDS = new Set([
   "repoRoot", "defaultCwd", "promptSection", "sectionOrder", "dialect",
 ]);
+
+// Keep the adapter installable without importing a host-private helper. DSH's
+// public registry accepts plain Tool Definition objects; defineTool() only
+// compiles this small authoring schema and wraps argument validation. Doing the
+// same locally avoids coupling package resolution to DSH's internal dependency
+// tree while retaining fail-closed validation at the tool boundary.
+function compileParameters(spec) {
+  const properties = {};
+  const required = [];
+  for (const [key, value] of Object.entries(spec)) {
+    const { required: isRequired, ...schema } = value;
+    properties[key] = schema;
+    if (isRequired === true) required.push(key);
+  }
+  return {
+    type: "object",
+    properties,
+    ...(required.length > 0 ? { required } : {}),
+    additionalProperties: true,
+  };
+}
+
+function assertToolArgs(name, spec, args) {
+  if (args === null || typeof args !== "object" || Array.isArray(args)) {
+    throw new TypeError(`${name}: arguments must be an object`);
+  }
+  for (const [key, schema] of Object.entries(spec)) {
+    const value = args[key];
+    if (value === undefined) {
+      if (schema.required === true) {
+        throw new TypeError(`${name}: missing required argument ${key}`);
+      }
+      continue;
+    }
+    if (schema.type === "string" && typeof value !== "string") {
+      throw new TypeError(`${name}: ${key} must be a string`);
+    }
+    if (schema.type === "array") {
+      if (!Array.isArray(value)) {
+        throw new TypeError(`${name}: ${key} must be an array`);
+      }
+      if (schema.items?.type === "string" &&
+          value.some((item) => typeof item !== "string")) {
+        throw new TypeError(`${name}: ${key} items must be strings`);
+      }
+    }
+  }
+}
 
 /**
  * Composition-row configuration (cordis.patch.yml).
@@ -329,16 +376,17 @@ export function apply(ctx, config) {
         "Working directory (repo root) for this operation; defaults to the session workspace.",
     };
 
-    function makeTool(name, description, parameters, buildArgs) {
-      return defineTool({
+    function makeTool(name, description, parameterSpec, buildArgs) {
+      return {
         name,
         description,
-        parameters,
+        parameters: compileParameters(parameterSpec),
         output: {
           schema: { type: "object", additionalProperties: true },
           render: renderJson,
         },
         execute: async (args, exec) => {
+          assertToolArgs(name, parameterSpec, args);
           const plan = buildArgs(args);
           const result = await rt.runScript(
             plan.script,
@@ -355,7 +403,7 @@ export function apply(ctx, config) {
             stderr: rt.outText(result.stderr).slice(0, 2000),
           };
         },
-      });
+      };
     }
 
     disposers.push(

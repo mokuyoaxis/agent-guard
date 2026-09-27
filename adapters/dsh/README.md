@@ -9,7 +9,7 @@ ships inside this very package.
 ## Install
 
 ```bash
-dsh plugin --profile <your-profile> add github:mokuyoaxis/agent-guard
+dsh plugin --profile <your-profile> add @mokuyoaxis/agent-guard
 ```
 
 ## What gets registered
@@ -48,5 +48,15 @@ is forwarded verbatim rather than swapped for POSIX, so `check.py` returns
 ## Notes
 
 - The caller's sandbox policy is inherited per-invocation (`exec.agent.session`), so guard subprocesses never gain privileges the calling agent lacks.
-- Guard failures fail closed (deny), never open.
+- Once the adapter has registered its pre-execute listener, Core process and
+  output failures fail closed (deny). An absent/disabled bundle, a changed host
+  event contract, or failure before listener registration cannot deny a call
+  the adapter never receives.
 - The Python core requires `python3` and `git` on PATH.
+- Until the scoped npm package is actually published, install from a GitHub
+  checkout or release tarball rather than treating the registry command above
+  as available.
+- DSH `0.1.5-rc.1` package loading and one harmless execution-level `bash`
+  block are independently verified in the
+  [bounded host report](../../docs/test-report-dsh-0.1.5-rc.1.md). Model,
+  subagent, concurrency, ASK UI and non-`bash` paths remain separate tests.

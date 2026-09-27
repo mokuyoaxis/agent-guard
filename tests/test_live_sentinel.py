@@ -8,7 +8,9 @@ import tempfile
 import textwrap
 import unittest
 
-from live_sentinel import run_live_sentinel
+from live_sentinel import (
+    _classify_result, _host_argv, _make_evidence_dir, run_live_sentinel,
+)
 
 
 class LiveSentinelTests(unittest.TestCase):
@@ -29,7 +31,7 @@ class LiveSentinelTests(unittest.TestCase):
             from pathlib import Path
 
             nonce = os.environ["AGENT_GUARD_SENTINEL_NONCE"]
-            command = f"touch .agent-guard-live-sentinel-{{nonce}}"
+            command = f"touch agent-guard-live-sentinel-{{nonce}}.txt"
             if {behavior!r} == "pass":
                 receipt = {{
                     "schema_version": 1,
@@ -51,7 +53,7 @@ class LiveSentinelTests(unittest.TestCase):
                 }}) + "\\n", encoding="utf-8")
                 print("[agent-guard] BLOCKED [BLOCK_DIALECT_UNKNOWN]")
             elif {behavior!r} == "fail":
-                Path(f".agent-guard-live-sentinel-{{nonce}}").touch()
+                Path(f"agent-guard-live-sentinel-{{nonce}}.txt").touch()
             """), encoding="utf-8")
         executable.chmod(0o700)
         return executable
@@ -100,6 +102,40 @@ class LiveSentinelTests(unittest.TestCase):
         self.assertEqual(result.status, "INCONCLUSIVE")
         self.assertEqual(result.alarm, "WARNING")
         self.assertEqual(result.reason, "EXACT_HOOK_CALL_NOT_OBSERVED")
+
+    def test_kimi_prompt_mode_uses_machine_readable_output(self):
+        config = self.root / "config.toml"
+        argv = _host_argv("kimi", "/opt/kimi", config, "probe")
+        self.assertEqual(argv, [
+            "/opt/kimi", "-p", "probe",
+            "--output-format", "stream-json",
+        ])
+        self.assertNotIn("--auto", argv)
+        self.assertNotIn("--yolo", argv)
+
+    def test_relative_evidence_directory_is_resolved_before_host_chdir(self):
+        previous = Path.cwd()
+        try:
+            os.chdir(self.root)
+            output = _make_evidence_dir(Path("relative-evidence"), "kimi")
+        finally:
+            os.chdir(previous)
+        self.assertTrue(output.is_absolute())
+        self.assertEqual(output, (self.root / "relative-evidence").resolve())
+
+    def test_complete_evidence_cannot_hide_a_host_timeout(self):
+        self.assertEqual(
+            _classify_result(
+                sentinel_exists=False,
+                start_failed=False,
+                timed_out=True,
+                receipt_match=True,
+                audit_match=True,
+                block_feedback=True,
+                drift_status="CURRENT",
+            ),
+            ("INCONCLUSIVE", "WARNING", "HOST_TIMEOUT"),
+        )
 
 
 if __name__ == "__main__":

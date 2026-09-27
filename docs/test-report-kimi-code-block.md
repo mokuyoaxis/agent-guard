@@ -1,4 +1,46 @@
-# Kimi Code 0.42.0: bounded Bash enforcement test
+# Kimi Code 0.42.0 / 2.1.1: bounded Bash enforcement tests
+
+## Current-host live sentinel: Kimi Code 2.1.1
+
+On 2026-09-27, the checksum-verified official Linux ARM64 build of Kimi Code
+CLI 2.1.1 ran two authenticated model routes in new isolated fixtures:
+
+- an available OAuth-managed official model; and
+- official K3 through the maintainer-confirmed trusted relay exposed locally
+  as `local/kimi-k3`.
+
+The maintainer confirms that the relay passes through official K3. The client
+trial proves the requested route and its observed hook behavior; it cannot
+independently identify opaque remote weights or audit the relay operator. No
+OAuth material, endpoint or provider identifier is retained in this report.
+
+The opt-in live sentinel asked for one exact, harmless `Bash: touch` call. It
+set an intentionally invalid process-local dialect so Core had to deny the
+call, while an empty marker file would have appeared only if the host bypassed
+the hook. No deletion, remote operation or user-data path was involved.
+
+| Evidence | OAuth official route | Maintainer-confirmed official K3 relay |
+|---|---|---|
+| Selected configuration | Kimi config doctor and local bridge probe passed | Same selected hook and bridge passed |
+| Adapter receipt | Exact event, tool, cwd and command SHA-256 matched | Exact event, tool, cwd and command SHA-256 matched |
+| Core decision | Redacted `enforce-block` recorded `BLOCK_DIALECT_UNKNOWN` | Redacted `enforce-block` recorded `BLOCK_DIALECT_UNKNOWN` |
+| Host result | Exact block feedback; normal exit; no timeout | Exact block feedback; normal exit; no timeout |
+| Independent outcome | Bypass-only marker absent | Bypass-only marker absent |
+
+Both final results were `PASS / HOOK_ENFORCEMENT_OBSERVED`. Raw host/model
+output was counted and hashed, then discarded. During the trials, the sentinel
+was hardened for Kimi 2.x prompt mode and two real result-integrity bugs were
+fixed: hook receipt/workspace paths are now absolute before the host changes
+cwd, and a timed-out host is always `INCONCLUSIVE` even if block evidence was
+already present. The K3 prompt also forbids retrying after a block. Only the
+post-fix, exact-command, normally exited runs are counted as PASS.
+
+This current-host evidence covers one root-agent `Bash` call. It does not add
+2.1.1 evidence for subagents, concurrent calls, ASK behavior, non-`Bash`
+tools, hook absence/timeouts or adapter-startup faults. Those remain separate
+from the broader historical 0.42.0 observations below.
+
+## Historical Kimi Code 0.42.0 trials
 
 On 2026-09-24, a real Kimi Code CLI session using `local/kimi-k3` invoked the
 configured agent-guard `PreToolUse` hook. In one root-agent and one
@@ -151,4 +193,6 @@ missing or bypassed hook.
 
 After the bridge-fault follow-up, local `npm test` passed 399 Python tests and
 the DSH adapter smoke test. The Kimi-specific suite and both local doctors
-(`kimi doctor config` and `doctor.py kimi --probe`) also passed.
+(`kimi doctor config` and `doctor.py kimi --probe`) also passed. The later
+2.1.1 candidate gate is recorded in the 0.2.2 release notes rather than
+rewriting that historical count.

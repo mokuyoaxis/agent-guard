@@ -6,7 +6,7 @@
   "executable_candidates": ["kimi", "kimi-code"],
   "version_args": ["--version"],
   "version_pattern": "(?<![0-9])([0-9]+\\.[0-9]+\\.[0-9]+)(?![0-9])",
-  "tested_versions": ["0.42.0"],
+  "tested_versions": ["0.42.0", "2.1.1"],
   "contract": {
     "event": "PreToolUse",
     "tools": ["Bash"],
