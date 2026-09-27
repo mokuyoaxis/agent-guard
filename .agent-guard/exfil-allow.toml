@@ -34,8 +34,10 @@ sha256 =
 # unable to detect it.
 ignore =
   SECURITY.md
+  CONTRIBUTING.md
   README.md
   README.zh-CN.md
+  .github/workflows/release.yml
   docs/*.md
   core/redaction.py
   skills/exfil-guard/**

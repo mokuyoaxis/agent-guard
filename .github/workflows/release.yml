@@ -1,0 +1,143 @@
+name: Release
+
+# Manual dispatch validates the npm credential without publishing. Pushing an
+# exact X.Y.Z tag runs the release gate, creates the GitHub Release and
+# publishes the same tarball to the public npm registry.
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  npm-preflight:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          registry-url: https://registry.npmjs.org
+          scope: '@mokuyoaxis'
+
+      - name: Verify scoped package identity
+        run: |
+          node -e 'const p=require("./package.json"); if (p.name !== "@mokuyoaxis/agent-guard") throw new Error(`unexpected package name: ${p.name}`)'
+
+      - name: Verify npm credential without publishing
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "::error::NPM_TOKEN is not configured"
+            exit 1
+          fi
+          npm whoami --registry=https://registry.npmjs.org >/dev/null
+          echo "npm credential accepted"
+          npm pack --dry-run --json >/tmp/agent-guard-pack.json
+          node -e 'const p=require("/tmp/agent-guard-pack.json")[0]; console.log(`preflight package=${p.name}@${p.version} files=${p.entryCount}`)'
+
+  release:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          registry-url: https://registry.npmjs.org
+          scope: '@mokuyoaxis'
+
+      - name: Verify tag and scoped package identity
+        run: |
+          PACKAGE_NAME="$(node -p "require('./package.json').name")"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          if [ "$PACKAGE_NAME" != "@mokuyoaxis/agent-guard" ]; then
+            echo "::error::unexpected package name: $PACKAGE_NAME"
+            exit 1
+          fi
+          if [ "$PACKAGE_VERSION" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match package version $PACKAGE_VERSION"
+            exit 1
+          fi
+
+      - name: Verify npm credential
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "::error::NPM_TOKEN is not configured"
+            exit 1
+          fi
+          npm whoami --registry=https://registry.npmjs.org >/dev/null
+          echo "npm credential accepted"
+
+      - name: Run release tests
+        run: npm test
+
+      - name: Pack once and record checksum
+        run: |
+          npm pack --silent >/tmp/agent-guard-tarball-name
+          TARBALL="$(tail -n 1 /tmp/agent-guard-tarball-name)"
+          if [ ! -f "$TARBALL" ]; then
+            echo "::error::npm pack did not create the expected tarball"
+            exit 1
+          fi
+          sha256sum "$TARBALL" >"$TARBALL.sha256"
+          echo "TARBALL=$TARBALL" >>"$GITHUB_ENV"
+
+      - name: Create GitHub Release and attach the npm artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NOTES="docs/release-notes-${GITHUB_REF_NAME}.md"
+          if [ ! -f "$NOTES" ]; then
+            echo "::error::missing release notes: $NOTES"
+            exit 1
+          fi
+          if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release create "$GITHUB_REF_NAME" \
+              --verify-tag \
+              --title "Agent Guard $GITHUB_REF_NAME" \
+              --notes-file "$NOTES"
+          fi
+          ASSETS="$(gh release view "$GITHUB_REF_NAME" --json assets --jq '.assets[].name')"
+          if ! printf '%s\n' "$ASSETS" | grep -Fxq "$TARBALL"; then
+            gh release upload "$GITHUB_REF_NAME" "$TARBALL#npm package"
+          fi
+          if ! printf '%s\n' "$ASSETS" | grep -Fxq "$TARBALL.sha256"; then
+            gh release upload "$GITHUB_REF_NAME" "$TARBALL.sha256#SHA-256 checksum"
+          fi
+
+      - name: Publish the same tarball to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          PACKAGE_NAME="$(node -p "require('./package.json').name")"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          PACKAGE_SPEC="$PACKAGE_NAME@$PACKAGE_VERSION"
+          if npm view "$PACKAGE_SPEC" version --registry=https://registry.npmjs.org >/dev/null 2>&1; then
+            echo "::notice::$PACKAGE_SPEC already exists; skipping duplicate publish"
+          else
+            npm publish "$TARBALL" \
+              --registry=https://registry.npmjs.org \
+              --access public \
+              --provenance
+          fi

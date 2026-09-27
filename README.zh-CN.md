@@ -1,6 +1,7 @@
 # AGENT-GUARD
 
 [![CI](https://github.com/mokuyoaxis/agent-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/mokuyoaxis/agent-guard/actions/workflows/ci.yml)
+[![npm 版本](https://img.shields.io/npm/v/%40mokuyoaxis%2Fagent-guard.svg)](https://www.npmjs.com/package/@mokuyoaxis/agent-guard)
 [![License](https://img.shields.io/github/license/mokuyoaxis/agent-guard)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![v0.2.2 源码](https://img.shields.io/badge/%E6%BA%90%E7%A0%81-v0.2.2-5B6B7A)](https://github.com/mokuyoaxis/agent-guard/releases)
@@ -38,7 +39,18 @@ git push --force    → BLOCK      # 不自动改写远端历史
 
 ## 让编码 Agent 帮你接入
 
-先把本仓库放在稳定的本地路径；如果已经有 checkout，跳过克隆：
+可以在 npm registry 可用后安装带作用域的包，也可以保留一个稳定的 Git
+checkout。不要误装无作用域的同名 `agent-guard` 包。
+
+把固定版本安装到用户选择的稳定路径：
+
+```sh
+npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.2
+```
+
+安装后的包根目录是
+`/absolute/path/to/agent-guard-install/node_modules/@mokuyoaxis/agent-guard`。
+也可以克隆源码；如果已有 checkout，跳过克隆：
 
 ```sh
 git clone https://github.com/mokuyoaxis/agent-guard.git
@@ -49,7 +61,10 @@ Core 需要 Python 3.9+ 和 Git；是否能自动拦截取决于宿主是否提�
 把下面这段交给编码 Agent，先替换为你的仓库路径：
 
 ```text
-请从 /absolute/path/to/agent-guard 为当前工作区接入 agent-guard。
+请为当前工作区接入 agent-guard。只使用现有 Git checkout，或精确的 scoped
+npm 包 @mokuyoaxis/agent-guard@0.2.2；不要安装无作用域的同名 agent-guard。
+安装前先让我选择并批准一个稳定的用户目录，然后把 checkout 或 npm 安装后的
+包根目录作为下文的 /absolute/path/to/agent-guard。
 先识别当前 harness 实际支持的 hook 与 Skill，阅读本 README 和对应 adapter
 说明，并检查 Python、Git。安装适用的 Skills；只有宿主确实支持时才配置
 原生 shell hook。保留现有设置；修改用户级配置或安装依赖前先展示差异并征求确认。
@@ -407,6 +422,7 @@ Skill 负责 Agent 行为引导,约束全部下沉 Core。未来的 `git-guard`�
 
 | 阅读 | 内容 |
 |---|---|
+| [CONTRIBUTING.md](CONTRIBUTING.md) | 如何提出 Issue 与提交范围清晰的 Pull Request |
 | [docs/architecture.md](docs/architecture.md) | 四柱↔组件映射、数据流、关键设计决定 |
 | [docs/host-drift.md](docs/host-drift.md) | 零 Token 宿主／版本漂移状态与最小化基线 |
 | [docs/release-notes-0.2.2.md](docs/release-notes-0.2.2.md) | 0.2.2 宿主漂移、实时哨兵与 DSH 打包验收 |
@@ -450,6 +466,15 @@ Kimi 结果包含所测调用的 hook 补偿与执行级 BLOCK 证据，不证�
 harness 是否在 Agent 未请求读取时自行索引或外发文件。正负对照、独立观察器
 和证据分级将区分“提出读取”“本地接触”与“证实越过外部边界”。不使用真实
 凭据，不默认常驻后台；它也不是抵抗恶意模型或宿主的安全保证。
+
+## 参与贡献
+
+欢迎缺陷报告、设计提案、兼容性证据、文档修订与范围明确的代码改动。非小型或
+涉及安全边界的变更请先发
+[Issue](https://github.com/mokuyoaxis/agent-guard/issues)，实现请通过范围清晰的
+[Pull Request](https://github.com/mokuyoaxis/agent-guard/pulls) 提交。分享日志或
+测试证据前请先阅读[贡献指南](CONTRIBUTING.md)；不得公开凭据、私有配置或未经
+去敏的事故资料。
 
 ## 社区友链
 

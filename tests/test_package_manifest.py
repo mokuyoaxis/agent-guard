@@ -27,6 +27,7 @@ class PackageManifestTests(unittest.TestCase):
         self.assertTrue({
             "adapters", "core", "skills", "docs", "doctor.py",
             "live_sentinel.py", "README.md", "README.zh-CN.md", "LICENSE",
+            "CONTRIBUTING.md",
         }.issubset(files))
         self.assertNotIn(".internal", files)
 
@@ -59,6 +60,19 @@ class PackageManifestTests(unittest.TestCase):
         adapter = (ROOT / "adapters/dsh/lib/index.js").read_text(
             encoding="utf-8")
         self.assertNotIn('from "@deepseek-ai/dsh-tools"', adapter)
+
+    def test_release_workflow_is_tag_gated_and_scoped(self):
+        workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(
+            encoding="utf-8")
+        self.assertIn("workflow_dispatch:", workflow)
+        self.assertIn("tags:", workflow)
+        self.assertIn("@mokuyoaxis/agent-guard", workflow)
+        self.assertIn("secrets.NPM_TOKEN", workflow)
+        self.assertIn("npm whoami", workflow)
+        self.assertIn('npm publish "$TARBALL"', workflow)
+        self.assertIn("--access public", workflow)
+        self.assertIn("--provenance", workflow)
+        self.assertNotIn("pull_request:", workflow)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,7 @@
 # AGENT-GUARD
 
 [![CI](https://github.com/mokuyoaxis/agent-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/mokuyoaxis/agent-guard/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/%40mokuyoaxis%2Fagent-guard.svg)](https://www.npmjs.com/package/@mokuyoaxis/agent-guard)
 [![License](https://img.shields.io/github/license/mokuyoaxis/agent-guard)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![v0.2.2 source](https://img.shields.io/badge/Source-v0.2.2-5B6B7A)](https://github.com/mokuyoaxis/agent-guard/releases)
@@ -47,8 +48,19 @@ the human or blocks the operation.
 
 ## Quick start with your coding agent
 
-Keep a stable local checkout of this repository (skip the clone if you already
-have one):
+Use the scoped npm package after it is available in the registry, or keep a
+stable Git checkout. Never substitute the unrelated unscoped `agent-guard`
+package.
+
+Pinned npm installation into a stable, user-owned prefix:
+
+```sh
+npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.2
+```
+
+The package root is then
+`/absolute/path/to/agent-guard-install/node_modules/@mokuyoaxis/agent-guard`.
+Alternatively, clone the source (skip this if you already have a checkout):
 
 ```sh
 git clone https://github.com/mokuyoaxis/agent-guard.git
@@ -60,7 +72,11 @@ the host's hook support. Then give your coding agent the following setup prompt
 (replace the path with your checkout):
 
 ```text
-Set up agent-guard from /absolute/path/to/agent-guard for this workspace.
+Set up agent-guard for this workspace. Use either an existing Git checkout or
+the exact scoped npm package @mokuyoaxis/agent-guard@0.2.2; never install the
+unscoped package named agent-guard. Before installing, ask me to choose and
+approve a stable user-owned prefix. Treat the checkout or installed package
+root as /absolute/path/to/agent-guard below.
 First identify the current harness and its actual hook/skill capabilities;
 read this README and the matching adapter README. Check Python and Git.
 Install the relevant Skills, then configure a native shell hook only if this
@@ -463,6 +479,7 @@ compensation engine without restructuring.
 
 | Read | For |
 |---|---|
+| [CONTRIBUTING.md](CONTRIBUTING.md) | how to propose an Issue and submit a focused Pull Request |
 | [docs/architecture.md](docs/architecture.md) | pillars ↔ components, data flow, design decisions |
 | [docs/host-drift.md](docs/host-drift.md) | zero-token host/version drift states and privacy-minimal baselines |
 | [docs/release-notes-0.2.2.md](docs/release-notes-0.2.2.md) | 0.2.2 host drift, live sentinel and DSH package acceptance |
@@ -516,6 +533,17 @@ mere read request distinct from a confirmed external transfer. No real
 credentials or automatic background monitoring are part of the plan. This is
 a bounded diagnostic experiment, not a guarantee against a malicious model
 or harness.
+
+## Contributing
+
+Bug reports, design proposals, compatibility evidence, documentation fixes,
+and focused code changes are welcome. Please start with an
+[Issue](https://github.com/mokuyoaxis/agent-guard/issues) for non-trivial or
+security-boundary changes, and submit implementations as a focused
+[Pull Request](https://github.com/mokuyoaxis/agent-guard/pulls). Read the
+[contribution guide](CONTRIBUTING.md) before sharing logs or test evidence;
+credentials, private configuration, and unredacted incident data must not be
+posted publicly.
 
 ## Community
 

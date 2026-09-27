@@ -59,15 +59,23 @@ future host versions remain unverified.
   are checked for presence, executable mode and Python shebang.
 - `prepublishOnly` runs the full suite and `publishConfig.access` is public.
   No production dependency was added.
-- The post-documentation candidate contains 76 files. Its extracted inventory
+- The release workflow follows the project's unprefixed `X.Y.Z` tag convention,
+  verifies the exact scoped name and version, runs the release tests, packs
+  once, attaches that tarball and its SHA-256 to the GitHub Release, and
+  publishes the same artifact to npm with public access and provenance. A
+  manual preflight can validate `NPM_TOKEN` without publishing.
+- The README documents a pinned scoped-package setup route and links a bilingual
+  contribution guide that recommends scoped Issues and focused Pull Requests.
+- The post-documentation candidate contains 77 files. Its extracted inventory
   contains no `.internal`/bytecode files, repository-local absolute paths,
   recognized credential shapes, or identifiers from the maintainer's private
   Kimi providers. All checked relative links across the repository's Markdown
   files resolve.
 
-This prepares a universal tarball; it does **not** publish one. npm remains a
-separate maintainer-controlled release gate, and backfilling npm later must use
-the exact immutable `0.2.2` artifact and claims.
+The artifact remains universal rather than host-specific. npm keeps its own
+credential and version gates, while the exact `0.2.2` tag publishes one packed
+artifact to both the GitHub Release and npm. A retry may fill a missing side,
+but never replaces an npm version that already exists.
 
 ## Kimi and Claude status
 
@@ -100,7 +108,7 @@ version-bounded and is not silently promoted.
 
 ## Verification gate
 
-The current candidate passes `npm test`: 433 Python tests plus the DSH adapter
+The current candidate passes `npm test`: 434 Python tests plus the DSH adapter
 smoke test. Package-manifest, doctor/live-sentinel and DSH adapter targeted
 suites pass, as do the scoped-tarball DSH Core-block and failure probes. The
 Markdown-link, package-inventory, credential/host-path and Git whitespace
