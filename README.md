@@ -418,6 +418,17 @@ to check a selected configuration file and the local shell bridge without a
 model call. Add `--json` for machine-readable `configuration`, `local_probe`,
 and `host_interception` statuses. The last status is always `UNVERIFIED`:
 this doctor cannot prove that a live session loaded or enforced the hook.
+Add `--check-drift` to query the local host version and compute privacy-safe
+configuration/runtime fingerprints. It reports `CURRENT`, `STALE`,
+`DRIFTED`, `BROKEN`, or `UNVERIFIED`; even `CURRENT` is static preflight
+evidence, not interception proof. Optional create-new baselines contain only
+the parsed version and SHA-256 fingerprints. See the
+[host drift guide](docs/host-drift.md) for the status and baseline contract.
+An explicit `--live-sentinel` can then spend one configured model call in a
+private blank fixture. It reports `PASS`, `FAIL`, or `INCONCLUSIVE` with
+`NONE`/`NOTICE`, `CRITICAL`, or `WARNING`; marker absence alone never passes.
+It retains a hashed/redacted result but not raw model output. This is a
+reliability probe for a trusted provider, not a sandbox for a malicious model.
 The optional Kimi doctor needs Python 3.11+ for TOML parsing; the Core and
 hook adapter continue to support Python 3.9+.
 See the [Kimi](adapters/kimi-code/README.md) and
@@ -433,7 +444,8 @@ agent-guard/
 ├── skills/exfil-guard/    # egress skill: check_span.py · sanitize.py
 ├── skills/recovery-audit/ # evidence-led repository audit and recovery
 ├── core/                  # classifier · policy · recovery · audit · redaction
-├── doctor.py              # local harness configuration and optional probes
+├── doctor.py              # local configuration, probes, and drift preflight
+├── live_sentinel.py       # opt-in real-host sentinel and alarm evidence
 ├── adapters/INTEGRATION.md # checklist for an unlisted host
 ├── adapters/claude/       # Claude Code PreToolUse hook adapter
 ├── adapters/kimi-code/   # Kimi Code PreToolUse hook adapter
@@ -452,6 +464,7 @@ compensation engine without restructuring.
 | Read | For |
 |---|---|
 | [docs/architecture.md](docs/architecture.md) | pillars ↔ components, data flow, design decisions |
+| [docs/host-drift.md](docs/host-drift.md) | zero-token host/version drift states and privacy-minimal baselines |
 | [docs/release-notes-0.2.1.md](docs/release-notes-0.2.1.md) | 0.2.1 adapter/doctor changes and bounded evidence |
 | [docs/release-notes-0.2.0.md](docs/release-notes-0.2.0.md) | 0.2.0 changes, evidence levels, and known limits |
 | [adapters/INTEGRATION.md](adapters/INTEGRATION.md) | self-adaptation checklist for an unlisted host |

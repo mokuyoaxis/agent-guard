@@ -27,6 +27,16 @@ host-settings check; `local_probe: PASS` is not host interception. The doctor
 always reports `host_interception: UNVERIFIED`. Only a separate real-host
 trial with an independent non-execution check can establish the bounded
 "Enforcement observed" level above. Neither doctor mode starts a model.
+The optional `--check-drift` mode additionally compares the installed host
+version with a shipped compatibility profile and computes privacy-safe
+configuration/runtime fingerprints. Its `CURRENT` status is static preflight
+evidence only; `STALE` requests a re-test and does not itself mean the adapter
+is incompatible. Optional local baselines can detect later `DRIFTED` inputs.
+See the [host drift guide](host-drift.md).
+Its opt-in `--live-sentinel` adds one real-host/model call. A PASS requires an
+exact hashed adapter receipt, matching Core block audit, host block feedback,
+and an absent marker; otherwise it reports FAIL or INCONCLUSIVE. This is
+bounded "Enforcement observed" evidence only for that root-agent Bash call.
 
 ## Current coverage
 

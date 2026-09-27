@@ -43,6 +43,7 @@ verdict JSON to stderr (used by conformance tests).
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
@@ -73,6 +74,41 @@ def emit(payload: dict) -> None:
 def allow_reason(code: str, compensations: list) -> str:
     return (f"[agent-guard] {code}: compensated automatically "
             f"({len(compensations)} relocation(s)); restorable via txid")
+
+
+def _write_sentinel_receipt(payload: dict, command: str) -> None:
+    """Record an opt-in live-probe observation without retaining command text.
+
+    The doctor supplies both variables only for an explicit live sentinel.
+    Receipt failure must not change the policy decision, and O_EXCL prevents
+    an adapter call from overwriting any existing file.
+    """
+    path = os.environ.get("AGENT_GUARD_SENTINEL_RECEIPT")
+    nonce = os.environ.get("AGENT_GUARD_SENTINEL_NONCE")
+    if (not path or not nonce or len(nonce) > 64
+            or not all(char.isalnum() or char in "-_" for char in nonce)):
+        return
+    cwd = payload.get("cwd")
+    if not isinstance(cwd, str) or not cwd:
+        return
+    receipt = {
+        "schema_version": 1,
+        "nonce": nonce,
+        "hook_event_name": payload.get("hook_event_name"),
+        "tool_name": payload.get("tool_name"),
+        "command_sha256": hashlib.sha256(command.encode("utf-8")).hexdigest(),
+        "cwd_sha256": hashlib.sha256(
+            os.path.realpath(cwd).encode("utf-8")).hexdigest(),
+    }
+    try:
+        descriptor = os.open(
+            path, os.O_WRONLY | os.O_CREAT | os.O_EXCL
+            | getattr(os, "O_CLOEXEC", 0), 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as receipt_file:
+            json.dump(receipt, receipt_file, ensure_ascii=True, separators=(",", ":"))
+            receipt_file.write("\n")
+    except (OSError, TypeError, ValueError):
+        return
 
 
 def main(ask_is_block: bool = False, strict_payload: bool = True) -> int:
@@ -111,6 +147,7 @@ def main(ask_is_block: bool = False, strict_payload: bool = True) -> int:
         if strict_payload:
             return malformed_payload()
         return 0
+    _write_sentinel_receipt(payload, command)
     # Dialect resolution must happen BEFORE the prefilter: the POSIX regex
     # cannot see `ri build -r -fo`, so a Windows-native payload would be
     # skipped as harmless. Precedence: payload -> AGENT_GUARD_DIALECT ->

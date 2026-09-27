@@ -368,7 +368,15 @@ Kimi 或 Claude 安装可分别运行 `python3 doctor.py kimi --probe`、
 `host_interception` 机器可读状态；最后一项始终为 `UNVERIFIED`，
 因为本工具不能证明实际会话加载或强制执行了 hook。参见
 [Kimi](adapters/kimi-code/README.md) 与 [Claude](adapters/claude/README.md)
-适配指南。Kimi 的可选 doctor 因 TOML 解析需要 Python 3.11+；Core 与
+适配指南。加 `--check-drift` 会在本机查询宿主版本，并对所选 hook 结构与
+Agent Guard 运行路径生成去敏指纹；结果使用 `CURRENT`、`STALE`、
+`DRIFTED`、`BROKEN` 或 `UNVERIFIED`。即使是 `CURRENT` 也只代表静态预检，
+不是实时拦截证明。可选基线只保存解析后的版本和 SHA-256 指纹，详见
+[宿主漂移检查说明](docs/host-drift.md)。显式 `--live-sentinel` 可在私有空白
+夹具中消耗一次已配置模型调用，按 `PASS`、`FAIL`、`INCONCLUSIVE` 返回
+`NONE`／`NOTICE`、`CRITICAL` 或 `WARNING` 报警；仅仅“标记不存在”绝不算
+通过。它保留哈希化／去敏结果而不保留模型原始输出。这是可信提供方下的
+可靠性探针，不是针对恶意模型的沙盒。Kimi 的可选 doctor 因 TOML 解析需要 Python 3.11+；Core 与
 hook adapter 仍支持 Python 3.9+。
 各宿主的覆盖范围、证据等级和执行级验收条件见
 [harness 能力矩阵](docs/harness-capabilities.md)。
@@ -381,7 +389,8 @@ agent-guard/
 ├── skills/exfil-guard/    # 出口侧技能:check_span.py · sanitize.py
 ├── skills/recovery-audit/ # 证据驱动的仓库审计与恢复
 ├── core/                  # classifier · policy · recovery · audit · redaction
-├── doctor.py              # 本地 harness 配置检查与可选探针
+├── doctor.py              # 本地配置、探针与宿主漂移预检
+├── live_sentinel.py       # 可选实宿主哨兵与报警证据
 ├── adapters/INTEGRATION.md # 未列出宿主的自适配检查清单
 ├── adapters/claude/       # Claude Code PreToolUse hook 适配器
 ├── adapters/kimi-code/   # Kimi Code PreToolUse hook 适配器
@@ -399,6 +408,7 @@ Skill 负责 Agent 行为引导,约束全部下沉 Core。未来的 `git-guard`�
 | 阅读 | 内容 |
 |---|---|
 | [docs/architecture.md](docs/architecture.md) | 四柱↔组件映射、数据流、关键设计决定 |
+| [docs/host-drift.md](docs/host-drift.md) | 零 Token 宿主／版本漂移状态与最小化基线 |
 | [docs/release-notes-0.2.1.md](docs/release-notes-0.2.1.md) | 0.2.1 adapter／doctor 变更与证据边界 |
 | [docs/release-notes-0.2.0.md](docs/release-notes-0.2.0.md) | 0.2.0 变更、证据等级与已知限制 |
 | [adapters/INTEGRATION.md](adapters/INTEGRATION.md) | 未列出宿主的自适配检查清单 |

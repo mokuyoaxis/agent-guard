@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "profile_id": "claude-code-pretooluse-bash-v1",
+  "harness": "claude",
+  "display_name": "Claude Code",
+  "executable_candidates": ["claude"],
+  "version_args": ["--version"],
+  "version_pattern": "(?<![0-9])([0-9]+\\.[0-9]+\\.[0-9]+)(?![0-9])",
+  "tested_versions": ["2.1.270", "2.1.273"],
+  "contract": {
+    "event": "PreToolUse",
+    "tools": ["Bash"],
+    "blocking": true,
+    "ask": "native",
+    "configuration_scope": "selected-file-only"
+  }
+}

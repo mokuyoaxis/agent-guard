@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "profile_id": "kimi-code-pretooluse-bash-v1",
+  "harness": "kimi",
+  "display_name": "Kimi Code",
+  "executable_candidates": ["kimi", "kimi-code"],
+  "version_args": ["--version"],
+  "version_pattern": "(?<![0-9])([0-9]+\\.[0-9]+\\.[0-9]+)(?![0-9])",
+  "tested_versions": ["0.42.0"],
+  "contract": {
+    "event": "PreToolUse",
+    "tools": ["Bash"],
+    "blocking": true,
+    "ask": "hard-deny",
+    "configuration_scope": "selected-file-only"
+  }
+}

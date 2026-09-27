@@ -1,4 +1,5 @@
 """Kimi Code 0.42.0 hook contract: ASK must never become an allow."""
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -19,11 +20,13 @@ STARTUP_FAILURE = ROOT / "tests" / "fixtures" / "python_startup_failure"
 
 
 class KimiAdapter(unittest.TestCase):
-    def raw_hook(self, raw, cwd):
+    def raw_hook(self, raw, cwd, extra_env=None):
+        env = {**os.environ, "AGENT_GUARD_WORKSPACE": cwd}
+        env.update(extra_env or {})
         return subprocess.run(
             [sys.executable, str(HOOK)], input=raw,
             capture_output=True, text=True, cwd=cwd, timeout=30,
-            env={**os.environ, "AGENT_GUARD_WORKSPACE": cwd})
+            env=env)
 
     def hook(self, command, cwd):
         payload = {
@@ -110,6 +113,28 @@ class KimiAdapter(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertEqual(proc.stdout, "")
         self.assertEqual(proc.stderr, "")
+
+    def test_live_sentinel_receipt_is_hashed_and_create_only(self):
+        with tempfile.TemporaryDirectory(prefix="agent-guard-kimi-receipt-") as cwd:
+            receipt = Path(cwd) / "receipt.json"
+            nonce = "test-nonce"
+            command = "touch .agent-guard-live-sentinel-test-nonce"
+            payload = json.dumps({
+                "hook_event_name": "PreToolUse", "tool_name": "Bash",
+                "tool_input": {"command": command}, "cwd": cwd,
+            })
+            proc = self.raw_hook(payload, cwd, {
+                "AGENT_GUARD_DIALECT": "live-sentinel-test-nonce",
+                "AGENT_GUARD_SENTINEL_RECEIPT": str(receipt),
+                "AGENT_GUARD_SENTINEL_NONCE": nonce,
+            })
+            self.assertEqual(proc.returncode, 2, proc.stderr)
+            self.assertIn("BLOCK_DIALECT_UNKNOWN", proc.stderr)
+            data = json.loads(receipt.read_text(encoding="utf-8"))
+            self.assertEqual(
+                data["command_sha256"], hashlib.sha256(command.encode()).hexdigest())
+            self.assertNotIn(command, receipt.read_text(encoding="utf-8"))
+            self.assertEqual(receipt.stat().st_mode & 0o777, 0o600)
 
     def test_example_config_keeps_skills_at_top_level(self):
         # TOML's [[hooks]] table owns every later key until the next table.

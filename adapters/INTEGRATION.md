@@ -69,6 +69,17 @@ a project-scoped configuration where the host supports it.
 `doctor.py` currently supports only `kimi` and `claude`. Its configuration
 and local-probe PASS states do **not** prove a live host loaded or enforced a
 hook. Do not reuse those states as an unknown-host certification.
+For those two hosts, `--check-drift` adds local version/profile comparison and
+privacy-safe hook/runtime fingerprints. `STALE` asks for re-testing after a
+version change; it does not assert incompatibility. `CURRENT` still does not
+promote `host_interception` above `UNVERIFIED`. See the
+[host drift contract](../docs/host-drift.md).
+
+An explicit `--live-sentinel` can spend one configured model call to test one
+real root-agent Bash path in a private fixture. PASS requires a hashed exact
+hook receipt, matching Core audit, host block feedback, and an absent marker;
+missing evidence is INCONCLUSIVE. It is not an adversarial sandbox and must
+not be generalized to subagents or other tools.
 
 ## 4. Report the evidence, not a blanket guarantee
 

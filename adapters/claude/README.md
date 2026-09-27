@@ -79,6 +79,13 @@ prompt.
    running session loaded the hook, or verify host-level interception. For
    those claims, use the isolated host acceptance in the
    [capability matrix](../../docs/harness-capabilities.md).
+   Add `--check-drift` to compare the installed Claude Code version with the
+   shipped profile and compute privacy-safe configuration/runtime
+   fingerprints. `CURRENT` still does not prove live interception; see the
+   [drift status contract](../../docs/host-drift.md).
+   An explicit `--live-sentinel` may then use one configured model call in a
+   private fixture and requires adapter, audit, host-feedback, and marker
+   evidence. It keeps `dontAsk` and never enables permission bypass.
 
 Requirements: Python 3.9+, POSIX shell, git. No third-party packages.
 The optional Claude doctor uses only standard-library modules; the adapter

@@ -64,6 +64,14 @@ allowed. `blockDecision()` collects any hook result with `action === "block"`.
    model, edit the configuration, inspect a running Kimi session, or prove
    host-level interception. The optional Kimi doctor uses Python 3.11+ for
    TOML parsing; the guard adapter itself continues to support Python 3.9+.
+   Add `--check-drift` to compare the installed Kimi Code version with the
+   shipped profile and compute privacy-safe configuration/runtime
+   fingerprints. `CURRENT` still does not prove live interception; see the
+   [drift status contract](../../docs/host-drift.md).
+   An explicit `--live-sentinel` may then use one configured model call in a
+   private fixture and requires adapter, audit, host-feedback, and marker
+   evidence. The selected file must be named `config.toml`; the runner does
+   not rewrite it.
 
 ## Decision mapping
 
