@@ -115,11 +115,11 @@ lines are lexed with the right rules. Precedence:
 | environment | `AGENT_GUARD_DIALECT=powershell` |
 | default | `posix` |
 
-The prefilter follows the dialect: the POSIX regex cannot see
-`ri build -r -fo`, so a Windows-native payload would otherwise skip the
-guard entirely. The POSIX prefilter is unchanged, so the default path keeps
-its exact behaviour. An unrecognised dialect selector is **not** swapped
-for POSIX - `check.py` returns `BLOCK_DIALECT_UNKNOWN` and the hook exits 2.
+The prefilter screens both POSIX and Windows destructive vocabularies. The
+dialect chooses the lexer, not whether a suspicious command reaches Core;
+this lets Core turn a known vocabulary mismatch into a fail-closed verdict.
+An unrecognised dialect selector is **not** swapped for POSIX - `check.py`
+returns `BLOCK_DIALECT_UNKNOWN` and the hook exits 2.
 
 ## Live-tested
 

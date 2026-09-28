@@ -37,11 +37,11 @@ While the major version is `0`:
 
 | Surface | Class | Notes |
 |---|---|---|
-| Command dialects (`cmd`, `powershell`) | minor | `classify_command(cmd, dialect=...)`; the default stays `posix`, so pre-existing callers are unaffected |
+| Command dialects (`cmd`, `powershell`) | minor | `classify_command(cmd, dialect=...)`; the default lexical grammar stays `posix` |
 | `core/dialects.py` module + `TokenStream` | minor | Internal-but-documented; used by the dialect unit tests |
 | `OpSpec.dialect` field | minor | New field; unknown fields stay opaque to consumers |
 | `Ask` on PowerShell `-WhatIf` | minor | A dry run is an `ALLOW_NOOP`; a real delete keeps existing rules |
-| `check.py --dialect` flag | minor | Defaults to `posix`; omitting it is byte-for-byte the old behaviour |
+| `check.py --dialect` flag | minor | Defaults to the POSIX lexical grammar; later safety releases may newly block a previously invisible known destructive vocabulary mismatch |
 | `AGENT_GUARD_DIALECT` env var | minor | Read by `check.py` and the native shell adapters; unset means `posix` |
 | `BLOCK_DIALECT_UNKNOWN` / `BLOCK_DIALECT_INVALID` | minor | New reason codes (additive) |
 | `BLOCK_PROTECTED_ANCESTOR` | minor | New reason code (additive). Filesystem roots (`/`, `/home`, `/usr`, `$HOME`, ...) are refused by identity rather than by falling outside the workspace |
@@ -54,6 +54,7 @@ While the major version is `0`:
 | `.agent-guard/exfil-allow.toml` exemption file | minor | Read from the workspace root only; values exempted by `sha256:...`, never by value |
 | `doctor.py --check-drift` report and adapter `compatibility.json` profiles | minor | Additive local preflight. Without drift flags the doctor keeps its previous process-execution and exit behavior; `CURRENT` never promotes live interception above `UNVERIFIED` |
 | `doctor.py --live-sentinel` and hashed hook receipt | minor | Explicit, opt-in real-host/model probe only. Default doctor behavior is unchanged; raw command/model output is not retained, and incomplete evidence is `INCONCLUSIVE` rather than PASS |
+| Cross-vocabulary mismatch floor (`0.2.3-rc1`) | minor safety fix | At a selected-dialect command boundary, a supported destructive shape that produced no operation becomes target-free `UNKNOWN` → `BLOCK_UNDETERMINABLE_EFFECT`; it never borrows a compensation plan from another grammar |
 
 ### 0.2.0 check output minimization
 
@@ -84,9 +85,13 @@ unknown selector must produce a Decision Protocol verdict with a reason
 code; a usage error carries none, and a harness could read "no decision" as
 "nothing to worry about".
 
-Phase 3 (real Windows end-to-end validation, UNC/device paths, module
-auto-loading) has not happened. The dialect layer stays additive and
-opt-in so Windows support lands without changing any POSIX verdict.
+`0.2.3-rc1` adds a focused real-Windows Core gate for dialect mismatch,
+separator normalization, disposable-fixture recovery and exact-byte path
+redaction. It also makes known destructive vocabulary fail closed when it
+does not match the configured dialect. This is only Phase 3a: native
+cmd/PowerShell execution through each harness, hook-selected dialect wiring,
+broader UNC/device paths, module auto-loading and full-suite Windows
+portability remain unverified.
 
 ### PowerShell parameter prefixes
 

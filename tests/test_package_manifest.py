@@ -17,7 +17,7 @@ class PackageManifestTests(unittest.TestCase):
 
     def test_scoped_public_candidate_identity(self):
         self.assertEqual(self.manifest["name"], "@mokuyoaxis/agent-guard")
-        self.assertEqual(self.manifest["version"], "0.2.2")
+        self.assertEqual(self.manifest["version"], "0.2.3-rc1")
         self.assertNotIn("private", self.manifest)
         self.assertEqual(
             self.manifest.get("publishConfig"), {"access": "public"})
@@ -66,13 +66,27 @@ class PackageManifestTests(unittest.TestCase):
             encoding="utf-8")
         self.assertIn("workflow_dispatch:", workflow)
         self.assertIn("tags:", workflow)
+        self.assertIn("-rc[0-9]+", workflow)
         self.assertIn("@mokuyoaxis/agent-guard", workflow)
         self.assertIn("secrets.NPM_TOKEN", workflow)
         self.assertIn("npm whoami", workflow)
         self.assertIn('npm publish "$TARBALL"', workflow)
         self.assertIn("--access public", workflow)
+        self.assertIn('--tag "$NPM_DIST_TAG"', workflow)
         self.assertIn("--provenance", workflow)
+        self.assertIn("--prerelease", workflow)
+        self.assertIn("release_channel.py", workflow)
         self.assertNotIn("pull_request:", workflow)
+
+    def test_windows_core_rc_job_is_a_real_windows_gate(self):
+        workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(
+            encoding="utf-8")
+        self.assertIn("windows-core-rc:", workflow)
+        self.assertIn("runs-on: windows-latest", workflow)
+        self.assertIn("test_relocate_then_restore_roundtrip", workflow)
+        self.assertIn("test_cmd_dialect_cannot_turn_rm_root_delete_into_noop",
+                      workflow)
+        self.assertNotIn("printf 'home=C:", workflow)
 
 
 if __name__ == "__main__":

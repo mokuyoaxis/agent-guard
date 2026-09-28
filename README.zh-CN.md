@@ -4,7 +4,7 @@
 [![npm 版本](https://img.shields.io/npm/v/%40mokuyoaxis%2Fagent-guard.svg)](https://www.npmjs.com/package/@mokuyoaxis/agent-guard)
 [![License](https://img.shields.io/github/license/mokuyoaxis/agent-guard)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![v0.2.2 源码](https://img.shields.io/badge/%E6%BA%90%E7%A0%81-v0.2.2-5B6B7A)](https://github.com/mokuyoaxis/agent-guard/releases)
+[![v0.2.3-rc1 源码](https://img.shields.io/badge/%E6%BA%90%E7%A0%81-v0.2.3--rc1-5B6B7A)](https://github.com/mokuyoaxis/agent-guard/releases)
 
 **让 AI Agent 的破坏性操作默认可逆。** · [English](README.md)
 
@@ -47,6 +47,10 @@ checkout。不要误装无作用域的同名 `agent-guard` 包。
 ```sh
 npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.2
 ```
+
+`0.2.2` 仍是稳定版推荐。候选版发布后，测试者可显式选择
+`@mokuyoaxis/agent-guard@0.2.3-rc1` 或 npm 的 `@rc` 通道；预发布不会替换
+npm `latest`。
 
 安装后的包根目录是
 `/absolute/path/to/agent-guard-install/node_modules/@mokuyoaxis/agent-guard`。
@@ -425,6 +429,7 @@ Skill 负责 Agent 行为引导,约束全部下沉 Core。未来的 `git-guard`�
 | [CONTRIBUTING.md](CONTRIBUTING.md) | 如何提出 Issue 与提交范围清晰的 Pull Request |
 | [docs/architecture.md](docs/architecture.md) | 四柱↔组件映射、数据流、关键设计决定 |
 | [docs/host-drift.md](docs/host-drift.md) | 零 Token 宿主／版本漂移状态与最小化基线 |
+| [docs/release-notes-0.2.3-rc1.md](docs/release-notes-0.2.3-rc1.md) | Windows Core fail-closed 候选版与预发布通道 |
 | [docs/release-notes-0.2.2.md](docs/release-notes-0.2.2.md) | 0.2.2 宿主漂移、实时哨兵与 DSH 打包验收 |
 | [docs/release-notes-0.2.1.md](docs/release-notes-0.2.1.md) | 0.2.1 adapter／doctor 变更与证据边界 |
 | [docs/release-notes-0.2.0.md](docs/release-notes-0.2.0.md) | 0.2.0 变更、证据等级与已知限制 |
@@ -442,11 +447,13 @@ Skill 负责 Agent 行为引导,约束全部下沉 Core。未来的 `git-guard`�
 
 ## 状态与路线图
 
-当前源码版本为 **v0.2.2**。已发布的 `v0.2.0` 基线包含可恢复的破坏性
+当前源码版本为 **v0.2.3-rc1**，最新稳定版仍为 **v0.2.2**。已发布的
+`v0.2.0` 基线包含可恢复的破坏性
 操作、cmd/PowerShell 方言解析、`exfil-guard` 文本 CLI、只读配置安全视图
 和 `recovery-audit`。后续源码版新增 Claude/Kimi POSIX hook 桥、有界宿主
 证据、`doctor`、宿主漂移检查、可选实时哨兵与当前 DSH 打包验收。准确范围见
-[0.2.2 说明](docs/release-notes-0.2.2.md)；是否已正式发布以
+[0.2.3-rc1 说明](docs/release-notes-0.2.3-rc1.md)记录候选范围，
+[0.2.2 说明](docs/release-notes-0.2.2.md)记录稳定版范围；是否已正式发布以
 [GitHub Releases](https://github.com/mokuyoaxis/agent-guard/releases) 为准，
 源码版本号本身不代表已有 Release。
 
@@ -455,13 +462,14 @@ Skill 负责 Agent 行为引导,约束全部下沉 Core。未来的 `git-guard`�
 Kimi 结果包含所测调用的 hook 补偿与执行级 BLOCK 证据，不证明宿主强制执行
 所有 `BLOCK`，也不意味着任意 Agent 操作都受保护。实测旧的直连 Python hook
 启动故障会放行；可选 shell 桥在一次 Kimi 宿主故障注入中将其转为拒绝，
-但前提是桥自身成功运行；单凭配置校验无法证明 hook 在线。真实 Windows 端到端覆盖
-与一般并发子代理安全仍是明确缺口。
+但前提是桥自身成功运行；单凭配置校验无法证明 hook 在线。候选版为 Issue #7
+新增了聚焦的真实 Windows Core 门，但各 harness 下的原生 cmd/PowerShell
+执行与一般并发子代理安全仍是明确缺口。
 后续 `git-guard`、`database-guard`、`cloud-guard` 继续复用同一协议与补偿引擎。
 
 ## 0.2.x 预告：guard-lab 合成蜜罐
 
-这是规划中的可选实验，**不属于 0.2.2**。它会在离线、一次性的测试项目
+这是规划中的可选实验，**不属于 0.2.3-rc1**。它会在离线、一次性的测试项目
 里放入无认证能力的合成标记，对照正常任务与提示词注入诱导；另设试次观察
 harness 是否在 Agent 未请求读取时自行索引或外发文件。正负对照、独立观察器
 和证据分级将区分“提出读取”“本地接触”与“证实越过外部边界”。不使用真实

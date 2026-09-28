@@ -37,16 +37,37 @@ PRIVATE_KEY = _ARMOR + "\nMIIEowIBAAKCAQEA\n" + _FOOTER
 ALL_SECRETS = [OPENAI, GITHUB, SLACK, AWS, STRIPE, PRIVATE_KEY]
 
 
-def run(script, channel, text, extra=()):
+def run(script, channel, text, extra=(), env=None):
+    child_env = {**os.environ, "AGENT_GUARD_WORKSPACE": ROOT}
+    if env:
+        child_env.update(env)
     proc = subprocess.run(
         [sys.executable, script, "--channel", channel, *extra],
         input=text, capture_output=True, text=True, timeout=60,
-        env={**os.environ, "AGENT_GUARD_WORKSPACE": ROOT},
+        env=child_env,
     )
     return proc
 
 
 class FormatPreservation(unittest.TestCase):
+    def test_native_windows_user_path_uses_exact_bytes_and_sanitizes(self):
+        # Build the fixture in Python: Git Bash printf rewrites backslashes
+        # and caused the withdrawn third finding in Issue #7.
+        profile = "C:" + "\\Users\\sample-user"
+        native_path = profile + "\\secret.txt"
+        proc = run(
+            CHECK_SPAN, "file-write", "home=" + native_path + "\n",
+            ("--json",),
+            {"USERPROFILE": profile, "USERNAME": "sample-user"},
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        out = json.loads(proc.stdout)
+        self.assertEqual((out["decision"], out["code"]),
+                         ("SANITIZE", "SANITIZE_PATH_REWRITE"))
+        self.assertEqual(out["spans"][0]["end"] -
+                         out["spans"][0]["start"], len(native_path))
+        self.assertNotIn(native_path, proc.stdout + proc.stderr)
+
     def test_vendor_prefix_is_kept(self):
         spans = scan_text("k " + OPENAI, "file-write", ROOT).spans
         self.assertEqual(sanitize_mod.placeholder_for(spans[0]),

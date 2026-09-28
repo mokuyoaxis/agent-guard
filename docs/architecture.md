@@ -92,7 +92,7 @@ neither do the lexical rules. `core/dialects.py` isolates both concerns:
 
 ```
 classify_command(cmd, dialect="posix")
-    posix        -> shlex + heredoc stripping        (default; unchanged)
+    posix        -> shlex + heredoc stripping        (default lexer)
     cmd          -> caret escapes, & separators, no
                     backslash escapes in quotes, del/erase/rd/rmdir, /s /q
     powershell   -> '' literal quoting, ` escapes, $() kept verbatim,
@@ -110,15 +110,16 @@ The dialect is selected by, in precedence order:
 
 Both adapters forward the *requested* selector verbatim rather than a
 resolved value, so `check.py` owns the single verdict for an unusable
-selector. Adapters also pick their cheap prefilter from the dialect: the
-POSIX regex cannot see `ri build -r -fo`, so a Windows session would
-otherwise skip the guard entirely. The POSIX prefilter is untouched, so
-the default path keeps its exact behaviour and cost.
+selector. Their cheap prefilter screens both POSIX and Windows vocabularies:
+the selector chooses the lexer, not whether a destructive-looking command
+reaches Core at all.
 
 Four rules keep the layer honest:
 
-* **The default dialect is POSIX.** Every existing caller keeps its
-  exact behaviour; opting in is explicit.
+* **The default lexer is POSIX.** Existing POSIX syntax keeps POSIX quoting
+  and separator rules. The cross-vocabulary safety floor is deliberately
+  additive: a known destructive command that previously vanished on a
+  mismatch now blocks instead of becoming `ALLOW_NOOP`.
 * **An unknown dialect name is never a silent POSIX fallback.** The
   library raises/returns unusable; the CLI and adapters turn that into
   `BLOCK_DIALECT_UNKNOWN` (name not recognised) or
@@ -131,6 +132,12 @@ Four rules keep the layer honest:
   (`powershell -Command "..."`) all become undeterminable facts -> BLOCK.
   `-WhatIf:$true` is a dry run (ALLOW); `-WhatIf:$false` is a real delete;
   a *variable* switch value blocks.
+* **Known destructive vocabulary cannot disappear on a dialect mismatch.**
+  The selected tokenizer defines command boundaries. If one of those
+  segments contains a supported destructive command shape but its dialect
+  classifier produced no operation, Core emits a target-free `UNKNOWN` fact
+  and blocks. It never reuses targets or flags guessed under another shell
+  grammar, and it does not scan ordinary argument text for dangerous words.
 * **Abbreviations expand only when unambiguous.** PowerShell resolves
   `-r`/`-rec` to `-Recurse` and `-fo` to `-Force`, and the guard follows so
   a recursive forced delete is not read as a mild one. A prefix matching
@@ -205,16 +212,24 @@ order of value:
     alias subset, `-WhatIf`/`-Recurse`/`-Force`/`-Confirm` semantics, and
     fail-closed handling of variables, subexpressions, piped target sets
     and nested hosts. Unit-tested on Linux CI; POSIX stays the default
-    dialect so no existing adapter changes behaviour.
+    lexical grammar. Since `0.2.3-rc1`, the shared safety floor can turn a
+    previously invisible cross-vocabulary mismatch into a target-free
+    refusal without guessing another shell's targets.
   - **Phase 2 (done at the pure-logic/adapter-test level).** Differential
     and regression suites (`tests/test_dialects.py`,
     `tests/test_dialect_phase2.py`) cover further cmd/PowerShell spellings,
     option aliases and fail-closed edge cases. Hook payload dialect forwarding
     has adapter tests; this is not a Windows host execution claim.
-  - **Phase 3 (not done; needs a real Windows host).** End-to-end
-    validation: real cmd/PowerShell execution, relocation across Windows
-    path semantics, host-selected dialect wiring, UNC/device paths and the
-    portability gaps reported in `test-report-zcode-glm-flash.md`.
+  - **Phase 3a (`0.2.3-rc1` candidate).** A blocking `windows-latest` Core
+    job covers the Issue #7 dialect-mismatch and separator regressions,
+    deterministic cmd/PowerShell facts, and recovery inside disposable
+    fixtures. The job uses Python argv/bytes so a surrounding shell cannot
+    rewrite the evidence.
+  - **Phase 3 remains incomplete.** Real cmd/PowerShell execution through
+    each harness, host-selected dialect wiring, privileged symlink cases,
+    broader UNC/device paths and full-suite portability still require
+    separate evidence. A focused Core runner is not a universal Windows E2E
+    claim.
 - V2: `git-guard` skill (remote ref protection with lease semantics);
   adapter hardening (host-side mode storage, tamper-evident audit).
 - V3+: `database-guard` (compensations = transaction / backup /

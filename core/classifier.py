@@ -14,9 +14,9 @@ Design rules:
   push) covers the overwhelming majority of real agent accidents on
   Linux/macOS. Native Windows shells express the same effects with other
   programs and other lexical rules; those live in `dialects.py` and are
-  dispatched by `classify_command(dialect=...)`. The default dialect is
-  POSIX, so the pre-dialect behaviour is unchanged for every existing
-  caller.
+  dispatched by `classify_command(dialect=...)`. The default lexer is POSIX;
+  a separate vocabulary-mismatch floor prevents known destructive commands
+  from disappearing merely because a host selected the wrong lexer.
 * Fail closed. Unbalanced quotes, shell variables, command substitution,
   unknown flags, stdin-fed target lists, indirect shells (bash -c) - all
   become `undeterminable` facts. The policy layer restricts those.
@@ -693,13 +693,11 @@ def _normalize_windows_separators(cmd: str) -> str:
     r"""Turn a backslash into a slash so `del build\o.js` survives POSIX.
 
     `shlex.split(..., posix=True)` treats `\` as an escape and silently
-    yields `buildo.js` - one wrong filename instead of a path. Only the
-    segment following a Windows delete verb is rewritten, and only on a
-    non-Windows host, matching `_classify_windows_dialect`: separation is a
-    host concern, not a dialect concern.
+    yields `buildo.js` - one wrong filename instead of a path. The caller
+    invokes this only for a standalone Windows delete verb, so normal POSIX
+    escapes are untouched. Lexical facts must not depend on the OS running
+    the classifier: Windows accepts `/` as a path separator too.
     """
-    if os.name == "nt":
-        return cmd
     return cmd.replace("\\", "/")
 
 
@@ -992,6 +990,73 @@ def _parse_error_spec(exc: str,
     return spec
 
 
+_KNOWN_DELETE_HEADS = frozenset(
+    FS_DELETE_CMDS | WINDOWS_DELETE_CMDS | {"remove-item"})
+
+
+def _portable_command_name(token: str, casefold: bool = True) -> str:
+    """Command basename for safety probes, independent of the host OS."""
+    cleaned = token.strip().strip("&").strip("'\"")
+    base = os.path.basename(cleaned.replace("\\", "/"))
+    if casefold:
+        base = base.lower()
+    return base[:-4] if casefold and base.endswith(".exe") else base
+
+
+def _known_destructive_segment(segment: List[str], dialect: str) -> bool:
+    """Whether one selected-dialect command segment has a known hazard.
+
+    This deliberately examines the command head/shape produced by the
+    *selected* tokenizer. Re-parsing the raw line as another shell would
+    manufacture semantics (for example cmd treats ``$(rm ...)`` as text).
+    The result is only a mismatch signal; callers must not derive targets or
+    a compensation plan from it.
+    """
+    if not segment:
+        return False
+    windows_syntax = dialect != dialects.DIALECT_POSIX
+    head = _portable_command_name(segment[0], casefold=windows_syntax)
+    if head in _KNOWN_DELETE_HEADS:
+        return True
+    if not windows_syntax and head.lower() in (
+            WINDOWS_DELETE_CMDS | {"remove-item"}):
+        # A foreign Windows verb may arrive in any case even though the
+        # selected POSIX shell is case-sensitive. Do not case-fold POSIX's
+        # own command vocabulary (`RM` may be an unrelated executable).
+        return True
+    if head == "find":
+        probe = _parse_find(["find", *segment[1:]])
+        return probe.kind != KIND_OTHER
+    if head == "git":
+        probe = _parse_git(["git", *segment[1:]])
+        return probe.kind != KIND_OTHER
+    return False
+
+
+def _append_dialect_mismatches(specs: List[OpSpec],
+                               segments: List[List[str]],
+                               dialect: str) -> None:
+    """Fail closed when known destructive vocabulary vanished in parsing.
+
+    One operation in an earlier segment must not mask a missed later one.
+    ``segment_index`` is therefore the coverage key. The appended UNKNOWN
+    fact carries no raw command or target bytes and can only BLOCK; it can
+    never authorize compensation under a grammar the caller did not select.
+    """
+    covered = {spec.segment_index for spec in specs}
+    for index, segment in enumerate(segments):
+        if index in covered or not _known_destructive_segment(
+                segment, dialect):
+            continue
+        spec = _unknown_op(
+            "known destructive vocabulary is incompatible with the "
+            "selected dialect")
+        spec.segment_index = index
+        spec.dialect = dialect
+        specs.append(spec)
+    specs.sort(key=lambda spec: spec.segment_index)
+
+
 _WINDOWS_PREFIX_RE = "|".join(sorted(SHELL_PREFIXES - {"xargs"}))
 _WINDOWS_COMMAND_RE = re.compile(
     r"(^|[;&|\n])\s*(?:(?:" + _WINDOWS_PREFIX_RE + r")\s+)*"
@@ -1050,7 +1115,9 @@ def _classify_posix(cmd: str) -> Tuple[List[OpSpec], Optional[str]]:
         spec.segment_index = index
         specs.append(spec)
 
-    for index, segment in enumerate(_split_segments(tokens)):
+    raw_segments = _split_segments(tokens)
+    command_segments: List[List[str]] = [[] for _ in raw_segments]
+    for index, segment in enumerate(raw_segments):
         seg, from_xargs, prefix_uncertain = _unwrap_shell_prefixes(segment)
         if prefix_uncertain:
             opaque = " ".join(segment)
@@ -1061,6 +1128,7 @@ def _classify_posix(cmd: str) -> Tuple[List[OpSpec], Optional[str]]:
             continue
         if not seg:
             continue
+        command_segments[index] = seg
         head = _basename(seg[0])
 
         if head == "cd":
@@ -1089,6 +1157,8 @@ def _classify_posix(cmd: str) -> Tuple[List[OpSpec], Optional[str]]:
 
     for spec in specs:
         spec.dialect = dialects.DIALECT_POSIX
+    _append_dialect_mismatches(
+        specs, command_segments, dialects.DIALECT_POSIX)
     _apply_shape_rules(specs, cd_positions, creation_positions)
     return [s for s in specs if s.kind != KIND_OTHER], None
 
@@ -1114,12 +1184,10 @@ def _classify_windows_dialect(cmd: str, dialect: str
                               ) -> Tuple[List[OpSpec], Optional[str]]:
     """Native Windows dialects: lex, map effects, then shared annotations.
 
-    Rewriting the path separators before classification is what makes the
-    existing POSIX boundary/glob machinery work unchanged: on Linux a naive
-    `deploy\build` is one filename, so the boundary check would silently
-    treat a Windows tree as a file inside the workspace. Host-native
-    commands keep their separators - the running host already resolves
-    them.
+    Rewriting target separators after tokenization gives the shared
+    boundary/glob machinery one host-independent representation. Windows
+    accepts `/`, while leaving `\\` in the fact makes Linux and Windows CI
+    disagree about the same command.
 
     Shape rules (docs/friction.md F1/F2) apply to Windows lines too: `cd`
     and the interpreter prefix set are shared shell concepts, so F1 means
@@ -1142,12 +1210,9 @@ def _classify_windows_dialect(cmd: str, dialect: str
             creation_positions.append(index)
     for spec in specs:
         spec.dialect = dialect
-        if os.name != "nt":
-            # Path separation is a host concern, not a dialect concern:
-            # only rewrite on a non-Windows host, where `\` is an ordinary
-            # filename character and would defeat boundary analysis.
-            spec.targets = [t.replace("\\", "/") for t in spec.targets]
+        spec.targets = [t.replace("\\", "/") for t in spec.targets]
         _attribute_targets(spec)
+    _append_dialect_mismatches(specs, stream.segments, dialect)
     _apply_shape_rules(specs, cd_positions, creation_positions)
     return [s for s in specs if s.kind != KIND_OTHER], None
 
@@ -1156,8 +1221,10 @@ def classify_command(cmd: str, dialect: str = dialects.DEFAULT_DIALECT
                      ) -> Tuple[List[OpSpec], Optional[str]]:
     """Parse one shell command line into destructive OpSpecs.
 
-    `dialect` selects the lexical front end: `posix` (default, identical to
-    pre-dialect behaviour), `cmd`, or `powershell`. Unknown dialect names
+    `dialect` selects the lexical front end: `posix` (default), `cmd`, or
+    `powershell`. Native POSIX command semantics remain stable, while the
+    shared vocabulary floor may newly refuse a known destructive command
+    that the selected grammar could not classify. Unknown dialect names
     raise ValueError rather than silently falling back to POSIX - parsing a
     Windows command line with the POSIX lexer is the exact failure the
     dialect layer exists to prevent.

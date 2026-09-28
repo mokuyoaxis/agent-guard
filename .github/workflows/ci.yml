@@ -1,8 +1,8 @@
-# agent-guard CI - Linux/macOS x Python matrix.
+# agent-guard CI - Linux/macOS full matrix plus focused Windows Core checks.
 #
-# V1 targets Linux/macOS shells; Windows cmd/PowerShell dialects are tracked
-# separately (docs/architecture.md roadmap) and intentionally not built here.
-# Zero third-party dependencies: no install step, just run the suite.
+# The full suite remains on Linux/macOS. The Windows job pins the Core shapes
+# that need real ntpath/filesystem behavior without pretending that every
+# POSIX fixture or harness is portable. Zero third-party dependencies.
 
 name: CI
 
@@ -69,3 +69,35 @@ jobs:
           node-version: "20"
       - name: Import and initialize adapter with mocked host services
         run: node tests/test_dsh_adapter.mjs
+
+  windows-core-rc:
+    name: Windows Core RC gate / Py3.13
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Dialect mismatch, path normalization and safe recovery checks
+        shell: pwsh
+        run: |
+          python -m unittest -v `
+            tests.test_dialects `
+            tests.test_delete.SafeDeleteCLI.test_relocate_then_restore_roundtrip `
+            tests.test_delete.WindowsVerbNoDialect `
+            tests.test_delete.CheckCLI.test_cmd_dialect_cannot_turn_rm_root_delete_into_noop `
+            tests.test_exfil_sanitize.FormatPreservation.test_native_windows_user_path_uses_exact_bytes_and_sanitizes `
+            *> windows-core-test-output.txt
+          $testExit = $LASTEXITCODE
+          Get-Content windows-core-test-output.txt
+          if ($testExit -ne 0) { exit $testExit }
+
+      - name: Upload Windows Core test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-core-py3.13-test-log
+          path: windows-core-test-output.txt
+          if-no-files-found: error

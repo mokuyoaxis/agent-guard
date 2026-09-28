@@ -104,7 +104,7 @@ relocations and restores succeed end-to-end.
   fixture now spells the path with forward slashes, matching what the shell
   would actually see on this platform.
 
-### Verified non-issue: backslash targets do not bypass the guard
+### Verified non-issue within the tested Git Bash `rm` path
 
 `rm -rf C:\...\build` (unquoted, unquoted-backslash) classifies as
 `ALLOW_NOOP` because `shlex` posix-tokenization strips the backslashes — the
@@ -113,6 +113,13 @@ check confirmed the real command deletes nothing under Git Bash. Classifier
 and shell therefore agree on the effective target, and no fail-open gap exists
 on this harness. Quoted and forward-slash spellings — the forms that do delete
 — classify correctly (`RELOCATE_TREE`).
+
+This conclusion is deliberately limited to POSIX `rm` under the tested Git
+Bash execution path. It does not cover Windows-native `del`/`rd`/
+`Remove-Item`, where a backslash is a separator rather than an escape.
+Issue #7 later demonstrated that those target facts varied by host OS;
+`0.2.3-rc1` normalizes recognized Windows-native targets independently of the
+machine running Core and pins them in a focused Windows CI job.
 
 ### ZCode integration properties (harness, not agent-guard)
 

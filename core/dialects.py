@@ -31,11 +31,12 @@ Design rules (mirroring the core's):
   another process, a wildcard handed to a tool that expands it itself -
   becomes an `undeterminable` fact. The policy layer turns those into
   BLOCK. We never guess what a target set will be.
-* **Additive.** The POSIX dialect preserves the exact behaviour of the
-  historical `shlex`-based path, including the ALIAS vocabulary
-  (`rm`/`ri`/`del` in PowerShell). The default dialect stays POSIX, so
-  every existing adapter (Claude hook, DSH plugin, check.py CLI) is
-  unaffected until a caller opts in.
+* **Selected lexer, shared safety floor.** POSIX remains the default lexical
+  grammar, while cmd and PowerShell keep their own quoting and separators.
+  After structural classification, Core may add a target-free UNKNOWN when
+  the selected tokenizer exposed known destructive vocabulary that its
+  classifier could not safely interpret. That is an intentional fail-closed
+  change, never a guessed cross-shell compensation.
 * **Facts, not decisions.** Like the rest of the classifier, a dialect
   returns OpSpecs only; it never decides ALLOW/BLOCK.
 

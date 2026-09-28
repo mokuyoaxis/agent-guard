@@ -239,6 +239,16 @@ class CheckCLI(RepoFixture):
             capture_output=True, text=True, check=True)
         self.assertEqual(status.stdout, "")
 
+    def test_cmd_dialect_cannot_turn_rm_root_delete_into_noop(self):
+        proc = run("check.py", "--enforce", "--json", "--dialect", "cmd",
+                   "--", "rm -rf .", cwd=self.root)
+        self.assertEqual(proc.returncode, 2, proc.stderr)
+        out = json.loads(proc.stdout)
+        self.assertEqual((out["decision"], out["code"]),
+                         ("BLOCK", "BLOCK_UNDETERMINABLE_EFFECT"))
+        self.assertEqual(out["ops"][0]["kind"], "unknown")
+        self.assertTrue(os.path.exists(os.path.join(self.root, ".gitignore")))
+
     def test_enforce_block_with_readonly_git_metadata_stays_clean(self):
         exclude = os.path.join(self.root, ".git", "info", "exclude")
         old_mode = os.stat(exclude).st_mode
@@ -365,10 +375,19 @@ class WindowsVerbNoDialect(RepoFixture):
         self.assertFalse(os.path.exists(os.path.join(self.root, "build")))
 
     def test_backslash_target_is_not_swallowed_by_shlex(self):
-        """`del build\o.js` must not lex as the single file `buildo.js`."""
+        r"""`del build\o.js` must not lex as the single file `buildo.js`."""
         self.write("build/o.js", "x")
         proc = run("check.py", "--enforce", "--json", "--",
                    "del build\\o.js", cwd=self.root)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(json.loads(proc.stdout)["code"], "RELOCATE_PATHS")
+        self.assertFalse(os.path.exists(os.path.join(self.root, "build",
+                                                     "o.js")))
+
+    def test_cmd_dialect_backslash_target_is_relocated(self):
+        self.write("build/o.js", "x")
+        proc = run("check.py", "--enforce", "--json", "--dialect", "cmd",
+                   "--", "del build\\o.js", cwd=self.root)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertEqual(json.loads(proc.stdout)["code"], "RELOCATE_PATHS")
         self.assertFalse(os.path.exists(os.path.join(self.root, "build",

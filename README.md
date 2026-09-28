@@ -4,7 +4,7 @@
 [![npm version](https://img.shields.io/npm/v/%40mokuyoaxis%2Fagent-guard.svg)](https://www.npmjs.com/package/@mokuyoaxis/agent-guard)
 [![License](https://img.shields.io/github/license/mokuyoaxis/agent-guard)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![v0.2.2 source](https://img.shields.io/badge/Source-v0.2.2-5B6B7A)](https://github.com/mokuyoaxis/agent-guard/releases)
+[![v0.2.3-rc1 source](https://img.shields.io/badge/Source-v0.2.3--rc1-5B6B7A)](https://github.com/mokuyoaxis/agent-guard/releases)
 
 **Make destructive agent actions reversible by default.** · [简体中文](README.zh-CN.md)
 
@@ -57,6 +57,10 @@ Pinned npm installation into a stable, user-owned prefix:
 ```sh
 npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.2
 ```
+
+`0.2.2` remains the stable recommendation. After the candidate is published,
+explicit testers may select `@mokuyoaxis/agent-guard@0.2.3-rc1` or the npm
+`@rc` channel; prereleases do not replace npm `latest`.
 
 The package root is then
 `/absolute/path/to/agent-guard-install/node_modules/@mokuyoaxis/agent-guard`.
@@ -482,6 +486,7 @@ compensation engine without restructuring.
 | [CONTRIBUTING.md](CONTRIBUTING.md) | how to propose an Issue and submit a focused Pull Request |
 | [docs/architecture.md](docs/architecture.md) | pillars ↔ components, data flow, design decisions |
 | [docs/host-drift.md](docs/host-drift.md) | zero-token host/version drift states and privacy-minimal baselines |
+| [docs/release-notes-0.2.3-rc1.md](docs/release-notes-0.2.3-rc1.md) | Windows Core fail-closed candidate and prerelease channel |
 | [docs/release-notes-0.2.2.md](docs/release-notes-0.2.2.md) | 0.2.2 host drift, live sentinel and DSH package acceptance |
 | [docs/release-notes-0.2.1.md](docs/release-notes-0.2.1.md) | 0.2.1 adapter/doctor changes and bounded evidence |
 | [docs/release-notes-0.2.0.md](docs/release-notes-0.2.0.md) | 0.2.0 changes, evidence levels, and known limits |
@@ -499,13 +504,15 @@ compensation engine without restructuring.
 
 ## Status & roadmap
 
-The source version is **v0.2.2**. The published `v0.2.0` baseline includes
+The source version is **v0.2.3-rc1**; the latest stable release remains
+**v0.2.2**. The published `v0.2.0` baseline includes
 recoverable destructive actions, cmd/PowerShell dialect parsing, the
 `exfil-guard` text CLI, a read-only config view, and `recovery-audit`.
 Later source releases add Claude/Kimi POSIX hook bridges, bounded host
 evidence, a local `doctor`, host-drift checks, an opt-in live sentinel and
 current DSH package acceptance. See the
-[0.2.2 notes](docs/release-notes-0.2.2.md) for exact scope and
+[0.2.3-rc1 notes](docs/release-notes-0.2.3-rc1.md) for the candidate scope,
+[0.2.2 notes](docs/release-notes-0.2.2.md) for the stable scope, and
 [GitHub Releases](https://github.com/mokuyoaxis/agent-guard/releases) for
 publication status; a source version is not itself a published Release.
 
@@ -518,13 +525,14 @@ actions are protected. A tested direct-Python hook startup failure was
 fail-open. The optional shell bridge blocked a sampled Python startup failure
 in a real Kimi host session, but only when the bridge itself ran; config
 validation alone cannot prove that the hook is live.
-Real Windows end-to-end coverage and general concurrent-subagent safety
-also remain explicit gaps. Later Guard branches (`git-guard`, `database-guard`,
+The candidate adds a focused real-Windows Core gate for Issue #7, but native
+cmd/PowerShell execution through every harness and general concurrent-subagent
+safety remain explicit gaps. Later Guard branches (`git-guard`, `database-guard`,
 `cloud-guard`) reuse the same protocol and compensation engine.
 
 ## 0.2.x preview: guard-lab
 
-Planned, **not included in 0.2.2**: an opt-in, offline honeytoken lab
+Planned, **not included in 0.2.3-rc1**: an opt-in, offline honeytoken lab
 using disposable projects and synthetic, non-secret markers. It will compare
 normal tasks with prompt-injection attempts, and separately observe whether a
 harness indexes or exports files without an agent-requested read. Positive and

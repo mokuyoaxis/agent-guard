@@ -19,6 +19,7 @@ import os
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -162,10 +163,31 @@ class CmdDialect(unittest.TestCase):
         for cmd in ("git status", "dir /b", "echo del", "where del"):
             self.assertEqual(classify_command(cmd, "cmd")[0], [])
 
-    def test_rm_is_not_cmd_delete(self):
-        # `rm` is not a cmd builtin: recognising it would be a guess, and
-        # cmd would just report "not recognized".
-        self.assertEqual(classify_command("rm -rf build", "cmd")[0], [])
+    def test_rm_dialect_mismatch_is_unknown(self):
+        # `rm` is not a cmd builtin, so its targets cannot be trusted as a
+        # cmd delete plan.  It is still known destructive vocabulary: a
+        # host/shell mismatch must BLOCK rather than become ALLOW_NOOP.
+        spec = spec_for("rm -rf build", "cmd")
+        self.assertEqual(spec.kind, KIND_UNKNOWN)
+        self.assertTrue(spec.undeterminable)
+        self.assertEqual(spec.targets, [])
+
+    def test_mixed_line_checks_every_segment_for_vocabulary_mismatch(self):
+        specs, err = classify_command("del a.txt & rm -rf .", "cmd")
+        self.assertIsNone(err)
+        self.assertEqual([spec.kind for spec in specs],
+                         [KIND_FS_DELETE, KIND_UNKNOWN])
+        self.assertEqual([spec.segment_index for spec in specs], [0, 1])
+
+    def test_literal_posix_syntax_in_cmd_output_is_not_a_command(self):
+        for cmd in ('echo "rm -rf ."', "echo $(rm -rf .)", "where rm"):
+            with self.subTest(cmd=cmd):
+                self.assertEqual(classify_command(cmd, "cmd")[0], [])
+
+    def test_destructive_git_shape_mismatch_is_unknown(self):
+        spec = spec_for("git reset --hard", "cmd")
+        self.assertEqual(spec.kind, KIND_UNKNOWN)
+        self.assertTrue(spec.undeterminable)
 
     def test_dialect_recorded_on_spec(self):
         self.assertEqual(spec_for("del /q a.txt", "cmd").dialect, "cmd")
@@ -200,6 +222,11 @@ class CmdVerdicts(unittest.TestCase):
 
     def test_variable_blocks(self):
         v = verdict_for("del /s /q %BUILD_DIR%", "cmd", self.root)
+        self.assertEqual((v.decision, v.code),
+                         (DECISION_BLOCK, CODE_BLOCK_UNDETERMINABLE_EFFECT))
+
+    def test_posix_vocabulary_mismatch_blocks(self):
+        v = verdict_for("rm -rf .", "cmd", self.root)
         self.assertEqual((v.decision, v.code),
                          (DECISION_BLOCK, CODE_BLOCK_UNDETERMINABLE_EFFECT))
 
@@ -353,6 +380,16 @@ class PowerShellDialect(unittest.TestCase):
         for cmd in ("Get-ChildItem -Recurse", "Write-Host del", "git status"):
             self.assertEqual(classify_command(cmd, "powershell")[0], [])
 
+    def test_literal_delete_text_is_not_a_command(self):
+        for cmd in ("Write-Host 'rm -rf .'", 'Write-Host "rm -rf ."'):
+            with self.subTest(cmd=cmd):
+                self.assertEqual(classify_command(cmd, "powershell")[0], [])
+
+    def test_destructive_git_shape_mismatch_is_unknown(self):
+        spec = spec_for("git clean -fdx", "powershell")
+        self.assertEqual(spec.kind, KIND_UNKNOWN)
+        self.assertTrue(spec.undeterminable)
+
 
 class PowerShellVerdicts(unittest.TestCase):
     """PowerShell facts through the unchanged policy table."""
@@ -437,7 +474,7 @@ class SharedWindowsShapes(unittest.TestCase):
 
 
 class DefaultPathUnchanged(unittest.TestCase):
-    """The POSIX default path keeps its pre-dialect behaviour exactly."""
+    """Native POSIX behavior stays stable; foreign hazards fail closed."""
 
     def test_default_dialect_facts(self):
         spec = spec_for("rm -rf build", "posix")
@@ -472,6 +509,16 @@ class DefaultPathUnchanged(unittest.TestCase):
         specs, _ = classify_command("del build\\o.js")
         self.assertEqual(specs[0].targets, ["build/o.js"])
 
+    def test_host_os_does_not_change_windows_target_facts(self):
+        # Simulate the branch that used to run only on a real Windows host.
+        # `os.path` deliberately remains the local implementation: this
+        # test pins command lexical facts, not filesystem execution.
+        with mock.patch("core.classifier.os.name", "nt"):
+            default, _ = classify_command("del build\\o.js", "posix")
+            cmd, _ = classify_command("del build\\o.js", "cmd")
+        self.assertEqual(default[0].targets, ["build/o.js"])
+        self.assertEqual(cmd[0].targets, ["build/o.js"])
+
     def test_rd_is_a_tree_removal(self):
         specs, _ = classify_command("rd /s /q build")
         self.assertTrue(specs[0].recursive)
@@ -484,6 +531,12 @@ class DefaultPathUnchanged(unittest.TestCase):
         self.assertEqual(classify_command("ls -la")[0], [])
         self.assertEqual(classify_command("git status")[0], [])
         self.assertEqual(classify_command("echo hello")[0], [])
+        self.assertEqual(classify_command("RM --version")[0], [])
+
+    def test_powershell_vocabulary_on_posix_fails_closed(self):
+        spec = spec_for("Remove-Item -Recurse build", "posix")
+        self.assertEqual(spec.kind, KIND_UNKNOWN)
+        self.assertTrue(spec.undeterminable)
 
     def test_posix_alias_expansion_absent(self):
         specs, _ = classify_command("rd /s /q build", "powershell")

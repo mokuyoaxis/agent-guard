@@ -264,3 +264,26 @@ without data is still a legitimately empty payload (ALLOW, since nothing
 can leak); and on platforms where stdin is not selectable the code falls
 back to the blocking read rather than refusing a caller whose payload may
 be perfectly good.
+
+## F16 · A selected shell dialect could erase a known hazard
+
+The dialect selector chose both a tokenizer and its recognized command
+vocabulary. That made a configuration mismatch asymmetric: `rm -rf .`
+was a protected-root refusal under POSIX, but the cmd classifier returned no
+operation and policy reported `ALLOW_NOOP`. A mixed line was worse: one
+recognized Windows delete could make the result look guarded while a later
+POSIX delete segment remained invisible. Separately, Windows-native targets
+kept backslashes only when Core itself ran on Windows, so identical command
+text produced host-dependent path facts.
+
+**Fixed in `0.2.3-rc1`:** the selected tokenizer still owns command
+boundaries and quoting semantics, but every resulting segment also passes a
+small, shared destructive-vocabulary floor. A known delete, destructive Git
+shape, or `find -delete` shape that its selected classifier did not resolve
+becomes target-free `UNKNOWN` and therefore
+`BLOCK_UNDETERMINABLE_EFFECT`. Core never re-parses the segment under a
+different grammar and never invents a compensation target. Recognized
+Windows delete targets are normalized after their own tokenizer on every
+host, removing the OS-dependent fact split. Negative tests pin quoted output
+and shell-specific literal syntax so the safety floor does not become a
+substring blacklist.

@@ -1,14 +1,15 @@
 name: Release
 
 # Manual dispatch validates the npm credential without publishing. Pushing an
-# exact X.Y.Z tag runs the release gate, creates the GitHub Release and
-# publishes the same tarball to the public npm registry.
+# exact X.Y.Z or X.Y.Z-rcN tag runs the release gate, creates the GitHub
+# Release and publishes the same tarball to the corresponding npm channel.
 
 on:
   workflow_dispatch:
   push:
     tags:
       - '[0-9]+.[0-9]+.[0-9]+'
+      - '[0-9]+.[0-9]+.[0-9]+-rc[0-9]+'
 
 concurrency:
   group: release-${{ github.ref }}
@@ -78,6 +79,9 @@ jobs:
             exit 1
           fi
 
+      - name: Select stable or release-candidate channels
+        run: python .github/scripts/release_channel.py "$GITHUB_REF_NAME" >>"$GITHUB_ENV"
+
       - name: Verify npm credential
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -113,10 +117,24 @@ jobs:
             exit 1
           fi
           if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release create "$GITHUB_REF_NAME" \
-              --verify-tag \
-              --title "Agent Guard $GITHUB_REF_NAME" \
-              --notes-file "$NOTES"
+            if [ "$RELEASE_PRERELEASE" = "true" ]; then
+              gh release create "$GITHUB_REF_NAME" \
+                --verify-tag \
+                --prerelease \
+                --title "Agent Guard $GITHUB_REF_NAME" \
+                --notes-file "$NOTES"
+            else
+              gh release create "$GITHUB_REF_NAME" \
+                --verify-tag \
+                --title "Agent Guard $GITHUB_REF_NAME" \
+                --notes-file "$NOTES"
+            fi
+          else
+            ACTUAL_PRERELEASE="$(gh release view "$GITHUB_REF_NAME" --json isPrerelease --jq '.isPrerelease')"
+            if [ "$ACTUAL_PRERELEASE" != "$RELEASE_PRERELEASE" ]; then
+              echo "::error::existing GitHub Release channel does not match $RELEASE_KIND"
+              exit 1
+            fi
           fi
           ASSETS="$(gh release view "$GITHUB_REF_NAME" --json assets --jq '.assets[].name')"
           if ! printf '%s\n' "$ASSETS" | grep -Fxq "$TARBALL"; then
@@ -139,5 +157,6 @@ jobs:
             npm publish "$TARBALL" \
               --registry=https://registry.npmjs.org \
               --access public \
+              --tag "$NPM_DIST_TAG" \
               --provenance
           fi
