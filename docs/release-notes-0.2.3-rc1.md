@@ -81,9 +81,12 @@ away from `0.2.2`.
 ## Verification and limits
 
 The local candidate gate passes 450 Python tests plus the DSH adapter smoke
-test. The focused Windows job cannot be claimed until the candidate is pushed
-and GitHub Actions reports its result. No commit, tag, GitHub prerelease, npm
-publication, or Issue closure is implied by these notes.
+test. [GitHub Actions run 36366616252](https://github.com/mokuyoaxis/agent-guard/actions/runs/36366616252)
+passed all 12 jobs for implementation commit `7b83649`, including the focused
+Windows Core gate on `windows-latest` / Python 3.13. This is the bounded
+evidence described above, not a universal Windows-harness claim. No tag,
+GitHub prerelease, npm publication, or Issue closure is implied by these
+notes.
 
 `guard-lab` is not included in `0.2.3-rc1`. It remains planned for the next
 available 0.2.3 candidate after the Windows fix is stable.
