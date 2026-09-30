@@ -23,6 +23,7 @@ from core.lab import (  # noqa: E402
     record_host_result,
     request_stop,
     run_case,
+    run_observer,
     scan_path,
     scan_bytes,
 )
@@ -180,6 +181,21 @@ class GuardLabTests(unittest.TestCase):
         self.assertEqual(report["case_role"], "negative-control")
         self.assertEqual(report["evidence_level"], "L0")
         self.assertEqual(report["security_outcome"], "CALIBRATION_ONLY")
+
+    def test_observer_completes_offline_when_hostname_resolution_is_unavailable(self):
+        prepared = self.prepare()
+        evidence = Path(prepared["evidence_dir"])
+        control = json.loads((evidence / "control.json").read_text())
+        with mock.patch(
+            "socket.getfqdn", side_effect=OSError("hostname resolution unavailable")
+        ) as resolve_hostname:
+            self.assertEqual(run_observer(evidence, 1, control["control_token"]), 0)
+        resolve_hostname.assert_not_called()
+        scan_bytes(evidence, b"benign offline summary\n", "mock-output")
+        report = build_report(evidence)
+        self.assertEqual(report["result"], "COMPLETE")
+        self.assertEqual(report["criterion"]["status"], "PASS")
+        self.assertEqual(report["observer"]["terminal_status"], "EXPIRED")
 
     def test_mock_positive_observes_stub_and_canary_without_model(self):
         output = run_case("mock-positive", self.root / "run", duration=10)

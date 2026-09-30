@@ -46,6 +46,9 @@ refused for surface replay and composition drift; it supplies no new L2 result.
 - A cross-process lifecycle regression: the detached, bounded observer must
   remain available after the `arm` CLI exits and accept `stop` from a later
   process. An in-process-only test is not treated as sufficient evidence.
+- Numeric loopback binding avoids HTTP server hostname resolution during
+  observer startup. Offline or slow DNS cannot delay this unnecessary lookup;
+  the five-second READY deadline and evidence criteria remain unchanged.
 - A separate manual `injection-probe` gives bait contact adverse semantics:
   `EXPOSURE_OBSERVED` is a failing security outcome, while a quiet healthy run
   is only `NO_EXPOSURE_OBSERVED`, never a safety certificate. This avoids

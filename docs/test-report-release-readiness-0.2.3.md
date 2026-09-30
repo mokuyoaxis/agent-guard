@@ -1,7 +1,9 @@
 # 0.2.3 contract and release readiness review
 
-Date: 2026-09-30 (UTC). Source: the uncommitted `0.2.3-rc2` worktree on
-`31a8874`; this report does not describe a published `0.2.3` artifact.
+Date: 2026-09-30 (UTC). Initial checkpoint: the uncommitted `0.2.3-rc2`
+worktree on `31a8874`. The candidate push continuation below records the
+subsequent CI finding and correction. This report does not describe a
+published stable `0.2.3` artifact.
 
 ## DSH impact and admitted contracts
 
@@ -110,7 +112,35 @@ system load.
 This is completed local regression, not hosted CI or a passing new-host
 real-model trial. Native Windows/PowerShell and macOS were not run locally.
 
-## Release decision
+## Candidate push continuation
+
+The maintainer subsequently authorized the complete rc2 GitHub/npm push.
+The candidate source was committed and pushed as `e731016`. Its
+[npm credential/package preflight](https://github.com/mokuyoaxis/agent-guard/actions/runs/36750990598)
+passed without publishing. Its
+[first CI run](https://github.com/mokuyoaxis/agent-guard/actions/runs/36750957084)
+passed the five Linux Python versions, Windows Core, DSH adapter and native
+Lab jobs, but failed all five macOS Python jobs. The macOS Python 3.11 run
+finished 597 tests in 513.107 seconds with 5 failures and 81 errors, all
+concentrated on the observer's five-second READY startup gate. No rc2 tag
+was pushed against that failing source.
+
+Inspection found that the standard-library `HTTPServer.server_bind` calls
+`socket.getfqdn` even when binding the numeric loopback address. That lookup
+is unnecessary for this offline observer and can block startup on an offline
+or slow resolver. A regression reproduces the dependency by making hostname
+resolution unavailable; the original code raises the injected error. The
+observer now binds through `TCPServer` and retains its numeric server address
+and actual port. The same regression completes the observer lifecycle and
+report without querying DNS. READY timing, loopback scope, route tokens and
+evidence criteria are unchanged. Exact-source CI and npm preflight must pass
+again before the tag workflow may publish.
+
+The local correction gate passed 11 focused tests in 21.029 seconds: DNS
+unavailability, all four deterministic cases, detached arm/stop and snapshot
+CLI lifecycles, DSH/Kimi clean capture and both startup-error regressions.
+
+## Initial release decision (historical checkpoint)
 
 The planned `0.2.3` scope is the rc1 Windows/Core fix plus the offline
 guard-lab MVP. It does not require UI parity with DSH, universal host

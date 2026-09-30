@@ -18,6 +18,7 @@ import os
 from pathlib import Path
 import re
 import secrets
+from socketserver import TCPServer
 import subprocess
 import sys
 import tarfile
@@ -1829,6 +1830,12 @@ def _inspect_snapshot_archive(
 
 class _LabHTTPServer(HTTPServer):
     allow_reuse_address = False
+
+    def server_bind(self) -> None:
+        # The observer binds a numeric loopback address. HTTPServer's default
+        # getfqdn lookup can block its bounded startup on offline resolvers.
+        TCPServer.server_bind(self)
+        self.server_name, self.server_port = self.server_address[:2]
 
     def __init__(
         self,
