@@ -66,9 +66,26 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22.23.2"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
       - name: Import and initialize adapter with mocked host services
-        run: node tests/test_dsh_adapter.mjs
+        run: npm run test:dsh
+
+  dsh-native-lab:
+    name: DSH native Lab capture / Node22
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.23.2"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Native session decoder and capture regressions (no model)
+        run: python -m unittest -v tests.test_dsh_native_session tests.test_dsh_profiles tests.test_dsh_guard_lab tests.test_dsh_read_redaction
 
   windows-core-rc:
     name: Windows Core RC gate / Py3.13

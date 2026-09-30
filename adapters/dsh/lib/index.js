@@ -2,7 +2,7 @@
  * agent-guard - DSH host adapter (Decision Protocol).
  *
  * A Cordis plugin for the DeepSeek Harness launcher composition. Three
- * contributions:
+ * default contributions:
  *
  *  1. Interception: a `tools/pre-execute` waterfall runs every destructive-
  *     looking bash command through the shared Python core (check.py
@@ -13,6 +13,8 @@
  *  2. Model tools: agent_guard_safe_delete / agent_guard_restore /
  *     agent_guard_status - the supported path is also the easiest path.
  *  3. Prompt guidance: deletion discipline as a system-prompt section.
+ *  An optional pinned text-read result guard delegates to the shared exfil
+ *  Core and replaces native values so content and metadata regenerate.
  *
  * The decision rules are NOT implemented here. This adapter only translates;
  * the single rule engine lives in skills/delete-guard/scripts/check.py,
@@ -43,6 +45,7 @@ const CONFIG_DIALECTS = new Set([
 ]);
 const CONFIG_FIELDS = new Set([
   "repoRoot", "defaultCwd", "promptSection", "sectionOrder", "dialect",
+  "readResultGuard", "readGuardDshRoot",
 ]);
 
 // Keep the adapter installable without importing a host-private helper. DSH's
@@ -121,13 +124,15 @@ export const Config = {
         promptSection: true,
         sectionOrder: 105,
         dialect: "",
+        readResultGuard: false,
+        readGuardDshRoot: "",
       };
       for (const key of Object.keys(input)) {
         if (!CONFIG_FIELDS.has(key)) {
           issues.push({ message: `unknown agent-guard config field: ${key}`, path: [key] });
         }
       }
-      for (const key of ["repoRoot", "defaultCwd"]) {
+      for (const key of ["repoRoot", "defaultCwd", "readGuardDshRoot"]) {
         if (!Object.prototype.hasOwnProperty.call(input, key)) continue;
         if (typeof input[key] !== "string") {
           issues.push({ message: `${key} must be a string`, path: [key] });
@@ -148,6 +153,19 @@ export const Config = {
         } else {
           config.sectionOrder = input.sectionOrder;
         }
+      }
+      if (Object.prototype.hasOwnProperty.call(input, "readResultGuard")) {
+        if (typeof input.readResultGuard !== "boolean") {
+          issues.push({ message: "readResultGuard must be a boolean", path: ["readResultGuard"] });
+        } else {
+          config.readResultGuard = input.readResultGuard;
+        }
+      }
+      if (config.readResultGuard && !path.isAbsolute(config.readGuardDshRoot)) {
+        issues.push({ message: "readGuardDshRoot must be an absolute pinned DSH package root", path: ["readGuardDshRoot"] });
+      }
+      if (config.readResultGuard && !path.isAbsolute(config.defaultCwd)) {
+        issues.push({ message: "defaultCwd must be an absolute workspace for readResultGuard", path: ["defaultCwd"] });
       }
       if (Object.prototype.hasOwnProperty.call(input, "dialect")) {
         const requested = input.dialect;
@@ -224,7 +242,7 @@ function buildRuntime(ctx, config, shell, systemPrompt) {
     return collected.text || "";
   }
 
-  function runScript(scriptName, argString, workdir, timeoutMs, exec) {
+  async function runScript(scriptName, argString, workdir, timeoutMs, exec) {
     const request = {
       command:
         "python3 " +
@@ -237,7 +255,13 @@ function buildRuntime(ctx, config, shell, systemPrompt) {
     const dir = workdir || config.defaultCwd || undefined;
     if (dir) request.workdir = dir;
     if (exec && exec.signal) request.signal = exec.signal;
-    return shell.run(shell.resolve(request));
+    const spec = shell.resolve(request);
+    // DSH 0.2 returns a live execution handle; await its foreground result.
+    // Keep the previously tested 0.1 API for existing installations.
+    if (typeof shell.execute === "function") {
+      return (await shell.execute(spec)).result();
+    }
+    return shell.run(spec);
   }
 
   function parseJson(text) {
@@ -261,9 +285,12 @@ function buildRuntime(ctx, config, shell, systemPrompt) {
   };
 }
 
-export function apply(ctx, config) {
+// Async functions cannot be mistaken for constructor plugins by Cordis.
+// The host must await optional read-guard startup before admitting work.
+export async function apply(ctx, config) {
   const shell = ctx.get ? ctx.get("shell") : undefined;
   if (shell === undefined) {
+    if (config.readResultGuard) throw new Error("[agent-guard] READ_GUARD_STARTUP_REFUSED");
     console.error("[agent-guard] shell service unavailable; adapter disabled");
     return;
   }
@@ -271,10 +298,24 @@ export function apply(ctx, config) {
   const rt = buildRuntime(ctx, config, shell, systemPrompt);
 
   if (!rt.pythonReady) {
+    if (config.readResultGuard) throw new Error("[agent-guard] READ_GUARD_STARTUP_REFUSED");
     console.error("[agent-guard] check.py not found under", rt.repoRoot);
     return;
   }
 
+  if (config.readResultGuard) {
+    return import("./read_result_guard.js").then(async ({ installReadResultGuard }) => {
+      await installReadResultGuard(ctx, config, rt.repoRoot);
+      contribute(ctx, config, rt);
+    }).catch(() => {
+      throw new Error("[agent-guard] READ_GUARD_STARTUP_REFUSED");
+    });
+  }
+  contribute(ctx, config, rt);
+}
+
+function contribute(ctx, config, rt) {
+  const { systemPrompt } = rt;
   ctx.effect(() => {
     const disposers = [];
 

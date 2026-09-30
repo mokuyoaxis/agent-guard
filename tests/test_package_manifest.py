@@ -17,7 +17,7 @@ class PackageManifestTests(unittest.TestCase):
 
     def test_scoped_public_candidate_identity(self):
         self.assertEqual(self.manifest["name"], "@mokuyoaxis/agent-guard")
-        self.assertEqual(self.manifest["version"], "0.2.3-rc1")
+        self.assertEqual(self.manifest["version"], "0.2.3-rc2")
         self.assertNotIn("private", self.manifest)
         self.assertEqual(
             self.manifest.get("publishConfig"), {"access": "public"})
@@ -26,8 +26,8 @@ class PackageManifestTests(unittest.TestCase):
         files = set(self.manifest["files"])
         self.assertTrue({
             "adapters", "core", "skills", "docs", "doctor.py",
-            "live_sentinel.py", "README.md", "README.zh-CN.md", "LICENSE",
-            "CONTRIBUTING.md",
+            "live_sentinel.py", "guard_lab.py", "README.md",
+            "README.zh-CN.md", "LICENSE", "CONTRIBUTING.md",
         }.issubset(files))
         self.assertNotIn(".internal", files)
 
@@ -51,9 +51,23 @@ class PackageManifestTests(unittest.TestCase):
         self.assertIn("{kimi,claude}", completed.stdout)
         self.assertIn("Local agent-guard installation checks", completed.stdout)
 
+    def test_guard_lab_bin_exposes_only_the_user_controller(self):
+        self.assertEqual(
+            self.manifest["bin"]["agent-guard-lab"], "./guard_lab.py")
+        completed = subprocess.run(
+            [sys.executable, str(ROOT / "guard_lab.py"), "--help"],
+            cwd=ROOT, text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn(
+            "prepare,arm,stop,record-host,scan,report,run,compare",
+            completed.stdout,
+        )
+        self.assertNotIn("_observe", completed.stdout)
+
     def test_dsh_bundle_uses_the_scoped_package_name(self):
         dsh = self.manifest["dsh"]
-        self.assertEqual(dsh["engines"]["dsh"], "0.1.5-rc.1")
+        self.assertEqual(dsh["engines"]["dsh"], "0.1.5-rc.1 || 0.2.0-rc.2")
         patch_path = ROOT / dsh["bundle"]["patch"]
         patch = patch_path.read_text(encoding="utf-8")
         self.assertIn("name: '@mokuyoaxis/agent-guard'", patch)

@@ -1,6 +1,6 @@
 {
   "name": "@mokuyoaxis/agent-guard",
-  "version": "0.2.3-rc1",
+  "version": "0.2.3-rc2",
   "description": "Harness-neutral reliability infrastructure for AI coding agents: reversible destructive actions, pre-emission redaction, recovery evidence, and a shared Decision Protocol with optional native adapters.",
   "type": "module",
   "main": "./adapters/dsh/lib/index.js",
@@ -13,6 +13,7 @@
   "bin": {
     "agent-guard-doctor": "./doctor.py",
     "agent-guard-live-sentinel": "./live_sentinel.py",
+    "agent-guard-lab": "./guard_lab.py",
     "agent-guard-check": "./skills/delete-guard/scripts/check.py",
     "agent-guard-safe-delete": "./skills/delete-guard/scripts/safe_delete.py",
     "agent-guard-restore": "./skills/delete-guard/scripts/restore.py",
@@ -22,8 +23,8 @@
     "agent-guard-config-view": "./skills/exfil-guard/scripts/view.py"
   },
   "scripts": {
-    "test": "python3 -m unittest discover tests -v && node tests/test_dsh_adapter.mjs",
-    "test:dsh": "node tests/test_dsh_adapter.mjs",
+    "test": "python3 -m unittest discover tests -v && node tests/test_dsh_adapter.mjs && node tests/test_dsh_read_result.mjs",
+    "test:dsh": "node tests/test_dsh_adapter.mjs && node tests/test_dsh_read_result.mjs",
     "prepublishOnly": "npm test"
   },
   "files": [
@@ -33,6 +34,7 @@
     "docs",
     "doctor.py",
     "live_sentinel.py",
+    "guard_lab.py",
     "LICENSE",
     "CONTRIBUTING.md",
     "README.md",
@@ -42,7 +44,7 @@
   ],
   "dsh": {
     "engines": {
-      "dsh": "0.1.5-rc.1"
+      "dsh": "0.1.5-rc.1 || 0.2.0-rc.2"
     },
     "bundle": {
       "patch": "./adapters/dsh/cordis.patch.yml"
@@ -51,7 +53,8 @@
   "keywords": [
     "agent-guard", "ai-agents", "coding-agents", "agent-skills",
     "llm-tools", "reliability", "recovery", "destructive-actions",
-    "redaction", "quarantine", "audit", "git", "safety",
+    "redaction", "quarantine", "audit", "honeytoken",
+    "prompt-injection-testing", "git", "safety",
     "deepseek-harness", "dsh", "dsh-plugin", "cordis"
   ],
   "license": "MIT",

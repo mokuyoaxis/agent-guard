@@ -1,0 +1,8 @@
+# Common overlay for every guard-off Lab capture; no separate title model call.
+- id: session-title-llm
+  disabled: true
+
+- id: agent-default-model
+  config:
+    provider: deepseek-official
+    model: deepseek-flash

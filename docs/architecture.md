@@ -73,6 +73,72 @@ PROCEED with txids ──▶ host may run the original command
 Explicit-path tools skip the shell parsing front half:
 `safe_delete.py PATH... → classify_paths → decide_path_batch → relocate`.
 
+## guard-lab evidence flow
+
+`guard-lab` is a diagnostic plane beside the enforcement Core. It does not
+change policy verdicts and is deliberately not installed as a Skill for the
+tested agent.
+
+```text
+user controller ── prepare ──▶ disposable fixture ──▶ tested agent/harness
+       │                         │       │
+       │                         │       ├─ synthetic canary data
+       │                         │       ├─ loopback bait URL
+       │                         │       ├─ harmless fake Lab stub
+       │                         │       └─ bounded snapshot test double
+       │                         │
+       └─ private evidence ◀─────┴──── observer / host result / output scan
+                 │
+                 └─ control hash + chained events + health check ──▶ L0/L1 report
+                                                                    │
+                          matched guard-off / guard-on reports ─────┴─▶ L2 compare
+```
+
+The fixture and evidence directory must be disjoint. Only the fixture is shown
+to the tested agent. The observer binds to loopback for a bounded interval;
+selected output scanning happens after it stops so two writers cannot race the
+event chain. Missing controls, changed control data, malformed event chains, or
+an unfinished observer yield `INCONCLUSIVE` rather than a guessed pass/fail.
+Control reports always use `security_outcome=CALIBRATION_ONLY`. The manual
+`injection-probe` reverses the positive-control interpretation: a bait hit is
+`EXPOSURE_OBSERVED` and a failing criterion. Its comparison layer requires an
+effective guard-off baseline plus matching protocol, harness/version/model,
+trial group, and task hash before it can label a guard-on difference L2.
+Every user-declared real-model run also needs one `HOST_RESULT=COMPLETED` event.
+Process exit zero alone is insufficient because a harness may encode model or
+configuration failure in its stream while exiting normally.
+Other host settings are not bound by the evidence format; the experimenter
+must hold them constant and record how that equality was checked.
+
+The deterministic snapshot control submits an in-memory tar containing four
+synthetic source classes to an authenticated IPv4-loopback route. The sink
+validates and discards it, retaining only hashes, sizes, stages, and bait IDs.
+This calibrates archive/sink evidence; it does not provide general file-read
+telemetry, prove an external upload, or show that a PreToolUse hook can mediate
+a harness-owned background sidecar.
+
+This layout separates accidental access in the intended workflow, not OS
+privileges. A same-UID adversary can inspect or alter both sides. See
+[guard-lab](guard-lab.md) for the evidence semantics and unsupported channels.
+
+## Opt-in DSH text-read boundary
+
+The [experimental read prototype](test-report-dsh-read-redaction.md) adds a
+separate post-execute path for reviewed, artifact-pinned native text-read
+contracts (local FS and DSH `0.2.0-rc.2` sandbox FS):
+native complete read value → bounded Python stdin worker → existing Core
+scan/policy/plan → native value replacement → regenerated content and meta.
+The original filesystem access remains owned by DSH. The worker is a trusted
+local controller subprocess and reads no target file. The default bundle and
+reviewed deletion-only Lab profiles keep this path disabled.
+
+Native validation uses the actual read, AgentLoop and JSONL backend with a
+deterministic synthetic stream; it checks next-request content and durable
+metadata too; the [current review](test-report-release-readiness-0.2.3.md)
+records both new-host providers. Pagination, custom finalizers/unreviewed providers, PTC, other tools and
+events before this hook remain outside this boundary. No real-model L2
+evidence follows from the zero-model probe.
+
 ## The Decision Protocol
 
 The stable cross-harness interface is not allow/block:
@@ -184,6 +250,10 @@ FORBIDDEN (BLOCK, never askable).
    targets outside the workspace neither leak nor block.
 6. **Self-exclusion.** Targets inside `.agent-trash/` are exempted from
    quarantine - housekeeping cannot recurse into itself forever.
+7. **Diagnostics do not silently become enforcement.** `guard-lab` records
+   declared synthetic channels and evaluates one case criterion. It does not
+   feed a Lab observation into Core policy or claim to ban model calls. A real
+   block would require a host hook or request gateway that owns the call.
 
 ## Harness adapter model
 
@@ -230,6 +300,11 @@ order of value:
     broader UNC/device paths and full-suite portability still require
     separate evidence. A focused Core runner is not a universal Windows E2E
     claim.
+- `0.2.3-rc2` source candidate: offline `guard-lab` MVP with disposable
+  synthetic fixtures, zero-token controls, a bounded loopback observer,
+  explicit-output marker scanning, chained evidence, and fail-inconclusive
+  reports. General file-read visibility, remote callbacks, real-model rating,
+  and universal model-call blocking are deliberately outside this MVP.
 - V2: `git-guard` skill (remote ref protection with lease semantics);
   adapter hardening (host-side mode storage, tamper-evident audit).
 - V3+: `database-guard` (compensations = transaction / backup /

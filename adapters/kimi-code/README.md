@@ -17,6 +17,13 @@ exit-2 hook path on an OAuth official route and on official K3 through a
 maintainer-confirmed trusted relay. See the
 [bounded report](../../docs/test-report-kimi-code-block.md).
 
+For the separate honeytoken experiment, see the
+[guard-lab pair and local follow-up](../../docs/test-report-kimi-guard-lab.md).
+Its recorded tool-channel exposure and matched guarded observation are distinct
+from native Bash interception. A local doctor pass does not rerun that pair.
+Use the [private capture/review helper](harness/README.md) to repeat the Lab
+workflow with a pinned executable and separate role-channel scans.
+
 ## Contract (what was checked, not assumed)
 
 | Surface | Kimi Code 0.42.0 | Claude Code | Match |

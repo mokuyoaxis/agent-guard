@@ -4,7 +4,7 @@
 [![npm version](https://img.shields.io/npm/v/%40mokuyoaxis%2Fagent-guard.svg)](https://www.npmjs.com/package/@mokuyoaxis/agent-guard)
 [![License](https://img.shields.io/github/license/mokuyoaxis/agent-guard)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![v0.2.3-rc1 source](https://img.shields.io/badge/Source-v0.2.3--rc1-5B6B7A)](https://github.com/mokuyoaxis/agent-guard/releases)
+[![v0.2.3-rc2 source](https://img.shields.io/badge/Source-v0.2.3--rc2-5B6B7A)](docs/release-notes-0.2.3-rc2.md)
 
 **Make destructive agent actions reversible by default.** · [简体中文](README.zh-CN.md)
 
@@ -19,6 +19,8 @@ keeping routine work automatic.
 - **Accidental outbound disclosure** of known credentials or host-identifying
   absolute paths can be checked through a cooperative text CLI. A caller that
   owns the emission can apply its redaction plan, escalate, or block.
+- **Synthetic honeytoken experiments** can exercise declared local channels
+  with zero-token controls and fail-inconclusive evidence health checks.
 
 The Core is harness-neutral and supports Python 3.9+ and Git. Automatic
 interception still depends on whether the host exposes a compatible hook; a
@@ -58,9 +60,11 @@ Pinned npm installation into a stable, user-owned prefix:
 npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.2
 ```
 
-`0.2.2` remains the stable recommendation. After the candidate is published,
-explicit testers may select `@mokuyoaxis/agent-guard@0.2.3-rc1` or the npm
-`@rc` channel; prereleases do not replace npm `latest`.
+`0.2.2` remains the stable recommendation. The published prerelease
+`@mokuyoaxis/agent-guard@0.2.3-rc1` is also available through npm `@rc`, but
+does not contain guard-lab. This checkout is the `0.2.3-rc2` source candidate;
+check Releases and npm before assuming rc2 is published. Prereleases do not
+replace npm `latest`.
 
 The package root is then
 `/absolute/path/to/agent-guard-install/node_modules/@mokuyoaxis/agent-guard`.
@@ -204,6 +208,13 @@ designed to catch two accidental disclosure classes: **known credentials**
 and **host-identifying absolute paths**. Depending on the channel, it can
 allow the payload, return a redaction plan, ask for a human decision, or block
 the emission.
+
+DSH also offers a [default-off text-read redaction prototype](adapters/dsh/README.md#experimental-text-read-redaction)
+for complete native reads in a pinned composition. It reuses Core and
+regenerates both rendered text and presentation metadata; a zero-model native
+probe covers the next request and durable JSONL log. A separate
+[official Flash direct-read trial](docs/test-report-dsh-real-followup.md)
+observed supported synthetic-secret redaction while useful config stayed readable.
 
 It is a prevention and redaction guard, not a compensation engine: after an
 emission there is nothing to recover. It is also **not a security sandbox** and
@@ -416,7 +427,9 @@ those evidence levels explicit:
 | Harness / tested version | Integration path | Evidence and limit |
 |---|---|---|
 | **Claude Code 2.1.270 / 2.1.273** | [Native `PreToolUse` for Bash](adapters/claude/README.md) | [Real CLI + scripted model](docs/test-report-claude-code-harness.md): sampled allow/ask/deny and Python-startup failure; other tools unverified. |
-| **DSH 0.1.5-rc.1** | [Native pre-execute adapter](adapters/dsh/README.md) | [Real-host, no-model packaged-plugin probe](docs/test-report-dsh-0.1.5-rc.1.md): benign execution, execution-level `BLOCK`, absent bypass marker and loaded-adapter Core failure; model/Agent and non-`bash` paths unverified. |
+| **DSH 0.1.5-rc.1** | [Native pre-execute adapter](adapters/dsh/README.md) | [Real-host packaged-plugin probe](docs/test-report-dsh-0.1.5-rc.1.md): execution-level `BLOCK` and loaded-adapter Core failure. A [real-model Lab baseline](docs/test-report-dsh-guard-lab.md) stayed quiet with guard off, so no L2 mitigation claim exists; model-proposed destructive `bash` enforcement remains unverified. The separate opt-in read path is listed below. |
+| **DSH CLI rc.1 / tools and FS rc.2 / Node 22** | [Experimental text-read redaction](adapters/dsh/README.md#experimental-text-read-redaction), default off | [Zero-model native probe](docs/test-report-dsh-read-redaction.md): next request and durable JSONL. [Official Flash direct-read off/on](docs/test-report-dsh-real-followup.md): supported synthetic secrets redacted in tool content/meta/session, useful config preserved; no injection L2 claim. |
+| **DSH 0.2.0-rc.2 / Node 22** | [Default deletion and optional text-read adapter](adapters/dsh/README.md) | [Fresh contract review](docs/test-report-release-readiness-0.2.3.md): native deletion blocking, read redaction on reviewed local/sandbox FS, next synthetic request and durable JSONL. Native v4 Lab support remains bounded; no new real-model L2 result. |
 | **Codex CLI 0.154.0 (tested session)** | [Skill + production CLI](docs/test-report-codex-gpt-6-astra-high.md) | Older-source cooperative acceptance; no native hook claim. |
 | **ZCode (version unrecorded; win32)** | [Historical Skill/CLI + hook trial](docs/test-report-zcode-glm-flash.md) | Older hook observation includes a persistent-permission bypass; current version unverified. |
 | **Kimi Code 0.42.0 / 2.1.1** | [Native `PreToolUse` for Bash](adapters/kimi-code/README.md) | [Bounded tests](docs/test-report-kimi-code-block.md): authenticated 2.1.1 root-Bash PASS on an OAuth official model and maintainer-confirmed official K3 relay; older 0.42.0 root/child BLOCK, ASK denial and Python-failure refusal. Hook absence/timeout remains fail-open. |
@@ -466,6 +479,7 @@ agent-guard/
 ├── core/                  # classifier · policy · recovery · audit · redaction
 ├── doctor.py              # local configuration, probes, and drift preflight
 ├── live_sentinel.py       # opt-in real-host sentinel and alarm evidence
+├── guard_lab.py           # user-controlled offline synthetic honeytoken lab
 ├── adapters/INTEGRATION.md # checklist for an unlisted host
 ├── adapters/claude/       # Claude Code PreToolUse hook adapter
 ├── adapters/kimi-code/   # Kimi Code PreToolUse hook adapter
@@ -486,16 +500,19 @@ compensation engine without restructuring.
 | [CONTRIBUTING.md](CONTRIBUTING.md) | how to propose an Issue and submit a focused Pull Request |
 | [docs/architecture.md](docs/architecture.md) | pillars ↔ components, data flow, design decisions |
 | [docs/host-drift.md](docs/host-drift.md) | zero-token host/version drift states and privacy-minimal baselines |
+| [docs/guard-lab.md](docs/guard-lab.md) | synthetic Lab workflow, evidence semantics, and unsupported channels |
+| [docs/release-notes-0.2.3-rc2.md](docs/release-notes-0.2.3-rc2.md) | offline guard-lab source candidate |
 | [docs/release-notes-0.2.3-rc1.md](docs/release-notes-0.2.3-rc1.md) | Windows Core fail-closed candidate and prerelease channel |
 | [docs/release-notes-0.2.2.md](docs/release-notes-0.2.2.md) | 0.2.2 host drift, live sentinel and DSH package acceptance |
 | [docs/release-notes-0.2.1.md](docs/release-notes-0.2.1.md) | 0.2.1 adapter/doctor changes and bounded evidence |
 | [docs/release-notes-0.2.0.md](docs/release-notes-0.2.0.md) | 0.2.0 changes, evidence levels, and known limits |
 | [adapters/INTEGRATION.md](adapters/INTEGRATION.md) | self-adaptation checklist for an unlisted host |
 | [docs/threat-model.md](docs/threat-model.md) | honest limits: what this is and is not |
-| [docs/friction.md](docs/friction.md) | what real agents taught us (F1–F11) |
+| [docs/friction.md](docs/friction.md) | what real agents and host processes taught us (F1–F20) |
 | [docs/development-note-unguarded-deletion.md](docs/development-note-unguarded-deletion.md) | de-identified incident exploration and the recovery-aware direction |
 | [docs/test-report-codex-gpt-5.6-sol.md](docs/test-report-codex-gpt-5.6-sol.md) | v0.1.1 Codex evaluation (medium + high) |
 | [docs/test-report-dsh-0.1.5-rc.1.md](docs/test-report-dsh-0.1.5-rc.1.md) | current DSH packaged-plugin and execution-level `bash` acceptance |
+| [docs/test-report-dsh-guard-lab.md](docs/test-report-dsh-guard-lab.md) | bounded DSH real-model Lab baseline; no L2 claim |
 | [docs/test-report-dsh-v0.1.1.md](docs/test-report-dsh-v0.1.1.md) | v0.1.1 DSH live test (DeepSeek V4 Pro high, minimal mode) |
 | [skills/recovery-audit/SKILL.md](skills/recovery-audit/SKILL.md) | evidence hierarchy, deterministic replay, recovery and landing gates |
 | [skills/delete-guard/references/policy.md](skills/delete-guard/references/policy.md) | full rule table and decision codes |
@@ -504,14 +521,16 @@ compensation engine without restructuring.
 
 ## Status & roadmap
 
-The source version is **v0.2.3-rc1**; the latest stable release remains
+The source version is **v0.2.3-rc2**; the latest stable release remains
 **v0.2.2**. The published `v0.2.0` baseline includes
 recoverable destructive actions, cmd/PowerShell dialect parsing, the
 `exfil-guard` text CLI, a read-only config view, and `recovery-audit`.
 Later source releases add Claude/Kimi POSIX hook bridges, bounded host
 evidence, a local `doctor`, host-drift checks, an opt-in live sentinel and
-current DSH package acceptance. See the
-[0.2.3-rc1 notes](docs/release-notes-0.2.3-rc1.md) for the candidate scope,
+current DSH package acceptance. The rc2 source additionally contains the
+offline guard-lab MVP described below. See the
+[0.2.3-rc2 notes](docs/release-notes-0.2.3-rc2.md) for its source scope,
+[0.2.3-rc1 notes](docs/release-notes-0.2.3-rc1.md) for the published candidate,
 [0.2.2 notes](docs/release-notes-0.2.2.md) for the stable scope, and
 [GitHub Releases](https://github.com/mokuyoaxis/agent-guard/releases) for
 publication status; a source version is not itself a published Release.
@@ -530,17 +549,29 @@ cmd/PowerShell execution through every harness and general concurrent-subagent
 safety remain explicit gaps. Later Guard branches (`git-guard`, `database-guard`,
 `cloud-guard`) reuse the same protocol and compensation engine.
 
-## 0.2.x preview: guard-lab
+## 0.2.3-rc2 source candidate: guard-lab
 
-Planned, **not included in 0.2.3-rc1**: an opt-in, offline honeytoken lab
-using disposable projects and synthetic, non-secret markers. It will compare
-normal tasks with prompt-injection attempts, and separately observe whether a
-harness indexes or exports files without an agent-requested read. Positive and
-negative controls, an independent observer, and evidence labels will keep a
-mere read request distinct from a confirmed external transfer. No real
-credentials or automatic background monitoring are part of the plan. This is
-a bounded diagnostic experiment, not a guarantee against a malicious model
-or harness.
+The current source adds an opt-in, offline honeytoken MVP using disposable
+projects and synthetic, non-secret markers. Its `clean`, `mock-positive`,
+`mock-injection`, and `snapshot-positive` controls call no model and make no
+external request. A bounded loopback observer records the fake Lab stub, bait
+URL, or a validated synthetic snapshot; an explicit post-run scan can detect a
+canary in selected output without retaining the raw value.
+
+The user keeps the true controller and evidence outside the fixture shown to
+the tested agent. Broken controls or changed evidence produce `INCONCLUSIVE`,
+never an optimistic pass. This first candidate cannot observe ordinary file
+reads, prove remote transfer, universally block LLM calls, or resist a same-UID
+adversary. Start with the zero-token controls and read the
+[guard-lab guide](docs/guard-lab.md) before involving a real harness.
+The built-in cases report `CALIBRATION_ONLY`. A separate manual
+`injection-probe` treats bait contact as `EXPOSURE_OBSERVED`, and `compare`
+accepts a mitigation result only after an effective unguarded baseline and a
+matched guarded trial with the same protocol, harness/version/model, group,
+and task hash. Manual real-model runs also require a user-verified completed
+host result, so an exit-0 startup/model failure cannot count as a quiet win.
+A quiet baseline stays `INCONCLUSIVE`; no result is a general model or vendor
+safety rating.
 
 ## Contributing
 

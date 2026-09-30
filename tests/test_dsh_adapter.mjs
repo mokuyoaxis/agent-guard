@@ -22,15 +22,18 @@ try {
   const defaults = {
     repoRoot: "", defaultCwd: "", promptSection: true,
     sectionOrder: 105, dialect: "",
+    readResultGuard: false, readGuardDshRoot: "",
   };
   assert.deepEqual(validate(undefined), { value: defaults });
   assert.deepEqual(validate({}), { value: defaults });
   assert.deepEqual(validate({
     repoRoot: "/checkout", defaultCwd: "/workspace",
     promptSection: false, sectionOrder: 0, dialect: "PWSH",
+    readResultGuard: false, readGuardDshRoot: "",
   }), { value: {
     repoRoot: "/checkout", defaultCwd: "/workspace",
     promptSection: false, sectionOrder: 0, dialect: "PWSH",
+    readResultGuard: false, readGuardDshRoot: "",
   } });
   for (const value of [null, false, 4, "posix", []]) {
     const result = validate(value);
@@ -41,6 +44,7 @@ try {
     repoRoot: [null, 5], defaultCwd: [false, null],
     promptSection: ["false", 0], sectionOrder: ["105", NaN, Infinity, -Infinity],
     dialect: [null, 42, " ", "bogus"],
+    readResultGuard: ["false", 0], readGuardDshRoot: [null, 42],
   })) {
     for (const value of values) {
       const result = validate({ [key]: value });
@@ -53,6 +57,8 @@ try {
   assert.deepEqual(multiError.issues.map((issue) => issue.path[0]),
     ["promptSection", "dialect"]);
   assert.deepEqual(validate({ dialetc: "cmd" }).issues[0].path, ["dialetc"]);
+  assert.ok(validate({ readResultGuard: true }).issues?.length);
+  assert.equal(validate({ readResultGuard: true, readGuardDshRoot: "/host/dsh", defaultCwd: "/workspace" }).value.readResultGuard, true);
 
   const registered = [];
   const handlers = [];
@@ -107,7 +113,7 @@ try {
     },
   };
 
-  adapter.apply(ctx, {
+  await adapter.apply(ctx, {
     repoRoot,
     defaultCwd: "",
     promptSection: true,
@@ -250,8 +256,51 @@ try {
     safeDeleteTool.execute({ paths: ["valid", 42] }, {}),
     /paths items must be strings/
   );
+  // Native DSH 0.2 has execute()/result(), with no run(). Verify completion
+  // and failures at both stages, preserving the caller's execution policy.
+  const legacyRun = shell.run;
+  delete shell.run;
+  const nativeRequests = [];
+  let nativeFailure;
+  shell.execute = async (spec) => {
+    nativeRequests.push(spec);
+    if (nativeFailure === "prepare") throw new Error("synthetic prepare failure");
+    return { result: async () => {
+      if (nativeFailure === "result") throw new Error("synthetic spawn failure");
+      return {
+        stdout: { text: JSON.stringify({ decision: "BLOCK", code: "BLOCK_PROTECTED_PATH" }) },
+        stderr: { text: "" }, exitCode: 0,
+      };
+    } };
+  };
+  const nativeSignal = new AbortController().signal;
+  const nativeExec = { name: "bash", signal: nativeSignal,
+    arguments: { command: "rm -rf .", workdir: "/synthetic/workspace" } };
+  const nativeBlocked = await handlers[0].handler(nativeExec, next);
+  assert.equal(nativeBlocked.kind, "deny");
+  assert.match(nativeBlocked.reason, /BLOCK_PROTECTED_PATH/);
+  assert.equal(nativeRequests[0].signal, nativeSignal);
+  assert.equal(nativeRequests[0].workdir, "/synthetic/workspace");
+  assert.equal(nativeRequests[0].timeoutMs, 90000);
+  const nativeStatus = await statusTool.execute({}, {});
+  assert.equal(nativeStatus.ok, true);
+  // A legacy method must never be retried after the new execution started.
+  shell.run = () => { throw new Error("legacy fallback must not run"); };
+  for (const stage of ["prepare", "result"]) {
+    nativeFailure = stage;
+    const rejected = await handlers[0].handler(nativeExec, next);
+    assert.equal(rejected.kind, "deny");
+    assert.match(rejected.reason, /fail-closed/);
+    await assert.rejects(statusTool.execute({}, {}), /synthetic .* failure/);
+  }
+  assert.equal(continued, 2);
+  delete shell.execute;
+  shell.run = legacyRun;
   assert.equal(typeof cleanup, "function");
   cleanup();
+  await assert.rejects(adapter.apply({ get: () => undefined }, {
+    repoRoot, readResultGuard: true,
+  }), /READ_GUARD_STARTUP_REFUSED/);
   console.log("DSH adapter smoke test passed");
 } finally {
   await fs.rm(scratch, { recursive: true, force: true });

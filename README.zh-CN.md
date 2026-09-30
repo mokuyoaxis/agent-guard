@@ -4,7 +4,7 @@
 [![npm 版本](https://img.shields.io/npm/v/%40mokuyoaxis%2Fagent-guard.svg)](https://www.npmjs.com/package/@mokuyoaxis/agent-guard)
 [![License](https://img.shields.io/github/license/mokuyoaxis/agent-guard)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![v0.2.3-rc1 源码](https://img.shields.io/badge/%E6%BA%90%E7%A0%81-v0.2.3--rc1-5B6B7A)](https://github.com/mokuyoaxis/agent-guard/releases)
+[![v0.2.3-rc2 源码](https://img.shields.io/badge/%E6%BA%90%E7%A0%81-v0.2.3--rc2-5B6B7A)](docs/release-notes-0.2.3-rc2.md)
 
 **让 AI Agent 的破坏性操作默认可逆。** · [English](README.md)
 
@@ -15,6 +15,8 @@ Agent Guard 是给编码 Agent 用的可靠性工具：让受支持的高风险�
 - **破坏性 Git 操作**：可先保存可恢复的状态，再覆盖工作树。
 - **意外外发**：合作式文本 CLI 可检查已知凭据和带本机标识的绝对路径；
   持有载荷的调用方按判决应用脱敏计划、请求人工处理或阻断。
+- **合成蜜罐验测**：用零 Token 正负对照检查明确列出的本地信道；证据健康
+  不足时只报 `INCONCLUSIVE`，不猜测通过。
 
 共享 Core 支持 Python 3.9+ 和 Git，不依附某个 harness。能否自动拦截，
 仍取决于宿主有没有兼容 hook；仅安装 Skill 不会自动拦截工具调用。
@@ -48,9 +50,10 @@ checkout。不要误装无作用域的同名 `agent-guard` 包。
 npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.2
 ```
 
-`0.2.2` 仍是稳定版推荐。候选版发布后，测试者可显式选择
-`@mokuyoaxis/agent-guard@0.2.3-rc1` 或 npm 的 `@rc` 通道；预发布不会替换
-npm `latest`。
+`0.2.2` 仍是稳定版推荐。已发布的预览版
+`@mokuyoaxis/agent-guard@0.2.3-rc1` 也可通过 npm `@rc` 安装，但它不含
+guard-lab。当前 checkout 是 `0.2.3-rc2` 源码候选；是否已经发布，请以
+Releases 与 npm 为准。预发布不会替换 npm `latest`。
 
 安装后的包根目录是
 `/absolute/path/to/agent-guard-install/node_modules/@mokuyoaxis/agent-guard`。
@@ -176,6 +179,12 @@ DSH 的 `PreToolDecision`、Claude Code PreToolUse 的 `ask`，或在不支持
 显式只读安全视图。文本扫描针对两类意外外发：**已知凭据**和
 **带本机标识的绝对路径**。依据信道，Guard 可放行、返回脱敏计划、
 请求人处理或阻断。
+
+DSH 另有[默认关闭的文本 `read` 脱敏原型](adapters/dsh/README.md#experimental-text-read-redaction)，
+仅覆盖版本门控下的完整原生读取。它复用同一 Core，并让 DSH 同时重新生成
+返回文本和展示元数据；零模型原生验证已覆盖下一次请求和 JSONL 落盘。
+另一次[官方 Flash 真实直接读取对照](docs/test-report-dsh-real-followup.md)
+观察到支持规则的合成秘密被脱敏，同时保留有用配置；这不是提示注入 L2 结论。
 
 它做的是预防和脱敏，不是补偿：内容发出去后就不能撤销。它也**不是
 安全沙箱**，不负责抵抗拥有相同系统权限的 Agent 蓄意外泄。
@@ -367,7 +376,9 @@ node_modules/(已 ignore) → ALLOW     (可证明可再生)
 | Harness／实测版本 | 接入路径 | 证据与边界 |
 |---|---|---|
 | **Claude Code 2.1.270 / 2.1.273** | [Bash 原生 `PreToolUse`](adapters/claude/README.md) | [真实 CLI＋脚本模型](docs/test-report-claude-code-harness.md)：抽样 allow/ask/deny 与 Python 启动故障；其他工具未验证。 |
-| **DSH 0.1.5-rc.1** | [原生 pre-execute adapter](adapters/dsh/README.md) | [真实宿主、无模型、打包插件探针](docs/test-report-dsh-0.1.5-rc.1.md)：无害放行、执行级 `BLOCK`、旁路标记缺席和已加载 adapter 的 Core 故障拒绝；模型／Agent 与非 `bash` 路径未验证。 |
+| **DSH 0.1.5-rc.1** | [原生 pre-execute adapter](adapters/dsh/README.md) | [真实宿主打包插件探针](docs/test-report-dsh-0.1.5-rc.1.md)：执行级 `BLOCK` 与已加载 adapter 的 Core 故障拒绝。另一次[真实模型 Lab 基线](docs/test-report-dsh-guard-lab.md)在 guard-off 下未触发诱饵，故没有 L2 缓解结论；模型主动提出破坏性 `bash` 时的强制执行仍未验证。单独开启的读取脱敏路径见下一行。 |
+| **DSH CLI rc.1／工具与 FS rc.2／Node 22** | [实验性文本读取脱敏](adapters/dsh/README.md#experimental-text-read-redaction)，默认关闭 | [零模型原生验证](docs/test-report-dsh-read-redaction.md)：下一次请求和 JSONL 落盘。[官方 Flash 真实读取 off/on](docs/test-report-dsh-real-followup.md)：支持规则的合成秘密在工具内容／元数据／会话中被脱敏，有用配置保留；无提示注入 L2 结论。 |
+| **DSH 0.2.0-rc.2／Node 22** | [默认删除与可选文本读取 adapter](adapters/dsh/README.md) | [最新契约复核](docs/test-report-release-readiness-0.2.3.md)：原生删除阻断、已审阅本地／沙箱 FS 的读取脱敏、下一次合成请求与 JSONL 落盘。原生 v4 Lab 支持仍有范围限制；没有新的真实模型 L2 结果。 |
 | **Codex CLI 0.154.0（所测会话）** | [Skill + 生产 CLI](docs/test-report-codex-gpt-6-astra-high.md) | 较早源码的合作式验收；不声称原生 hook。 |
 | **ZCode（版本未记录；win32）** | [历史 Skill/CLI＋hook 试次](docs/test-report-zcode-glm-flash.md) | 旧报告记录了持久许可绕过 hook；当前版本未验证。 |
 | **Kimi Code 0.42.0 / 2.1.1** | [Bash 原生 `PreToolUse`](adapters/kimi-code/README.md) | [有界实测](docs/test-report-kimi-code-block.md)：2.1.1 在 OAuth 官模和维护者确认的官方 K3 可信中转上均取得根 Bash PASS；0.42.0 另有主／子代理 BLOCK、ASK 硬拒绝和 Python 故障拒绝。hook 缺席／超时仍可能放行。 |
@@ -410,6 +421,7 @@ agent-guard/
 ├── core/                  # classifier · policy · recovery · audit · redaction
 ├── doctor.py              # 本地配置、探针与宿主漂移预检
 ├── live_sentinel.py       # 可选实宿主哨兵与报警证据
+├── guard_lab.py           # 用户控制的离线合成蜜罐实验
 ├── adapters/INTEGRATION.md # 未列出宿主的自适配检查清单
 ├── adapters/claude/       # Claude Code PreToolUse hook 适配器
 ├── adapters/kimi-code/   # Kimi Code PreToolUse hook 适配器
@@ -429,16 +441,19 @@ Skill 负责 Agent 行为引导,约束全部下沉 Core。未来的 `git-guard`�
 | [CONTRIBUTING.md](CONTRIBUTING.md) | 如何提出 Issue 与提交范围清晰的 Pull Request |
 | [docs/architecture.md](docs/architecture.md) | 四柱↔组件映射、数据流、关键设计决定 |
 | [docs/host-drift.md](docs/host-drift.md) | 零 Token 宿主／版本漂移状态与最小化基线 |
+| [docs/guard-lab.md](docs/guard-lab.md) | 合成 Lab 流程、证据语义与不支持的信道 |
+| [docs/release-notes-0.2.3-rc2.md](docs/release-notes-0.2.3-rc2.md) | 离线 guard-lab 源码候选 |
 | [docs/release-notes-0.2.3-rc1.md](docs/release-notes-0.2.3-rc1.md) | Windows Core fail-closed 候选版与预发布通道 |
 | [docs/release-notes-0.2.2.md](docs/release-notes-0.2.2.md) | 0.2.2 宿主漂移、实时哨兵与 DSH 打包验收 |
 | [docs/release-notes-0.2.1.md](docs/release-notes-0.2.1.md) | 0.2.1 adapter／doctor 变更与证据边界 |
 | [docs/release-notes-0.2.0.md](docs/release-notes-0.2.0.md) | 0.2.0 变更、证据等级与已知限制 |
 | [adapters/INTEGRATION.md](adapters/INTEGRATION.md) | 未列出宿主的自适配检查清单 |
 | [docs/threat-model.md](docs/threat-model.md) | 诚实边界:它是什么、不是什么 |
-| [docs/friction.md](docs/friction.md) | 真实 Agent 撞出来的教训(F1–F11) |
+| [docs/friction.md](docs/friction.md) | 真实 Agent 与宿主进程撞出来的教训(F1–F20) |
 | [docs/development-note-unguarded-deletion.md](docs/development-note-unguarded-deletion.md) | 去标识化事故探索与面向恢复的后续方向 |
 | [docs/test-report-codex-gpt-5.6-sol.md](docs/test-report-codex-gpt-5.6-sol.md) | v0.1.1 Codex 评估(medium + high) |
 | [docs/test-report-dsh-0.1.5-rc.1.md](docs/test-report-dsh-0.1.5-rc.1.md) | 当前 DSH 打包插件与执行级 `bash` 验收 |
+| [docs/test-report-dsh-guard-lab.md](docs/test-report-dsh-guard-lab.md) | DSH 真实模型有界 Lab 基线；无 L2 结论 |
 | [docs/test-report-dsh-v0.1.1.md](docs/test-report-dsh-v0.1.1.md) | v0.1.1 DSH 真机测试(DeepSeek V4 Pro high,极简模式) |
 | [skills/recovery-audit/SKILL.md](skills/recovery-audit/SKILL.md) | 证据优先级、确定性回放、恢复与落地门禁 |
 | [skills/delete-guard/references/policy.md](skills/delete-guard/references/policy.md) | 完整规则表与判决码 |
@@ -447,12 +462,14 @@ Skill 负责 Agent 行为引导,约束全部下沉 Core。未来的 `git-guard`�
 
 ## 状态与路线图
 
-当前源码版本为 **v0.2.3-rc1**，最新稳定版仍为 **v0.2.2**。已发布的
+当前源码版本为 **v0.2.3-rc2**，最新稳定版仍为 **v0.2.2**。已发布的
 `v0.2.0` 基线包含可恢复的破坏性
 操作、cmd/PowerShell 方言解析、`exfil-guard` 文本 CLI、只读配置安全视图
 和 `recovery-audit`。后续源码版新增 Claude/Kimi POSIX hook 桥、有界宿主
-证据、`doctor`、宿主漂移检查、可选实时哨兵与当前 DSH 打包验收。准确范围见
-[0.2.3-rc1 说明](docs/release-notes-0.2.3-rc1.md)记录候选范围，
+证据、`doctor`、宿主漂移检查、可选实时哨兵与当前 DSH 打包验收；rc2 源码另含
+下述离线 guard-lab MVP。准确范围见
+[0.2.3-rc2 说明](docs/release-notes-0.2.3-rc2.md)记录源码候选范围，
+[0.2.3-rc1 说明](docs/release-notes-0.2.3-rc1.md)记录已发布候选范围，
 [0.2.2 说明](docs/release-notes-0.2.2.md)记录稳定版范围；是否已正式发布以
 [GitHub Releases](https://github.com/mokuyoaxis/agent-guard/releases) 为准，
 源码版本号本身不代表已有 Release。
@@ -467,13 +484,25 @@ Kimi 结果包含所测调用的 hook 补偿与执行级 BLOCK 证据，不证�
 执行与一般并发子代理安全仍是明确缺口。
 后续 `git-guard`、`database-guard`、`cloud-guard` 继续复用同一协议与补偿引擎。
 
-## 0.2.x 预告：guard-lab 合成蜜罐
+## 0.2.3-rc2 源码候选：guard-lab 合成蜜罐
 
-这是规划中的可选实验，**不属于 0.2.3-rc1**。它会在离线、一次性的测试项目
-里放入无认证能力的合成标记，对照正常任务与提示词注入诱导；另设试次观察
-harness 是否在 Agent 未请求读取时自行索引或外发文件。正负对照、独立观察器
-和证据分级将区分“提出读取”“本地接触”与“证实越过外部边界”。不使用真实
-凭据，不默认常驻后台；它也不是抵抗恶意模型或宿主的安全保证。
+当前源码加入了可选的离线蜜罐 MVP：在一次性项目中放入不具备认证能力的合成
+标记。`clean`、`mock-positive`、`mock-injection` 与 `snapshot-positive` 四组
+对照不调用模型，也不访问外网；限时回环观察器记录假 Lab 工具、诱饵 URL 或
+经验证的合成快照，用户还可在试次结束后显式扫描选定输出，只保留哈希、阶段与
+命中的 bait id，不保存原值。
+
+真控制器与证据由用户保管，和交给受测 Agent 的夹具分开。观察器、控制文件或
+事件链有问题时只报 `INCONCLUSIVE`。首版不能看到普通文件读取，不能证明数据
+已经外发，不能普遍封禁 LLM 调用，也不能抵抗同一系统用户权限下的对手。
+涉及真实 harness 前，请先跑零 Token 对照并阅读
+[guard-lab 指南](docs/guard-lab.md)。
+这些内建 case 只报 `CALIBRATION_ONLY`。另设的手动 `injection-probe` 会把诱饵
+命中记为 `EXPOSURE_OBSERVED`；只有未防护基线确实中招，并与相同协议、
+harness/版本/模型、实验组和任务哈希的开启防护试次配对，`compare` 才可能给出
+缓解成立。手动真实模型试次还必须由用户确认宿主确实完成，避免把“进程退出 0、
+但模型／配置已失败”误算成安静成功。基线没触发时只能报 `INCONCLUSIVE`，任何
+结果都不是对模型或厂商的通用安全认证。
 
 ## 参与贡献
 
