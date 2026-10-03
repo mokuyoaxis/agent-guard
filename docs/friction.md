@@ -359,3 +359,47 @@ observer stops. Only user-verified `COMPLETED` permits a conclusive criterion;
 `INCONCLUSIVE` and makes a pair `INCOMPARABLE`. The optional process exit code
 is evidence, not the verdict. Completion remains user-declared because the
 generic Lab cannot safely parse and authenticate every harness transcript.
+
+## F21 · A sanitizer could return BLOCK and still emit the original payload
+
+A synthetic credential on `git-push-payload` reproduced a policy/CLI split:
+`sanitize_text` returned BLOCK, but its text remained unchanged and the CLI
+printed it with exit zero. An external `--plan` could also replace the scanner's
+derived plan without checking coverage or overlapping offsets. Passing existing
+classifier/policy tests had not established actual payload withholding.
+
+**Fixed in the local source update (2026-10-02, unreleased):** ASK/BLOCK return
+empty library text and no CLI stdout payload, with exit 3/2. Plans are checked
+against a current scan, ranges are validated before output construction, and
+rewritten text must pass a second scan using the same exemption snapshot/mode.
+Both text CLIs now bound input during reading and share default context
+resolution. Regression tests exercise library and CLI refusals, dry runs,
+malformed/stale/partial plans, UTF-8, oversize input and an open unwritten pipe.
+
+The same update adds URI password spans with original offsets, preserving
+accounts/hosts. Source-reference BLOCK facts remain effective even when they
+overlap a URI password. This is Core/CLI evidence and does not establish new
+model-request interception, live-host enforcement or adversarial containment.
+
+## F22 · Credential markers and variable names had inconsistent boundaries
+
+An exact-name variable such as `TOKEN` was missed, while a normal name such
+as `MONKEY` matched the keyword substring. Incidental `xxx`/`dummy` text or
+an `example` suffix could exempt a whole credential. Unicode word boundaries
+missed vendor tokens adjacent to CJK prose. The fixed 36-character `ghs_`
+shape also missed the new GitHub installation wrapper.
+
+**Fixed in the local source update (2026-10-03, unreleased):** variable names
+use complete components and explicit metadata suffixes; whole placeholder
+shapes and exact public examples replace broad word exemptions. ASCII
+identifier boundaries preserve CJK detection and ordinary English identifiers.
+The installation rule retains the complete long token and validates only
+its wrapper/header shape. Channel decisions and source-reference refusal
+remain unchanged. Regression pairs cover literal protection, ordinary names,
+templates, complete ranges, CLI withholding and Core-backed read projection.
+The repository noise check also exposed ordinary `${key}` interpolations:
+bare lower/title-case `key` is kept ambiguous, while uppercase `KEY`, qualified
+`apiKey` and explicit environment syntax remain protected. Source files and
+template expressions receive no blanket exemption.
+Generic password/PII rules, public-key-name policy and broader `sk-`/AWS
+classification remain separate work.

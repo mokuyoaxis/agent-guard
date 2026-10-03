@@ -211,6 +211,10 @@ DSH 另有[默认关闭的文本 `read` 脱敏原型](adapters/dsh/README.md#exp
 (整段 `-----BEGIN ... PRIVATE KEY-----` 一次性脱敏)。冻结规则表见
 [skills/exfil-guard/references/rules.md](skills/exfil-guard/references/rules.md)。
 
+`secret/connection-password` 另检测 URI 用户信息中的非空口令，只遮口令，
+保留协议、账号与主机以便排错。支持百分号编码口令和 JSON 转义的协议斜杠；
+这不等于隐藏网络拓扑，也不覆盖所有 DSN 格式。
+
 **不读值的密钥引用**(`secret/source-reference`)。Guard 只对变量**名**
 (`*KEY*`、`*TOKEN*`、`*SECRET*`、`*PASSWORD*`、`*CRED*`、`*AUTH*`)与
 密钥库**文件名**(`.env`、`*.pem`、`id_rsa*`、`.netrc`、`kubeconfig` 等)
@@ -263,6 +267,17 @@ echo 'config: sk-proj-AbCdEf…' | python3 skills/exfil-guard/scripts/sanitize.p
 退出码契约:`0` = ALLOW/SANITIZED · `2` = BLOCK · `3` = ASK · `1` = ERROR。
 `--json` 输出机器可读判决(仅偏移、rule id 与占位符——**绝不含匹配到的
 字节**);`--path` 为即将写入的文件启用仓库本地豁免文件。
+
+`sanitize.py` 同样落实上述退出码：ASK/BLOCK 和错误时 stdout 不输出正文。
+外部 `--plan` 必须与当前扫描一致，改写后复扫通过才输出。两个 CLI 共用默认
+工作区和宿主模式；stdin 在读取时即受到扫描上限限制（默认 4 MiB），外部计划文件
+也受同一上限约束。checker 使用显式模式或路径豁免产生的计划，仍须满足 sanitizer
+当前策略；计划本身不是发送授权。
+
+凭据检测支持经典和 `ghs_APPID_JWT` GitHub 安装令牌，完整遮挡长签名，并能识别
+紧贴中文的凭据。占位符豁免要求完整形状，token 内偶然出现示例词不会整段放行。
+秘密变量引用按名称组成部分判断，保留 `MONKEY` 等普通标识符和 `TOKEN_COUNT`
+等元数据名称。支持的形式和限制见[规则说明](skills/exfil-guard/references/rules.md)。
 
 ### 不打印值地查看配置
 

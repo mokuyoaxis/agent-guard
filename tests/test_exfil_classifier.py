@@ -2,6 +2,8 @@
 
 Facts only - no decisions here (that is test_exfil_policy.py).
 """
+import base64
+import json
 import os
 import sys
 import unittest
@@ -32,6 +34,14 @@ JWT = ("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
 _ARMOR = "-----" + "BEGIN OPENSSH PRIVATE KEY" + "-----"
 _FOOTER = "-----" + "END OPENSSH PRIVATE KEY" + "-----"
 PRIVATE_KEY = _ARMOR + "\n" + "b3BlbnNzaC1rZXktdjEAAAAABG5vbmU" + "\n" + _FOOTER
+
+
+def installation_token(app_id="123456", signature_length=360):
+    def segment(value):
+        return base64.urlsafe_b64encode(json.dumps(value).encode()).decode().rstrip("=")
+    return ("ghs_" + app_id + "_" + segment({"alg": "RS256", "typ": "JWT"})
+            + "." + segment({"aud": "synthetic", "installation": 42})
+            + "." + ("AbCdEf0123456789_-" * signature_length)[:signature_length])
 
 
 def rules(text):
@@ -94,6 +104,55 @@ class T1KnownPatterns(unittest.TestCase):
         self.assertEqual(detect_secrets("sha512-" + "a" * 88), [])
 
 
+class ConnectionPasswords(unittest.TestCase):
+    def test_password_span_preserves_original_coordinates(self):
+        for scheme in ("postgresql", "mysql", "mongodb+srv", "redis", "https"):
+            for password in ("Review72", "a", "test", "1111", "p%40ss%2Fword",
+                             "p@ss:word!$&=+", "秘密口令", r"p\u0040ss"):
+                with self.subTest(scheme=scheme, password=password):
+                    prefix = "中文 dsn=" + scheme + "://" + "account:"
+                    text = prefix + password + "@db.example.invalid:5432/app"
+                    span = one_span(text)
+                    self.assertEqual(span.rule_id, redaction.RULE_CONNECTION_PASSWORD)
+                    self.assertEqual(span.raw, password)
+                    self.assertEqual((span.start, span.end),
+                                     (len(prefix), len(prefix) + len(password)))
+                    self.assertEqual(span.confidence, CONFIDENCE_DETERMINISTIC)
+
+    def test_json_escaped_slashes_and_empty_username(self):
+        for separator in ("://", r":\/\/"):
+            text = '{"dsn":"redis' + separator + ':Review72@[::1]:6379/0"}'
+            self.assertEqual(one_span(text).raw, "Review72")
+
+    def test_explicit_templates_and_non_credentials_are_quiet(self):
+        for password in ("", "<REDACTED>", "<PASSWORD>", "${DB_PASS}",
+                         "%DB_PASS%", "***", "%3CREDACTED%3E"):
+            text = "mysql" + "://" + "user:" + password + "@host/db"
+            self.assertEqual(detect_secrets(text), [], password)
+        for text in ("https://host:8080/app", "ssh://user@host", "file:///tmp/a",
+                     "mysql" + "://" + "user:Review72@", "password=Review72"):
+            self.assertEqual(detect_secrets(text), [])
+
+    def test_partial_template_is_not_an_exemption(self):
+        text = "mysql" + "://" + "user:<PASSWORD>suffix@host/db"
+        self.assertEqual(one_span(text).raw, "<PASSWORD>suffix")
+
+    def test_connection_password_covers_nested_vendor_match(self):
+        password = "prefix-" + OPENAI + "-tail"
+        text = "postgresql" + "://" + "user:" + password + "@host/db"
+        self.assertEqual(one_span(text).raw, password)
+
+    def test_adjacent_uris_are_both_detected(self):
+        text = ("mysql" + "://" + "u:Review72@host;redis" + "://" +
+                ":Other81@host/0")
+        self.assertEqual([s.raw for s in detect_secrets(text)],
+                         ["Review72", "Other81"])
+
+    def test_percent_encoding_does_not_require_valid_utf8(self):
+        text = "mysql" + "://" + "u:p%FFword@host/db"
+        self.assertEqual(one_span(text).raw, "p%FFword")
+
+
 class PlaceholderAllowlist(unittest.TestCase):
     def test_documented_placeholders(self):
         for text in ("YOUR_API_KEY_HERE", "EXAMPLE_SECRET", "changeme",
@@ -116,6 +175,124 @@ class PlaceholderAllowlist(unittest.TestCase):
                 if text == "hunter2hunter2hunter2":
                     continue          # short word; not a T1 pattern either
                 self.assertFalse(is_placeholder(text), text)
+
+
+class CredentialBoundaries(unittest.TestCase):
+    def test_incidental_placeholder_words_do_not_exempt_credentials(self):
+        for word in ("xxx", "dummy", "redact", "placeholder", "changeme", "none"):
+            body = "Q7mN4pR2tV" + word + "H8kL3bD6sF9wZ5aC0uE1" * 2
+            token = "ghp_" + body[:36]
+            with self.subTest(word=word):
+                self.assertFalse(is_placeholder(token))
+                self.assertEqual(one_span(token).raw, token)
+        for word in ("none", "null", "test", "example"):
+            token = "ghp_" + "Q7mN4pR2tVH8kL3bD6sF9wZ5aC0uE1xYz"[:36-len(word)] + word
+            self.assertEqual(one_span(token).raw, token)
+
+    def test_placeholder_words_inside_private_key_body_are_not_exempt(self):
+        for word in ("xxx", "dummy", "redacted"):
+            token = _ARMOR + "\n" + "Q7mN4pR2" + word + "H8kL3bD6\n" + _FOOTER
+            self.assertEqual(one_span(token).raw, token)
+
+    def test_exact_vendor_placeholders_remain_quiet(self):
+        for prefix in ("sk-", "sk-proj-", "ghp_", "glpat-", "xoxb-", "sk_live_"):
+            token = prefix + "x" * 40
+            self.assertTrue(is_placeholder(token))
+            self.assertEqual(detect_secrets(token), [])
+        for text in ("dummy-value", "EXAMPLE_SECRET", "<TOKEN>", "${API_KEY}",
+                     "<REDACTED>", "[REDACTED]", "sk-test"):
+            self.assertTrue(is_placeholder(text), text)
+        for prefix in ("AKIA", "ASIA"):
+            self.assertEqual(detect_secrets(prefix + "IOSFODNN7EXAMPLE"), [])
+
+    def test_mixed_placeholder_and_payload_is_not_an_exemption(self):
+        for body in ("dummy-Q7mN4pR2tVH8kL3bD6sF9", "Q7mN4pR2tVH8kL3bD6sF9-example"):
+            token = "glpat-" + body
+            self.assertEqual(one_span(token).raw, token)
+
+    def test_chinese_adjacent_tokens_preserve_coordinates(self):
+        for token in (OPENAI, GITHUB, GITLAB, SLACK, STRIPE, AWS, JWT,
+                      installation_token()):
+            text = "请保护" + token + "不要泄露"
+            with self.subTest(kind=token[:4]):
+                span = one_span(text)
+                self.assertEqual((span.start, span.end), (3, 3 + len(token)))
+                self.assertEqual(span.raw, token)
+
+    def test_ascii_identifier_prefix_does_not_become_a_token(self):
+        for token in (OPENAI, GITHUB, GITLAB, SLACK, STRIPE, AWS, JWT,
+                      installation_token()):
+            for prefix in ("identifier", "_", "9"):
+                self.assertEqual(detect_secrets(prefix + token), [])
+        self.assertEqual(detect_secrets(GITHUB + "_metadata"), [])
+        self.assertEqual(detect_secrets(AWS + "_identifier"), [])
+
+    def test_new_installation_token_is_one_complete_github_span(self):
+        for app_id in ("123456", "app-ID42"):
+            for length in (80, 360, 800):
+                token = installation_token(app_id, length)
+                span = one_span(token)
+                self.assertEqual(span.rule_id, redaction.RULE_GITHUB_TOKEN)
+                self.assertEqual(span.raw, token)
+
+    def test_installation_prose_and_invalid_header_are_quiet(self):
+        for suffix in ("APPID_JWT", "client.version.component", "your_token_here",
+                       "123456_notbase64.payload.signature"):
+            self.assertEqual(detect_secrets("ghs_" + suffix), [])
+        token = installation_token()
+        self.assertEqual(detect_secrets(token + ".another_segment"), [])
+        for header in ({}, {"alg": None}, {"alg": ""}, {"alg": 123}, ["alg"]):
+            encoded = base64.urlsafe_b64encode(json.dumps(header).encode()).decode().rstrip("=")
+            invalid = "ghs_" + "123456_" + encoded + "." + "c3ludGhldGlj" + "." + "Q7mN4pR2tV" * 8
+            self.assertEqual(detect_secrets(invalid), [])
+
+
+class SecretReferenceNames(unittest.TestCase):
+    def scan(self, text):
+        return redaction.scan_text(text, channel="file-write",
+                                   exemption=redaction.Exemption()).spans
+
+    def test_names_and_complete_components_in_each_supported_syntax(self):
+        for name in ("KEY", "TOKEN", "SECRET", "PASSWORD", "PASSWD", "AUTH", "CRED",
+                     "API_KEY", "REVIEW_SECRET_TOKEN", "AWS_SECRET_ACCESS_KEY",
+                     "TOKEN_VALUE", "apiKey", "accessToken", "ApiKey"):
+            for text in ("$" + name, "${" + name + "}", "$env:" + name, "%" + name + "%"):
+                with self.subTest(name=name, syntax=text[:2]):
+                    spans = self.scan(text)
+                    self.assertEqual(len(spans), 1)
+                    self.assertTrue(spans[0].source_dump)
+                    self.assertEqual(spans[0].raw, text)
+
+    def test_benign_names_and_metadata_are_quiet(self):
+        for name in ("MONKEY", "API_KEYBOARD", "KEYBOARD", "AUTHORS", "TOKEN_COUNT",
+                     "TOKEN_LENGTH", "KEY_ENABLED", "MONKEY_COUNT", "apiKeyboard"):
+            for text in ("$" + name, "${" + name + "}", "$env:" + name, "%" + name + "%"):
+                self.assertEqual(self.scan(text), [])
+
+    def test_benign_reference_does_not_hide_a_later_secret(self):
+        secret = "${" + "PASSWORD}"
+        text = "echo ${MONKEY} ${TOKEN_COUNT} " + secret
+        spans = self.scan(text)
+        self.assertEqual(len(spans), 1)
+        self.assertEqual(spans[0].raw, secret)
+        self.assertEqual(text[spans[0].start:spans[0].end], secret)
+
+    def test_public_key_ambiguity_retains_current_refusal(self):
+        for name in ("PUBLIC_KEY", "SSH_PUBLIC_KEY"):
+            self.assertTrue(self.scan("${" + name + "}")[0].source_dump)
+
+    def test_bare_key_ambiguity_without_language_or_path_exemptions(self):
+        for name in ("key", "Key", "_key"):
+            for text in ("$" + name, "${" + name + "}"):
+                self.assertEqual(self.scan(text), [])
+            for text in ("$env:" + name, "%" + name + "%"):
+                self.assertTrue(self.scan(text)[0].source_dump)
+        # A source file is not globally trusted; stronger names still block.
+        benign = "throw new TypeError(`${name}: missing argument ${key}`)"
+        self.assertEqual(self.scan(benign), [])
+        for name in ("KEY", "apiKey", "token", "password"):
+            text = benign + "; console.log(`${" + name + "}`)"
+            self.assertTrue(self.scan(text)[0].source_dump)
 
 
 class MergeSpans(unittest.TestCase):
@@ -146,7 +323,8 @@ class RepoCorpusNoise(unittest.TestCase):
     """
 
     ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    SKIP_DIRS = {".git", ".agent-trash", "__pycache__", "node_modules"}
+    # Private evidence/backups are outside the versioned source corpus.
+    SKIP_DIRS = {".git", ".internal", ".agent-trash", "__pycache__", "node_modules"}
 
     def test_own_corpus_is_quiet(self):
         hits = []

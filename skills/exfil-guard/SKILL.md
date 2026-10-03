@@ -44,6 +44,11 @@ python3 <repo>/skills/exfil-guard/scripts/sanitize.py --channel file-write < dra
 never writes, never rewrites, and never prints the match. Exit codes are the
 contract: `0` allow/sanitize, `2` block, `3` ask, `1` error.
 
+`sanitize.py` uses the same exit codes and emits no payload on ASK/BLOCK or
+error. Both CLIs bound stdin while reading (4 MiB by default), support UTF-8,
+and resolve the same default workspace/host-side mode. The first-byte wait is
+bounded; it is not a deadline for a producer that has already started writing.
+
 ## Safe config view
 
 When you need to learn a JSON or dotenv config's shape, use the explicit
@@ -74,7 +79,7 @@ intercept a harness's ordinary file-read tool.
 | `ASK` (`ASK_SECRET_EMISSION` / `ASK_PATH_EMISSION`) | the channel cannot be rewritten and cannot be taken back (a terminal transcript cannot be un-printed) | stop and ask a human; do not silently proceed |
 | `BLOCK` (`BLOCK_SECRET_EMISSION` / `BLOCK_PATH_EMISSION`) | the channel is immutable or remote history (commit message, push payload) | **do not retry.** Remove the value and redo the message/commit |
 | `BLOCK_SECRET_SOURCE_DUMP` | the payload reads a whole secret store (`cat .env`, `printenv`) whose content the guard never saw | stop; emit an explicit, reviewed value instead |
-| `BLOCK_OUTPUT_UNSCANNABLE` | the payload was never scanned (too large, non-ASCII, unknown channel, scanner error) | an unscanned egress is not a clean egress. Do not route around it |
+| `BLOCK_OUTPUT_UNSCANNABLE` | the payload was never scanned (too large, unknown channel, scanner error) | an unscanned egress is not a clean egress. Do not route around it |
 
 A `BLOCK` is not an obstacle to work around. Re-encoding a payload, splitting
 a secret across lines, or piping through a tool the guard does not scan is a
@@ -84,9 +89,16 @@ violation of the authorization pillar and is recorded in the audit log.
 
 The guard deliberately does not rewrite your payload - you hold it. Apply
 the plan back to front so offsets stay valid, or let `sanitize.py` do it.
-Redaction **preserves format**: `sk-proj-Ab…` becomes `sk-proj-<REDACTED>`
+Redaction **preserves format**: `sk-proj-Ab…` becomes `sk-<REDACTED>`
 (so a reviewer can still see *which kind* of credential leaked), and a host
 path becomes `<PATH>`.
+
+An external `--plan` is checked against a fresh scan, including offsets,
+placeholders and any supplied rule metadata. A partial, stale or arbitrary plan
+is refused; the rewritten payload must pass another scan. A plan made with
+checker-specific mode/path overrides still has to satisfy current sanitizer
+policy. URI passwords use `<REDACTED>` while retaining scheme/account/host;
+this is credential redaction, not network-topology hiding or an editable URI.
 
 If you decline to apply a plan on a rewritable channel, the API contract is
 "you were told": the audit records `sanitize-declined`. That is a choice
@@ -95,16 +107,27 @@ with a record, not a default.
 ## Value-free detection (why `echo "$TOKEN"` is caught)
 
 The guard detects a secret *reference* without ever reading the secret. It
-classifies a variable's **name** (`*KEY*`, `*TOKEN*`, `*SECRET*`,
-`*PASSWORD*`, `*CRED*`, `*AUTH*`) and a secret-store **file name**
+classifies a variable's **name** by complete credential components (`KEY`,
+`TOKEN`, `SECRET`, `PASSWORD`, `CRED`, `AUTH`, including underscores and
+camelCase), and a secret-store **file name**
 (`.env`, `*.pem`, `id_rsa*`, `.netrc`, `kubeconfig`, …), never a value.
 This keeps this scanner from creating a second value copy; it does not
 certify unrelated CLI output or existing audit records as secret-free.
 
 Consequence you will notice: if `$OPENAI_API_KEY` actually holds `"test"`,
-the guard still ASKs. That is intentional. The cost of a false ASK is one
-keystroke; the cost of a false ALLOW is permanent. Do not attempt to
-"resolve" the variable to reduce prompts.
+the guard still BLOCKs its uninspectable source reference. Do not attempt to
+resolve the variable to soften that decision. `MONKEY`/`API_KEYBOARD` are
+ordinary names, and terminal `COUNT`/`LENGTH`/`ENABLED` denotes metadata.
+Public-key names retain conservative handling pending separate review.
+Bare lower/title-case `key` is too ambiguous to classify without an explicit
+environment reference; uppercase `KEY` and qualified `apiKey` remain protected.
+
+Placeholder exemptions require a whole documented shape or an exact static
+example; incidental words inside random credentials do not exempt them.
+Vendor credentials adjacent to CJK prose are scanned with original offsets.
+GitHub installation credentials support both classic and `ghs_APPID_JWT`
+shapes, with complete redaction of long tokens. These are shape facts, not
+authentication or token-validity checks. See [rules.md](references/rules.md).
 
 ## Path rules
 

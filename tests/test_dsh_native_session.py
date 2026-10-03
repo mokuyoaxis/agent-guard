@@ -47,6 +47,17 @@ def serialize(rows):
     return ("\n".join(json.dumps(row) for row in rows) + "\n").encode()
 
 
+def flat_v4_rows_for(fixture):
+    rows = rows_for(fixture)
+    rows[0]["version"] = 4
+    result = rows[5]
+    result["sourceEventSeqs"] = [rows[4]["seq"]]
+    result["data"]["message"].update(
+        role="tool", toolCallId="c1", isError=False,
+        content=[{"type": "text", "text": "TOOL_CONTENT_MARKER"}])
+    return rows
+
+
 def retry_rows_for(fixture, attempts=1, stream=None):
     original = rows_for(fixture)
     rows = copy.deepcopy(original[:4])
@@ -101,6 +112,56 @@ class NativeSessionParserTests(unittest.TestCase):
 
     def parse(self, rows, parser_version=2):
         return split_session(serialize(rows), self.root, TASK_SHA, parser_version=parser_version)
+
+    def test_v3_parser_accepts_bound_flat_v4_without_changing_v2_refusal(self):
+        rows = flat_v4_rows_for(self.root)
+        rows[5]["data"]["meta"] = {"private": "PRIVATE_META_MARKER"}
+        old, old_channels = split_session(serialize(rows), self.root, TASK_SHA,
+                                         parser_version=2, native_format_version=4)
+        self.assertEqual(old["issues"], ["UNSUPPORTED_SURFACE_REPLAY"])
+        self.assertTrue(all(not value for value in old_channels.values()))
+        new, channels = split_session(serialize(rows), self.root, TASK_SHA,
+                                      parser_version=3, native_format_version=4)
+        self.assertTrue(new["recognized"] and new["completed"])
+        self.assertEqual(new["parser_version"], 3)
+        self.assertIn(b"TOOL_CONTENT_MARKER", channels["tool"])
+        self.assertNotIn(b"PRIVATE_META_MARKER", b"".join(channels.values()))
+        self.assertIn(b"ASSISTANT_CONTENT_MARKER", channels["assistant"])
+
+    def test_flat_v4_source_and_error_disagreements_refuse_all_channels(self):
+        mutations = [
+            lambda rows: rows[5].update(sourceEventSeqs=[]),
+            lambda rows: rows[5].update(sourceEventSeqs=[True]),
+            lambda rows: rows[5].update(sourceEventSeqs=[4]),
+            lambda rows: rows[5].update(sourceEventSeqs=[3, 3]),
+            lambda rows: rows[5].update(sourceEventSeqs=[2]),
+            lambda rows: rows[5].pop("sourceEventSeqs"),
+            lambda rows: rows[5]["data"]["message"].update(toolCallId="wrong"),
+            lambda rows: rows[5]["data"]["message"].update(isError=0),
+            lambda rows: rows[5]["data"]["message"]["source"].update(callId="wrong"),
+            lambda rows: rows[5]["data"]["message"].update(content=[{"type": "image"}]),
+            lambda rows: rows[5]["data"].update(error={"code": "synthetic"}),
+            lambda rows: rows[6].update(sourceEventSeqs=[3]),
+        ]
+        for mutate in mutations:
+            rows = flat_v4_rows_for(self.root)
+            mutate(rows)
+            summary, channels = split_session(serialize(rows), self.root, TASK_SHA,
+                                               parser_version=3, native_format_version=4)
+            self.assertFalse(summary["recognized"])
+            self.assertTrue(all(not value for value in channels.values()))
+        rows = flat_v4_rows_for(self.root)
+        rows[5]["data"]["message"]["isError"] = True
+        rows[5]["data"]["error"] = {"code": "synthetic"}
+        self.assertTrue(split_session(serialize(rows), self.root, TASK_SHA,
+                                     parser_version=3, native_format_version=4)[0]["recognized"])
+
+    def test_flat_tool_schema_does_not_extend_native_v3(self):
+        rows = flat_v4_rows_for(self.root)
+        rows[0]["version"] = 3
+        summary, channels = split_session(serialize(rows), self.root, TASK_SHA, parser_version=3)
+        self.assertFalse(summary["recognized"])
+        self.assertTrue(all(not value for value in channels.values()))
 
     def test_v4_requires_explicit_format_and_preserves_v3_interpretation(self):
         rows = retry_rows_for(self.root)

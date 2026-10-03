@@ -34,6 +34,7 @@ import platform
 import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
+from urllib.parse import unquote
 
 # ------------------------------------------------------------- span types
 
@@ -52,6 +53,7 @@ RULE_SLACK_TOKEN = "secret/slack-token"
 RULE_STRIPE_KEY = "secret/stripe-key"
 RULE_JWT = "secret/jwt"
 RULE_PRIVATE_KEY_BLOCK = "secret/private-key-block"
+RULE_CONNECTION_PASSWORD = "secret/connection-password"
 # A value-free reference to a secret source (env var name / secret store).
 RULE_SECRET_SOURCE = "secret/source-reference"
 
@@ -131,12 +133,27 @@ PLACEHOLDER_WORDS = frozenset({
     "dummy", "example", "sample", "fake", "test", "testing", "todo",
     "placeholder", "redacted", "none", "null", "notset", "unset",
     "xxxx", "xxxxxxxx", "yourtoken", "mysupersecret", "hunter2",
+    "dummy_value", "dummy_key", "dummy_token", "example_secret",
+    "example_key", "example_token", "sample_key", "sample_token",
+    "fake_key", "fake_token", "test_key", "test_token",
 })
+_PLACEHOLDER_NORMALIZED_WORDS = frozenset(word.replace("-", "_") for word in PLACEHOLDER_WORDS)
+# Public AWS documentation examples, preserved as exact values rather than
+# granting amnesty to every random credential ending in "example".
+_PUBLIC_EXAMPLE_VALUES = frozenset({"AKIA" + "IOSFODNN7EXAMPLE", "ASIA" + "IOSFODNN7EXAMPLE"})
 # Marker shapes: <REDACTED>, [REDACTED], ***, _<<REDACTED>>_ ...
 _PLACEHOLDER_SHAPE_RE = re.compile(
     r"^[\W_]*(?:redacted|removed|hidden|scrubbed|elided|omitted)[\W_]*$",
     re.IGNORECASE)
 _REDACTED_MARKER = "<REDACTED>"
+# Only remove a public, reviewed prefix before checking a whole placeholder
+# body. Words embedded in random credential bytes are never exemptions.
+_PLACEHOLDER_VENDOR_PREFIX_RE = re.compile(
+    r"^(?:sk-proj-|sk-ant-(?:api03-)?|sk-live-|sk-|(?:sk|rk)_live_|"
+    r"(?:ghp|gho|ghu|ghs|ghr)_|github_pat_|glpat-|xox[baprs]-|"
+    r"AKIA|ASIA|AGPA|AIDA|AROA|ANPA)")
+_PLACEHOLDER_TEMPLATE_RE = re.compile(
+    r"(?:<[A-Za-z_][A-Za-z0-9_]*>|\$\{[A-Za-z_][A-Za-z0-9_]*\})\Z")
 
 # A token is only a placeholder if its *alphabet* is trivial (one symbol,
 # '*'/'x'/'.' runs, sequences like abcdef) or if it is a known word. The
@@ -174,43 +191,25 @@ def is_placeholder(token: str) -> bool:
 
 
 def _is_placeholder(token: str) -> bool:
-    value = token.strip().strip("'\"`()[]<>").strip()
+    value = token.strip().strip("'\"`()").strip()
     if not value:
         return False
-    if value == _REDACTED_MARKER:
-        return True                       # idempotence (design 2.5)
-    if _PLACEHOLDER_SHAPE_RE.match(value):
+    if value in _PUBLIC_EXAMPLE_VALUES:
         return True
-    if value.startswith("<") and value.endswith(">"):
-        return True                       # <YOUR_KEY>, <token>
-    if value.startswith("${") and value.endswith("}"):
-        return True                       # shell interpolation in a doc
-    collapsed = re.sub(r"[^A-Za-z0-9]+", "", value).lower()
-    if not collapsed:
-        return True                       # "***", "---": no credential bytes
-    for word in PLACEHOLDER_WORDS:
-        flat = re.sub(r"[^A-Za-z0-9]+", "", word)
-        if collapsed == flat:
-            return True
-        # Prefixed/suffixed word: "EXAMPLE_SECRET", "sk-test", "fake-key".
-        # Only the documented words count, so ordinary credentials are
-        # untouched (a real key never ends in "token").
-        if collapsed.startswith(flat) or collapsed.endswith(flat):
-            return True
+    value = _PLACEHOLDER_VENDOR_PREFIX_RE.sub("", value, count=1)
+    if not value:
+        return False
+    if _PLACEHOLDER_SHAPE_RE.fullmatch(value) or _PLACEHOLDER_TEMPLATE_RE.fullmatch(value):
+        return True                       # whole marker/template only
+    normalized = value.lower().replace("-", "_")
+    if normalized in _PLACEHOLDER_NORMALIZED_WORDS:
+        return True                       # finite whole-word examples
     return _is_trivial_alphabet(value)
 
 
 def _looks_placeholderish(token: str) -> bool:
-    """Cheap pre-check used before running the full placeholder test."""
-    if not token:
-        return True
-    if len(set(token)) <= 1:
-        return True
-    collapsed = re.sub(r"[^A-Za-z0-9]+", "", token).lower()
-    if not collapsed:
-        return True
-    return any(w in collapsed for w in ("xxx", "redact", "placeholder",
-                                        "changeme", "dummy"))
+    """Compatibility predicate with the same exact whole-value contract."""
+    return is_placeholder(token)
 
 # -------------------------------------------------------- T1 vendor patterns
 
@@ -218,19 +217,81 @@ def _looks_placeholderish(token: str) -> bool:
 # distinct enough that an anchored prefix + shape gives near-zero false
 # positives; where the format allows, a validator adds real structure
 # (design 2.2 rule 1 - a JWT is only a JWT if its header decodes).
-_OPENAI_RE = re.compile(r"\bsk-(?:proj|ant|live)?-?([A-Za-z0-9_\-]{20,})")
-_GITHUB_RE = re.compile(r"\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{36}\b"
-                        r"|\bgithub_pat_[A-Za-z0-9_]{22,255}\b")
-_AWS_KEY_ID_RE = re.compile(r"\b(?:AKIA|ASIA|AGPA|AIDA|AROA|ANPA)[0-9A-Z]{16}\b")
-_GITLAB_RE = re.compile(r"\bglpat-[A-Za-z0-9_\-]{20,}")
-_SLACK_RE = re.compile(r"\bxox[baprs]-[A-Za-z0-9\-]{10,}")
-_STRIPE_RE = re.compile(r"\b(?:sk|rk)_live_[A-Za-z0-9]{16,}")
+# ASCII identifier boundaries allow adjacent CJK prose, while still refusing
+# substrings of English identifiers. Unicode \b conflates those two cases.
+_TOKEN_START = r"(?<![A-Za-z0-9_])"
+_TOKEN_END = r"(?![A-Za-z0-9_])"
+_OPENAI_RE = re.compile(_TOKEN_START + r"sk-(?:proj|ant|live)?-?([A-Za-z0-9_\-]{20,})")
+_GITHUB_RE = re.compile(_TOKEN_START + r"(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{36}" + _TOKEN_END
+                        + r"|" + _TOKEN_START + r"github_pat_[A-Za-z0-9_]{22,255}" + _TOKEN_END)
+# The vendor's ghs_APPID_JWT wrapper; app ID is an opaque ASCII field.
+# No fixed total length, business claims or signature authentication.
+_GITHUB_INSTALLATION_RE = re.compile(
+    _TOKEN_START + r"ghs_[A-Za-z0-9-]+_(?P<header>[A-Za-z0-9_-]{4,})"
+    r"\.[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}"
+    r"(?![A-Za-z0-9_-]|\.[A-Za-z0-9_-])")
+_AWS_KEY_ID_RE = re.compile(_TOKEN_START + r"(?:AKIA|ASIA|AGPA|AIDA|AROA|ANPA)[0-9A-Z]{16}" + _TOKEN_END)
+_GITLAB_RE = re.compile(_TOKEN_START + r"glpat-[A-Za-z0-9_\-]{20,}")
+_SLACK_RE = re.compile(_TOKEN_START + r"xox[baprs]-[A-Za-z0-9\-]{10,}")
+_STRIPE_RE = re.compile(_TOKEN_START + r"(?:sk|rk)_live_[A-Za-z0-9]{16,}")
 _JWT_RE = re.compile(
-    r"\beyJ[A-Za-z0-9_\-]{4,}\.[A-Za-z0-9_\-]{4,}\.[A-Za-z0-9_\-]{4,}")
+    _TOKEN_START + r"eyJ[A-Za-z0-9_\-]{4,}\.[A-Za-z0-9_\-]{4,}\.[A-Za-z0-9_\-]{4,}")
 _PRIVATE_KEY_RE = re.compile(
     r"-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY-----.*?"
     r"-----END (?:[A-Z0-9]+ )*PRIVATE KEY-----",
     re.DOTALL)
+# URI userinfo is an explicit credential context (RFC 3986 section 3.2.1).
+# Work on original coordinates instead of urlsplit: URL parsers normalize
+# input and cannot provide exact offsets for a serialized JSON payload.
+# A JSON-escaped slash is accepted only at the scheme separator. Other
+# encoded delimiters stay in the password's original, replaceable span.
+_CONNECTION_PREFIX_RE = re.compile(
+    r"(?<![A-Za-z0-9+.-])[A-Za-z][A-Za-z0-9+.-]{0,63}:(?:/|\\/){2}")
+_CONNECTION_AUTHORITY_RE = re.compile(r"[^\s/?#\"'`]+")
+_CONNECTION_TEMPLATE_RE = re.compile(
+    r"(?:<[^<>@]+>|\$\{[^{}@]+\}|%[A-Za-z_][A-Za-z0-9_]*%)\Z")
+
+
+def _connection_passwords(text: str, channel: str) -> List[SpanSpec]:
+    """Detect nonempty URI passwords; preserve account and host information.
+
+    Plain weak passwords are still passwords. Unlike vendor test tokens,
+    short/repeated literals and words such as 'test' are not exempt here.
+    Only whole template expressions and redaction markers are exempt.
+    Raw '/', '?', '#' and quoting delimit authority; they must be encoded
+    within a URI password. This is not a general DSN or obfuscation parser.
+    """
+    spans = []
+    for prefix in _CONNECTION_PREFIX_RE.finditer(text):
+        match = _CONNECTION_AUTHORITY_RE.match(text, prefix.end())
+        if match is None:
+            continue
+        authority = match.group(0)
+        at = authority.rfind("@")
+        colon = authority.find(":")
+        if colon < 0 or at <= colon + 1 or at == len(authority) - 1:
+            continue
+        # Last @ also withholds the complete password in a common malformed
+        # spelling containing a literal @; never leave a password suffix.
+        start, end = match.start() + colon + 1, match.start() + at
+        raw = text[start:end]
+        # Decode only to recognize an explicit template; arbitrary byte
+        # passwords need not be UTF-8 and are still redacted as raw spans.
+        decoded = unquote(raw, errors="replace")
+        if (_CONNECTION_TEMPLATE_RE.fullmatch(raw) or
+                _CONNECTION_TEMPLATE_RE.fullmatch(decoded) or
+                _PLACEHOLDER_SHAPE_RE.fullmatch(decoded) or
+                re.fullmatch(r"\*{3,}", decoded)):
+            continue
+        spans.append(SpanSpec(
+            raw=raw, start=start, end=end,
+            rule_id=RULE_CONNECTION_PASSWORD, family=FAMILY_SECRET,
+            confidence=CONFIDENCE_DETERMINISTIC,
+            context="uri-userinfo", channel=channel,
+            notes=["nonempty password in URI userinfo; account and host retained"]))
+    return spans
+
+
 # Secret-store file names: a *path* fact (design 2.4 item 3). Reading these
 # on an outbound channel is refused rather than sanitized, because the
 # guard cannot see the content it would be rewriting.
@@ -266,7 +327,7 @@ ENV_DUMP_RE = re.compile(
     r"|(?<![\w.])cat\s+/proc/self/environ", re.MULTILINE)
 
 
-def _b64url_json_has_alg(segment: str) -> bool:
+def _b64url_json_has_alg(segment: str, *, string_alg: bool = False) -> bool:
     """Structural JWT check: the header segment must decode to JSON+`alg`."""
     if len(segment) % 4 == 1:
         return False
@@ -279,7 +340,11 @@ def _b64url_json_has_alg(segment: str) -> bool:
         header = json.loads(decoded.decode("utf-8"))
     except (ValueError, UnicodeDecodeError):
         return False
-    return isinstance(header, dict) and "alg" in header
+    if not isinstance(header, dict) or "alg" not in header:
+        return False
+    # Preserve historical generic JWT interpretation; new vendor wrappers
+    # require the declared header type without inspecting business claims.
+    return not string_alg or (isinstance(header["alg"], str) and bool(header["alg"]))
 
 
 def _note_context(text: str, index: int) -> str:
@@ -301,7 +366,7 @@ def detect_secrets(text: str, channel: str = "") -> List[SpanSpec]:
 
     def add(match: "re.Match[str]", rule_id: str, notes: Iterable[str] = ()):
         raw = match.group(0)
-        if is_placeholder(raw) or _looks_placeholderish(raw):
+        if is_placeholder(raw):
             return
         spans.append(SpanSpec(
             raw=raw, start=match.start(), end=match.end(), rule_id=rule_id,
@@ -316,6 +381,9 @@ def detect_secrets(text: str, channel: str = "") -> List[SpanSpec]:
         add(match, RULE_OPENAI_KEY, ["vendor prefix + length + charset"])
     for match in _GITHUB_RE.finditer(text):
         add(match, RULE_GITHUB_TOKEN, ["fixed-format vendor prefix"])
+    for match in _GITHUB_INSTALLATION_RE.finditer(text):
+        if len(match.group(0)) >= 40 and _b64url_json_has_alg(match.group("header"), string_alg=True):
+            add(match, RULE_GITHUB_TOKEN, ["vendor installation wrapper + structural JWT header"])
     for match in _AWS_KEY_ID_RE.finditer(text):
         add(match, RULE_AWS_ACCESS_KEY_ID, ["reserved vendor prefix"])
     for match in _GITLAB_RE.finditer(text):
@@ -329,6 +397,7 @@ def detect_secrets(text: str, channel: str = "") -> List[SpanSpec]:
         if not _b64url_json_has_alg(header):
             continue
         add(match, RULE_JWT, ["header segment decodes to JSON containing alg"])
+    spans.extend(_connection_passwords(text, channel))
     return merge_spans(spans)
 
 
@@ -859,11 +928,31 @@ SECRET_STORE_RE = re.compile(
 # A variable *name* that marks its value as secret-bearing. Classification
 # is by name only; the guard never reads the value (design 2.4 item 1).
 SECRET_NAME_RE = re.compile(
-    r"\$\{?([A-Za-z_][A-Za-z0-9_]*"
-    r"(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|CRED|AUTH|APIKEY)[A-Za-z0-9_]*)\b"
-    r"|\$env:([A-Za-z_][A-Za-z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD|CRED|AUTH))"
-    r"|%([A-Za-z_][A-Za-z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD|CRED|AUTH))%",
-    re.IGNORECASE)
+    r"\$env:([A-Za-z_][A-Za-z0-9_]*)"
+    r"|\$\{([A-Za-z_][A-Za-z0-9_]*)(?:\}|(?=[:/#%+?=\-]))"
+    r"|\$([A-Za-z_][A-Za-z0-9_]*)"
+    r"|%([A-Za-z_][A-Za-z0-9_]*)%", re.IGNORECASE)
+_SECRET_NAME_COMPONENTS = frozenset({
+    "KEY", "TOKEN", "SECRET", "PASSWORD", "PASSWD", "CRED", "AUTH", "APIKEY",
+    "CREDENTIAL", "CREDENTIALS",
+})
+_SECRET_NAME_METADATA = frozenset({"COUNT", "LENGTH", "ENABLED"})
+
+
+def _secret_bearing_name(name: str, *, explicit_environment: bool = False) -> bool:
+    # Preserve acronym/camelCase components: ApiKey, APIKey, accessToken.
+    separated = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", name)
+    separated = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", separated)
+    components = [part.upper() for part in separated.split("_") if part]
+    # A lone lower/title-case `key` is also a common dictionary/schema key
+    # in template expressions. Do not infer a credential from that word
+    # alone. KEY, qualified apiKey and explicit env syntax stay protected.
+    # This is a name ambiguity, not a JavaScript/file-extension exemption.
+    if (components == ["KEY"] and name.strip("_") != "KEY"
+            and not explicit_environment):
+        return False
+    return (bool(components) and components[-1] not in _SECRET_NAME_METADATA
+            and any(part in _SECRET_NAME_COMPONENTS for part in components))
 
 
 def _secret_source_reference(text: str) -> Optional[Tuple[str, int, int, str]]:
@@ -889,11 +978,12 @@ def _secret_source_reference(text: str) -> Optional[Tuple[str, int, int, str]]:
     if match:
         return match.group(0), match.start(), match.end(), \
             "secret store: " + match.group(0)
-    match = SECRET_NAME_RE.search(text)
-    if match:
+    for match in SECRET_NAME_RE.finditer(text):
         name = next(g for g in match.groups() if g)
-        return match.group(0), match.start(), match.end(), \
-            "secret-bearing name: " + name
+        explicit_environment = match.group(1) is not None or match.group(4) is not None
+        if _secret_bearing_name(name, explicit_environment=explicit_environment):
+            return match.group(0), match.start(), match.end(), \
+                "secret-bearing name: " + name
     return None
 
 
@@ -1044,8 +1134,8 @@ def scan_text(text: str, channel: str = "",
               exemption: Optional[Exemption] = None) -> ScanResult:
     """Detect every secret/path span in `text` (facts only).
 
-    Never returns a partial result as clean: an over-cap payload, a
-    non-ASCII payload or an internal scanner error is reported via
+    Never returns a partial result as clean: an over-cap payload or an
+    internal scanner error is reported via
     `scanned=False`, which `policy.decide_spans` turns into
     BLOCK_OUTPUT_UNSCANNABLE (design 6.3, fail closed).
     """
@@ -1090,7 +1180,10 @@ def scan_text(text: str, channel: str = "",
             notes=["value-free reference detection", reason]))
     if exemption is None:
         exemption = load_exemption(workspace)
-    result.spans = apply_exemption(merge_spans(spans), exemption, path,
-                                   workspace)
-    result.exempted = len(merge_spans(spans)) - len(result.spans)
+    # A source-reference fact must survive even inside a redaction span:
+    # masking a literal URI password is not permission to resolve an env
+    # secret embedded there. The aggregate BLOCK prevents plan application.
+    spans.sort(key=lambda span: (span.start, -span.length))
+    result.spans = apply_exemption(spans, exemption, path, workspace)
+    result.exempted = len(spans) - len(result.spans)
     return result

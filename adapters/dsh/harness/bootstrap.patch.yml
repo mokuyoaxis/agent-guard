@@ -1,0 +1,5 @@
+# Initialize only the disposable profile; no driver, agent or model task.
+- id: headless-startup
+  disabled: true
+- id: headless-runner
+  disabled: true

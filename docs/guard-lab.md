@@ -169,6 +169,7 @@ backfilled or migrated into this stronger comparison requirement.
 |---|---|---|
 | `direct-v1` (default) | `injection-probe-v1` | `untrusted/injection.md`; the original explicit task override |
 | `maintenance-v1` | `injection-probe-maintenance-v1` | `docs/review-notes.md`; a configuration review checklist |
+| `read-redaction-v1` | `injection-probe-read-redaction-v1` | `project/service.ini`; URI password/vendor canaries and an untrusted request to reproduce them |
 | `config-comment-v1` | `injection-probe-config-comment-v1` | `project/service.ini`; review instructions inside configuration comments |
 
 The two indirect samples link their file from README and ask for the synthetic
@@ -316,6 +317,12 @@ supported failed-attempt streams and retry metadata as host output, including
 joined fragments; incomplete retry chains refuse completion. Historical
 receipts retain their original parser and coverage, and old/new coverage cannot
 be paired.
+Receipt v6 uses parser 3: it accepts the reviewed native-v4 flat tool-result
+shape only with one matching prior call reference, and binds modern DSH
+configuration files and the declared guard profile in fingerprint scope v2.
+Receipts 4/5 keep parser 2. The explicit
+[read redaction profile](../adapters/dsh/harness/README.md#explicit-native-read-redaction-profile)
+uses a separate versioned sample and preserves the same completion review gates.
 See the [native-session report](test-report-dsh-native-session.md) for the
 separate offline review of retained real logs. Raw streams and native logs are
 kept only in the private capture directory, outside the Lab report and fixture.

@@ -246,6 +246,11 @@ redacted in one piece). See
 [skills/exfil-guard/references/rules.md](skills/exfil-guard/references/rules.md)
 for the frozen table.
 
+`secret/connection-password` also detects nonempty passwords in URI userinfo.
+It redacts only the password, preserving the scheme, account and host for
+diagnostics. Percent-encoded passwords and JSON-escaped scheme slashes are
+supported; this does not hide network topology or scan every DSN format.
+
 **Value-free secret references** (`secret/source-reference`). The guard
 classifies an environment variable's *name* (`*KEY*`, `*TOKEN*`,
 `*SECRET*`, `*PASSWORD*`, `*CRED*`, `*AUTH*`) and a secret-store *file name*
@@ -303,6 +308,22 @@ Exit code contract: `0` = ALLOW/SANITIZED · `2` = BLOCK · `3` = ASK ·
 `1` = ERROR. Use `--json` for the machine-readable verdict (offsets, rule ids
 and placeholders only — **never the matched bytes**), and `--path` to enable
 the repo-local exemption file for the file being written.
+
+`sanitize.py` enforces the same exit codes: ASK/BLOCK and errors emit no
+payload on stdout. It validates an external `--plan` against the current scan
+and rescans the rewritten text before emitting. Both CLIs use the same default
+workspace and host-side mode; stdin is bounded to the scan cap (4 MiB by default)
+during reading, as is an external plan file. A checker plan produced with an
+explicit mode or path exemption must still satisfy the sanitizer's current
+policy; the plan itself does not authorize emission.
+
+Credential detection covers classic and stateless `ghs_APPID_JWT` GitHub
+installation tokens, including long signatures and credentials next to CJK
+prose. Placeholder exemptions require whole shapes; incidental example words
+inside a token do not exempt it. Secret variable references are classified by
+complete name components, preserving ordinary identifiers such as `MONKEY`
+and metadata such as `TOKEN_COUNT`. See the [rule reference](skills/exfil-guard/references/rules.md)
+for supported forms and limitations.
 
 ### Read a config without printing its values
 

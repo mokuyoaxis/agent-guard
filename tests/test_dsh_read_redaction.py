@@ -73,6 +73,43 @@ class ReadRedaction(unittest.TestCase):
         self.assertEqual(result["decision"], "SANITIZE")
         self.assertNotIn("private-read-owner", json.dumps(result))
 
+    def test_uri_password_uses_shared_core_and_preserves_config(self):
+        password = "Review" + "72"
+        uri = "postgresql" + "://" + "account:" + password + "@db.example.invalid/app"
+        data = request("DSN=" + uri + "\nPORT=8080")
+        result = worker.protect(data)
+        self.assertEqual(result["decision"], "SANITIZE")
+        self.assertNotIn(password, json.dumps(result))
+        self.assertIn("account:<REDACTED>@db.example.invalid", result["value"]["lines"][0]["text"])
+        self.assertEqual(result["value"]["lines"][1]["text"], "PORT=8080")
+        self.assertEqual(worker.protect(dict(data, value=result["value"]))["decision"], "ALLOW")
+
+    def test_new_boundaries_preserve_layout_and_remove_full_tokens(self):
+        body = "Q7mN4pR2tV" + "xxx" + ("H8kL3bD6sF9wZ5aC0uE1" * 2)[:23]
+        token = ("ghs_" + "app-ID42_" + "eyJhbGciOiJSUzI1NiJ9" + "."
+                 + "eyJzdWIiOiJzeW50aGV0aWMifQ" + "." + "Q7mN4pR2tVH8kL3bD6sF9" * 32)
+        data = request("令牌" + "ghp_" + body + "结束\nAPP=" + token + "\nPORT=8080")
+        result = worker.protect(data)
+        self.assertEqual(result["decision"], "SANITIZE")
+        self.assertEqual(result["redactions"], 2)
+        self.assertNotIn(body, json.dumps(result))
+        self.assertNotIn(token, json.dumps(result))
+        lines = result["value"]["lines"]
+        self.assertEqual([line["number"] for line in lines], [1, 2, 3])
+        self.assertEqual([line["text"] for line in lines],
+                         ["令牌ghp_<REDACTED>结束", "APP=ghs_<REDACTED>", "PORT=8080"])
+        self.assertEqual(worker.protect(dict(data, value=result["value"]))["decision"], "ALLOW")
+
+    def test_name_boundaries_preserve_benign_and_withhold_secret_reference(self):
+        data = request("echo ${MONKEY} ${API_KEYBOARD} ${TOKEN_COUNT}\n"
+                       "throw new TypeError(`${name}: missing argument ${key}`)\nPORT=8080")
+        self.assertEqual(worker.protect(data)["value"], data["value"])
+        for name in ("TOKEN", "PASSWORD", "API_KEY", "KEY", "apiKey"):
+            data = request("PORT=8080\necho ${" + name + "}")
+            result = worker.protect(data)
+            self.assertEqual(result, worker.blocked("READ_RESULT_POLICY"))
+            self.assertNotIn("PORT=8080", json.dumps(result))
+
     def test_partial_windows_are_blocked(self):
         for changes in [{"totalLines": 2}, {"offset": 2, "lines": [{"number": 2, "text": "data"}], "totalLines": 2}]:
             data = request()

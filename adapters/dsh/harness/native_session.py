@@ -18,7 +18,7 @@ from adapters.dsh.harness.retry_stream import (
 DECODER = Path(__file__).with_name("session_decode.mjs")
 MAX_RECORDS = 4096
 MAX_TREE_ENTRIES = 512
-PARSER_VERSION = 2
+PARSER_VERSION = 3
 # Frozen vocabulary from DSH 0.1.5-rc.1's dsh-session known-event-types.
 KNOWN_EVENTS = frozenset("""
 agent-preset/selected agent/inbox/spliced approval/asked approval/decided
@@ -141,15 +141,17 @@ def split_session(payload: bytes, fixture: Path, task_sha256: str,
     This reads append-only, unseeded, one-turn fixtures; it does not reconstruct
     arbitrary forks, replacements, attachments or model-visible context.
     Version 2 also scans failed-attempt streams and verifies pinned retry chains.
-    Version 1 keeps the frozen interpretation used by earlier capture receipts.
+    Version 1/2 keep the frozen interpretations used by earlier receipts.
+    Version 3 additionally accepts a v4 flat tool message whose source event
+    reference binds it to the corresponding earlier call, without replay.
     """
-    if type(parser_version) is not int or parser_version not in {1, PARSER_VERSION}:
+    if type(parser_version) is not int or parser_version not in {1, 2, 3}:
         raise LabError("unsupported native parser version")
     if (type(native_format_version) is not int or native_format_version not in {3, 4}
-            or native_format_version == 4 and parser_version != 2):
+            or native_format_version == 4 and parser_version < 2):
         raise LabError("unsupported native format/parser contract")
     channels = {"tool": bytearray(), "assistant": bytearray()}
-    if parser_version == 2:
+    if parser_version >= 2:
         channels["attempt"] = bytearray()
     counts = {"tool": 0, "assistant": 0, "tool_calls": 0}
     summary = {
@@ -158,13 +160,13 @@ def split_session(payload: bytes, fixture: Path, task_sha256: str,
         "cwd_matches": False, "task_matches": False,
         "provenance": "captured-native-event-labels-not-authenticated-authorship",
     }
-    if parser_version == 2:
-        summary.update({"parser_version": 2, "retry_evidence": {
+    if parser_version >= 2:
+        summary.update({"parser_version": parser_version, "retry_evidence": {
             "attempts": 0, "scheduled": 0, "started": 0, "stream_chunks": 0,
         }})
     def refuse(issue):
         summary["issues"] = [issue]
-        if parser_version == 2:
+        if parser_version >= 2:
             summary["completed"] = False
         return summary, {k: b"" for k in channels}
     if not payload or len(payload) > MAX_SCAN_BYTES or not payload.endswith(b"\n"):
@@ -204,6 +206,7 @@ def split_session(payload: bytes, fixture: Path, task_sha256: str,
     ended = False
     user_count = 0
     calls = {}
+    call_events = {}
     results = set()
     step = None
     closed_steps = set()
@@ -223,7 +226,8 @@ def split_session(payload: bytes, fixture: Path, task_sha256: str,
         kind = record["type"]
         data = record["data"]
         if native_format_version == 4 and "sourceEventSeqs" in record:
-            return refuse("UNSUPPORTED_SURFACE_REPLAY")
+            if parser_version < 3 or kind != "tool/result" or record.get("surfaceOp") != "append":
+                return refuse("UNSUPPORTED_SURFACE_REPLAY")
         known_events = V4_EVENTS if native_format_version == 4 else KNOWN_EVENTS
         if kind not in known_events and record.get("ignorable") is not True:
             return refuse("UNKNOWN_REQUIRED_EVENT")
@@ -243,7 +247,7 @@ def split_session(payload: bytes, fixture: Path, task_sha256: str,
         elif kind == "step/end":
             if step is None or not _integer(data.get("turn")) or not _integer(data.get("step")) or data.get("turn") != turn or data.get("step") != step:
                 return refuse("INVALID_STEP_END")
-            if parser_version == 2 and pending_retry is not None:
+            if parser_version >= 2 and pending_retry is not None:
                 if pending_retry["state"] != "attempt":
                     return refuse("UNFINISHED_RETRY_CHAIN")
                 unresolved_attempt = True
@@ -254,9 +258,9 @@ def split_session(payload: bytes, fixture: Path, task_sha256: str,
                 return refuse("INVALID_TURN_END")
             ended = True
             summary["completed"] = data["reason"].get("kind") == "completed"
-            if parser_version == 2 and summary["completed"] and unresolved_attempt:
+            if parser_version >= 2 and summary["completed"] and unresolved_attempt:
                 return refuse("UNRECOVERED_ASSISTANT_ATTEMPT")
-        elif parser_version == 2 and kind == "request/header":
+        elif parser_version >= 2 and kind == "request/header":
             config = data.get("header", {}).get("config") if isinstance(data.get("header"), dict) else None
             if (turn is None or ended or step is None or not isinstance(config, dict)
                     or not all(isinstance(config.get(k), str) and config[k] for k in ("provider", "model"))):
@@ -299,7 +303,7 @@ def split_session(payload: bytes, fixture: Path, task_sha256: str,
         elif native_format_version == 4 and kind == "workspace/changes":
             if set(data) != {"turn"} or not _integer(data["turn"]) or data["turn"] != turn:
                 return refuse("INVALID_WORKSPACE_CHANGE_NOTICE")
-        elif parser_version == 2 and kind in {"llm/retry", "llm/retry-started"}:
+        elif parser_version >= 2 and kind in {"llm/retry", "llm/retry-started"}:
             if (turn is None or ended or step is None or not _integer(data.get("turn"))
                     or not _integer(data.get("step")) or data["turn"] != turn or data["step"] != step
                     or pending_retry is None or not isinstance(data.get("retryId"), str)
@@ -340,12 +344,13 @@ def split_session(payload: bytes, fixture: Path, task_sha256: str,
             if turn is None or ended or step is None or not _integer(data.get("turn")) or not _integer(data.get("step")) or data.get("turn") != turn or data.get("step") != step:
                 return refuse("OUTPUT_OUTSIDE_TURN")
             if kind == "tool/call":
-                if parser_version == 2 and pending_retry is not None:
+                if parser_version >= 2 and pending_retry is not None:
                     return refuse("RETRY_LIFECYCLE_MISMATCH")
                 call = data.get("callId")
                 if not isinstance(call, str) or not call or call in calls or not all(isinstance(data.get(k), str) and data[k] for k in ("name", "arguments")):
                     return refuse("INVALID_OR_DUPLICATE_TOOL_CALL")
                 calls[call] = data["step"]
+                call_events[call] = expected_seq
                 counts["tool_calls"] += 1
                 continue
             if kind == "assistant/attempt":
@@ -373,9 +378,11 @@ def split_session(payload: bytes, fixture: Path, task_sha256: str,
                 continue
             message = data.get("message")
             role = "tool" if kind == "tool/result" else "assistant"
+            flat_tool = (role == "tool" and parser_version >= 3 and native_format_version == 4
+                         and isinstance(message, dict) and message.get("role") == "tool")
             if (
                 not isinstance(message, dict) or not isinstance(message.get("id"), str) or not message["id"]
-                or message.get("role") != ("user" if role == "tool" else "assistant")
+                or message.get("role") != ("tool" if flat_tool else "user" if role == "tool" else "assistant")
                 or not isinstance(message.get("source"), dict)
                 or message["source"].get("kind") != ("tool" if role == "tool" else "model")
                 or not _blocks_supported(message.get("content"))
@@ -385,17 +392,31 @@ def split_session(payload: bytes, fixture: Path, task_sha256: str,
                 blocks = message["content"]
                 call = message["source"].get("callId")
                 if (
-                    len(blocks) != 1 or blocks[0]["type"] != "tool-result"
-                    or not isinstance(call, str) or call not in calls or call in results
-                    or blocks[0]["toolCallId"] != call or calls[call] != data["step"]
+                    not isinstance(call, str) or call not in calls or call in results
+                    or calls[call] != data["step"]
                 ):
                     return refuse("TOOL_RESULT_CORRELATION_FAILED")
-                if "error" in data and (not isinstance(data["error"], dict) or blocks[0].get("isError") is not True):
+                if flat_tool:
+                    refs = record.get("sourceEventSeqs")
+                    if (message.get("toolCallId") != call or type(message.get("isError")) is not bool
+                            or message["source"] != {"kind": "tool", "callId": call}
+                            or not isinstance(refs, list) or len(refs) != 1
+                            or type(refs[0]) is not int or refs[0] != call_events[call]
+                            or any(block["type"] not in {"text", "reasoning"} for block in blocks)):
+                        return refuse("INVALID_FLAT_TOOL_RESULT_OR_SOURCE")
+                    is_error = message["isError"]
+                else:
+                    if (len(blocks) != 1 or blocks[0]["type"] != "tool-result"
+                            or blocks[0]["toolCallId"] != call
+                            or parser_version >= 3 and "sourceEventSeqs" in record):
+                        return refuse("TOOL_RESULT_CORRELATION_FAILED")
+                    is_error = blocks[0].get("isError")
+                if "error" in data and (not isinstance(data["error"], dict) or is_error is not True):
                     return refuse("INVALID_TOOL_ERROR_METADATA")
                 results.add(call)
             elif not all(isinstance(message["source"].get(k), str) and message["source"][k] for k in ("provider", "model")):
                 return refuse("INVALID_ASSISTANT_SOURCE")
-            if parser_version == 2 and role == "assistant":
+            if parser_version >= 2 and role == "assistant":
                 if step_assistant_seen:
                     return refuse("DUPLICATE_ASSISTANT_SETTLEMENT")
                 if pending_retry is not None:

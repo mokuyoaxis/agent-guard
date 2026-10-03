@@ -21,8 +21,18 @@ forfeits automation. A payload carrying both a sanitizable secret and an
 un-rewritable shape must ASK - you cannot silently proceed when part of the
 emission is uninspectable.
 
-Exit codes (`check_span.py`): `0` allow/sanitize · `2` block · `3` ask ·
+Exit codes (`check_span.py` and `sanitize.py`): `0` allow/sanitize · `2` block · `3` ask ·
 `1` error.
+
+The checker returns a proposal. The sanitizer outputs a payload only after
+ALLOW or a verified SANITIZE; ASK/BLOCK/errors produce no payload on stdout.
+External plans must match the freshly derived offsets and placeholders, with
+any supplied metadata agreeing too. Missing, extra, overlapping or stale ranges
+and arbitrary replacements are refused. Revalidation binds the plan to current
+scan facts, not to a byte-identical input fingerprint. The library returns empty
+`text` for ASK/BLOCK. Both CLIs share default workspace/mode resolution; the
+checker retains its explicit mode/path overrides, which are not authorization
+for the sanitizer. Input and plan files are bounded UTF-8 text.
 
 ## Reason codes
 
@@ -37,7 +47,7 @@ Exit codes (`check_span.py`): `0` allow/sanitize · `2` block · `3` ask ·
 | `BLOCK_SECRET_EMISSION` | BLOCK | credential about to enter immutable/remote history |
 | `BLOCK_PATH_EMISSION` | BLOCK | host path about to enter immutable/remote history |
 | `BLOCK_SECRET_SOURCE_DUMP` | BLOCK | the payload reads a secret store the guard cannot see into |
-| `BLOCK_OUTPUT_UNSCANNABLE` | BLOCK | never scanned: unknown channel, over cap, non-ASCII, scanner error |
+| `BLOCK_OUTPUT_UNSCANNABLE` | BLOCK | never scanned: unknown channel, over cap, scanner error |
 
 ## Rule table (first match wins)
 
@@ -46,7 +56,7 @@ Exit codes (`check_span.py`): `0` allow/sanitize · `2` block · `3` ask ·
 | 1 | payload reads a secret store (`.env`, `*.pem`, `id_rsa*`, `kubeconfig`, `printenv`, `env \| …`) | BLOCK | `BLOCK_SECRET_SOURCE_DUMP` |
 | 2 | match is a placeholder / already-redacted marker | ALLOW | `ALLOW_SECRET_PLACEHOLDER` |
 | 3 | path is workspace-relative (and not the root itself) | ALLOW | `ALLOW_PATH_IN_WORKSPACE` |
-| 4 | channel unknown or payload over the scan cap / non-ASCII / scanner error | BLOCK | `BLOCK_OUTPUT_UNSCANNABLE` |
+| 4 | channel unknown or payload over the scan cap / scanner error | BLOCK | `BLOCK_OUTPUT_UNSCANNABLE` |
 | 5 | channel is immutable history (`git-commit-message`, `git-push-payload`) | BLOCK | `BLOCK_*_EMISSION` |
 | 6 | channel is neither rewritable nor persistent (`shell-stdout`) | ASK | `ASK_*_EMISSION` |
 | 7 | secret, `deterministic` (T1) or context gate fired | SANITIZE | `SANITIZE_SECRET_REDACT` |
@@ -63,14 +73,50 @@ loosens a BLOCK.
 | Rule id | Shape | Anchor |
 |---|---|---|
 | `secret/openai-key` | `sk-` + 20+ url-safe chars, incl. `sk-proj-`/`sk-ant-`/`sk-live-` | prefix + length + charset |
-| `secret/github-token` | `ghp_`/`gho_`/`ghu_`/`ghs_`/`ghr_` + 36; `github_pat_` + 22+ | fixed-format prefix |
+| `secret/github-token` | classic `ghp_`/`gho_`/`ghu_`/`ghs_`/`ghr_` + 36; `github_pat_` + 22–255; `ghs_APPID_JWT` installation wrapper | vendor prefix; new wrapper has a structural JWT header |
 | `secret/aws-access-key-id` | `AKIA`/`ASIA`/`AGPA`/`AIDA`/`AROA`/`ANPA` + 16 upper-alnum | globally reserved prefix |
 | `secret/gitlab-token` | `glpat-` + 20+ | prefix |
 | `secret/slack-token` | `xox[baprs]-` | prefix |
 | `secret/stripe-key` | `sk_live_`/`rk_live_` (never `sk_test_`) | prefix + live mode |
 | `secret/jwt` | three base64url segments; header decodes to JSON containing `alg` | **structural**, not just `a.b.c` |
 | `secret/private-key-block` | `-----BEGIN [X ]*PRIVATE KEY-----` … `-----END …` | delimiters; whole block withheld |
-| `secret/source-reference` | an env-var *name* (`*KEY*`, `*TOKEN*`, …), a secret-store file name, or a whole-environment expansion | value-free (T2) |
+| `secret/connection-password` | nonempty password between the first userinfo colon and final `@` in a `scheme://` authority | URI credential context; only password withheld |
+| `secret/source-reference` | an env-var *name* with a complete credential component, a secret-store file name, or a whole-environment expansion | value-free (T2) |
+
+Vendor/JWT boundaries use ASCII identifier characters so credentials adjacent
+to CJK prose are detected while English identifier substrings stay quiet.
+The new GitHub installation rule retains the complete `ghs_APPID_JWT` wrapper,
+including long signatures, under the normal payload cap. App ID is opaque;
+the JWT header must decode to JSON with a nonempty string `alg`. No business
+claims, issuer, expiry or signature are authenticated. Historical generic JWT
+interpretation is unchanged. Format references: [GitHub's format notice](https://github.blog/changelog/2026-04-24-notice-about-upcoming-new-format-for-github-app-installation-tokens/)
+and [updated format guidance](https://github.blog/changelog/2026-05-15-github-app-installation-tokens-per-request-override-header/).
+
+Variable references support `$NAME`, `${NAME}`, `$env:NAME` and `%NAME%`.
+Underscores and camelCase/acronym boundaries separate complete components:
+`TOKEN`, `PASSWORD`, `API_KEY` and `accessToken` are credential names;
+`MONKEY` and `API_KEYBOARD` are not. A terminal `COUNT`, `LENGTH` or `ENABLED`
+component denotes metadata (`TOKEN_COUNT`, `KEY_ENABLED`). Arbitrarily glued
+lowercase/all-capital names are not split by substring guessing. Public-key
+names retain the existing conservative behavior; there is no `PUBLIC*`
+exemption. A benign first reference cannot hide a later credential reference.
+Names are classified without resolving or reading their values.
+Bare lower/title-case `key` (`$key`, `${key}`) is ambiguous with an ordinary
+dictionary/schema key and is not classified by name alone. Uppercase `KEY`,
+qualified names such as `apiKey`, and explicit `$env:key`/`%key%` references
+remain protected. This narrow name boundary does not exempt source files or
+template expressions as a whole; stronger names still cause refusal.
+
+The URI rule uses original text coordinates. It supports percent encoding,
+JSON-escaped scheme slashes, empty usernames (e.g. Redis), and literal `@`
+inside a password by selecting the final authority separator. Complete
+template expressions (`<PASSWORD>`, `${VAR}`, `%VAR%`) and redaction markers are
+exempt; plain short/weak passwords are not. Variable-reference facts still
+apply independently and cannot be swallowed by an overlapping URI span.
+Raw `/`, `?`, `#`, whitespace and quote delimiters end the authority: encode
+them inside a password. This rule does not cover non-URI DSNs, fully encoded
+URLs or arbitrary nested serialization. Accounts and hosts remain visible.
+Syntax reference: [RFC 3986 §3.2.1](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.1).
 
 Two design rules that keep T1 deterministic:
 
@@ -109,19 +155,24 @@ repository's own prose quiet.
 
 ## Placeholder allowlist (design 5.1)
 
-Deterministic, in-repo, no config: `YOUR_API_KEY_HERE`, `EXAMPLE_SECRET`,
-`changeme`, `dummy`, `example`, `test`, `fake`, `placeholder`, `TODO`,
-`<REDACTED>`, `[REDACTED]`, `<...>` markers, `${...}` interpolations,
-all-same-char runs (`xxxx`, `****`), sequential runs, and vendor-prefixed
-words (`sk-test`). A token whose **alphabet** is trivial is a placeholder; a
-real credential can never live in that regime.
+Deterministic, in-repo, no config: exact static words such as
+`YOUR_API_KEY_HERE`, `EXAMPLE_SECRET`, `dummy-value`, `changeme`, `test`,
+`fake`, `placeholder` and `TODO`; whole `<REDACTED>`/`[REDACTED]` markers,
+identifier templates (`<TOKEN>`, `${NAME}`), and whole trivial-alphabet bodies.
+Known public vendor prefixes can be removed before checking the entire body,
+so explicit vendor examples (`sk-test`, a vendor prefix followed only by `x`)
+remain quiet. The two fixed AWS documentation example IDs are exact entries.
+An arbitrary random credential containing `xxx`, `dummy` or `redact`, or
+ending in `none`/`example`, is not a placeholder. A marker word inside a
+private-key block cannot exempt the entire block. Independent secret-source
+facts still apply to variable templates.
 
 ## Configuration (environment)
 
 | Variable | Meaning |
 |---|---|
-| `AGENT_GUARD_EXFIL_CHANNEL` | default egress channel for `check_span.py` |
-| `AGENT_GUARD_EXFIL_MAX_BYTES` | payload size cap (default 4 MiB); over-cap is `BLOCK_OUTPUT_UNSCANNABLE` |
+| `AGENT_GUARD_EXFIL_CHANNEL` | default egress channel for both text CLIs |
+| `AGENT_GUARD_EXFIL_MAX_BYTES` | input/scan cap (default 4 MiB); over-cap input is `BLOCK_OUTPUT_UNSCANNABLE`; sanitizer plan files use the same bound |
 | `AGENT_GUARD_HOSTNAMES` / `AGENT_GUARD_HOME_MARKERS` | extra literal host names / home markers |
 | `AGENT_GUARD_HOME_PREFIXES` | extra literal prefixes to treat as host-identifying |
 | `AGENT_GUARD_SYSTEM_PREFIXES` | override the system-prefix allow set |

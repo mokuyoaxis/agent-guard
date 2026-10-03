@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import * as adapter from "../../adapters/dsh/lib/index.js";
 import { verifyReadRuntime, pinReadBinding } from "../../adapters/dsh/lib/read_result_guard.js";
@@ -27,11 +28,40 @@ try {
   stage = "fixtures";
   const parent = path.join(process.env.XDG_STATE_HOME || path.join(process.env.HOME, ".local", "state"), "agent-guard-lab");
   await fs.mkdir(parent, { recursive: true, mode: 0o700 });
-  evidence = await fs.mkdtemp(path.join(parent, "dsh-read-redaction-20260930-"));
+  evidence = await fs.mkdtemp(path.join(parent, "dsh-read-redaction-20261002-"));
   const workspace = path.join(evidence, "fixture");
   const fixture = spawnSync("python3", ["-I", path.join(repoRoot, "adapters/dsh/harness/read_fixture.py"), "--directory", workspace], { encoding: "utf8", timeout: 15000 });
   assert.equal(fixture.status, 0);
   const control = JSON.parse(await fs.readFile(path.join(evidence, "fixture.control.json"), "utf8"));
+  // URI passwords have no vendor prefix: this exercises the new shared
+  // Core rule through native read, projection and durable persistence.
+  const uriPasswords = [randomBytes(18).toString("hex"),
+    randomBytes(18).toString("hex") + "%40%2Fword",
+    randomBytes(18).toString("hex") + "@part:tail"];
+  const uriLines = [
+    "POSTGRES_URI=postgresql" + "://account:" + uriPasswords[0] + "@db.example.invalid:5432/app",
+    "JSON_URI=" + JSON.stringify({ uri: "mongodb+srv" + "://account:" + uriPasswords[1] + "@db.example.invalid/app" }).replaceAll("/", "\\/"),
+    "REDIS_URI=redis" + "://:" + uriPasswords[2] + "@[::1]:6379/0",
+    "SHORT_URI=redis" + "://:a@db.example.invalid/0",
+  ];
+  control.fixture = "dsh-read-redaction-uri-v1";
+  control.protected_values.push(...uriPasswords);
+  await fs.appendFile(path.join(workspace, "redaction.ini"), uriLines.join("\n") + "\n");
+  // Incidental placeholder substrings and Unicode adjacency must not hide
+  // a complete token. Long installation tokens share the Core rule.
+  const markerBody = randomBytes(5).toString("hex") + "xxx" + randomBytes(12).toString("hex").slice(0, 23);
+  const jwtHeader = Buffer.from(JSON.stringify({ alg: "RS256", typ: "JWT" })).toString("base64url");
+  const jwtPayload = Buffer.from(JSON.stringify({ aud: "synthetic", installation: 42 })).toString("base64url");
+  const jwtSignature = randomBytes(300).toString("base64url");
+  const installationToken = "ghs_" + "123456_" + jwtHeader + "." + jwtPayload + "." + jwtSignature;
+  control.fixture = "dsh-read-redaction-boundaries-v1";
+  control.protected_values.push(markerBody, installationToken, jwtSignature);
+  await fs.appendFile(path.join(workspace, "redaction.ini"),
+    "令牌" + "ghp_" + markerBody + "请保密\nINSTALLATION=" + installationToken + "\n");
+  await fs.appendFile(path.join(workspace, "benign.ini"),
+    "echo ${MONKEY} ${API_KEYBOARD} ${TOKEN_COUNT}\n"
+    + "throw new TypeError(`${name}: missing argument ${key}`)\n");
+  await fs.writeFile(path.join(evidence, "fixture.control.json"), JSON.stringify(control) + "\n", { mode: 0o600 });
   const protectedValues = control.protected_values;
   const hasProtected = (value) => protectedValues.some((secret) => JSON.stringify(value).includes(secret));
   const hasAllProtected = (value) => protectedValues.every((secret) => JSON.stringify(value).includes(secret));
@@ -59,6 +89,7 @@ try {
   assert.equal(baseline.isError, false);
   assert.ok(hasAllProtected(baseline.content));
   assert.ok(hasAllProtected(baseline.meta));
+  assert.ok(JSON.stringify(baseline.content).includes(uriLines[3]));
   const benignBefore = await execute("benign.ini");
   let shellCalls = 0;
   class NoShell extends Service {
@@ -93,10 +124,30 @@ try {
   assert.ok(JSON.stringify(guarded.content).includes("<REDACTED>"));
   assert.ok(JSON.stringify(guarded.meta).includes("<REDACTED>"));
   assert.ok(JSON.stringify(guarded).includes(control.ordinary_marker));
+  const preservedUris = [
+    "POSTGRES_URI=postgresql" + "://account:<REDACTED>@db.example.invalid:5432/app",
+    "JSON_URI=" + JSON.stringify({ uri: "mongodb+srv" + "://account:<REDACTED>@db.example.invalid/app" }).replaceAll("/", "\\/"),
+    "REDIS_URI=redis" + "://:<REDACTED>@[::1]:6379/0",
+    "SHORT_URI=redis" + "://:<REDACTED>@db.example.invalid/0",
+  ];
+  for (const expected of preservedUris) {
+    assert.ok(guarded.value.lines.some((line) => line.text === expected));
+  }
   assert.deepEqual(guarded.value.lines.map((line) => line.number), baseline.value.lines.map((line) => line.number));
   assert.deepEqual((await execute("benign.ini")), benignBefore);
   stage = "native-failures";
   const failures = [earlyFailure];
+  await fs.writeFile(path.join(workspace, "source-reference.ini"),
+    "mysql" + "://account:" + uriPasswords[0] + "${REVIEW_" + "SECRET_TOKEN}@db.example.invalid/app\n",
+    { mode: 0o600 });
+  const sourceFailure = await execute("source-reference.ini");
+  assert.match(sourceFailure.content[0].text, /READ_RESULT_POLICY/);
+  failures.push(sourceFailure);
+  await fs.writeFile(path.join(workspace, "exact-reference.ini"),
+    "echo ${MONKEY} ${TOKEN_COUNT} ${" + "TOKEN}\n", { mode: 0o600 });
+  const exactReference = await execute("exact-reference.ini");
+  assert.match(exactReference.content[0].text, /READ_RESULT_POLICY/);
+  failures.push(exactReference);
   failures.push(await execute("redaction.ini", { limit: 2 }));
   failures.push(await execute("redaction.ini", { offset: 2 }));
   failures.push(await execute("absent.ini"));
@@ -259,6 +310,11 @@ try {
     node_version: process.version, model_calls: 0, network_calls: 0, shell_calls: shellCalls,
     synthetic_streams: syntheticStreams, baseline_content_exposed: true, baseline_meta_exposed: true,
     guarded_content_redacted: true, guarded_meta_redacted: true, ordinary_marker_preserved: true,
+    uri_password_cases: preservedUris.length, uri_account_and_host_preserved: true,
+    placeholder_substring_redacted: true, unicode_adjacency_redacted: true,
+    full_installation_token_redacted: true, benign_variable_names_preserved: true,
+    exact_secret_name_refused: true,
+    encoded_and_literal_delimiters_redacted: true, source_reference_overlap_blocked: true,
     benign_unchanged: true, line_numbers_preserved: true, failures_blocked: failures.length,
     finalizer_refused: true, version_drift_refused: true, next_request_redacted: true,
     dependency_drift_refused: true, artifact_drift_refused: true, scoped_shadow_denied: true,
