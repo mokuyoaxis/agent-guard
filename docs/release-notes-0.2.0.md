@@ -35,8 +35,8 @@ The [harness capability matrix](harness-capabilities.md) separates CLI use,
 adapter tests, observed hooks, and observed execution-level enforcement.
 Claude Code has a bounded real CLI/hook test with a scripted model endpoint.
 DSH 0.1.5-rc.1 has adapter smoke tests, not a confirmed current-version
-plugin-load and rejected-execution trial. Kimi Code 0.42.0 has two isolated
-`local/kimi-k3` sandboxes showing sampled hook and compensation paths,
+plugin-load and rejected-execution trial. Two isolated Kimi Code 0.42.0
+sandboxes using a configured model route showed hook and compensation paths,
 including sampled subagents; execution-level `BLOCK` remains unproven. In
 that Kimi version, `ASK` is mapped to a hard refusal, not an approval prompt.
 Codex and ZCode evidence covers cooperative Skill/CLI use, not native

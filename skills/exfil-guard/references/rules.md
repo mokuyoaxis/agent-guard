@@ -74,11 +74,12 @@ loosens a BLOCK.
 |---|---|---|
 | `secret/openai-key` | `sk-` + 20+ url-safe chars, incl. `sk-proj-`/`sk-ant-`/`sk-live-` | prefix + length + charset |
 | `secret/github-token` | classic `ghp_`/`gho_`/`ghu_`/`ghs_`/`ghr_` + 36; `github_pat_` + 22–255; `ghs_APPID_JWT` installation wrapper | vendor prefix; new wrapper has a structural JWT header |
-| `secret/aws-access-key-id` | `AKIA`/`ASIA`/`AGPA`/`AIDA`/`AROA`/`ANPA` + 16 upper-alnum | globally reserved prefix |
+| `secret/aws-access-key-id` | `AKIA`/`ASIA` + 16 upper-alnum | access-key identifier prefixes |
 | `secret/gitlab-token` | `glpat-` + 20+ | prefix |
 | `secret/slack-token` | `xox[baprs]-` | prefix |
 | `secret/stripe-key` | `sk_live_`/`rk_live_` (never `sk_test_`) | prefix + live mode |
-| `secret/jwt` | three base64url segments; header decodes to JSON containing `alg` | **structural**, not just `a.b.c` |
+| `secret/pypi-token` | `pypi-` + 85+ base64url body characters, without a fixed maximum | documented vendor scanner shape |
+| `secret/jwt` | three base64url segments; header decodes to JSON with a nonempty ASCII string `alg` | **structural**, not just `a.b.c` |
 | `secret/private-key-block` | `-----BEGIN [X ]*PRIVATE KEY-----` … `-----END …` | delimiters; whole block withheld |
 | `secret/connection-password` | nonempty password between the first userinfo colon and final `@` in a `scheme://` authority | URI credential context; only password withheld |
 | `secret/source-reference` | an env-var *name* with a complete credential component, a secret-store file name, or a whole-environment expansion | value-free (T2) |
@@ -87,10 +88,26 @@ Vendor/JWT boundaries use ASCII identifier characters so credentials adjacent
 to CJK prose are detected while English identifier substrings stay quiet.
 The new GitHub installation rule retains the complete `ghs_APPID_JWT` wrapper,
 including long signatures, under the normal payload cap. App ID is opaque;
-the JWT header must decode to JSON with a nonempty string `alg`. No business
-claims, issuer, expiry or signature are authenticated. Historical generic JWT
-interpretation is unchanged. Format references: [GitHub's format notice](https://github.blog/changelog/2026-04-24-notice-about-upcoming-new-format-for-github-app-installation-tokens/)
+the JWT header must decode to JSON with a nonempty ASCII string `alg`. Generic
+JWT detection requires that same declared header type. No business claims,
+issuer, expiry or signature are authenticated, and algorithms are not limited
+to a hardcoded enum. Format references: [GitHub's format notice](https://github.blog/changelog/2026-04-24-notice-about-upcoming-new-format-for-github-app-installation-tokens/)
 and [updated format guidance](https://github.blog/changelog/2026-05-15-github-app-installation-tokens-per-request-override-header/).
+
+AWS group/user/role/policy IDs (`AGPA`/`AIDA`/`AROA`/`ANPA`) are resource
+identifiers and are excluded from the access-key rule, following the
+[AWS prefix table](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_identifiers.html#identifiers-unique-ids).
+Their appearance inside a URI password or another credential context does not
+exempt that enclosing credential. The JWT header type follows
+[RFC 7515 §4.1.1](https://www.rfc-editor.org/rfc/rfc7515#section-4.1.1).
+
+PyPI detection follows its [official scanner format](https://docs.pypi.org/api/secrets/#detecting-the-pypi-secret-format).
+The entire body is captured under the normal payload cap, including longer
+Macaroon caveats. `pypi-client-library`, short examples and whole placeholders
+remain quiet. This is shape detection, without deserializing the Macaroon,
+verifying authorization or reporting/revoking tokens through PyPI's API.
+The legacy broad `sk-` shape remains protected pending a complete format
+review; ordinary long component names with that shape can still match.
 
 Variable references support `$NAME`, `${NAME}`, `$env:NAME` and `%NAME%`.
 Underscores and camelCase/acronym boundaries separate complete components:
@@ -121,7 +138,7 @@ Syntax reference: [RFC 3986 §3.2.1](https://www.rfc-editor.org/rfc/rfc3986.html
 Two design rules that keep T1 deterministic:
 
 1. **Structural validation** where the format allows it. A JWT is only a JWT
-   if segment 1 base64-decodes to JSON with `alg`; otherwise it is a version
+   if segment 1 base64-decodes to JSON with the declared ASCII string `alg`; otherwise it is a version
    string (`1.2.3`) or a hostname (`api.example.com`), both of which occur
    constantly in this repository's own text.
 2. **No generic keyword patterns.** `password=` / `secret=` are *context*

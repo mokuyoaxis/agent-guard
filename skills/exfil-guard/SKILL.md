@@ -129,6 +129,13 @@ GitHub installation credentials support both classic and `ghs_APPID_JWT`
 shapes, with complete redaction of long tokens. These are shape facts, not
 authentication or token-validity checks. See [rules.md](references/rules.md).
 
+PyPI token bodies follow the documented `pypi-` scanner shape and are redacted
+in full, including long bodies. AWS access-key IDs use AKIA/ASIA; IAM resource
+IDs have separate types and do not match that credential rule. Generic JWT
+headers require a nonempty ASCII string `alg`. Public-key variable names and
+the broad legacy `sk-` shape retain conservative handling where their purpose
+or complete format has not been established.
+
 ## Path rules
 
 A path is only a host identifier if it is **outside the workspace**:

@@ -6,20 +6,19 @@ On 2026-09-27, the checksum-verified official Linux ARM64 build of Kimi Code
 CLI 2.1.1 ran two authenticated model routes in new isolated fixtures:
 
 - an available OAuth-managed official model; and
-- official K3 through the maintainer-confirmed trusted relay exposed locally
-  as `local/kimi-k3`.
+- a second configured model route.
 
-The maintainer confirms that the relay passes through official K3. The client
-trial proves the requested route and its observed hook behavior; it cannot
-independently identify opaque remote weights or audit the relay operator. No
-OAuth material, endpoint or provider identifier is retained in this report.
+The trials verify the requested routes and their observed hook behavior;
+client records do not independently identify remote model weights. Private
+route identifiers and connection details are omitted. The historical route
+labels A and B below are anonymized; test dates and results are unchanged.
 
 The opt-in live sentinel asked for one exact, harmless `Bash: touch` call. It
 set an intentionally invalid process-local dialect so Core had to deny the
 call, while an empty marker file would have appeared only if the host bypassed
 the hook. No deletion, remote operation or user-data path was involved.
 
-| Evidence | OAuth official route | Maintainer-confirmed official K3 relay |
+| Evidence | OAuth official route | Second configured route |
 |---|---|---|
 | Selected configuration | Kimi config doctor and local bridge probe passed | Same selected hook and bridge passed |
 | Adapter receipt | Exact event, tool, cwd and command SHA-256 matched | Exact event, tool, cwd and command SHA-256 matched |
@@ -32,8 +31,8 @@ output was counted and hashed, then discarded. During the trials, the sentinel
 was hardened for Kimi 2.x prompt mode and two real result-integrity bugs were
 fixed: hook receipt/workspace paths are now absolute before the host changes
 cwd, and a timed-out host is always `INCONCLUSIVE` even if block evidence was
-already present. The K3 prompt also forbids retrying after a block. Only the
-post-fix, exact-command, normally exited runs are counted as PASS.
+already present. The second route's prompt also forbids retrying after a block.
+Only the post-fix, exact-command, normally exited runs are counted as PASS.
 
 This current-host evidence covers one root-agent `Bash` call. It does not add
 2.1.1 evidence for subagents, concurrent calls, ASK behavior, non-`Bash`
@@ -42,7 +41,7 @@ from the broader historical 0.42.0 observations below.
 
 ## Historical Kimi Code 0.42.0 trials
 
-On 2026-09-24, a real Kimi Code CLI session using `local/kimi-k3` invoked the
+On 2026-09-24, a real Kimi Code CLI session using configured route A invoked the
 configured agent-guard `PreToolUse` hook. In one root-agent and one
 single-subagent trial, a synthetic `BLOCK` was returned to the model and an
 independently checked sentinel was absent. A separate root-agent `ASK` trial
@@ -51,9 +50,9 @@ was also denied, as required by Kimi 0.42.0's hook semantics.
 This is **execution-level evidence for these sampled Bash calls**, not a
 guarantee that every agent, model, tool, or future Kimi version is intercepted.
 
-## `local/kimi-k3`: first execution-level probe
+## Configured route A: first execution-level probe
 
-- Host: `@moonshot-ai/kimi-code` 0.42.0; model alias: `local/kimi-k3`.
+- Host: `@moonshot-ai/kimi-code` 0.42.0; configured route A.
 - Entry: a `PreToolUse` hook matched to `Bash`, using
   [`adapters/kimi-code/pre_tool_use.py`](../adapters/kimi-code/pre_tool_use.py).
 - Workspace: a new isolated, local Git project with no remote and no user
@@ -76,13 +75,13 @@ establishes the subagent origin. Session traces and full check IDs are retained
 in the local internal test record; this public report omits local home paths,
 profile details, and session identifiers.
 
-## `kimi-code/kimi-for-coding`: second configured model ID
+## Configured route B: second request model ID
 
 In a fourth isolated local project, the same Kimi Code 0.42.0 `Bash` hook
 was exercised through a different configured request model ID. The host
-session and child wire recorded `modelAlias=kimi-code/kimi-for-coding` and
-`model=kimi-for-coding`; this proves the requested route, **not** the opaque
-managed provider's underlying weights or future routing.
+session and child wire recorded that route in their `modelAlias` and `model`
+fields. These records establish the requested route; remote model weights
+and future routing were not independently verified.
 
 | Trial | Observation | Independent check |
 |---|---|---|
@@ -96,7 +95,7 @@ no HOME deletion, real remote push, or user-data operation.
 
 ## Failure-boundary follow-up
 
-Further isolated trials used the official `kimi-code/kimi-for-coding` route.
+Further isolated trials used configured route B.
 They distinguish a hook that returns `BLOCK` from one that never produces a
 usable verdict:
 
@@ -124,7 +123,7 @@ doctor and `python3 doctor.py kimi --probe` passed. The latter tests the
 bridge locally, including a missing interpreter; it is **not** a host-level
 failure-injection result.
 
-Two new `kimi-code/kimi-for-coding` sessions used one synthetic temporary
+Two new sessions using configured route B used one synthetic temporary
 project containing no Git remote or user files. Each prompt requested one
 harmless Bash `touch` call:
 
@@ -144,7 +143,7 @@ host trial appears below. The bridge and doctor are post-0.2.0 work,
 
 A later process-local trial used a Python `sitecustomize` fixture that exits 1
 before `pre_tool_use.py` starts. The user-level Kimi config and credentials
-were not changed or copied. Three `kimi-code/kimi-for-coding` sessions used
+were not changed or copied. Three sessions using configured route B used
 one new temporary project with no remote or user files; each model requested
 exactly one harmless `Bash: touch` command. The trial does not assert the
 provider's opaque underlying model weights.
@@ -166,7 +165,7 @@ workspace, but it is still not a host-interception test.
 
 ## Limits and follow-up
 
-The earlier two `local/kimi-k3` sandboxes proved hook and recoverable-action
+The earlier two route A sandboxes proved hook and recoverable-action
 paths, including concurrent subagent calls; they did not contain an
 execution-level `BLOCK` probe. The later dedicated projects add bounded
 execution and bridge-fault evidence. They do not prove simultaneous hook invocations, interception of

@@ -25,8 +25,7 @@ enforces and how to work with it productively. The four pillars:
 
 ## The one rule
 
-**Prefer `safe_delete` over `rm`. It is not slower for you - it is the
-supported path.**
+**Prefer `safe_delete` over `rm`.** It applies the guard's recovery policy.
 
 ```bash
 # delete files/dirs/globs - they are quarantined, not destroyed:
@@ -87,7 +86,7 @@ that an error means no filesystem change occurred. A durable
 After a human veto, the session runs with narrowed powers: explicit
 single-file deletes inside the workspace still work (quarantined as usual);
 recursive deletes, globs, and destructive git operations are refused. Only a
-human can restore NORMAL. If a task genuinely requires more, say so plainly
+human can restore NORMAL. If a task requires more, say so plainly
 and ask.
 
 ## Regenerable artifacts

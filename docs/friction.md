@@ -1,8 +1,8 @@
-# Friction log — real-agent validation (DSH adapter, first live session)
+# Friction log — implementation findings and fixes
 
-The adapter plugin (`tools/pre-execute` interception + three model tools +
-prompt section) was pointed at a live coding agent performing real
-destructive operations. Findings, in the order they hurt.
+This log records findings from host trials, CLI checks and regression tests.
+The initial entries came from a DSH session using `tools/pre-execute`, three
+model tools and a prompt section; later entries cover Core and other adapters.
 
 ## F1 · Compound `cd X && rm y` resolves targets against the wrong base
 
@@ -403,3 +403,23 @@ bare lower/title-case `key` is kept ambiguous, while uppercase `KEY`, qualified
 template expressions receive no blanket exemption.
 Generic password/PII rules, public-key-name policy and broader `sk-`/AWS
 classification remain separate work.
+
+## F23 · Resource identifiers and malformed JWS headers matched credential rules
+
+The access-key pattern included IAM group/user/role/policy prefixes, and a
+generic JWT header needed only an `alg` field, allowing `alg: null` to match.
+These are classification errors in the synthetic inventory, independent of
+the sanitizer's output-withholding contract.
+
+**Fixed in the local source update (2026-10-03, unreleased):** AWS access-key
+facts now use AKIA/ASIA only; JWS headers require a nonempty ASCII string alg.
+Resource spellings used as URI passwords still receive credential redaction.
+PyPI's documented scanner shape adds an independent rule with whole long-body
+replacement and shared placeholder/boundary handling. Channel decisions,
+source-reference refusal and dependency count remain unchanged.
+
+Public-key variable names cannot establish that an unseen value is public,
+and the legacy broad sk- format has no complete issuance contract established
+in this review. Those boundaries retain protection and remain explicit review
+items. The narrowed structural rules do not certify a token's signature,
+claims, actual issuance or authorization.

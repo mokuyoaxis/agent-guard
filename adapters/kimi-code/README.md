@@ -13,8 +13,8 @@ Code's hooks, so `pre_tool_use.py` here delegates to
 Verified against **@moonshot-ai/kimi-code 0.42.0 and 2.1.1**. The detailed
 contract comparison below was established against 0.42.0; the 2.1.1 trials
 independently observed authenticated root `Bash` blocks through the same
-exit-2 hook path on an OAuth official route and on official K3 through a
-maintainer-confirmed trusted relay. See the
+exit-2 hook path on an OAuth official model and a second configured model
+route. Connection details and private route identifiers are omitted. See the
 [bounded report](../../docs/test-report-kimi-code-block.md).
 
 For the separate honeytoken experiment, see the
@@ -118,17 +118,18 @@ It does not describe a missing hook or a failed hook command.
   `BLOCK / BLOCK_UNDETERMINABLE_EFFECT`. A shape rule describes
   *compensation* difficulty rather than effect scope, so it no longer
   returns before the hard boundaries are evaluated. Regression suite:
-  `tests/test_incident_regression.py`. A genuinely shape-only ASK now asks
+  `tests/test_incident_regression.py`. A shape-only ASK now asks
   the agent to split and retry instead of proceeding without compensation.
   The 2.1.1 live sentinel exercised a hard `BLOCK`, not a live ASK path, so
   this conservative mapping is not advertised as a 2.1.1 approval-UI test.
 - **Subagent inheritance is observational, not a blanket guarantee.** In two
-  isolated `local/kimi-k3` sandboxes, single and concurrent subagent Bash
-  calls reached the native hook and produced recoverable audit records.
+  isolated sandboxes using one configured model route, single and concurrent
+  subagent Bash calls reached the native hook and produced recoverable audit
+  records.
   A third isolated project then showed [execution-level `BLOCK` enforcement](../../docs/test-report-kimi-code-block.md)
   for one root and one single-subagent inert Bash probe. Its separate root
   `ASK` probe was denied. A fourth isolated project reproduced these bounded
-  paths using the separate `kimi-code/kimi-for-coding` request model ID and
+  paths using a second configured request model ID and
   verified a recoverable deletion/restore cycle. Two same-turn subagents
   each received `BLOCK`, but their Bash calls reached the hook seconds apart;
   simultaneous hook execution, other tools/routes, backend model identity,
@@ -148,7 +149,7 @@ It does not describe a missing hook or a failed hook command.
   matcher, fails to spawn, or times out. The host remains fail-open for those
   cases; a verified interpreter path is risk reduction, not a hard boundary.
 - **The bridge was exercised through a new Kimi 0.42.0 host session** using
-  the `kimi-code/kimi-for-coding` request model ID: one harmless Bash call was
+  the second configured request model ID: one harmless Bash call was
   blocked under a process-local invalid dialect, and a separate harmless
   Bash call ran under the normal dialect. The denied sentinel was absent,
   the allowed sentinel was present, and the block was audited. A later

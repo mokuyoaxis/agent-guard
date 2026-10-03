@@ -84,13 +84,13 @@ verified Linux ARM64 release during this candidate cycle. Its current
 `[[hooks]]` / `PreToolUse` / `Bash` / exit-2 contract still matches the thin
 adapter, and both Kimi's config doctor and Agent Guard's local bridge probe
 passed. After OAuth login, an available official model completed the revised
-root-Bash live sentinel. Official K3, accessed through a trusted relay that
-the maintainer confirms is a pass-through, independently completed the same
+root-Bash live sentinel. A second configured model route completed the same
 probe. For both routes, exact receipt, Core audit and host block feedback all
 matched, while the bypass-only marker remained absent. Both results are
 `PASS / HOOK_ENFORCEMENT_OBSERVED`; `2.1.1` is now in the tested-version
 profile. The client evidence proves the requested routes and hook behavior,
-not opaque remote weights or relay internals.
+not the remote model weights. Private route identifiers and connection details
+are omitted from the public report.
 
 That repeat also found and fixed a sentinel-side relative-path bug: an explicit
 relative evidence directory is now resolved before the host changes cwd, so
@@ -98,13 +98,12 @@ the hook receives absolute create-only receipt and workspace paths. Kimi 2.x
 prompt mode now requests `stream-json` directly; it does not append the
 incompatible `--auto`/`--yolo` flags. A second result-integrity fix prevents
 complete hook evidence from overriding a host timeout: timeout is always
-`INCONCLUSIVE`. The K3 prompt now forbids retrying after a block. The evidence
-remains limited to one root `Bash` call per route; 2.1.1 subagents, ASK,
+`INCONCLUSIVE`. The second route's prompt now forbids retrying after a block.
+The evidence remains limited to one root `Bash` call per route; 2.1.1 subagents, ASK,
 concurrency and fault injection were not tested.
 
-A real Claude-model canary was not run because no Claude model entitlement was
-available. The previously documented scripted-model CLI evidence remains
-version-bounded and is not silently promoted.
+A real Claude-model canary was not run. The existing scripted-model CLI
+evidence remains limited to its tested versions and configurations.
 
 ## Verification gate
 

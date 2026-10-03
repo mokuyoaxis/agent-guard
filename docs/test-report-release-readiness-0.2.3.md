@@ -159,3 +159,81 @@ the approved `0.2.3` manifest/tests/README versions and validate its final
 artifact before authorizing the stable tag workflow. A
 [stable release-note draft](release-notes-0.2.3.md) is ready for that step.
 Remote publication is not authorized by this review.
+
+## Stable preparation — 2026-10-03
+
+The maintainer authorized README polishing and preparation for stable 0.2.3
+and a dsh-market listing. The local manifest is now `0.2.3`; committing,
+pushing, tagging, npm/GitHub publication and the catalog PR are subsequent
+steps. At this preparation checkpoint, registry checks showed
+`latest=0.2.2`, `rc=0.2.3-rc2`, with no
+published 0.2.3 package. Earlier sections retain their checkpoint dates.
+
+The current source adds validated sanitizer execution and external plans,
+bounded UTF-8 input, URI password detection, newer GitHub and PyPI token
+coverage, complete-name/placeholder boundaries and targeted AWS/JWT noise
+corrections. No production dependency or shared channel policy was added.
+The native capture helpers now use receipt v6 / parser v3, with source-call
+correlation and initialized isolated-profile fingerprints; old evidence keeps
+its original interpretation. Pending Lab trials are not recorded as complete,
+and no new injection L2 claim follows from this preparation.
+
+Earlier checks on 2026-10-03 exercised installed DSH 0.2.0-rc.2 local/sandbox
+read probes with the Core rules preserved in this candidate: protected
+synthetic values were absent from guarded
+value/content/meta, the next deterministic request and full JSONL, while
+normal configuration, resource IDs and Unicode stayed readable. Those probes
+made zero external model, network or shell calls. They validate reviewed
+native providers, not universal output interception or shell sandboxing.
+
+Two earlier 676-case full local runs each had a different startup/subprocess
+timeout; both isolated cases subsequently passed. Those failed runs remain
+failed. This preparation's 14-case preflight passed in 18.645 seconds,
+including package/release checks and both previously timed-out cases.
+The complete local candidate gate then passed all 676 Python tests in
+729.911 seconds, followed by both Node adapter/read-worker smoke suites.
+The environment was Python 3.13.5 / Node 22.23.2 on ARM64/PRoot. The full pass
+does not identify the cause of the earlier transient timeouts; no safety or
+timing threshold was relaxed.
+
+The candidate tarball contains 112 files, including the new WorkBuddy summary
+and all public CLI/adapter assets. It excludes internal evidence, tests and
+caches. Offline isolated installation with scripts disabled passed all ten
+CLI help checks and adapter import without an installed DSH dependency.
+Packaged files matched the worktree byte-for-byte. Final documentation is
+repacked after recording these results; its runnable assets must match that
+validated tarball. All 58 public Markdown files, 266 local links, 64 Python
+syntax trees and the LF/diff checks passed; supported secret-pattern scanning
+found no hits in those Markdown files.
+
+Native Windows/macOS cannot be revalidated on this local host. The eventual
+exact-source hosted CI and npm credential preflight remain required before
+tagging. This preparation launched no new real-host/model trial and made no
+remote repository, registry or catalog change.
+
+The [WorkBuddy summary](test-report-workbuddy-windows-core.md) records
+community Core/CLI feedback without claiming a native hook. Both READMEs
+preserve their section order, add scoped evidence badges and distinguish the
+prepared source from published artifacts.
+
+dsh-market reads the community
+[awesome-dsh-plugin catalog](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/blob/main/contributing.md).
+The checked catalog does not yet contain this project. A one-file bilingual
+`security` entry and PR copy are prepared locally. Package-to-repository
+mapping and the existing DSH bundle are already present; listing and
+publication remain separate actions.
+
+## Publication authorization — 2026-10-03
+
+The maintainer subsequently authorized the complete three-part publication:
+GitHub Release, npm and the dsh-market catalog submission. The README and
+stable notes now use release wording, while registry availability is shown by
+the npm badge and Releases. This documentation pass changes no runnable asset
+from the locally validated candidate.
+
+The release sequence requires the exact pushed source to pass the 13-job CI
+and npm credential preflight before the `0.2.3` tag starts publication.
+The existing tag workflow creates a stable GitHub Release and publishes its
+same checksummed tarball to npm `latest` with provenance. The catalog PR uses
+the verified package and changes one entry; submission is distinct from
+upstream acceptance and appearance in dsh-market.

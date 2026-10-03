@@ -28,7 +28,7 @@ try {
   stage = "fixtures";
   const parent = path.join(process.env.XDG_STATE_HOME || path.join(process.env.HOME, ".local", "state"), "agent-guard-lab");
   await fs.mkdir(parent, { recursive: true, mode: 0o700 });
-  evidence = await fs.mkdtemp(path.join(parent, "dsh-read-redaction-20261002-"));
+  evidence = await fs.mkdtemp(path.join(parent, "dsh-read-redaction-20261003-"));
   const workspace = path.join(evidence, "fixture");
   const fixture = spawnSync("python3", ["-I", path.join(repoRoot, "adapters/dsh/harness/read_fixture.py"), "--directory", workspace], { encoding: "utf8", timeout: 15000 });
   assert.equal(fixture.status, 0);
@@ -54,13 +54,20 @@ try {
   const jwtPayload = Buffer.from(JSON.stringify({ aud: "synthetic", installation: 42 })).toString("base64url");
   const jwtSignature = randomBytes(300).toString("base64url");
   const installationToken = "ghs_" + "123456_" + jwtHeader + "." + jwtPayload + "." + jwtSignature;
-  control.fixture = "dsh-read-redaction-boundaries-v1";
-  control.protected_values.push(markerBody, installationToken, jwtSignature);
+  const pypiBody = randomBytes(66).toString("base64url") + "xxx" + randomBytes(300).toString("base64url");
+  const pypiToken = "pypi-" + pypiBody;
+  control.fixture = "dsh-read-redaction-pypi-v1";
+  control.protected_values.push(markerBody, installationToken, jwtSignature, pypiToken, pypiBody);
   await fs.appendFile(path.join(workspace, "redaction.ini"),
-    "令牌" + "ghp_" + markerBody + "请保密\nINSTALLATION=" + installationToken + "\n");
+    "令牌" + "ghp_" + markerBody + "请保密\nINSTALLATION=" + installationToken
+    + "\nPYPI_TOKEN=" + pypiToken + "\n");
+  const invalidHeader = Buffer.from(JSON.stringify({ alg: null })).toString("base64url");
+  const invalidSignature = randomBytes(36).toString("base64url");
+  const resourceId = "AIDA" + "J7XQZ2M4PLRN8TWV";
   await fs.appendFile(path.join(workspace, "benign.ini"),
     "echo ${MONKEY} ${API_KEYBOARD} ${TOKEN_COUNT}\n"
-    + "throw new TypeError(`${name}: missing argument ${key}`)\n");
+    + "throw new TypeError(`${name}: missing argument ${key}`)\nUSER_ID=" + resourceId
+    + "\nINVALID_JWS=" + invalidHeader + "." + jwtPayload + "." + invalidSignature + "\n");
   await fs.writeFile(path.join(evidence, "fixture.control.json"), JSON.stringify(control) + "\n", { mode: 0o600 });
   const protectedValues = control.protected_values;
   const hasProtected = (value) => protectedValues.some((secret) => JSON.stringify(value).includes(secret));
@@ -131,6 +138,10 @@ try {
     "SHORT_URI=redis" + "://:<REDACTED>@db.example.invalid/0",
   ];
   for (const expected of preservedUris) {
+    assert.ok(guarded.value.lines.some((line) => line.text === expected));
+  }
+  for (const expected of ["INSTALLATION=ghs_<REDACTED>", "PYPI_TOKEN=pypi-<REDACTED>",
+    "令牌ghp_<REDACTED>请保密"]) {
     assert.ok(guarded.value.lines.some((line) => line.text === expected));
   }
   assert.deepEqual(guarded.value.lines.map((line) => line.number), baseline.value.lines.map((line) => line.number));
@@ -314,6 +325,8 @@ try {
     placeholder_substring_redacted: true, unicode_adjacency_redacted: true,
     full_installation_token_redacted: true, benign_variable_names_preserved: true,
     exact_secret_name_refused: true,
+    pypi_complete_token_redacted: true, iam_resource_identifier_preserved: true,
+    invalid_jws_header_preserved: true,
     encoded_and_literal_delimiters_redacted: true, source_reference_overlap_blocked: true,
     benign_unchanged: true, line_numbers_preserved: true, failures_blocked: failures.length,
     finalizer_refused: true, version_drift_refused: true, next_request_redacted: true,

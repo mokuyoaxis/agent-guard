@@ -4,7 +4,7 @@
 [![npm version](https://img.shields.io/npm/v/%40mokuyoaxis%2Fagent-guard.svg)](https://www.npmjs.com/package/@mokuyoaxis/agent-guard)
 [![License](https://img.shields.io/github/license/mokuyoaxis/agent-guard)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![v0.2.3-rc2 source](https://img.shields.io/badge/Source-v0.2.3--rc2-5B6B7A)](docs/release-notes-0.2.3-rc2.md)
+[![v0.2.3 source](https://img.shields.io/badge/Source-v0.2.3-5B6B7A)](docs/release-notes-0.2.3.md)
 
 **Make destructive agent actions reversible by default.** · [简体中文](README.zh-CN.md)
 
@@ -50,21 +50,20 @@ the human or blocks the operation.
 
 ## Quick start with your coding agent
 
-Use the scoped npm package after it is available in the registry, or keep a
-stable Git checkout. Never substitute the unrelated unscoped `agent-guard`
-package.
+Use the scoped npm package or a stable Git checkout. The unscoped
+`agent-guard` package is unrelated to this project.
 
 Pinned npm installation into a stable, user-owned prefix:
 
 ```sh
-npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.2
+npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.3
 ```
 
-`0.2.2` remains the stable recommendation. The published prerelease
-`@mokuyoaxis/agent-guard@0.2.3-rc1` is also available through npm `@rc`, but
-does not contain guard-lab. This checkout is the `0.2.3-rc2` source candidate;
-check Releases and npm before assuming rc2 is published. Prereleases do not
-replace npm `latest`.
+**0.2.3** combines Windows/Core fixes, information-protection improvements
+and the offline guard-lab MVP. See the [release notes](docs/release-notes-0.2.3.md)
+for scope and evidence limits. The npm badge and
+[GitHub Releases](https://github.com/mokuyoaxis/agent-guard/releases) show
+which artifacts are available.
 
 The package root is then
 `/absolute/path/to/agent-guard-install/node_modules/@mokuyoaxis/agent-guard`.
@@ -81,8 +80,10 @@ the host's hook support. Then give your coding agent the following setup prompt
 
 ```text
 Set up agent-guard for this workspace. Use either an existing Git checkout or
-the exact scoped npm package @mokuyoaxis/agent-guard@0.2.2; never install the
-unscoped package named agent-guard. Before installing, ask me to choose and
+the exact scoped npm package @mokuyoaxis/agent-guard@0.2.3;
+never install the unscoped package named agent-guard. If 0.2.3 is unavailable,
+report that and use the existing checkout or ask me to choose a published
+version. Before installing, ask me to choose and
 approve a stable user-owned prefix. Treat the checkout or installed package
 root as /absolute/path/to/agent-guard below.
 First identify the current harness and its actual hook/skill capabilities;
@@ -236,15 +237,17 @@ cannot rewrite what it did not write):
 
 ### What is detected
 
-**T1 vendor credential patterns** (`secret/*`, deterministic, near-zero
-false positives). Rule ids: `secret/openai-key`, `secret/github-token`,
+**T1 vendor credential patterns** (`secret/*`). These rules use known formats;
+documented placeholders and negative examples constrain false positives.
+Rule ids: `secret/openai-key`, `secret/github-token`,
 `secret/aws-access-key-id`, `secret/gitlab-token`, `secret/slack-token`,
-`secret/stripe-key` (live keys only — `sk_test_` is exempt), `secret/jwt`
-(structural: the header must base64-decode to JSON containing `alg`), and
+`secret/stripe-key` (live keys only — `sk_test_` is exempt),
+`secret/pypi-token`, `secret/jwt` (structural: the header must decode to JSON
+with a nonempty ASCII string `alg`), and
 `secret/private-key-block` (whole `-----BEGIN ... PRIVATE KEY-----` block,
 redacted in one piece). See
 [skills/exfil-guard/references/rules.md](skills/exfil-guard/references/rules.md)
-for the frozen table.
+for the rule table and remaining ambiguities.
 
 `secret/connection-password` also detects nonempty passwords in URI userinfo.
 It redacts only the password, preserving the scheme, account and host for
@@ -252,8 +255,9 @@ diagnostics. Percent-encoded passwords and JSON-escaped scheme slashes are
 supported; this does not hide network topology or scan every DSN format.
 
 **Value-free secret references** (`secret/source-reference`). The guard
-classifies an environment variable's *name* (`*KEY*`, `*TOKEN*`,
-`*SECRET*`, `*PASSWORD*`, `*CRED*`, `*AUTH*`) and a secret-store *file name*
+classifies complete components in an environment variable's *name* (such as
+`KEY`, `TOKEN`, `SECRET`, `PASSWORD`, `PASSWD`, `CRED`, or `AUTH`) and a
+secret-store *file name*
 (`.env`, `*.pem`, `id_rsa*`, `.netrc`, `kubeconfig`, ...), and detects
 whole-environment expansions (`printenv`, `env | ...`, `cat
 /proc/self/environ`). This scanner **does not resolve the variable value**;
@@ -325,6 +329,12 @@ complete name components, preserving ordinary identifiers such as `MONKEY`
 and metadata such as `TOKEN_COUNT`. See the [rule reference](skills/exfil-guard/references/rules.md)
 for supported forms and limitations.
 
+PyPI publishing tokens are also detected with their documented prefix and
+minimum body shape, with complete redaction of long tokens. AWS group/user/
+role/policy IDs are kept distinct from access-key IDs; JWT headers require
+the declared nonempty ASCII string `alg`. Public-key variable names and the
+broad legacy `sk-` shape retain their documented conservative boundaries.
+
 ### Read a config without printing its values
 
 Introduced in the `0.2.0` source; this CLI is **not** in the earlier
@@ -380,8 +390,8 @@ is a false security claim:
   guard can see *on the way out*.
 - **No history rewriting.** Detecting a secret already in Git history is a
   report at most. Rewriting history is a human action with its own risks.
-- **No T3 entropy detector in this release.** It is the single largest
-  false-positive source, and the named scenarios do not require it.
+- **No T3 entropy detector in this release.** Random-looking text alone is
+  insufficient evidence of a credential; ordinary identifiers stay readable.
 
 ## Manual, harness-neutral usage
 
@@ -434,12 +444,18 @@ quarantine full          → BLOCK     (never fall back to permanent delete)
 
 ## Integration and validation matrix
 
-[![Node.js 20 smoke](https://img.shields.io/badge/Node.js-20%20smoke-339933?logo=nodedotjs&logoColor=white)](.github/workflows/ci.yml)
+[![Node.js 22 smoke](https://img.shields.io/badge/Node.js-22%20smoke-339933?logo=nodedotjs&logoColor=white)](.github/workflows/ci.yml)
 [![Codex Skill/CLI tested](https://img.shields.io/badge/Codex-Skill%2FCLI%20tested-000000?logo=openai&logoColor=white)](docs/test-report-codex-gpt-6-astra-high.md)
 [![DSH 0.1.5-rc.1 host BLOCK tested](https://img.shields.io/badge/DSH%200.1.5--rc.1-host%20BLOCK%20tested-4D6BFE)](docs/test-report-dsh-0.1.5-rc.1.md)
 [![ZCode win32 CLI evaluated](https://img.shields.io/badge/ZCode-win32%20CLI%20evaluated-7C5CE0)](docs/test-report-zcode-glm-flash.md)
 [![Claude Code hook tested with scripted model](https://img.shields.io/badge/Claude%20Code-hook%20tested%20%28scripted%20model%29-D97757?logo=anthropic&logoColor=white)](docs/test-report-claude-code-harness.md)
-[![Kimi Code 2.1.1 K3 Bash BLOCK](https://img.shields.io/badge/Kimi%20Code%202.1.1-K3%20Bash%20BLOCK-5B9BD5)](docs/test-report-kimi-code-block.md)
+[![Kimi Code 2.1.1 root Bash BLOCK](https://img.shields.io/badge/Kimi%20Code%202.1.1-root%20Bash%20BLOCK-5B9BD5)](docs/test-report-kimi-code-block.md)
+[![WorkBuddy Windows Core/CLI evaluated](https://img.shields.io/badge/WorkBuddy-Windows%20Core%2FCLI%20evaluated-5B6B7A)](docs/test-report-workbuddy-windows-core.md)
+[![Windows Core CI](https://img.shields.io/badge/Windows-Core%20CI-0078D4)](docs/release-notes-0.2.3-rc1.md#focused-windows-ci)
+[![DSH native text-read checked](https://img.shields.io/badge/DSH-native%20text--read%20checked-4D6BFE)](docs/test-report-release-readiness-0.2.3.md)
+
+These badges link to scoped evidence; they do not certify every tool or model.
+The DSH text-read feature is optional and off by default.
 
 "The Core works", "a Skill-guided agent used it", and "the harness
 intercepts every matching tool call" are separate claims. This table keeps
@@ -452,8 +468,9 @@ those evidence levels explicit:
 | **DSH CLI rc.1 / tools and FS rc.2 / Node 22** | [Experimental text-read redaction](adapters/dsh/README.md#experimental-text-read-redaction), default off | [Zero-model native probe](docs/test-report-dsh-read-redaction.md): next request and durable JSONL. [Official Flash direct-read off/on](docs/test-report-dsh-real-followup.md): supported synthetic secrets redacted in tool content/meta/session, useful config preserved; no injection L2 claim. |
 | **DSH 0.2.0-rc.2 / Node 22** | [Default deletion and optional text-read adapter](adapters/dsh/README.md) | [Fresh contract review](docs/test-report-release-readiness-0.2.3.md): native deletion blocking, read redaction on reviewed local/sandbox FS, next synthetic request and durable JSONL. Native v4 Lab support remains bounded; no new real-model L2 result. |
 | **Codex CLI 0.154.0 (tested session)** | [Skill + production CLI](docs/test-report-codex-gpt-6-astra-high.md) | Older-source cooperative acceptance; no native hook claim. |
+| **WorkBuddy (version not recorded; Windows 11)** | [Core / CLI](docs/test-report-workbuddy-windows-core.md) | Community feedback on 0.2.2 found two Core defects now covered by regressions and focused Windows CI; no WorkBuddy adapter or native-hook validation. |
 | **ZCode (version unrecorded; win32)** | [Historical Skill/CLI + hook trial](docs/test-report-zcode-glm-flash.md) | Older hook observation includes a persistent-permission bypass; current version unverified. |
-| **Kimi Code 0.42.0 / 2.1.1** | [Native `PreToolUse` for Bash](adapters/kimi-code/README.md) | [Bounded tests](docs/test-report-kimi-code-block.md): authenticated 2.1.1 root-Bash PASS on an OAuth official model and maintainer-confirmed official K3 relay; older 0.42.0 root/child BLOCK, ASK denial and Python-failure refusal. Hook absence/timeout remains fail-open. |
+| **Kimi Code 0.42.0 / 2.1.1** | [Native `PreToolUse` for Bash](adapters/kimi-code/README.md) | [Bounded tests](docs/test-report-kimi-code-block.md): authenticated 2.1.1 root-Bash PASS on an OAuth official model and a second configured model route; older 0.42.0 root/child BLOCK, ASK denial and Python-failure refusal. Hook absence/timeout remains fail-open. |
 | **Other / unlisted hosts** | [Self-adaptation guide](adapters/INTEGRATION.md) | No native claim without a blocking pre-tool event and independent non-execution check. |
 
 For agent-led setup: identify the actual host version and tool names, follow
@@ -522,7 +539,8 @@ compensation engine without restructuring.
 | [docs/architecture.md](docs/architecture.md) | pillars ↔ components, data flow, design decisions |
 | [docs/host-drift.md](docs/host-drift.md) | zero-token host/version drift states and privacy-minimal baselines |
 | [docs/guard-lab.md](docs/guard-lab.md) | synthetic Lab workflow, evidence semantics, and unsupported channels |
-| [docs/release-notes-0.2.3-rc2.md](docs/release-notes-0.2.3-rc2.md) | offline guard-lab source candidate |
+| [docs/release-notes-0.2.3.md](docs/release-notes-0.2.3.md) | 0.2.3 stable-release scope and evidence limits |
+| [docs/release-notes-0.2.3-rc2.md](docs/release-notes-0.2.3-rc2.md) | published prerelease: offline guard-lab and reviewed DSH contracts |
 | [docs/release-notes-0.2.3-rc1.md](docs/release-notes-0.2.3-rc1.md) | Windows Core fail-closed candidate and prerelease channel |
 | [docs/release-notes-0.2.2.md](docs/release-notes-0.2.2.md) | 0.2.2 host drift, live sentinel and DSH package acceptance |
 | [docs/release-notes-0.2.1.md](docs/release-notes-0.2.1.md) | 0.2.1 adapter/doctor changes and bounded evidence |
@@ -532,7 +550,8 @@ compensation engine without restructuring.
 | [docs/friction.md](docs/friction.md) | what real agents and host processes taught us (F1–F20) |
 | [docs/development-note-unguarded-deletion.md](docs/development-note-unguarded-deletion.md) | de-identified incident exploration and the recovery-aware direction |
 | [docs/test-report-codex-gpt-5.6-sol.md](docs/test-report-codex-gpt-5.6-sol.md) | v0.1.1 Codex evaluation (medium + high) |
-| [docs/test-report-dsh-0.1.5-rc.1.md](docs/test-report-dsh-0.1.5-rc.1.md) | current DSH packaged-plugin and execution-level `bash` acceptance |
+| [docs/test-report-workbuddy-windows-core.md](docs/test-report-workbuddy-windows-core.md) | community Windows Core/CLI feedback and resulting regressions |
+| [docs/test-report-dsh-0.1.5-rc.1.md](docs/test-report-dsh-0.1.5-rc.1.md) | DSH 0.1.5-rc.1 packaged-plugin and execution-level `bash` acceptance |
 | [docs/test-report-dsh-guard-lab.md](docs/test-report-dsh-guard-lab.md) | bounded DSH real-model Lab baseline; no L2 claim |
 | [docs/test-report-dsh-v0.1.1.md](docs/test-report-dsh-v0.1.1.md) | v0.1.1 DSH live test (DeepSeek V4 Pro high, minimal mode) |
 | [skills/recovery-audit/SKILL.md](skills/recovery-audit/SKILL.md) | evidence hierarchy, deterministic replay, recovery and landing gates |
@@ -542,37 +561,38 @@ compensation engine without restructuring.
 
 ## Status & roadmap
 
-The source version is **v0.2.3-rc2**; the latest stable release remains
-**v0.2.2**. The published `v0.2.0` baseline includes
-recoverable destructive actions, cmd/PowerShell dialect parsing, the
-`exfil-guard` text CLI, a read-only config view, and `recovery-audit`.
-Later source releases add Claude/Kimi POSIX hook bridges, bounded host
-evidence, a local `doctor`, host-drift checks, an opt-in live sentinel and
-current DSH package acceptance. The rc2 source additionally contains the
-offline guard-lab MVP described below. See the
-[0.2.3-rc2 notes](docs/release-notes-0.2.3-rc2.md) for its source scope,
-[0.2.3-rc1 notes](docs/release-notes-0.2.3-rc1.md) for the published candidate,
-[0.2.2 notes](docs/release-notes-0.2.2.md) for the stable scope, and
-[GitHub Releases](https://github.com/mokuyoaxis/agent-guard/releases) for
-publication status; a source version is not itself a published Release.
+**v0.2.3** combines the Windows/Core
+fixes and offline guard-lab MVP with validated text redaction, URI password
+detection, PyPI and newer GitHub token support, and narrower false-positive
+boundaries. Existing recovery tools, safe config inspection, Claude/Kimi
+bridges, doctor, host-drift checks and live sentinel remain available.
+The DSH bridge supports the reviewed `0.1.5-rc.1` and `0.2.0-rc.2` contracts;
+its optional text-read protection remains off by default.
 
-The release identity is harness-neutral. Existing DSH and Claude adapters,
-Codex/ZCode acceptance evidence, and the bounded Kimi exercise are entries
-in a growing compatibility matrix, not separate definitions of the product.
+The [0.2.3 notes](docs/release-notes-0.2.3.md) describe this release's scope.
+The [rc2](docs/release-notes-0.2.3-rc2.md),
+[rc1](docs/release-notes-0.2.3-rc1.md), and
+[0.2.2](docs/release-notes-0.2.2.md) notes retain their historical scope.
+Check [GitHub Releases](https://github.com/mokuyoaxis/agent-guard/releases)
+and npm for published artifacts.
+
+The Core and Decision Protocol are shared across harnesses. DSH, Claude and
+Kimi adapters, together with Codex/WorkBuddy/ZCode acceptance records, are documented in
+one compatibility matrix.
 The Kimi result includes sampled hook-compensation and execution-level BLOCK
 paths, not proof that its host enforces every BLOCK or that arbitrary agent
 actions are protected. A tested direct-Python hook startup failure was
 fail-open. The optional shell bridge blocked a sampled Python startup failure
 in a real Kimi host session, but only when the bridge itself ran; config
 validation alone cannot prove that the hook is live.
-The candidate adds a focused real-Windows Core gate for Issue #7, but native
+The release adds a focused real-Windows Core gate for Issue #7, but native
 cmd/PowerShell execution through every harness and general concurrent-subagent
 safety remain explicit gaps. Later Guard branches (`git-guard`, `database-guard`,
 `cloud-guard`) reuse the same protocol and compensation engine.
 
-## 0.2.3-rc2 source candidate: guard-lab
+## guard-lab
 
-The current source adds an opt-in, offline honeytoken MVP using disposable
+The opt-in, offline honeytoken Lab uses disposable
 projects and synthetic, non-secret markers. Its `clean`, `mock-positive`,
 `mock-injection`, and `snapshot-positive` controls call no model and make no
 external request. A bounded loopback observer records the fake Lab stub, bait
@@ -581,7 +601,7 @@ canary in selected output without retaining the raw value.
 
 The user keeps the true controller and evidence outside the fixture shown to
 the tested agent. Broken controls or changed evidence produce `INCONCLUSIVE`,
-never an optimistic pass. This first candidate cannot observe ordinary file
+never an optimistic pass. The Lab cannot observe ordinary file
 reads, prove remote transfer, universally block LLM calls, or resist a same-UID
 adversary. Start with the zero-token controls and read the
 [guard-lab guide](docs/guard-lab.md) before involving a real harness.

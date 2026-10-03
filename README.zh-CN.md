@@ -4,7 +4,7 @@
 [![npm 版本](https://img.shields.io/npm/v/%40mokuyoaxis%2Fagent-guard.svg)](https://www.npmjs.com/package/@mokuyoaxis/agent-guard)
 [![License](https://img.shields.io/github/license/mokuyoaxis/agent-guard)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![v0.2.3-rc2 源码](https://img.shields.io/badge/%E6%BA%90%E7%A0%81-v0.2.3--rc2-5B6B7A)](docs/release-notes-0.2.3-rc2.md)
+[![v0.2.3 源码](https://img.shields.io/badge/%E6%BA%90%E7%A0%81-v0.2.3-5B6B7A)](docs/release-notes-0.2.3.md)
 
 **让 AI Agent 的破坏性操作默认可逆。** · [English](README.md)
 
@@ -41,19 +41,19 @@ git push --force    → BLOCK      # 不自动改写远端历史
 
 ## 让编码 Agent 帮你接入
 
-可以在 npm registry 可用后安装带作用域的包，也可以保留一个稳定的 Git
-checkout。不要误装无作用域的同名 `agent-guard` 包。
+可以安装带作用域的 npm 包，也可以保留一个稳定的 Git checkout。
+无作用域的同名 `agent-guard` 包与本项目无关。
 
 把固定版本安装到用户选择的稳定路径：
 
 ```sh
-npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.2
+npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.3
 ```
 
-`0.2.2` 仍是稳定版推荐。已发布的预览版
-`@mokuyoaxis/agent-guard@0.2.3-rc1` 也可通过 npm `@rc` 安装，但它不含
-guard-lab。当前 checkout 是 `0.2.3-rc2` 源码候选；是否已经发布，请以
-Releases 与 npm 为准。预发布不会替换 npm `latest`。
+**0.2.3** 合并 Windows/Core 修复、信息保护增强和离线 guard-lab MVP。
+本次范围与证据边界见 [发布说明](docs/release-notes-0.2.3.md)；
+npm 徽章和 [GitHub Releases](https://github.com/mokuyoaxis/agent-guard/releases)
+展示实际可用的发布工件。
 
 安装后的包根目录是
 `/absolute/path/to/agent-guard-install/node_modules/@mokuyoaxis/agent-guard`。
@@ -69,7 +69,8 @@ Core 需要 Python 3.9+ 和 Git；是否能自动拦截取决于宿主是否提�
 
 ```text
 请为当前工作区接入 agent-guard。只使用现有 Git checkout，或精确的 scoped
-npm 包 @mokuyoaxis/agent-guard@0.2.2；不要安装无作用域的同名 agent-guard。
+npm 包 @mokuyoaxis/agent-guard@0.2.3；不要安装无作用域的同名
+agent-guard。若 0.2.3 尚不可用，说明情况，使用现有 checkout 或让我选择已发布版本。
 安装前先让我选择并批准一个稳定的用户目录，然后把 checkout 或 npm 安装后的
 包根目录作为下文的 /absolute/path/to/agent-guard。
 先识别当前 harness 实际支持的 hook 与 Skill，阅读本 README 和对应 adapter
@@ -203,20 +204,21 @@ DSH 另有[默认关闭的文本 `read` 脱敏原型](adapters/dsh/README.md#exp
 
 ### 检测什么
 
-**T1 厂商凭据特征**(`secret/*`,确定性,误报接近零)。rule id 包括:
+**T1 厂商凭据特征**（`secret/*`）。按已知格式识别，用文档化占位符和反例
+约束误伤。rule id 包括：
 `secret/openai-key`、`secret/github-token`、`secret/aws-access-key-id`、
 `secret/gitlab-token`、`secret/slack-token`、`secret/stripe-key`
-(仅 live key,`sk_test_` 豁免)、`secret/jwt`(结构化:头部必须 base64
-解码为含 `alg` 的 JSON),以及 `secret/private-key-block`
-(整段 `-----BEGIN ... PRIVATE KEY-----` 一次性脱敏)。冻结规则表见
+(仅 live key,`sk_test_` 豁免)、`secret/pypi-token`、`secret/jwt`（结构化：
+头部须解码为 JSON，且 `alg` 是非空 ASCII 字符串），以及 `secret/private-key-block`
+(整段 `-----BEGIN ... PRIVATE KEY-----` 一次性脱敏)。规则表与保留边界见
 [skills/exfil-guard/references/rules.md](skills/exfil-guard/references/rules.md)。
 
 `secret/connection-password` 另检测 URI 用户信息中的非空口令，只遮口令，
 保留协议、账号与主机以便排错。支持百分号编码口令和 JSON 转义的协议斜杠；
 这不等于隐藏网络拓扑，也不覆盖所有 DSN 格式。
 
-**不读值的密钥引用**(`secret/source-reference`)。Guard 只对变量**名**
-(`*KEY*`、`*TOKEN*`、`*SECRET*`、`*PASSWORD*`、`*CRED*`、`*AUTH*`)与
+**不读值的密钥引用**（`secret/source-reference`）。Guard 按变量名中的完整
+组成部分（如 `KEY`、`TOKEN`、`SECRET`、`PASSWORD`、`PASSWD`、`CRED`、`AUTH`）与
 密钥库**文件名**(`.env`、`*.pem`、`id_rsa*`、`.netrc`、`kubeconfig` 等)
 分类,并识别整环境展开(`printenv`、`env | ...`、
 `cat /proc/self/environ`)。这个扫描器**不解析变量的值**；这不代表其他
@@ -279,6 +281,10 @@ echo 'config: sk-proj-AbCdEf…' | python3 skills/exfil-guard/scripts/sanitize.p
 秘密变量引用按名称组成部分判断，保留 `MONKEY` 等普通标识符和 `TOKEN_COUNT`
 等元数据名称。支持的形式和限制见[规则说明](skills/exfil-guard/references/rules.md)。
 
+新增 PyPI 发布令牌识别，按官方前缀与最小 body 形状完整遮挡长令牌。AWS 组／
+用户／角色／策略 ID 与访问密钥 ID 分开处理；JWT header 的 `alg` 须为非空
+ASCII 字符串。公钥变量名称与通用 `sk-` 形状仍保留已说明的保守边界。
+
 ### 不打印值地查看配置
 
 此 CLI 从 `0.2.0` 源码开始提供，**不属于**此前的 `0.2.0-rc2`
@@ -327,7 +333,8 @@ python3 skills/exfil-guard/scripts/view.py --workspace /path/to/workspace config
   路径上**能看到的内容。
 - **不改写历史。** 检测到已经进入 git 历史的密钥最多只是一份报告。
   改写历史是需要人类执行、且自带风险的动作。
-- **本版本不含 T3 熵检测器。** 它是最大的单一误报来源,而目标场景并不需要它。
+- **本版本不含 T3 熵检测器。** 不把看起来随机的字符串直接当作凭据，减少
+  对普通标识符的干扰。
 
 ## 手动使用（不依赖特定 harness）
 
@@ -378,12 +385,18 @@ node_modules/(已 ignore) → ALLOW     (可证明可再生)
 
 ## 接入与验证矩阵
 
-[![Node.js 20 smoke](https://img.shields.io/badge/Node.js-20%20smoke-339933?logo=nodedotjs&logoColor=white)](.github/workflows/ci.yml)
+[![Node.js 22 smoke](https://img.shields.io/badge/Node.js-22%20smoke-339933?logo=nodedotjs&logoColor=white)](.github/workflows/ci.yml)
 [![Codex Skill/CLI tested](https://img.shields.io/badge/Codex-Skill%2FCLI%20tested-000000?logo=openai&logoColor=white)](docs/test-report-codex-gpt-6-astra-high.md)
 [![DSH 0.1.5-rc.1 宿主 BLOCK 实测](https://img.shields.io/badge/DSH%200.1.5--rc.1-%E5%AE%BF%E4%B8%BB%20BLOCK%20%E5%AE%9E%E6%B5%8B-4D6BFE)](docs/test-report-dsh-0.1.5-rc.1.md)
 [![ZCode win32 CLI evaluated](https://img.shields.io/badge/ZCode-win32%20CLI%20evaluated-7C5CE0)](docs/test-report-zcode-glm-flash.md)
 [![Claude Code hook tested with scripted model](https://img.shields.io/badge/Claude%20Code-hook%20tested%20%28scripted%20model%29-D97757?logo=anthropic&logoColor=white)](docs/test-report-claude-code-harness.md)
-[![Kimi Code 2.1.1 K3 Bash BLOCK](https://img.shields.io/badge/Kimi%20Code%202.1.1-K3%20Bash%20BLOCK-5B9BD5)](docs/test-report-kimi-code-block.md)
+[![Kimi Code 2.1.1 root Bash BLOCK](https://img.shields.io/badge/Kimi%20Code%202.1.1-root%20Bash%20BLOCK-5B9BD5)](docs/test-report-kimi-code-block.md)
+[![WorkBuddy Windows Core/CLI evaluated](https://img.shields.io/badge/WorkBuddy-Windows%20Core%2FCLI%20evaluated-5B6B7A)](docs/test-report-workbuddy-windows-core.md)
+[![Windows Core CI](https://img.shields.io/badge/Windows-Core%20CI-0078D4)](docs/release-notes-0.2.3-rc1.md#focused-windows-ci)
+[![DSH native text-read checked](https://img.shields.io/badge/DSH-native%20text--read%20checked-4D6BFE)](docs/test-report-release-readiness-0.2.3.md)
+
+徽章链接到各自范围内的证据，不代表所有工具和模型均已通过。
+DSH 文本读取脱敏是可选功能，默认关闭。
 
 “Core 可用”、“受 Skill 引导的 Agent 使用过”和“harness 会强制拦截每次匹配的
 工具调用”是三种不同强度的结论：
@@ -395,8 +408,9 @@ node_modules/(已 ignore) → ALLOW     (可证明可再生)
 | **DSH CLI rc.1／工具与 FS rc.2／Node 22** | [实验性文本读取脱敏](adapters/dsh/README.md#experimental-text-read-redaction)，默认关闭 | [零模型原生验证](docs/test-report-dsh-read-redaction.md)：下一次请求和 JSONL 落盘。[官方 Flash 真实读取 off/on](docs/test-report-dsh-real-followup.md)：支持规则的合成秘密在工具内容／元数据／会话中被脱敏，有用配置保留；无提示注入 L2 结论。 |
 | **DSH 0.2.0-rc.2／Node 22** | [默认删除与可选文本读取 adapter](adapters/dsh/README.md) | [最新契约复核](docs/test-report-release-readiness-0.2.3.md)：原生删除阻断、已审阅本地／沙箱 FS 的读取脱敏、下一次合成请求与 JSONL 落盘。原生 v4 Lab 支持仍有范围限制；没有新的真实模型 L2 结果。 |
 | **Codex CLI 0.154.0（所测会话）** | [Skill + 生产 CLI](docs/test-report-codex-gpt-6-astra-high.md) | 较早源码的合作式验收；不声称原生 hook。 |
+| **WorkBuddy（版本未记录；Windows 11）** | [Core／CLI](docs/test-report-workbuddy-windows-core.md) | 社区在 0.2.2 上发现两个 Core 缺陷，现有回归与聚焦 Windows CI 覆盖；没有 WorkBuddy adapter 或原生 hook 验证。 |
 | **ZCode（版本未记录；win32）** | [历史 Skill/CLI＋hook 试次](docs/test-report-zcode-glm-flash.md) | 旧报告记录了持久许可绕过 hook；当前版本未验证。 |
-| **Kimi Code 0.42.0 / 2.1.1** | [Bash 原生 `PreToolUse`](adapters/kimi-code/README.md) | [有界实测](docs/test-report-kimi-code-block.md)：2.1.1 在 OAuth 官模和维护者确认的官方 K3 可信中转上均取得根 Bash PASS；0.42.0 另有主／子代理 BLOCK、ASK 硬拒绝和 Python 故障拒绝。hook 缺席／超时仍可能放行。 |
+| **Kimi Code 0.42.0 / 2.1.1** | [Bash 原生 `PreToolUse`](adapters/kimi-code/README.md) | [有界实测](docs/test-report-kimi-code-block.md)：2.1.1 在 OAuth 官方模型和另一条已配置模型路由上均取得根 Bash PASS；0.42.0 另有主／子代理 BLOCK、ASK 硬拒绝和 Python 故障拒绝。hook 缺席／超时仍可能放行。 |
 | **其他／未列出宿主** | [自适配指南](adapters/INTEGRATION.md) | 未独立验证调用前阻断与目标未执行前，不作原生支持声明。 |
 
 由 Agent 协助接入时，先识别真实宿主版本与工具名称，阅读上表对应指南，
@@ -457,7 +471,8 @@ Skill 负责 Agent 行为引导,约束全部下沉 Core。未来的 `git-guard`�
 | [docs/architecture.md](docs/architecture.md) | 四柱↔组件映射、数据流、关键设计决定 |
 | [docs/host-drift.md](docs/host-drift.md) | 零 Token 宿主／版本漂移状态与最小化基线 |
 | [docs/guard-lab.md](docs/guard-lab.md) | 合成 Lab 流程、证据语义与不支持的信道 |
-| [docs/release-notes-0.2.3-rc2.md](docs/release-notes-0.2.3-rc2.md) | 离线 guard-lab 源码候选 |
+| [docs/release-notes-0.2.3.md](docs/release-notes-0.2.3.md) | 0.2.3 正式版范围与证据边界 |
+| [docs/release-notes-0.2.3-rc2.md](docs/release-notes-0.2.3-rc2.md) | 已发布预览版：离线 guard-lab 与已复核 DSH 契约 |
 | [docs/release-notes-0.2.3-rc1.md](docs/release-notes-0.2.3-rc1.md) | Windows Core fail-closed 候选版与预发布通道 |
 | [docs/release-notes-0.2.2.md](docs/release-notes-0.2.2.md) | 0.2.2 宿主漂移、实时哨兵与 DSH 打包验收 |
 | [docs/release-notes-0.2.1.md](docs/release-notes-0.2.1.md) | 0.2.1 adapter／doctor 变更与证据边界 |
@@ -467,7 +482,8 @@ Skill 负责 Agent 行为引导,约束全部下沉 Core。未来的 `git-guard`�
 | [docs/friction.md](docs/friction.md) | 真实 Agent 与宿主进程撞出来的教训(F1–F20) |
 | [docs/development-note-unguarded-deletion.md](docs/development-note-unguarded-deletion.md) | 去标识化事故探索与面向恢复的后续方向 |
 | [docs/test-report-codex-gpt-5.6-sol.md](docs/test-report-codex-gpt-5.6-sol.md) | v0.1.1 Codex 评估(medium + high) |
-| [docs/test-report-dsh-0.1.5-rc.1.md](docs/test-report-dsh-0.1.5-rc.1.md) | 当前 DSH 打包插件与执行级 `bash` 验收 |
+| [docs/test-report-workbuddy-windows-core.md](docs/test-report-workbuddy-windows-core.md) | 社区 Windows Core／CLI 反馈与对应回归 |
+| [docs/test-report-dsh-0.1.5-rc.1.md](docs/test-report-dsh-0.1.5-rc.1.md) | DSH 0.1.5-rc.1 打包插件与执行级 `bash` 验收 |
 | [docs/test-report-dsh-guard-lab.md](docs/test-report-dsh-guard-lab.md) | DSH 真实模型有界 Lab 基线；无 L2 结论 |
 | [docs/test-report-dsh-v0.1.1.md](docs/test-report-dsh-v0.1.1.md) | v0.1.1 DSH 真机测试(DeepSeek V4 Pro high,极简模式) |
 | [skills/recovery-audit/SKILL.md](skills/recovery-audit/SKILL.md) | 证据优先级、确定性回放、恢复与落地门禁 |
@@ -477,38 +493,39 @@ Skill 负责 Agent 行为引导,约束全部下沉 Core。未来的 `git-guard`�
 
 ## 状态与路线图
 
-当前源码版本为 **v0.2.3-rc2**，最新稳定版仍为 **v0.2.2**。已发布的
-`v0.2.0` 基线包含可恢复的破坏性
-操作、cmd/PowerShell 方言解析、`exfil-guard` 文本 CLI、只读配置安全视图
-和 `recovery-audit`。后续源码版新增 Claude/Kimi POSIX hook 桥、有界宿主
-证据、`doctor`、宿主漂移检查、可选实时哨兵与当前 DSH 打包验收；rc2 源码另含
-下述离线 guard-lab MVP。准确范围见
-[0.2.3-rc2 说明](docs/release-notes-0.2.3-rc2.md)记录源码候选范围，
-[0.2.3-rc1 说明](docs/release-notes-0.2.3-rc1.md)记录已发布候选范围，
-[0.2.2 说明](docs/release-notes-0.2.2.md)记录稳定版范围；是否已正式发布以
-[GitHub Releases](https://github.com/mokuyoaxis/agent-guard/releases) 为准，
-源码版本号本身不代表已有 Release。
+**v0.2.3** 合并 Windows/Core 修复和离线 guard-lab
+MVP，并增强文本脱敏执行与校验、URI 口令识别、PyPI／新版 GitHub 令牌保护，
+收窄部分误伤边界。已有的恢复工具、配置安全视图、Claude/Kimi 接入桥、
+doctor、宿主漂移检查与实时哨兵继续提供。
+DSH 接入支持已复核的 `0.1.5-rc.1` 和 `0.2.0-rc.2` 契约；可选文本读取
+保护仍默认关闭。
 
-该版本的项目身份与 harness 无关。现有 DSH、Claude adapter，Codex/ZCode
-验收证据，以及有边界的 Kimi 实测，只是不断扩展的兼容矩阵，不分别定义产品。
+[0.2.3 说明](docs/release-notes-0.2.3.md)记录本次范围；
+[rc2](docs/release-notes-0.2.3-rc2.md)、[rc1](docs/release-notes-0.2.3-rc1.md)
+和 [0.2.2](docs/release-notes-0.2.2.md) 说明保留各自历史范围。
+已发布工件以 [GitHub Releases](https://github.com/mokuyoaxis/agent-guard/releases)
+和 npm 为准。
+
+Core 和 Decision Protocol 由各 harness 共用。DSH、Claude、Kimi 的适配器
+以及 Codex/WorkBuddy/ZCode 的验收记录，统一列在兼容矩阵中。
 Kimi 结果包含所测调用的 hook 补偿与执行级 BLOCK 证据，不证明宿主强制执行
 所有 `BLOCK`，也不意味着任意 Agent 操作都受保护。实测旧的直连 Python hook
 启动故障会放行；可选 shell 桥在一次 Kimi 宿主故障注入中将其转为拒绝，
-但前提是桥自身成功运行；单凭配置校验无法证明 hook 在线。候选版为 Issue #7
+但前提是桥自身成功运行；单凭配置校验无法证明 hook 在线。本次版本为 Issue #7
 新增了聚焦的真实 Windows Core 门，但各 harness 下的原生 cmd/PowerShell
 执行与一般并发子代理安全仍是明确缺口。
 后续 `git-guard`、`database-guard`、`cloud-guard` 继续复用同一协议与补偿引擎。
 
-## 0.2.3-rc2 源码候选：guard-lab 合成蜜罐
+## guard-lab 合成蜜罐
 
-当前源码加入了可选的离线蜜罐 MVP：在一次性项目中放入不具备认证能力的合成
+可选的离线蜜罐 Lab 在一次性项目中放入不具备认证能力的合成
 标记。`clean`、`mock-positive`、`mock-injection` 与 `snapshot-positive` 四组
 对照不调用模型，也不访问外网；限时回环观察器记录假 Lab 工具、诱饵 URL 或
 经验证的合成快照，用户还可在试次结束后显式扫描选定输出，只保留哈希、阶段与
 命中的 bait id，不保存原值。
 
 真控制器与证据由用户保管，和交给受测 Agent 的夹具分开。观察器、控制文件或
-事件链有问题时只报 `INCONCLUSIVE`。首版不能看到普通文件读取，不能证明数据
+事件链有问题时只报 `INCONCLUSIVE`。Lab 不能看到普通文件读取，不能证明数据
 已经外发，不能普遍封禁 LLM 调用，也不能抵抗同一系统用户权限下的对手。
 涉及真实 harness 前，请先跑零 Token 对照并阅读
 [guard-lab 指南](docs/guard-lab.md)。

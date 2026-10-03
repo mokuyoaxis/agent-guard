@@ -67,7 +67,7 @@ policy. This is an integration gap, not a classifier false negative.
 ### 3.2 Automatic approval removed the human boundary
 
 The session could execute shell operations without a contemporaneous human
-decision. In such a host, `ASK` cannot honestly mean “ask once.” It must degrade
+decision. In such a host, `ASK` cannot request human approval. It must degrade
 to `BLOCK`, or the host must provide a real approval callback.
 
 ### 3.3 Shape classification could precede hard boundaries
@@ -118,7 +118,7 @@ after an incident   -> recovery-audit
 
 ### Immediate
 
-1. Treat harness coverage as a first-class compatibility claim. “The CLI
+1. Document harness interception separately from CLI compatibility. “The CLI
    works” and “the harness intercepts every destructive shell call” are
    different statements.
 2. Evaluate protected roots, workspace escape, and undeterminable targets
@@ -136,7 +136,7 @@ after an incident   -> recovery-audit
 - an adapter conformance probe that deliberately submits safe, non-executed
   destructive samples and verifies they reach the shared policy core;
 - protected ancestor roots independent of workspace configuration;
-- first-class detection of parent traversal in destructive targets;
+- explicit detection of parent traversal in destructive targets;
 - a local incident bundle containing hashes, verdicts, and redacted metadata,
   but never credential material;
 - deterministic recovery replay with machine-readable coverage reports.
@@ -181,7 +181,6 @@ not byte-equivalent to it.
 
 The incident changes the roadmap in a small but important way: adapter coverage
 and recovery provenance are now product features, not only operational notes.
-The near-term goal is not to add more command patterns. It is to prove that the
-same policy reaches every advertised harness, fails closed when human approval
-is unavailable, and leaves enough evidence to recover honestly when prevention
-fails.
+The near-term goal is to verify that the same policy reaches each advertised
+harness, refuses operations when human approval is required but unavailable,
+and records enough evidence to assess recovery after a failure.

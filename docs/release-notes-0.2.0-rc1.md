@@ -25,8 +25,8 @@ Those distribution steps remain separate maintainer decisions.
 
 - Kimi Code's `ASK` hook response is not an approval prompt in the tested
   version; the adapter denies such calls. Its real-host execution-level
-  `BLOCK` remains unproved. Two `local/kimi-k3` sandboxes established only
-  the sampled root/subagent hook and compensation paths.
+  `BLOCK` remains unproved. Two sandboxes using a configured model route
+  established only the sampled root/subagent hook and compensation paths.
 - DSH 0.1.5-rc.1 has adapter-level smoke tests but not a completed real-host
   plugin-load and denied-command sentinel trial. The older DSH v0.1.1 report
   does not substitute for current-version evidence.

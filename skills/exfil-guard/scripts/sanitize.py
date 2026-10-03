@@ -56,7 +56,7 @@ def placeholder_for(span) -> str:
     # Keep the vendor prefix: it is public information (it says *which*
     # credential kind leaked) and it is what makes the output reviewable.
     match = re.match(r"^(sk-|rk_|ghp_|gho_|ghu_|ghs_|ghr_|github_pat_|"
-                     r"glpat-|xox[baprs]-|AKIA|ASIA|AGPA|AIDA|AROA|ANPA|"
+                     r"glpat-|xox[baprs]-|pypi-|AKIA|ASIA|"
                      r"sk_live_|rk_live_)", span.raw)
     if match:
         return match.group(1) + REDACTED

@@ -1,9 +1,9 @@
 # agent-guard adapter for DeepSeek Harness
 
-Official DSH integration, shipped as a first-class `dsh-plugin` bundle.
-The decision rules are NOT implemented here - this adapter translates the
-Decision Protocol onto DSH's native mechanisms and delegates deletion
-verdicts to the shared Python core (`skills/delete-guard/scripts/check.py`).
+DSH integration shipped as a `dsh-plugin` bundle in the Agent Guard package.
+This adapter maps the Decision Protocol onto DSH's native mechanisms and
+delegates deletion verdicts to the shared Python core
+(`skills/delete-guard/scripts/check.py`).
 The opt-in text-read prototype reuses the existing Core exfil policy through
 a bounded local worker. Both ship inside this package.
 
@@ -19,8 +19,13 @@ retains the earlier failures and correction history.
 ## Install
 
 ```bash
-dsh plugin --profile <your-profile> add @mokuyoaxis/agent-guard
+dsh plugin --profile <your-profile> add @mokuyoaxis/agent-guard@0.2.3
 ```
+
+Use an exact package version whose host contract matches your DSH installation.
+The package ships prebuilt JavaScript and its Python Core; Python 3.9+ and
+Git must already be available. Installation does not enable the optional
+text-read guard.
 
 ## What gets registered
 
@@ -101,8 +106,9 @@ preserved useful configuration and remains outside the Lab injection L2 protocol
 Custom/later finalizers, unreviewed tool providers, PTC, other tool results,
 early events, tool-call arguments and preexisting session data are outside
 this prototype. Plugin composition is trusted; the binding check is not
-authentication of arbitrary plugins. Existing reviewed Lab pair profiles
-remain deletion-only and do not enable this flag.
+authentication of arbitrary plugins. Lab pairs enable this flag only when
+the explicit [`read-redaction-v1` profile](harness/README.md#explicit-native-read-redaction-profile)
+is selected; the default profiles keep it off.
 
 ## Shell dialect
 
@@ -126,9 +132,8 @@ is forwarded verbatim rather than swapped for POSIX, so `check.py` returns
   event contract, or failure before listener registration cannot deny a call
   the adapter never receives.
 - The Python core requires `python3` and `git` on PATH.
-- Until the scoped npm package is actually published, install from a GitHub
-  checkout or release tarball rather than treating the registry command above
-  as available.
+- The scoped npm package is published. Use an exact package version when
+  reproducing a test; a source checkout may contain later changes.
 - DSH `0.1.5-rc.1` package loading and one harmless execution-level `bash`
   block are independently verified in the
   [bounded host report](../../docs/test-report-dsh-0.1.5-rc.1.md). Model,

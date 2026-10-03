@@ -44,6 +44,13 @@ def installation_token(app_id="123456", signature_length=360):
             + "." + ("AbCdEf0123456789_-" * signature_length)[:signature_length])
 
 
+def structural_jwt(header):
+    def segment(value):
+        return base64.urlsafe_b64encode(json.dumps(value, ensure_ascii=False).encode()).decode().rstrip("=")
+    return (segment(header) + "." + segment({"sub": "synthetic"})
+            + "." + "Q7mN4pR2tVH8kL3bD6sF9wZ5aC0uE1xYz")
+
+
 def rules(text):
     return [s.rule_id for s in detect_secrets(text)]
 
@@ -293,6 +300,86 @@ class SecretReferenceNames(unittest.TestCase):
         for name in ("KEY", "apiKey", "token", "password"):
             text = benign + "; console.log(`${" + name + "}`)"
             self.assertTrue(self.scan(text)[0].source_dump)
+
+
+class CredentialTypeBoundaries(unittest.TestCase):
+    def test_iam_resource_identifiers_are_not_access_credentials(self):
+        for prefix in ("AGPA", "AIDA", "AROA", "ANPA"):
+            for body in ("J7XQZ2M4PLRN8TWV", "J7XQZ2M4PLRN8TWV9"):
+                text = "资源" + prefix + body + "结束"
+                self.assertEqual(detect_secrets(text), [])
+        for prefix in ("AKIA", "ASIA"):
+            self.assertEqual(one_span(prefix + "J7XQZ2M4PLRN8TWV").rule_id,
+                             redaction.RULE_AWS_ACCESS_KEY_ID)
+
+    def test_resource_spelling_in_a_password_still_is_a_password(self):
+        value = "AIDA" + "J7XQZ2M4PLRN8TWV"
+        text = "postgresql" + "://account:" + value + "@db.example.invalid/app"
+        span = one_span(text)
+        self.assertEqual((span.rule_id, span.raw), (redaction.RULE_CONNECTION_PASSWORD, value))
+
+    def test_jwt_algorithm_has_the_declared_header_type(self):
+        for value in (None, "", 123, True, [], {}, "算法"):
+            self.assertEqual(detect_secrets(structural_jwt({"alg": value})), [])
+        for header in ({}, [], {"typ": "JWT"}):
+            self.assertEqual(detect_secrets(structural_jwt(header)), [])
+
+    def test_jwt_structure_does_not_authenticate_or_whitelist_algorithms(self):
+        for alg in ("HS256", "RS256", "urn:synthetic:algorithm"):
+            token = structural_jwt({"alg": alg})
+            self.assertEqual((one_span(token).rule_id, one_span(token).raw),
+                             (redaction.RULE_JWT, token))
+
+    def test_ambiguous_public_key_names_remain_uninspectable_sources(self):
+        for name in ("PUBLIC_KEY", "SSH_PUBLIC_KEY", "PUBLIC_API_KEY", "PUBLIC_KEY_SECRET"):
+            spans = redaction.scan_text("${" + name + "}", channel="file-write",
+                                        exemption=redaction.Exemption()).spans
+            self.assertTrue(spans[0].source_dump)
+
+    def test_legacy_sk_shapes_keep_existing_protection(self):
+        for body in ("AbCdEf0123456789AbCdEf0123456789", "admin-" + "Q7mN4pR2tVH8kL3bD6sF9wZ5aC0uE1xYz"):
+            self.assertEqual(one_span("sk-" + body).rule_id, redaction.RULE_OPENAI_KEY)
+
+
+class PyPITokens(unittest.TestCase):
+    def token(self, length=100):
+        return "pypi-" + ("Q7mN4pR2tVH8kL3bD6sF9wZ5aC0uE1xYz_-" * length)[:length]
+
+    def test_official_minimum_and_arbitrarily_long_body_are_complete(self):
+        for length in (85, 86, 512, 4096):
+            token = self.token(length)
+            span = one_span(token)
+            self.assertEqual((span.rule_id, span.start, span.end, span.raw),
+                             (redaction.RULE_PYPI_TOKEN, 0, len(token), token))
+
+    def test_short_prose_and_non_vendor_strings_are_quiet(self):
+        for text in (self.token(84), "pypi-client-library", "pypi-token", "PYPI_TOKEN",
+                     "https://upload.pypi.org/legacy/", "sha256:" + "f" * 100):
+            self.assertEqual(detect_secrets(text), [])
+
+    def test_placeholder_body_and_redacted_marker_remain_quiet(self):
+        for text in ("pypi-" + "x" * 100, "pypi-<REDACTED>", "pypi-<TOKEN>"):
+            self.assertTrue(is_placeholder(text))
+            self.assertEqual(detect_secrets(text), [])
+
+    def test_incidental_marker_is_not_an_exemption(self):
+        for word in ("xxx", "dummy", "redact"):
+            token = "pypi-" + "Q7mN4pR2tV" + word + self.token(100)[5:]
+            self.assertFalse(is_placeholder(token))
+            self.assertEqual(one_span(token).raw, token)
+
+    def test_chinese_coordinates_and_ascii_identifier_boundary(self):
+        token = self.token()
+        text = "请保护" + token + "结束"
+        span = one_span(text)
+        self.assertEqual((span.start, span.end, span.raw), (3, 3 + len(token), token))
+        for prefix in ("identifier", "_", "9"):
+            self.assertEqual(detect_secrets(prefix + token), [])
+
+    def test_multiple_tokens_stop_at_payload_separators(self):
+        first, second = self.token(85), self.token(512)
+        text = "first=" + first + ";second=" + second
+        self.assertEqual([span.raw for span in detect_secrets(text)], [first, second])
 
 
 class MergeSpans(unittest.TestCase):

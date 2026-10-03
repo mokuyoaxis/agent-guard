@@ -1,9 +1,10 @@
 # exfil-guard (secret + path leakage) — requirement analysis
 
-Status: **analysis, pre-implementation.** No code, no schema, no verdict
-table is frozen by this document. It exists to decide *whether* the
-feature belongs in agent-guard, *where* it plugs into the existing
-interception model, and *what the MVP is*.
+Status: **historical requirements analysis, written before implementation.**
+This document records the original scope and design questions; it does not
+define the current contract. Current behavior is documented in the
+[Skill](../skills/exfil-guard/SKILL.md) and
+[rule reference](../skills/exfil-guard/references/rules.md).
 
 Working name: **`exfil-guard`**. The two user requests (secret leakage,
 local-path leakage) are two rule families, not two skills — §3 argues
@@ -25,7 +26,7 @@ That immediately reclassifies both requests:
 | Secret guard | "prevent adversarial exfiltration" | "prevent the *accidental* publication/transmission of a credential the agent had legitimate read access to" |
 | Path guard | "prevent information disclosure attacks" | "prevent *accidental* disclosure of host-identifying paths that produce false bug reports and privacy churn" |
 
-The honest one-line positioning:
+The intended scope:
 
 > exfil-guard makes accidental disclosure of credentials and host paths
 > **catchable before the bytes leave**, with a decision trail. It does not
@@ -100,11 +101,11 @@ a git remote and an LLM API), not absolute risk scores.
 | S8 | Secret in an upload / bundle / artifact | `.agent-trash/` packaged by mistake, a `tar czf` of the workspace | **H** | partial | ✗ | Already named as residual risk in `docs/threat-model.md` #8 |
 | S9 | Secret in a dependency lockfile / generated fixture | agent regenerates a fixture from a live capture | M | partial | partial | The realistic "long random string" false-positive factory |
 
-**Delete-guard adjacency worth noting:** S2/S8 are the *same failure
+**Related delete-guard risk:** S2/S8 are the *same failure
 family* as threat-model #8 (quarantine bloat → exfil via packaging). The
 quarantine directory is a secret-liability volume by construction: it holds
 copies of `.env` files the agent deleted. Any secret-guard scan of the
-workspace must therefore treat `.agent-trash/` as a first-class source, and
+workspace must therefore include `.agent-trash/` in its source inventory, and
 `gc.py` decisions interact with it.
 
 ### 1.2 Local-path leakage
@@ -185,7 +186,7 @@ Class A.
 
 ### 2.3 Class B — needs a new interception point
 
-| Egress point | Can it be intercepted? | How, honestly |
+| Egress point | Can it be intercepted? | Mechanism and limits |
 |---|---|---|
 | **Outbound LLM request body** (S1, P1) | *Yes, for some harnesses* | Harnesses that expose a pre-request hook, or route through a local proxy (this repo already ships `adapters/claude/harness/mock_anthropic_api.mjs` — a proxy is a **demonstrated** integration shape here). A truly hosted model call with no proxy is unreachable |
 | **File write content** (S6, P3) | *Yes, at the tool layer* | A `PreToolUse`-style hook on Write/Edit tools, or a `PreWrite` hook. This is a *new adapter point*, not a new core rule engine |
@@ -272,7 +273,7 @@ Arguments for two skills, and why they lose:
 
 **Decision: one skill, `exfil-guard`, with two rule families
 (`secret/*`, `path/*`) addressed by the same rule ids.** If implementation
-reveals that the families genuinely diverge in mechanism, the split is
+reveals that the families require different mechanisms, the split is
 mechanical later; the reverse (merging two shipped skills) is not.
 
 ### 3.2 What is reused verbatim
@@ -287,7 +288,7 @@ mechanical later; the reverse (merging two shipped skills) is not.
 | Harness prefilter pattern (regex fast path) | **yes**, new prefilter | Latency budget matters (friction F4: ~0.3 s/command) |
 | `recovery.py` relocate/snapshot | **no** | Wrong axis (§0.1) — do not force it |
 
-### 3.3 What is genuinely new
+### 3.3 New components
 
 1. A **content classifier** (`SpanSpec`) — the first classifier in this repo
    whose input is text payload rather than a command or a path.
@@ -368,8 +369,8 @@ existing repo precedent:
 
 ## 4. Open questions for the design doc (and for the human)
 
-These are carried into `secret-guard-design.md` and answered there; listed
-here because they are genuinely unresolved, not rhetorical.
+These questions were carried into `secret-guard-design.md`. They record the
+choices considered at this stage of the design.
 
 - **Q1 Egress definition.** Which channels count as "out"? A terminal
   transcript is not the same as a public gist. The design must pick a

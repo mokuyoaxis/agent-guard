@@ -110,6 +110,25 @@ class ReadRedaction(unittest.TestCase):
             self.assertEqual(result, worker.blocked("READ_RESULT_POLICY"))
             self.assertNotIn("PORT=8080", json.dumps(result))
 
+    def test_resource_ids_are_preserved_but_credential_context_is_redacted(self):
+        resource = "AIDA" + "J7XQZ2M4PLRN8TWV"
+        data = request("USER_ID=" + resource + "\nPORT=8080")
+        self.assertEqual(worker.protect(data)["value"], data["value"])
+        data = request("DB=postgresql" + "://account:" + resource + "@db.example.invalid/app")
+        result = worker.protect(data)
+        self.assertEqual(result["decision"], "SANITIZE")
+        self.assertEqual(result["value"]["lines"][0]["text"],
+                         "DB=postgresql" + "://account:<REDACTED>@db.example.invalid/app")
+
+    def test_pypi_complete_token_and_incidental_marker_are_redacted(self):
+        token = "pypi-" + "Q7mN4pR2tV" + "dummy" + "H8kL3bD6sF9wZ5aC0uE1xYz_-" * 30
+        data = request("令牌" + token + "结束\nPORT=8080")
+        result = worker.protect(data)
+        self.assertEqual((result["decision"], result["redactions"]), ("SANITIZE", 1))
+        self.assertEqual([line["text"] for line in result["value"]["lines"]],
+                         ["令牌pypi-<REDACTED>结束", "PORT=8080"])
+        self.assertEqual(worker.protect(dict(data, value=result["value"]))["decision"], "ALLOW")
+
     def test_partial_windows_are_blocked(self):
         for changes in [{"totalLines": 2}, {"offset": 2, "lines": [{"number": 2, "text": "data"}], "totalLines": 2}]:
             data = request()

@@ -1,8 +1,12 @@
 # exfil-guard — design
 
-Status: **design, pre-implementation.** Extends the Decision Protocol with
-one new decision class (`SANITIZE`) and one new classifier input type
-(text spans). Read `secret-guard-analysis.md` first — §2.5 there
+Status: **historical design, written before implementation.** Proposed
+modules and interception points below are design candidates, not a list of
+shipped features. For current behavior, see the
+[Skill](../skills/exfil-guard/SKILL.md) and
+[rule reference](../skills/exfil-guard/references/rules.md).
+The design adds `SANITIZE` and text-span classification to the Decision
+Protocol. Read `secret-guard-analysis.md` first — §2.5 there
 (reachability) and §0.1 (irrevocability) are the two facts this design is
 built around.
 

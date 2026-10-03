@@ -8,8 +8,10 @@ registry says otherwise.
 ## Issue #7: two confirmed Core fixes
 
 [Issue #7](https://github.com/mokuyoaxis/agent-guard/issues/7) reported two
-fail-open paths from a Windows 11 CLI run. The runner was WorkBuddy, but every
-reproduction called Core directly; these were not adapter findings.
+fail-open paths from a Windows 11 CLI run executed by WorkBuddy. Both
+reproductions called Core directly, so the findings concern Core rather than
+a harness adapter. The [community test summary](test-report-workbuddy-windows-core.md)
+preserves the source and its limits.
 
 1. A known destructive command could disappear when its vocabulary did not
    match the configured dialect. In particular, `rm -rf .` changed from

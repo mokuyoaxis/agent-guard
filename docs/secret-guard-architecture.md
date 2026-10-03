@@ -1,8 +1,10 @@
 # exfil-guard — where it sits in the architecture
 
-Short orientation for someone who already knows agent-guard from
-`docs/architecture.md`. Full analysis and design:
-`secret-guard-analysis.md`, `secret-guard-design.md`.
+This historical architecture sketch accompanies
+[the requirements analysis](secret-guard-analysis.md) and
+[design](secret-guard-design.md). Pre-write and pre-request interception
+below describe proposed adapter points. Current supported paths are listed
+in the [capability matrix](harness-capabilities.md).
 
 ## One-paragraph summary
 

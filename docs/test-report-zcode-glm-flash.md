@@ -12,11 +12,11 @@ acted as the forward-test agent inside its own session
 **Platform:** Windows 10.0.26200 (win32), Python 3.13.15, git 2.55.0.windows.4, Bash via
 Git Bash (POSIX shell)
 
-## Executive summary
+## Assessment
 
 agent-guard `v0.1.1` did **not** work on Windows out of the box: the Python core
-uses `os.uname()`, which does not exist on win32, and because the audit log is
-the durability pillar, every mutation failed closed — `safe_delete.py` blocked
+uses `os.uname()`, which does not exist on win32. The required audit write
+therefore failed, and every mutation failed closed — `safe_delete.py` blocked
 **all** deletions and `restore.py` raised `module 'os' has no attribute
 'uname'`. The test suite scored 79/84.
 
@@ -30,12 +30,12 @@ ZCode's `process`-type hook semantics.
 
 One ZCode integration property could not be exercised in the original run
 session (project-scope hooks load at session start), so the workspace trust was
-granted and a **trusted live fire was completed in a follow-up session**: the
+granted and a **hook test ran in a separate trusted session**: the
 hook intercepted a real destructive command, surfaced its ASK decision as a
 ZCode permission prompt, audited the verdict, and executed only after human
 approval — confirming that ZCode accepts the adapter's
 `hookSpecificOutput` JSON schema. One significant ZCode-side caveat was found
-in the same live pass: clicking **"Always allow" (Approved for this project)**
+in the same test: clicking **"Always allow" (Approved for this project)**
 on that prompt saves a project permission rule that makes ZCode skip the
 PreToolUse hook entirely for subsequent Bash commands — including commands the
 guard would hard-BLOCK. agent-guard itself behaved correctly at every point;
@@ -65,7 +65,7 @@ hostile-agent security boundary.
    with stderr fed back to the model). The model decided the cleanup
    strategy and responded to guard feedback without prior knowledge of
    expected verdicts.
-6. A live-fire attempt of the real hook inside the running session, with ZCode
+6. A real-hook test inside the running session, with ZCode
    log analysis to explain the outcome.
 
 No source files were modified during behavioral testing. All destructive
@@ -132,10 +132,10 @@ machine running Core and pins them in a focused Windows CI job.
   trusted — installation must precede the session, and trust must be granted
   once. Any ZCode setup guide for agent-guard must state both.
 
-### Trusted live fire (follow-up session, post-trust)
+### Hook test after workspace trust (follow-up session)
 
 With trust granted, the same session that could not fire the hook earlier was
-followed by a live pass. The model submitted a real destructive compound
+followed by a hook test. The model submitted a real destructive compound
 command (`mkdir -p <fixture>/build && echo payload > ... && rm -rf <fixture>`)
 through its own Bash tool:
 
@@ -230,7 +230,7 @@ predict — the audit trail (`compensations: []`) made the outcome verifiable.
 ## Remaining matrix expansion
 
 - Behavior of the hook under permission modes where no project allow rule
-  exists (this report's live pass ran under a saved "Approved for this
+  exists (this report's hook test ran under a saved "Approved for this
   project" rule; hook firing for every Bash call in rule-free sessions is
   inferred from the trust-gate session, not yet exhaustively measured).
 - Additional model families per harness; non-minimal compositions.

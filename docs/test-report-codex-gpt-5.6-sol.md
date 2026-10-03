@@ -11,14 +11,13 @@
 **Sandbox:** `workspace-write`
 **Platform:** Ubuntu 22.04 under WSL2
 
-## Executive summary
+## Assessment
 
-agent-guard has a strong safety model and an effective agent-facing skill. Its
-four pillars—scope, recoverability, authorization, and auditability—were clear
-to fresh Codex agents at both medium and high reasoning. Every forward-test
-agent used the supported deletion workflow, distinguished regenerable
-artifacts from potentially valuable content, respected hard blocks, and did
-not circumvent the guard.
+In the sampled medium- and high-reasoning runs, fresh Codex agents followed
+the skill's scope, recovery, authorization and audit rules. Each agent used
+the supported deletion workflow, distinguished regenerable artifacts from
+potentially valuable content, and accepted hard blocks without retrying
+through another deletion mechanism.
 
 The baseline review found four release-blocking defects: non-atomic relocation
 and manifest recording, unsafe parsing of Git-quoted filenames during
@@ -146,9 +145,9 @@ The model behaved correctly:
   disguised deletion mechanism.
 - The final Git worktree was clean.
 
-This is strong evidence that the skill's trigger description, primary rule,
-decision vocabulary, and anti-circumvention guidance are understandable and
-actionable for Codex at medium reasoning effort.
+This run shows that Codex at medium reasoning effort followed the skill's
+trigger description, deletion workflow and refusal guidance in the sampled
+task.
 
 The same run exposed a serious integration defect: Codex's workspace-write
 sandbox protects `.git` from writes. agent-guard moved three targets into
@@ -285,7 +284,7 @@ according to Codex skill metadata guidance.
   hard refusal is more useful than a simple allow/deny policy.
 - Requiring both an ignored path and a recognized artifact shape before direct
   deletion is a sensible conservative heuristic.
-- The threat model honestly positions the project as reliability
+- The threat model positions the project as reliability
   infrastructure rather than a same-privilege security sandbox.
 - The friction log shows valuable real-agent iteration and preserves lessons
   that adapter authors need.

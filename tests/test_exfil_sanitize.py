@@ -4,6 +4,7 @@ The leak-freedom test is the one that keeps the guard from becoming the
 leak: no guard output - stdout, --json, the redaction plan, an explanation,
 an audit line, or a traceback - may contain the matched bytes.
 """
+import base64
 import io
 import json
 import os
@@ -40,6 +41,7 @@ PRIVATE_KEY = _ARMOR + "\nMIIEowIBAAKCAQEA\n" + _FOOTER
 INSTALLATION_TOKEN = ("ghs_" + "123456_" + "eyJhbGciOiJSUzI1NiJ9" + "."
                       + "eyJzdWIiOiJzeW50aGV0aWMifQ" + "."
                       + "Q7mN4pR2tVH8kL3bD6sF9wZ5aC0uE1xYz" * 18)
+PYPI_TOKEN = "pypi-" + "Q7mN4pR2tV" + "xxx" + "H8kL3bD6sF9wZ5aC0uE1xYz_-" * 30
 
 ALL_SECRETS = [OPENAI, GITHUB, SLACK, AWS, STRIPE, PRIVATE_KEY]
 
@@ -555,6 +557,57 @@ class StdinContract(unittest.TestCase):
 
 
 class RuleBoundaryIntegration(unittest.TestCase):
+    def test_pypi_cli_complete_redaction_and_metadata_only_plan(self):
+        text = "令牌" + PYPI_TOKEN + "请保密\nPORT=8080\n"
+        checked = run(CHECK_SPAN, "file-write", text, ("--json",))
+        self.assertEqual(checked.returncode, 0)
+        facts = json.loads(checked.stdout)
+        self.assertEqual(facts["decision"], "SANITIZE")
+        self.assertEqual(facts["spans"][0]["rule_id"], redaction.RULE_PYPI_TOKEN)
+        self.assertEqual(facts["spans"][0]["length"], len(PYPI_TOKEN))
+        self.assertNotIn(PYPI_TOKEN, checked.stdout + checked.stderr)
+        proc = run(SANITIZE, "file-write", text)
+        expected = "令牌pypi-<REDACTED>请保密\nPORT=8080\n"
+        self.assertEqual((proc.returncode, proc.stdout), (0, expected))
+        again = run(SANITIZE, "file-write", proc.stdout)
+        self.assertEqual((again.returncode, again.stdout), (0, expected))
+
+    def test_pypi_documented_placeholders_and_prose_are_unchanged(self):
+        text = "pypi-client-library\npypi-<REDACTED>\n" + "pypi-" + "x" * 100 + "\nPORT=8080\n"
+        proc = run(SANITIZE, "file-write", text)
+        self.assertEqual((proc.returncode, proc.stdout), (0, text))
+
+    def test_pypi_uses_existing_channel_and_source_reference_decisions(self):
+        for channel, decision, code in (("file-write", "SANITIZE", 0),
+                                        ("llm-request", "SANITIZE", 0),
+                                        ("git-push-payload", "BLOCK", 2),
+                                        ("shell-stdout", "ASK", 3)):
+            checked = run(CHECK_SPAN, channel, PYPI_TOKEN, ("--json",))
+            self.assertEqual((checked.returncode, json.loads(checked.stdout)["decision"]), (code, decision))
+            self.assertNotIn(PYPI_TOKEN, checked.stdout + checked.stderr)
+            proc = run(SANITIZE, channel, PYPI_TOKEN)
+            self.assertEqual(proc.returncode, code)
+            self.assertEqual(proc.stdout, "" if code else "pypi-<REDACTED>")
+        proc = run(SANITIZE, "file-write", "echo ${PYPI_" + "TOKEN}")
+        self.assertEqual((proc.returncode, proc.stdout), (2, ""))
+
+    def test_resource_ids_and_invalid_jws_are_preserved_without_value_exemptions(self):
+        header = base64.urlsafe_b64encode(json.dumps({"alg": None}).encode()).decode().rstrip("=")
+        invalid = header + "." + "eyJzdWIiOiJzeW50aGV0aWMifQ" + "." + "Q7mN4pR2tVH8kL3bD6sF9wZ5aC0uE1xYz"
+        text = "\n".join(prefix + "J7XQZ2M4PLRN8TWV" for prefix in ("AGPA", "AIDA", "AROA", "ANPA")) + "\n" + invalid + "\nPORT=8080\n"
+        proc = run(SANITIZE, "file-write", text)
+        self.assertEqual((proc.returncode, proc.stdout), (0, text))
+        checked = run(CHECK_SPAN, "file-write", text, ("--json",))
+        self.assertEqual((checked.returncode, json.loads(checked.stdout)["decision"]), (0, "ALLOW"))
+
+    def test_resource_spelling_cannot_exempt_a_uri_credential(self):
+        password = "AIDA" + "J7XQZ2M4PLRN8TWV"
+        text = "postgresql" + "://account:" + password + "@db.example.invalid/app\n"
+        proc = run(SANITIZE, "file-write", text)
+        self.assertEqual(proc.returncode, 0)
+        self.assertNotIn(password, proc.stdout + proc.stderr)
+        self.assertIn("account:<REDACTED>@db.example.invalid/app", proc.stdout)
+
     def test_cli_whole_long_token_and_marker_body_keep_unicode_and_config(self):
         body = "Q7mN4pR2tV" + "xxx" + ("H8kL3bD6sF9wZ5aC0uE1" * 2)[:23]
         token = "ghp_" + body

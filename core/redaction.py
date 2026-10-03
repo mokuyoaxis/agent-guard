@@ -51,6 +51,7 @@ RULE_AWS_ACCESS_KEY_ID = "secret/aws-access-key-id"
 RULE_GITLAB_TOKEN = "secret/gitlab-token"
 RULE_SLACK_TOKEN = "secret/slack-token"
 RULE_STRIPE_KEY = "secret/stripe-key"
+RULE_PYPI_TOKEN = "secret/pypi-token"
 RULE_JWT = "secret/jwt"
 RULE_PRIVATE_KEY_BLOCK = "secret/private-key-block"
 RULE_CONNECTION_PASSWORD = "secret/connection-password"
@@ -150,8 +151,8 @@ _REDACTED_MARKER = "<REDACTED>"
 # body. Words embedded in random credential bytes are never exemptions.
 _PLACEHOLDER_VENDOR_PREFIX_RE = re.compile(
     r"^(?:sk-proj-|sk-ant-(?:api03-)?|sk-live-|sk-|(?:sk|rk)_live_|"
-    r"(?:ghp|gho|ghu|ghs|ghr)_|github_pat_|glpat-|xox[baprs]-|"
-    r"AKIA|ASIA|AGPA|AIDA|AROA|ANPA)")
+    r"(?:ghp|gho|ghu|ghs|ghr)_|github_pat_|glpat-|xox[baprs]-|pypi-|"
+    r"AKIA|ASIA)")
 _PLACEHOLDER_TEMPLATE_RE = re.compile(
     r"(?:<[A-Za-z_][A-Za-z0-9_]*>|\$\{[A-Za-z_][A-Za-z0-9_]*\})\Z")
 
@@ -230,10 +231,15 @@ _GITHUB_INSTALLATION_RE = re.compile(
     _TOKEN_START + r"ghs_[A-Za-z0-9-]+_(?P<header>[A-Za-z0-9_-]{4,})"
     r"\.[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}"
     r"(?![A-Za-z0-9_-]|\.[A-Za-z0-9_-])")
-_AWS_KEY_ID_RE = re.compile(_TOKEN_START + r"(?:AKIA|ASIA|AGPA|AIDA|AROA|ANPA)[0-9A-Z]{16}" + _TOKEN_END)
+# IAM group/user/role/policy IDs have separate public resource prefixes.
+# They are not access-key IDs; other credential contexts still apply.
+_AWS_KEY_ID_RE = re.compile(_TOKEN_START + r"(?:AKIA|ASIA)[0-9A-Z]{16}" + _TOKEN_END)
 _GITLAB_RE = re.compile(_TOKEN_START + r"glpat-[A-Za-z0-9_\-]{20,}")
 _SLACK_RE = re.compile(_TOKEN_START + r"xox[baprs]-[A-Za-z0-9\-]{10,}")
 _STRIPE_RE = re.compile(_TOKEN_START + r"(?:sk|rk)_live_[A-Za-z0-9]{16,}")
+# PyPI's documented scanner format allows arbitrary Macaroon caveat length.
+# Capture the entire base64url body, rather than an 85-character prefix.
+_PYPI_RE = re.compile(_TOKEN_START + r"pypi-[A-Za-z0-9_-]{85,}")
 _JWT_RE = re.compile(
     _TOKEN_START + r"eyJ[A-Za-z0-9_\-]{4,}\.[A-Za-z0-9_\-]{4,}\.[A-Za-z0-9_\-]{4,}")
 _PRIVATE_KEY_RE = re.compile(
@@ -327,8 +333,8 @@ ENV_DUMP_RE = re.compile(
     r"|(?<![\w.])cat\s+/proc/self/environ", re.MULTILINE)
 
 
-def _b64url_json_has_alg(segment: str, *, string_alg: bool = False) -> bool:
-    """Structural JWT check: the header segment must decode to JSON+`alg`."""
+def _b64url_json_has_alg(segment: str) -> bool:
+    """Structural JWS check: JSON object with a nonempty ASCII `alg` string."""
     if len(segment) % 4 == 1:
         return False
     padded = segment + "=" * (-len(segment) % 4)
@@ -340,11 +346,12 @@ def _b64url_json_has_alg(segment: str, *, string_alg: bool = False) -> bool:
         header = json.loads(decoded.decode("utf-8"))
     except (ValueError, UnicodeDecodeError):
         return False
-    if not isinstance(header, dict) or "alg" not in header:
+    if not isinstance(header, dict):
         return False
-    # Preserve historical generic JWT interpretation; new vendor wrappers
-    # require the declared header type without inspecting business claims.
-    return not string_alg or (isinstance(header["alg"], str) and bool(header["alg"]))
+    alg = header.get("alg")
+    # RFC 7515 4.1.1 declares ASCII StringOrURI. Do not infer authentication,
+    # validate business claims or restrict the caller to a known enum.
+    return isinstance(alg, str) and bool(alg) and alg.isascii()
 
 
 def _note_context(text: str, index: int) -> str:
@@ -382,7 +389,7 @@ def detect_secrets(text: str, channel: str = "") -> List[SpanSpec]:
     for match in _GITHUB_RE.finditer(text):
         add(match, RULE_GITHUB_TOKEN, ["fixed-format vendor prefix"])
     for match in _GITHUB_INSTALLATION_RE.finditer(text):
-        if len(match.group(0)) >= 40 and _b64url_json_has_alg(match.group("header"), string_alg=True):
+        if len(match.group(0)) >= 40 and _b64url_json_has_alg(match.group("header")):
             add(match, RULE_GITHUB_TOKEN, ["vendor installation wrapper + structural JWT header"])
     for match in _AWS_KEY_ID_RE.finditer(text):
         add(match, RULE_AWS_ACCESS_KEY_ID, ["reserved vendor prefix"])
@@ -392,6 +399,8 @@ def detect_secrets(text: str, channel: str = "") -> List[SpanSpec]:
         add(match, RULE_SLACK_TOKEN, ["vendor prefix"])
     for match in _STRIPE_RE.finditer(text):
         add(match, RULE_STRIPE_KEY, ["prefix + live mode (test keys exempt)"])
+    for match in _PYPI_RE.finditer(text):
+        add(match, RULE_PYPI_TOKEN, ["vendor prefix + documented base64url minimum"])
     for match in _JWT_RE.finditer(text):
         header = match.group(0).split(".", 1)[0]
         if not _b64url_json_has_alg(header):
