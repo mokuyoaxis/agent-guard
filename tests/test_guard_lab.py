@@ -628,15 +628,18 @@ class GuardLabTests(unittest.TestCase):
         with self.assertRaises(error.HTTPError) as caught:
             request.urlopen(wrong_type, timeout=2)
         self.assertEqual(caught.exception.code, 415)
-        for url, payload, expected_status in (
-            (endpoint["base_url"] + "/snapshot/wrong", b"not-a-tar", 404),
+        for message, expected_status in (
+            (request.Request(endpoint["base_url"] + "/snapshot/wrong",
+                             data=b"not-a-tar", method="POST"), 404),
             (
-                endpoint["base_url"] + "/snapshot/" + endpoint["route_token"],
-                b"x" * (MAX_SNAPSHOT_ARCHIVE_BYTES + 1),
+                # The sink rejects the declared length before reading a body.
+                # Sending that body races a connection reset on macOS.
+                request.Request(endpoint["base_url"] + "/snapshot/" + endpoint["route_token"],
+                                data=b"", method="POST",
+                                headers={"Content-Length": str(MAX_SNAPSHOT_ARCHIVE_BYTES + 1)}),
                 413,
             ),
         ):
-            message = request.Request(url, data=payload, method="POST")
             with self.assertRaises(error.HTTPError) as caught:
                 request.urlopen(message, timeout=2)
             self.assertEqual(caught.exception.code, expected_status)

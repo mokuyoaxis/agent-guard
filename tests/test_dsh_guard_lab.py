@@ -291,7 +291,9 @@ class DshGuardLabTests(unittest.TestCase):
         self.assertFalse((self.root / "bad-read-pair").exists())
 
     def test_read_profile_pair_binds_each_fixture_and_preserves_review_gates(self):
-        pair, runtime = self.root / "read-pair", self.root / "runtime"
+        pair = self.root / "read-pair"
+        # The real launcher resolves its package root, including macOS /var aliases.
+        runtime = (self.root / "runtime").resolve()
         with patch.object(runner, "_initialize_home", return_value={"model_tasks_launched": 0}), \
                 patch.object(runner, "_launcher_root", return_value=runtime):
             runner.prepare_pair(pair, self.home, self.fake_host("paired", "0.2.0-rc.2"),
