@@ -2,7 +2,7 @@
 
 This is a checklist for a user or their agent, **not** a claim that an
 unlisted host is supported. Start with the [capability and evidence
-matrix](../docs/harness-capabilities.md). A prompt, Skill, CLI call, or
+matrix](../docs/guides/harness-capabilities.md). A prompt, Skill, CLI call, or
 adapter exit code alone does not prove automatic tool interception.
 
 ## 1. Identify the actual boundary
@@ -33,7 +33,7 @@ or a public report. If the host contract or version is unclear, mark it
   second copy of the rule table. Inspect the [Claude](claude/pre_tool_use.py),
   [Kimi](kimi-code/pre_tool_use.py), and [DSH](dsh/lib/index.js) adapters as
   examples of host-specific mapping, not drop-in templates.
-- **No verified blocking event:** use the [Skills](../skills/) and explicit
+- **No verified blocking event:** use the [Skills](../skills) and explicit
   CLI cooperatively. Say `Skill/CLI only`; do not claim native interception.
   A hook limited to some tools does not cover other tools or hidden uploads.
 
@@ -73,7 +73,7 @@ For those two hosts, `--check-drift` adds local version/profile comparison and
 privacy-safe hook/runtime fingerprints. `STALE` asks for re-testing after a
 version change; it does not assert incompatibility. `CURRENT` still does not
 promote `host_interception` above `UNVERIFIED`. See the
-[host drift contract](../docs/host-drift.md).
+[host drift contract](../docs/guides/host-drift.md).
 
 An explicit `--live-sentinel` can spend one configured model call to test one
 real root-agent Bash path in a private fixture. PASS requires a hashed exact
@@ -87,7 +87,7 @@ Report the host/version, tool and event, config scope, root/subagent path,
 dialect, model setup if one was used, the Core decision, host outcome, and
 independent non-execution observation. Label evidence as `CLI`, `Adapter`,
 `Hook observed`, or `Enforcement observed` using the
-[matrix definitions](../docs/harness-capabilities.md#evidence-levels).
+[matrix definitions](../docs/guides/harness-capabilities.md#evidence-levels).
 Unknown versions or untested paths remain `UNVERIFIED`; no blocking event is
 `Skill/CLI only` or `UNSUPPORTED`. An agent's self-test is useful setup
 evidence, not an independent security boundary against that same agent or a

@@ -2,6 +2,7 @@
 """status - inspect guard state, quarantine usage, recent decisions.
 
     status.py [--json] [--tail N]
+    status.py --trash-index [--root PATH ...] [--trash PATH ...] [--json]
 """
 from __future__ import annotations
 
@@ -21,9 +22,60 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--json", action="store_true", dest="as_json")
     ap.add_argument("--tail", type=int, default=10)
+    ap.add_argument("--trash-index", action="store_true",
+                    help="read-only quarantine locations for agents and future UI")
+    ap.add_argument("--root", action="append", default=[],
+                    help="search root for --trash-index (repeatable)")
+    ap.add_argument("--trash", action="append", default=[],
+                    help="declared external/custom quarantine path (repeatable)")
+    ap.add_argument("--max-depth", type=int, default=None,
+                    help="directory depth below each search root (default 3)")
+    ap.add_argument("--max-entries", type=int, default=None,
+                    help="index directory-entry budget (default 10000)")
     args = ap.parse_args()
 
     base = os.getcwd()
+    if args.trash_index:
+        from core.trash_index import (
+            DEFAULT_MAX_DEPTH, DEFAULT_MAX_ENTRIES, list_trash_locations)
+        roots, paths = list(args.root), list(args.trash)
+        if not roots and not paths:
+            roots = [base]
+            configured = os.environ.get("AGENT_GUARD_TRASH")
+            if configured:
+                paths.append(configured)
+        try:
+            result = list_trash_locations(
+                roots, trash_paths=paths,
+                max_depth=(DEFAULT_MAX_DEPTH if args.max_depth is None
+                           else args.max_depth),
+                max_entries=(DEFAULT_MAX_ENTRIES if args.max_entries is None
+                             else args.max_entries))
+        except ValueError as exc:
+            ap.error(str(exc))
+        if args.as_json:
+            # ASCII escapes preserve unusual POSIX names in valid UTF-8 JSON.
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            print(f"quarantine locations: {result['count']} candidates, "
+                  f"{result['identified_count']} with metadata")
+            print(f"scope: depth={result['max_depth']} budget={result['max_entries']}")
+            for path in result["roots"]:
+                print(f"  root: {json.dumps(path)}")
+            for path in result["trash_paths"]:
+                print(f"  declared: {json.dumps(path)}")
+            for row in result["entries"]:
+                print(f"  [{row['status']}] {json.dumps(row['trash_root'])}")
+                if row["trash_root"] != row["resolved_trash_root"]:
+                    print(f"    resolved: {json.dumps(row['resolved_trash_root'])}")
+            for error in result["errors"]:
+                print(f"  {error['code']}: {json.dumps(error['path'])}")
+            if not result["complete"]:
+                print("partial index: inspect scope and errors")
+        return 0 if result["complete"] else 1
+    if (args.root or args.trash or args.max_depth is not None or
+            args.max_entries is not None):
+        ap.error("index options require --trash-index")
     workspace = classifier.discover_workspace(base)
     trash_root = os.environ.get(
         "AGENT_GUARD_TRASH", os.path.join(workspace, TRASH_DIRNAME))

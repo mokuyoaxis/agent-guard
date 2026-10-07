@@ -39,7 +39,7 @@ Rules the table encodes:
 them here is the opposite of a claim: it is the coverage gap, stated so no
 reader infers coverage the guard does not have.
 
-Per `docs/threat-model.md`, the guard "may not claim" prevention of
+Per `docs/design/threat-model.md`, the guard "may not claim" prevention of
 adversarial exfiltration, and per design 4.4 an unreachable channel gets
 **no verdict at all**.
 

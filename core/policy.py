@@ -7,7 +7,7 @@ The stable cross-harness interface is NOT allow/block. It is:
                                     + Explanation
                                     + RecoveryPlan (payload)
 
-Decision classes (docs/architecture.md):
+Decision classes (docs/design/architecture.md):
 
     ALLOW      safe to run as-is (noop / provably regenerable / trash GC)
     RELOCATE   compensate by quarantine, then run
@@ -118,6 +118,7 @@ CODE_ASK_PATH_EMISSION = "ASK_PATH_EMISSION"
 CODE_ALLOW_SECRET_PLACEHOLDER = "ALLOW_SECRET_PLACEHOLDER"
 CODE_ALLOW_PATH_IN_WORKSPACE = "ALLOW_PATH_IN_WORKSPACE"
 CODE_BLOCK_COMPENSATION_FAILED = "COMPENSATION_FAILED"
+CODE_BLOCK_GIT_RESET_COLLISION = "BLOCK_GIT_RESET_COLLISION"
 
 # Human-facing one-liners: why the guard cannot just do it (or did do it).
 EXPLANATIONS: Dict[str, str] = {
@@ -137,6 +138,11 @@ EXPLANATIONS: Dict[str, str] = {
                                        "real command ran.",
     CODE_SNAPSHOT_GIT_STASH: "Tracked modifications snapshotted as a stash "
                              "before the command; apply it to recover.",
+    CODE_BLOCK_GIT_RESET_COLLISION: "git reset --hard would overwrite "
+                                    "untracked or ignored content, or "
+                                    "quarantine storage, that a tracked-only "
+                                    "stash cannot protect. Preserve the "
+                                    "conflicting paths separately first.",
     CODE_ASK_COMPOUND_CWD_DELETE: "This line combines a working-directory "
                                   "change with deletion, so the guard "
                                   "cannot safely relocate the target before "
@@ -607,7 +613,7 @@ def decide_op(spec: OpSpec, ctx: PolicyContext) -> Optional[Verdict]:
     # when the target set also trips a hard boundary, that boundary wins.
     # Without this, `cd /tmp && rm -rf /home` degrades a hard refusal into
     # an ASK - and any auto-approving host grants an ASK silently, which is
-    # the incident finding described in docs/development-note-unguarded-deletion.md.
+    # the incident finding described in docs/history/development-note-unguarded-deletion.md.
     if spec.shape in ("F1", "F2"):
         ask_code = (CODE_ASK_COMPOUND_CWD_DELETE if spec.shape == "F1"
                     else CODE_ASK_COMPOUND_CREATE_DELETE)
@@ -648,8 +654,9 @@ def decide_op(spec: OpSpec, ctx: PolicyContext) -> Optional[Verdict]:
     if spec.kind == KIND_GIT_RESET_HARD:
         return Verdict(
             DECISION_SNAPSHOT, CODE_SNAPSHOT_GIT_STASH,
-            ["snapshot tracked modifications via git stash create/store "
-             "before reset --hard"],
+            ["preflight untracked/ignored collisions with the target tree, "
+             "then snapshot tracked modifications via git stash "
+             "create/store before reset --hard"],
         )
 
     if spec.kind == KIND_GIT_DISCARD:

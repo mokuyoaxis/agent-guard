@@ -126,7 +126,7 @@ class PowerShellShortParameterAliases(unittest.TestCase):
 
         The issue only requires that an unambiguous `-WhatIf` keeps working
         and that ambiguous abbreviations fail closed; `-wi` is the
-        documented conservative exception (see docs/compatibility.md).
+        documented conservative exception (see docs/design/compatibility.md).
         """
         spec = spec_for("ri build -r -wi")
         self.assertFalse(spec.dry_run)

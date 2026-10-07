@@ -17,7 +17,7 @@ class PackageManifestTests(unittest.TestCase):
 
     def test_scoped_public_stable_identity(self):
         self.assertEqual(self.manifest["name"], "@mokuyoaxis/agent-guard")
-        self.assertEqual(self.manifest["version"], "0.2.3")
+        self.assertEqual(self.manifest["version"], "0.2.4")
         self.assertNotIn("private", self.manifest)
         self.assertEqual(
             self.manifest.get("publishConfig"), {"access": "public"})

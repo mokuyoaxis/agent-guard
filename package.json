@@ -1,6 +1,6 @@
 {
   "name": "@mokuyoaxis/agent-guard",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Harness-neutral reliability infrastructure for AI coding agents: reversible destructive actions, pre-emission redaction, recovery evidence, and a shared Decision Protocol with optional native adapters.",
   "type": "module",
   "main": "./adapters/dsh/lib/index.js",

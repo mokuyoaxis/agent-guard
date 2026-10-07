@@ -2,7 +2,7 @@
 core decision + code for every command shape, and map decisions onto
 Claude Code hook semantics correctly.
 
-Success criterion (docs/architecture.md): same command, same cwd, same
+Success criterion (docs/design/architecture.md): same command, same cwd, same
 workspace state -> identical core decision/code regardless of adapter.
 """
 import json

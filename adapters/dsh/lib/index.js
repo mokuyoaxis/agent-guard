@@ -22,7 +22,7 @@
  * config.repoRoot points at a live checkout (development mode).
  *
  * Positioning: automatic recovery system with human escalation - reliability
- * infrastructure, not a security sandbox. See docs/threat-model.md.
+ * infrastructure, not a security sandbox. See docs/design/threat-model.md.
  */
 
 import fs from "node:fs";

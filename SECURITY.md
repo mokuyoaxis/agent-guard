@@ -11,7 +11,7 @@ verdict JSON and audit lines involved.
 Reliability infrastructure: it makes destructive actions reversible by
 default and records evidence. It is **not a security sandbox** - an agent
 with the same OS privileges as the guard can bypass it. See
-[docs/threat-model.md](docs/threat-model.md) before relying on it.
+[docs/design/threat-model.md](docs/design/threat-model.md) before relying on it.
 
 ## Expected scanner hits on this repository
 
@@ -24,7 +24,7 @@ will therefore report hits such as:
   exercise the classifier;
 - `dynamic_require` in `core/policy.py` (the `subprocess` call backing
   `git check-ignore`);
-- credential-adjacent wording in `docs/publishing-from-ephemeral-environments.md`
+- credential-adjacent wording in `docs/guides/publishing-from-ephemeral-environments.md`
   (a guide about *avoiding* credential leaks).
 
 As of v0.1.0 a full self-scan reports 61 hits (29 high / 10 medium / 22

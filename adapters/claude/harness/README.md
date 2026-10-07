@@ -1,7 +1,7 @@
 # Claude Code end-to-end harness
 
 Reproduces the live interception test in
-[`docs/test-report-claude-code-harness.md`](../../../docs/test-report-claude-code-harness.md):
+[`docs/reports/test-report-claude-code-harness.md`](../../../docs/reports/test-report-claude-code-harness.md):
 the **real** Claude Code CLI, the **real** agent-guard `PreToolUse` hook, and
 a **scripted mock Anthropic endpoint** standing in for the model.
 

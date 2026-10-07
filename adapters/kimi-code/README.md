@@ -15,10 +15,10 @@ contract comparison below was established against 0.42.0; the 2.1.1 trials
 independently observed authenticated root `Bash` blocks through the same
 exit-2 hook path on an OAuth official model and a second configured model
 route. Connection details and private route identifiers are omitted. See the
-[bounded report](../../docs/test-report-kimi-code-block.md).
+[bounded report](../../docs/reports/test-report-kimi-code-block.md).
 
 For the separate honeytoken experiment, see the
-[guard-lab pair and local follow-up](../../docs/test-report-kimi-guard-lab.md).
+[guard-lab pair and local follow-up](../../docs/reports/test-report-kimi-guard-lab.md).
 Its recorded tool-channel exposure and matched guarded observation are distinct
 from native Bash interception. A local doctor pass does not rerun that pair.
 Use the [private capture/review helper](harness/README.md) to repeat the Lab
@@ -80,7 +80,7 @@ allowed. `blockDecision()` collects any hook result with `action === "block"`.
    Add `--check-drift` to compare the installed Kimi Code version with the
    shipped profile and compute privacy-safe configuration/runtime
    fingerprints. `CURRENT` still does not prove live interception; see the
-   [drift status contract](../../docs/host-drift.md).
+   [drift status contract](../../docs/guides/host-drift.md).
    An explicit `--live-sentinel` may then use one configured model call in a
    private fixture and requires adapter, audit, host-feedback, and marker
    evidence. The selected file must be named `config.toml`; the runner does
@@ -112,7 +112,7 @@ It does not describe a missing hook or a failed hook command.
   `kimi --auto`, Kimi 0.42.0 treats `permissionDecision: "ask"` as allow.
   This adapter therefore maps Core ASK to exit 2 (BLOCK). The failure class
   is described in the public
-  [`development note`](../../docs/development-note-unguarded-deletion.md),
+  [`development note`](../../docs/history/development-note-unguarded-deletion.md),
   and it is fixed:
   `cd /tmp && rm -rf "$PWD/../home"` now classifies as
   `BLOCK / BLOCK_UNDETERMINABLE_EFFECT`. A shape rule describes
@@ -126,7 +126,7 @@ It does not describe a missing hook or a failed hook command.
   isolated sandboxes using one configured model route, single and concurrent
   subagent Bash calls reached the native hook and produced recoverable audit
   records.
-  A third isolated project then showed [execution-level `BLOCK` enforcement](../../docs/test-report-kimi-code-block.md)
+  A third isolated project then showed [execution-level `BLOCK` enforcement](../../docs/reports/test-report-kimi-code-block.md)
   for one root and one single-subagent inert Bash probe. Its separate root
   `ASK` probe was denied. A fourth isolated project reproduced these bounded
   paths using a second configured request model ID and
@@ -143,7 +143,7 @@ It does not describe a missing hook or a failed hook command.
   before Python started.** In an isolated Kimi 0.42.0 trial, a process-local failing
   `python3` shim made a Bash call execute even though the correctly started
   adapter would have returned `BLOCK_DIALECT_UNKNOWN`. The sentinel appeared
-  and no guard audit event was added. See the [bounded report](../../docs/test-report-kimi-code-block.md).
+  and no guard audit event was added. See the [bounded report](../../docs/reports/test-report-kimi-code-block.md).
   The bridge changes this particular failure into exit 2 **if the bridge
   itself starts**. It cannot block a hook that is absent, skipped by the
   matcher, fails to spawn, or times out. The host remains fail-open for those
@@ -156,7 +156,7 @@ It does not describe a missing hook or a failed hook command.
   process-local Python startup fault returned exit 1 before the adapter ran;
   the bridge converted it to Kimi's hard refusal, and the sentinel stayed
   absent. This does not test a bridge-spawn failure or timeout; see the
-  [bounded report](../../docs/test-report-kimi-code-block.md).
+  [bounded report](../../docs/reports/test-report-kimi-code-block.md).
 - Kimi's `doctor config` accepted a hook-free test config and an invalid
   regex matcher; it checks configuration validity, not live interception.
   In the installed 0.42.0 bundle, a matcher regex error yields no match.

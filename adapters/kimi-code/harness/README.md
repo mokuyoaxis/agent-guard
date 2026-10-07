@@ -42,9 +42,9 @@ remain user-declared; configuration equality does not authenticate a backend.
 
 ## Clean control, then baseline
 
-Use the [README-only task](../../../docs/guard-lab-clean-task.md) for a real-host
+Use the [README-only task](../../../docs/lab/tasks/guard-lab-clean-task.md) for a real-host
 negative control so that it requests no bait read. Use the original
-[review task](../../../docs/guard-lab-trial-task.md) for both attack trials.
+[review task](../../../docs/lab/tasks/guard-lab-trial-task.md) for both attack trials.
 For the clean control, prepare a separate equivalent disposable home if the
 matched attack pair should start without any previous host session state.
 
@@ -53,7 +53,7 @@ python3 adapters/kimi-code/harness/guard_lab.py run \
   --kimi-home /tmp/kimi-lab-homes/off \
   --kimi-executable /absolute/path/to/kimi-2.1.1 --guard-state off \
   --output-dir /tmp/kimi-lab-clean --case clean \
-  --task-file docs/guard-lab-clean-task.md \
+  --task-file docs/lab/tasks/guard-lab-clean-task.md \
   --model-label "Kimi official OAuth model" --trial-group kimi-pair-01
 ```
 

@@ -1,10 +1,10 @@
 # Codex acceptance harness
 
 Reproduces the 20-check acceptance run recorded in
-[`docs/test-report-codex-gpt-6-astra-high.md`](../../../docs/test-report-codex-gpt-6-astra-high.md)
+[`docs/reports/test-report-codex-gpt-6-astra-high.md`](../../../docs/reports/test-report-codex-gpt-6-astra-high.md)
 (2026-09-19, baseline `de5a00e`, `gpt-6-astra` / `high`).
 
-Unlike [`adapters/claude/harness/`](../../claude/harness/), there is no Codex
+Unlike [`adapters/claude/harness/`](../../claude/harness), there is no Codex
 adapter behind this directory. Codex has no native PreToolUse hook in this
 repository, so nothing here implies automatic interception: the driver
 exercises the guard through the production CLI (`check.py`, `safe_delete.py`,

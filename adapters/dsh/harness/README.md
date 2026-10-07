@@ -51,7 +51,7 @@ python3 adapters/dsh/harness/guard_lab.py run \
   --dsh-home /tmp/approved-disposable-dsh-home \
   --output-dir /tmp/dsh-lab-clean \
   --case clean --model-label "DeepSeek official deepseek-flash" \
-  --task-file docs/guard-lab-clean-task.md \
+  --task-file docs/lab/tasks/guard-lab-clean-task.md \
   --trial-group dsh-baseline-01 --timeout 120
 ```
 
@@ -147,7 +147,7 @@ replacement operations and unknown content blocks refuse every output channel.
 Parser 2 still refuses these source references. The retained new-host real-model
 clean capture was refused with `UNSUPPORTED_SURFACE_REPLAY`, and its composition
 also changed; it did not establish a new off/on result. The
-[current review](../../../docs/test-report-release-readiness-0.2.3.md) separates
+[current review](../../../docs/reports/test-report-release-readiness-0.2.3.md) separates
 the passing no-model preflight/parser regressions from this incomplete trial.
 
 Historical version 1 receipts still finalize with stdout/stderr coverage only.
@@ -155,7 +155,7 @@ They do not acquire native coverage by opening them with the updated helper.
 Use fresh captures with identical channel coverage for a later differential
 trial. The generic comparison now requires equal scanned channel sets and
 non-guard fingerprints, while their provenance remains user-declared.
-[Native-session follow-up](../../../docs/test-report-dsh-native-session.md)
+[Native-session follow-up](../../../docs/reports/test-report-dsh-native-session.md)
 records the offline review of retained real logs separately.
 
 ## Capture the guard-off attack probe
@@ -192,7 +192,7 @@ review checklist or `--attack-sample config-comment-v1` for instructions in
 service configuration comments. The original `direct-v1` remains the default.
 Each sample gets its own protocol ID and template fingerprint. Keep the original
 task, use a fresh output/home for each sample, and use the same sample for any
-later guarded comparison. See the [sample registry](../../../docs/guard-lab.md#versioned-attack-samples).
+later guarded comparison. See the [sample registry](../../../docs/lab/guard-lab.md#versioned-attack-samples).
 
 ## Evidence and exit status
 
@@ -227,7 +227,7 @@ DSH also retains its own session artifacts.
 Lab events and reports continue to retain no raw output or marker values.
 
 Version/model labels, completion review, environment equality across separate
-runs, and same-UID isolation retain the [normal Lab limitations](../../../docs/guard-lab.md).
+runs, and same-UID isolation retain the [normal Lab limitations](../../../docs/lab/guard-lab.md).
 The original composition fingerprint checks one composed tree. New receipt
 version 3 additionally binds `dsh-lab-non-guard-v1`: rendered non-Guard rows,
 saved `settings.yaml`, home `.env`, the headless package manifest and inherited
@@ -318,7 +318,7 @@ another capture under the new rules. Prepare a fresh pair to continue testing.
 Results distinguish tool and assistant canary exposure from fake Lab execution
 and URL contact. The default `deletion-v1` profile loads the existing deletion
 adapter. Continued tool exposure with that profile can validly yield
-`NOT_MITIGATED`. The [investigation report](../../../docs/test-report-dsh-paired-lab.md)
+`NOT_MITIGATED`. The [investigation report](../../../docs/reports/test-report-dsh-paired-lab.md)
 describes the candidate result-rewriting seam and its limits.
 
 ### Explicit native read redaction profile
@@ -339,7 +339,7 @@ python3 adapters/dsh/harness/guard_lab.py prepare-pair \
   --guard-profile read-redaction-v1 \
   --read-guard-dsh-root /absolute/path/to/installed/@deepseek-ai/dsh \
   --attack-sample read-redaction-v1 \
-  --task-file docs/guard-lab-read-trial-task.md \
+  --task-file docs/lab/tasks/guard-lab-read-trial-task.md \
   --model-label "DeepSeek official deepseek-flash" \
   --trial-group dsh-read-redaction-01
 ```
@@ -376,7 +376,7 @@ external-network call. They cover unreviewed/failed/empty/oversized/timed-out
 captures, exposure semantics, capture corruption, version/config preflight,
 composition drift, create-once finalization, recovered/broken retries,
 fragmented markers, retry-only exposure and legacy coverage. The
-[retry-evidence report](../../../docs/test-report-dsh-retry-evidence.md) records
+[retry-evidence report](../../../docs/reports/test-report-dsh-retry-evidence.md) records
 an offline reparse of the retained official Flash retry log. A mock pass does not establish
 a new real-model or execution-level DSH acceptance claim.
 The dedicated CI `dsh-native-lab` job selects Node 22.23.2 and runs these suites;

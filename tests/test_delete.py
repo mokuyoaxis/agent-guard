@@ -294,14 +294,15 @@ class CheckCLI(RepoFixture):
         self.assertEqual(restored.returncode, 0, restored.stderr)
         self.assertEqual(Path(self.root, name).read_text(), "valuable")
 
-    def test_git_snapshot_failure_blocks_instead_of_allowing(self):
+    def test_git_reset_outside_repo_blocks_before_snapshot(self):
         with tempfile.TemporaryDirectory(prefix="agent-guard-nonrepo-") as root:
             proc = run("check.py", "--enforce", "--json", "--",
                        "git reset --hard", cwd=root)
         self.assertEqual(proc.returncode, 2, proc.stderr)
         out = json.loads(proc.stdout)
         self.assertEqual(out["decision"], "BLOCK")
-        self.assertEqual(out["code"], "COMPENSATION_FAILED")
+        self.assertEqual(out["code"], "BLOCK_UNDETERMINABLE_EFFECT")
+        self.assertNotIn("compensations", out)
 
     def test_git_clean_enumeration_failure_is_undeterminable_effect(self):
         """An unknowable target set is effect-uncertainty, not a broken

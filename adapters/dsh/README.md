@@ -7,19 +7,23 @@ delegates deletion verdicts to the shared Python core
 The opt-in text-read prototype reuses the existing Core exfil policy through
 a bounded local worker. Both ship inside this package.
 
-The [current contract review](../../docs/test-report-release-readiness-0.2.3.md)
+The [0.2.3 contract review](../../docs/reports/test-report-release-readiness-0.2.3.md)
 verifies the default deletion path on `0.2.0-rc.2` and `0.1.5-rc.1`, and
 the opt-in read path on the reviewed new local and sandbox filesystem providers.
 The package admits both exact host versions. Lab preflight accepts both and
 binds their native formats separately; unsupported session shapes remain
 inconclusive. A running Web service's plugin inventory does not validate this
-checkout or its agent scope. The [initial upgrade check](../../docs/test-report-dsh-0.2-upgrade.md)
+checkout or its agent scope. The [initial upgrade check](../../docs/reports/test-report-dsh-0.2-upgrade.md)
 retains the earlier failures and correction history.
 
 ## Install
 
+The [0.2.4 release](../../docs/releases/release-notes-0.2.4.md) updates the shared
+Core and docs without broadening the admitted DSH versions or native-read
+coverage. Install the exact version:
+
 ```bash
-dsh plugin --profile <your-profile> add @mokuyoaxis/agent-guard@0.2.3
+dsh plugin --profile <your-profile> add @mokuyoaxis/agent-guard@0.2.4
 ```
 
 Use an exact package version whose host contract matches your DSH installation.
@@ -95,11 +99,11 @@ it reads no target file and performs no model/network call. Native `read`
 continues to own filesystem access. The shell-policy inheritance note below
 applies to the existing deletion commands, not this controller worker.
 
-The [zero-model native report](../../docs/test-report-dsh-read-redaction.md)
+The [zero-model native report](../../docs/reports/test-report-dsh-read-redaction.md)
 verifies the actual returned value/content/meta, next request, and full durable
 JSONL log through the real AgentLoop with a synthetic stream. It does not
 establish real-model injection mitigation or universal emission protection.
-The separate [official Flash real-model follow-up](../../docs/test-report-dsh-real-followup.md)
+The separate [official Flash real-model follow-up](../../docs/reports/test-report-dsh-real-followup.md)
 observed supported synthetic-secret redaction in tool content, presentation
 metadata and the decoded session during a direct-read off/on experiment. It
 preserved useful configuration and remains outside the Lab injection L2 protocol.
@@ -136,7 +140,7 @@ is forwarded verbatim rather than swapped for POSIX, so `check.py` returns
   reproducing a test; a source checkout may contain later changes.
 - DSH `0.1.5-rc.1` package loading and one harmless execution-level `bash`
   block are independently verified in the
-  [bounded host report](../../docs/test-report-dsh-0.1.5-rc.1.md). Model,
+  [bounded host report](../../docs/reports/test-report-dsh-0.1.5-rc.1.md). Model,
   subagent, concurrency, ASK UI and non-`bash` paths remain separate tests.
 - For repeatable baselines and reviewed guard-off/on Lab pairs, use the
   [headless capture/review runner](harness/README.md). Its separate `check`

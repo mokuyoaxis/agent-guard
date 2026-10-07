@@ -105,6 +105,25 @@ def main() -> int:
         specs, parse_error = [], None
         verdicts = [policy.decide_dialect_failure(resolution)]
 
+    # Preflight every reset before ANY compensation in the line. Advisory
+    # and enforced checks agree, and a later unsafe reset cannot leave an
+    # earlier filesystem relocation half-applied. Stash create only saves
+    # tracked modifications, so it cannot authorize an untracked collision.
+    if not policy.worst(verdicts).blocked:
+        for index, (spec, verdict) in enumerate(zip(specs, verdicts)):
+            if spec.kind != classifier.KIND_GIT_RESET_HARD or \
+                    verdict.decision != policy.DECISION_SNAPSHOT:
+                continue
+            collisions, error = engine.preflight_git_reset_hard(
+                cwd=base, target=spec.targets[0] if spec.targets else "HEAD")
+            if error or collisions:
+                verdicts[index] = policy.Verdict(
+                    policy.DECISION_BLOCK,
+                    policy.CODE_BLOCK_UNDETERMINABLE_EFFECT if error else
+                    policy.CODE_BLOCK_GIT_RESET_COLLISION,
+                    [error or "untracked/ignored or quarantine collision"],
+                )
+
     top = policy.worst(verdicts)
     latency_ms = round((time.monotonic() - started) * 1000, 1)
     check_id = audit.new_txid()

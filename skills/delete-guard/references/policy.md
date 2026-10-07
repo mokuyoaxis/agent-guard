@@ -51,7 +51,7 @@ different effects (`-wi`, `-c`, `-p`) stays unknown and BLOCKs.
 | 1 | dry run / no targets | `ALLOW_NOOP` | proceed unchanged |
 | 2 | unresolvable targets: shell vars, command substitution, unbalanced quotes, `bash -c` with destructive smell, `find -delete`, `find -exec rm`, stdin-fed (`xargs`) | `BLOCK_UNDETERMINABLE_EFFECT` | refuse - allowing it would forfeit the core guarantee |
 | 2a | SHAPE F1: destructive op preceded by `cd` in the same command line, target in-workspace and resolvable | `ASK` (`COMPOUND_CWD_DELETE`) | single-execution authorization; splitting the command avoids the prompt. A shape rule describes *compensation* difficulty, never effect scope: if the target set also trips rule 2, 4, 5 or 6, that BLOCK wins (`tests/test_incident_regression.py`) |
-| 2b | SHAPE F2: file-creation op (`touch/mkdir/cp/mv/install/ln/tee`, `>`/`>>`) precedes a target-dependent destructive op in the same line | `ASK` (`COMPOUND_CREATE_DELETE`) | single-execution authorization; `reset --hard`/force-push exempt (position-independent) |
+| 2b | SHAPE F2: file-creation op (`touch/mkdir/cp/mv/install/ln/tee`, `>`/`>>`) precedes a target-dependent destructive op in the same line | `ASK` (`COMPOUND_CREATE_DELETE`) | single-execution authorization; force-push is refused separately. Hard reset in a compound line is effect-uncertain and BLOCKED before shape rules |
 | 2c | target *is* a filesystem root (`/`, `/home`, `/usr`, `/etc`, `/var`, `/tmp`, `/opt`, `/boot`, `$HOME`, ...) | `BLOCK_PROTECTED_ANCESTOR` | refuse. Matched exactly, so paths *under* these roots keep the ordinary codes; enforced by identity rather than workspace geometry, so it holds even when the workspace is `/` |
 | 3 | any target inside quarantine (`.agent-trash/`) | `ALLOW_TRASH_GC` | direct delete permitted (housekeeping) |
 | 4 | target outside workspace | `BLOCK_OUT_OF_WORKSPACE` | refuse |
@@ -64,7 +64,9 @@ different effects (`-wi`, `-c`, `-p`) stays unknown and BLOCKs.
 | 11 | supported `git clean -f...` | `RELOCATE_VIA_CLEAN_ENUMERATE` | enumerate via `clean -n`, decode every Git-quoted path, relocate every match, proceed only on full coverage |
 | 11a | `git clean -ff`, interactive `-i`, or exclude `-e` | `BLOCK_UNDETERMINABLE_EFFECT` | refuse; nested-repository and interactive/exclusion semantics are not safely mirrored |
 | 11b | supported `git clean -f...` whose target set cannot be enumerated (not a repository, `git` cannot run) | `BLOCK_UNDETERMINABLE_EFFECT` | refuse; the targets exist but their set is unknowable, so nothing was attempted and nothing may be reported as a failed compensation |
-| 12 | `git reset --hard`, `git restore <path>`, `git checkout -- <path>` | `SNAPSHOT_GIT_STASH` | `git stash create`+`store` first; any create/store failure blocks |
+| 12 | supported `git reset --hard [commit]` without untracked/ignored collisions, `git restore <path>`, `git checkout -- <path>` | `SNAPSHOT_GIT_STASH` | hard reset first checks its target tree; `git stash create`+`store` then protects tracked modifications; any create/store failure blocks |
+| 12a | hard reset target overlaps untracked/ignored content or quarantine storage | `BLOCK_GIT_RESET_COLLISION` | refuse before compensation; preserve conflicting paths separately before retrying |
+| 12b | hard reset target cannot be resolved/enumerated, has unsupported options or submodule effects, is stash-relative, or uses shell wrappers/compound commands | `BLOCK_UNDETERMINABLE_EFFECT` | refuse before compensation; use a standalone reset with an explicit stable commit |
 | 13 | all targets git-ignored AND match artifact patterns | `ALLOW_REGENERABLE` | direct delete |
 | 14 | rooted recursive delete | `RELOCATE_TREE` | quarantine whole tree, proceed |
 | 15 | named files/dirs | `RELOCATE_PATHS` | quarantine, proceed |
@@ -154,8 +156,19 @@ model tool.
 
 - Command-level interception covers the recognized vocabulary; arbitrary
   scripts that delete internally are invisible to `check.py` (see
-  `docs/threat-model.md`).
-- `git stash create` captures tracked modifications; untracked files are not
-  affected by `reset --hard`, so they need no snapshot.
+  `docs/design/threat-model.md`).
+- `git stash create` captures tracked modifications only. `reset --hard`
+  can delete untracked and ignored content that obstructs its target tree.
+  `check.py` checks file/directory/ancestor collisions and refuses them;
+  this version does not automatically archive those paths. It also refuses
+  target-tree writes into quarantine. Ordinary unrelated untracked files
+  remain allowed. Only `--hard`, optional `-q`/`--quiet`, and at most one
+  commit are supported; submodules and stash-relative targets are refused.
+- Hard reset must be standalone without shell wrappers: other segments can
+  change its revision or create a collision after preflight; wrappers can
+  change its Git environment. The preflight and host execution are separate;
+  concurrent changes are not atomically excluded.
+  Direct callers of `snapshot_git` receive a tracked-only snapshot and must
+  run the hard-reset preflight themselves before authorizing that operation.
 - Windows cmd/PowerShell, databases, cloud resources: future skills
   (`git-guard`, `database-guard`, `cloud-guard`) on the same core.

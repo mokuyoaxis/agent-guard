@@ -129,6 +129,25 @@ class ClassifierFacts(unittest.TestCase):
         self.assertEqual(one(classify_command("git reset --hard")[0]).kind,
                          KIND_GIT_RESET_HARD)
 
+    def test_git_reset_hard_target_and_quiet_flags(self):
+        for cmd in ("git reset --hard HEAD~1", "git reset -q --hard HEAD~1",
+                    "git reset HEAD~1 --hard --quiet"):
+            with self.subTest(cmd=cmd):
+                spec = one(classify_command(cmd)[0])
+                self.assertEqual(spec.targets, ["HEAD~1"])
+                self.assertFalse(spec.undeterminable)
+
+    def test_git_reset_hard_opaque_scope_is_blocked(self):
+        for cmd in ("git reset --hard $TARGET", "git reset --hard HEAD*",
+                    "git reset --hard --recurse-submodules",
+                    "git reset --hard --no-recurse-submodules",
+                    "git reset --hard --pathspec-from-file=paths.txt",
+                    "git reset --hard HEAD other", "git reset --hard -- file",
+                    "git reset --hard --mixed", "git reset --hard -"):
+            with self.subTest(cmd=cmd):
+                spec = one(classify_command(cmd)[0])
+                self.assertTrue(spec.undeterminable)
+
     def test_git_global_options_cannot_hide_reset(self):
         changed_context = one(classify_command(
             "git -C . reset --hard")[0])
@@ -192,9 +211,10 @@ class ClassifierFacts(unittest.TestCase):
         spec = one(classify_command("rm -rf build && mkdir build")[0])
         self.assertIsNone(spec.shape)
 
-    def test_f2_exempts_position_independent_kinds(self):
+    def test_f2_reset_needs_preexecution_collision_state(self):
         spec = one(classify_command("touch f && git reset --hard")[0])
-        self.assertIsNone(spec.shape)
+        self.assertEqual(spec.shape, "F2")
+        self.assertTrue(spec.undeterminable)
 
     def test_subshell_parens_do_not_hide_operations(self):
         spec = one(classify_command("(rm -rf build)")[0])
@@ -332,10 +352,10 @@ class PolicyVerdicts(RepoFixture):
         self.assertEqual((v.decision, v.code),
                          (DECISION_ASK, CODE_ASK_COMPOUND_CREATE_DELETE))
 
-    def test_reset_hard_snapshots_despite_creation_earlier(self):
+    def test_reset_hard_blocks_when_earlier_commands_can_change_state(self):
         v = verdict_for("touch f && git reset --hard", self.root)
         self.assertEqual((v.decision, v.code),
-                         (DECISION_SNAPSHOT, CODE_SNAPSHOT_GIT_STASH))
+                         (DECISION_BLOCK, CODE_BLOCK_UNDETERMINABLE_EFFECT))
 
     def test_ask_degrades_to_block_in_restricted_mode(self):
         # A vetoed capability cannot escalate to the human either.

@@ -4,7 +4,7 @@
 [![npm version](https://img.shields.io/npm/v/%40mokuyoaxis%2Fagent-guard.svg)](https://www.npmjs.com/package/@mokuyoaxis/agent-guard)
 [![License](https://img.shields.io/github/license/mokuyoaxis/agent-guard)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![v0.2.3 source](https://img.shields.io/badge/Source-v0.2.3-5B6B7A)](docs/release-notes-0.2.3.md)
+[![v0.2.4 source](https://img.shields.io/badge/Source-v0.2.4-5B6B7A)](docs/releases/release-notes-0.2.4.md)
 
 **Make destructive agent actions reversible by default.** · [简体中文](README.zh-CN.md)
 
@@ -38,15 +38,16 @@ integration bridges rather than the product boundary.
 ```text
 rm -rf build/       → RELOCATE   # an in-scope tree moves to quarantine
 rm -rf .            → BLOCK      # the workspace root is protected
-git reset --hard    → SNAPSHOT   # snapshot first when Git state supports it
+git reset --hard    → SNAPSHOT   # after collision preflight, snapshot tracked changes
 git push --force    → BLOCK      # remote history is not automated
 ```
 
 These are illustrative verdicts for supported inputs, not commands to run or
 proof that every harness intercepts them. Ignored, regenerable targets may be
-`ALLOW`; a Git snapshot that cannot be made fails closed. When recovery or safe
-rewriting is possible, the agent can keep working. Otherwise, the guard asks
-the human or blocks the operation.
+`ALLOW`; hard reset is blocked if its target tree would overwrite untracked
+or ignored content, or if its preflight/snapshot cannot be completed. When
+recovery or safe rewriting is possible, the agent can keep working. Otherwise,
+the guard asks the human or blocks the operation.
 
 ## Quick start with your coding agent
 
@@ -56,12 +57,13 @@ Use the scoped npm package or a stable Git checkout. The unscoped
 Pinned npm installation into a stable, user-owned prefix:
 
 ```sh
-npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.3
+npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.4
 ```
 
-**0.2.3** combines Windows/Core fixes, information-protection improvements
-and the offline guard-lab MVP. See the [release notes](docs/release-notes-0.2.3.md)
-for scope and evidence limits. The npm badge and
+**0.2.4** adds hard-reset collision checks,
+restore path validation, current-version preservation on forced restore, and
+a read-only trash location query. See the [release notes](docs/releases/release-notes-0.2.4.md)
+for behavior changes and evidence limits. The npm badge and
 [GitHub Releases](https://github.com/mokuyoaxis/agent-guard/releases) show
 which artifacts are available.
 
@@ -80,8 +82,8 @@ the host's hook support. Then give your coding agent the following setup prompt
 
 ```text
 Set up agent-guard for this workspace. Use either an existing Git checkout or
-the exact scoped npm package @mokuyoaxis/agent-guard@0.2.3;
-never install the unscoped package named agent-guard. If 0.2.3 is unavailable,
+the exact scoped npm package @mokuyoaxis/agent-guard@0.2.4;
+never install the unscoped package named agent-guard. If 0.2.4 is unavailable,
 report that and use the existing checkout or ask me to choose a published
 version. Before installing, ask me to choose and
 approve a stable user-owned prefix. Treat the checkout or installed package
@@ -104,7 +106,7 @@ intercepted, and any unverified paths.
 ```
 
 For manual setup and evidence limits, see the
-[adapter matrix](docs/harness-capabilities.md) and the adapter README for your
+[adapter matrix](docs/guides/harness-capabilities.md) and the adapter README for your
 host.
 
 ## Design principles
@@ -214,7 +216,7 @@ DSH also offers a [default-off text-read redaction prototype](adapters/dsh/READM
 for complete native reads in a pinned composition. It reuses Core and
 regenerates both rendered text and presentation metadata; a zero-model native
 probe covers the next request and durable JSONL log. A separate
-[official Flash direct-read trial](docs/test-report-dsh-real-followup.md)
+[official Flash direct-read trial](docs/reports/test-report-dsh-real-followup.md)
 observed supported synthetic-secret redaction while useful config stayed readable.
 
 It is a prevention and redaction guard, not a compensation engine: after an
@@ -384,7 +386,7 @@ is a false security claim:
   call with no proxy, the model's own tool calls, content produced *inside* a
   program, and the human clipboard get **no verdict at all** — no coverage is
   claimed there. See `references/channels.md` and
-  [docs/secret-guard-analysis.md](docs/secret-guard-analysis.md) §2.4 for
+  [docs/history/secret-guard-analysis.md](docs/history/secret-guard-analysis.md) §2.4 for
   the reachability table this claim is traceable to.
 - **Not a file scanner.** It is not a gitleaks replacement; it scans what the
   guard can see *on the way out*.
@@ -404,12 +406,18 @@ python3 skills/delete-guard/scripts/safe_delete.py build/ --reason "stale"
 
 # inspect and undo:
 python3 skills/delete-guard/scripts/status.py
+python3 skills/delete-guard/scripts/status.py --trash-index --root <projects> --json
 python3 skills/delete-guard/scripts/restore.py list
 python3 skills/delete-guard/scripts/restore.py <txid>
 
 # quarantine maintenance (dry plan by default):
 python3 skills/delete-guard/scripts/gc.py
 ```
+
+The local [trash location query](docs/guides/trash-index.md) provides a shared
+read-only JSON interface for agents and future UI callers. It reports scoped
+location candidates and layout hints; it neither scans recovery contents nor
+grants cleanup permission. It is included in 0.2.4.
 
 A harness adapter can invoke the guard before a supported shell command and
 map its exit status to the host's own tool decision:
@@ -425,7 +433,7 @@ exit 1 → guard error; fail closed
 ## What gets protected
 
 These examples assume the command reaches the guard and its targets meet the
-stated conditions; see the [capability matrix](docs/harness-capabilities.md)
+stated conditions; see the [capability matrix](docs/guides/harness-capabilities.md)
 for what each host has actually demonstrated.
 
 ```text
@@ -436,7 +444,8 @@ rm *.log                 → BLOCK     (opaque glob; safe_delete expands it)
 cd X && rm -rf build     → ASK_ONCE  (COMPOUND_CWD_DELETE)
 touch f && rm f          → ASK_ONCE  (COMPOUND_CREATE_DELETE)
 git clean -fd            → RELOCATE  (enumerate via -n, relocate, proceed)
-git reset --hard         → SNAPSHOT  (when a Git snapshot can be made)
+git reset --hard         → SNAPSHOT  (collision preflight + tracked snapshot)
+reset with collisions   → BLOCK     (preserve untracked/ignored paths first)
 git push --force         → BLOCK     (remote history is never automated)
 node_modules/ (ignored)  → ALLOW     (provably regenerable)
 quarantine full          → BLOCK     (never fall back to permanent delete)
@@ -445,14 +454,14 @@ quarantine full          → BLOCK     (never fall back to permanent delete)
 ## Integration and validation matrix
 
 [![Node.js 22 smoke](https://img.shields.io/badge/Node.js-22%20smoke-339933?logo=nodedotjs&logoColor=white)](.github/workflows/ci.yml)
-[![Codex Skill/CLI tested](https://img.shields.io/badge/Codex-Skill%2FCLI%20tested-000000?logo=openai&logoColor=white)](docs/test-report-codex-gpt-6-astra-high.md)
-[![DSH 0.1.5-rc.1 host BLOCK tested](https://img.shields.io/badge/DSH%200.1.5--rc.1-host%20BLOCK%20tested-4D6BFE)](docs/test-report-dsh-0.1.5-rc.1.md)
-[![ZCode win32 CLI evaluated](https://img.shields.io/badge/ZCode-win32%20CLI%20evaluated-7C5CE0)](docs/test-report-zcode-glm-flash.md)
-[![Claude Code hook tested with scripted model](https://img.shields.io/badge/Claude%20Code-hook%20tested%20%28scripted%20model%29-D97757?logo=anthropic&logoColor=white)](docs/test-report-claude-code-harness.md)
-[![Kimi Code 2.1.1 root Bash BLOCK](https://img.shields.io/badge/Kimi%20Code%202.1.1-root%20Bash%20BLOCK-5B9BD5)](docs/test-report-kimi-code-block.md)
-[![WorkBuddy Windows Core/CLI evaluated](https://img.shields.io/badge/WorkBuddy-Windows%20Core%2FCLI%20evaluated-5B6B7A)](docs/test-report-workbuddy-windows-core.md)
-[![Windows Core CI](https://img.shields.io/badge/Windows-Core%20CI-0078D4)](docs/release-notes-0.2.3-rc1.md#focused-windows-ci)
-[![DSH native text-read checked](https://img.shields.io/badge/DSH-native%20text--read%20checked-4D6BFE)](docs/test-report-release-readiness-0.2.3.md)
+[![Codex Skill/CLI tested](https://img.shields.io/badge/Codex-Skill%2FCLI%20tested-000000?logo=openai&logoColor=white)](docs/reports/test-report-codex-gpt-6-astra-high.md)
+[![DSH 0.1.5-rc.1 host BLOCK tested](https://img.shields.io/badge/DSH%200.1.5--rc.1-host%20BLOCK%20tested-4D6BFE)](docs/reports/test-report-dsh-0.1.5-rc.1.md)
+[![ZCode win32 CLI evaluated](https://img.shields.io/badge/ZCode-win32%20CLI%20evaluated-7C5CE0)](docs/reports/test-report-zcode-glm-flash.md)
+[![Claude Code hook tested with scripted model](https://img.shields.io/badge/Claude%20Code-hook%20tested%20%28scripted%20model%29-D97757?logo=anthropic&logoColor=white)](docs/reports/test-report-claude-code-harness.md)
+[![Kimi Code 2.1.1 root Bash BLOCK](https://img.shields.io/badge/Kimi%20Code%202.1.1-root%20Bash%20BLOCK-5B9BD5)](docs/reports/test-report-kimi-code-block.md)
+[![WorkBuddy Windows Core/CLI evaluated](https://img.shields.io/badge/WorkBuddy-Windows%20Core%2FCLI%20evaluated-5B6B7A)](docs/reports/test-report-workbuddy-windows-core.md)
+[![Windows Core CI](https://img.shields.io/badge/Windows-Core%20CI-0078D4)](docs/releases/release-notes-0.2.3-rc1.md#focused-windows-ci)
+[![DSH native text-read checked](https://img.shields.io/badge/DSH-native%20text--read%20checked-4D6BFE)](docs/reports/test-report-release-readiness-0.2.3.md)
 
 These badges link to scoped evidence; they do not certify every tool or model.
 The DSH text-read feature is optional and off by default.
@@ -463,14 +472,14 @@ those evidence levels explicit:
 
 | Harness / tested version | Integration path | Evidence and limit |
 |---|---|---|
-| **Claude Code 2.1.270 / 2.1.273** | [Native `PreToolUse` for Bash](adapters/claude/README.md) | [Real CLI + scripted model](docs/test-report-claude-code-harness.md): sampled allow/ask/deny and Python-startup failure; other tools unverified. |
-| **DSH 0.1.5-rc.1** | [Native pre-execute adapter](adapters/dsh/README.md) | [Real-host packaged-plugin probe](docs/test-report-dsh-0.1.5-rc.1.md): execution-level `BLOCK` and loaded-adapter Core failure. A [real-model Lab baseline](docs/test-report-dsh-guard-lab.md) stayed quiet with guard off, so no L2 mitigation claim exists; model-proposed destructive `bash` enforcement remains unverified. The separate opt-in read path is listed below. |
-| **DSH CLI rc.1 / tools and FS rc.2 / Node 22** | [Experimental text-read redaction](adapters/dsh/README.md#experimental-text-read-redaction), default off | [Zero-model native probe](docs/test-report-dsh-read-redaction.md): next request and durable JSONL. [Official Flash direct-read off/on](docs/test-report-dsh-real-followup.md): supported synthetic secrets redacted in tool content/meta/session, useful config preserved; no injection L2 claim. |
-| **DSH 0.2.0-rc.2 / Node 22** | [Default deletion and optional text-read adapter](adapters/dsh/README.md) | [Fresh contract review](docs/test-report-release-readiness-0.2.3.md): native deletion blocking, read redaction on reviewed local/sandbox FS, next synthetic request and durable JSONL. Native v4 Lab support remains bounded; no new real-model L2 result. |
-| **Codex CLI 0.154.0 (tested session)** | [Skill + production CLI](docs/test-report-codex-gpt-6-astra-high.md) | Older-source cooperative acceptance; no native hook claim. |
-| **WorkBuddy (version not recorded; Windows 11)** | [Core / CLI](docs/test-report-workbuddy-windows-core.md) | Community feedback on 0.2.2 found two Core defects now covered by regressions and focused Windows CI; no WorkBuddy adapter or native-hook validation. |
-| **ZCode (version unrecorded; win32)** | [Historical Skill/CLI + hook trial](docs/test-report-zcode-glm-flash.md) | Older hook observation includes a persistent-permission bypass; current version unverified. |
-| **Kimi Code 0.42.0 / 2.1.1** | [Native `PreToolUse` for Bash](adapters/kimi-code/README.md) | [Bounded tests](docs/test-report-kimi-code-block.md): authenticated 2.1.1 root-Bash PASS on an OAuth official model and a second configured model route; older 0.42.0 root/child BLOCK, ASK denial and Python-failure refusal. Hook absence/timeout remains fail-open. |
+| **Claude Code 2.1.270 / 2.1.273** | [Native `PreToolUse` for Bash](adapters/claude/README.md) | [Real CLI + scripted model](docs/reports/test-report-claude-code-harness.md): sampled allow/ask/deny and Python-startup failure; other tools unverified. |
+| **DSH 0.1.5-rc.1** | [Native pre-execute adapter](adapters/dsh/README.md) | [Real-host packaged-plugin probe](docs/reports/test-report-dsh-0.1.5-rc.1.md): execution-level `BLOCK` and loaded-adapter Core failure. A [real-model Lab baseline](docs/reports/test-report-dsh-guard-lab.md) stayed quiet with guard off, so no L2 mitigation claim exists; model-proposed destructive `bash` enforcement remains unverified. The separate opt-in read path is listed below. |
+| **DSH CLI rc.1 / tools and FS rc.2 / Node 22** | [Experimental text-read redaction](adapters/dsh/README.md#experimental-text-read-redaction), default off | [Zero-model native probe](docs/reports/test-report-dsh-read-redaction.md): next request and durable JSONL. [Official Flash direct-read off/on](docs/reports/test-report-dsh-real-followup.md): supported synthetic secrets redacted in tool content/meta/session, useful config preserved; no injection L2 claim. |
+| **DSH 0.2.0-rc.2 / Node 22** | [Default deletion and optional text-read adapter](adapters/dsh/README.md) | [Fresh contract review](docs/reports/test-report-release-readiness-0.2.3.md): native deletion blocking, read redaction on reviewed local/sandbox FS, next synthetic request and durable JSONL. Native v4 Lab support remains bounded; no new real-model L2 result. |
+| **Codex CLI 0.154.0 (tested session)** | [Skill + production CLI](docs/reports/test-report-codex-gpt-6-astra-high.md) | Older-source cooperative acceptance; no native hook claim. |
+| **WorkBuddy (version not recorded; Windows 11)** | [Core / CLI](docs/reports/test-report-workbuddy-windows-core.md) | Community feedback on 0.2.2 found two Core defects now covered by regressions and focused Windows CI; no WorkBuddy adapter or native-hook validation. |
+| **ZCode (version unrecorded; win32)** | [Historical Skill/CLI + hook trial](docs/reports/test-report-zcode-glm-flash.md) | Older hook observation includes a persistent-permission bypass; current version unverified. |
+| **Kimi Code 0.42.0 / 2.1.1** | [Native `PreToolUse` for Bash](adapters/kimi-code/README.md) | [Bounded tests](docs/reports/test-report-kimi-code-block.md): authenticated 2.1.1 root-Bash PASS on an OAuth official model and a second configured model route; older 0.42.0 root/child BLOCK, ASK denial and Python-failure refusal. Hook absence/timeout remains fail-open. |
 | **Other / unlisted hosts** | [Self-adaptation guide](adapters/INTEGRATION.md) | No native claim without a blocking pre-tool event and independent non-execution check. |
 
 For agent-led setup: identify the actual host version and tool names, follow
@@ -494,7 +503,7 @@ configuration/runtime fingerprints. It reports `CURRENT`, `STALE`,
 `DRIFTED`, `BROKEN`, or `UNVERIFIED`; even `CURRENT` is static preflight
 evidence, not interception proof. Optional create-new baselines contain only
 the parsed version and SHA-256 fingerprints. See the
-[host drift guide](docs/host-drift.md) for the status and baseline contract.
+[host drift guide](docs/guides/host-drift.md) for the status and baseline contract.
 An explicit `--live-sentinel` can then spend one configured model call in a
 private blank fixture. It reports `PASS`, `FAIL`, or `INCONCLUSIVE` with
 `NONE`/`NOTICE`, `CRITICAL`, or `WARNING`; marker absence alone never passes.
@@ -504,7 +513,7 @@ The optional Kimi doctor needs Python 3.11+ for TOML parsing; the Core and
 hook adapter continue to support Python 3.9+.
 See the [Kimi](adapters/kimi-code/README.md) and
 [Claude](adapters/claude/README.md) adapter guides.
-See [harness capabilities and evidence levels](docs/harness-capabilities.md)
+See [harness capabilities and evidence levels](docs/guides/harness-capabilities.md)
 for the per-host scope and execution-level acceptance criteria.
 
 ## Repository layout
@@ -524,7 +533,7 @@ agent-guard/
 ├── adapters/dsh/          # DeepSeek Harness integration bridge
 ├── adapters/codex/harness/# CLI acceptance driver; not a native hook
 ├── tests/                 # unittest suites incl. cross-harness conformance
-└── docs/                  # architecture · threat-model · friction log
+└── docs/                  # guides · design · Lab · reports · releases · history
 ```
 
 Skills guide agent behavior; constraints live in Core. Future
@@ -533,27 +542,19 @@ compensation engine without restructuring.
 
 ## Documentation
 
+The [documentation index](docs/README.md) lists every document by purpose.
+Historical reports retain their tested versions and evidence limits.
+
 | Read | For |
 |---|---|
 | [CONTRIBUTING.md](CONTRIBUTING.md) | how to propose an Issue and submit a focused Pull Request |
-| [docs/architecture.md](docs/architecture.md) | pillars ↔ components, data flow, design decisions |
-| [docs/host-drift.md](docs/host-drift.md) | zero-token host/version drift states and privacy-minimal baselines |
-| [docs/guard-lab.md](docs/guard-lab.md) | synthetic Lab workflow, evidence semantics, and unsupported channels |
-| [docs/release-notes-0.2.3.md](docs/release-notes-0.2.3.md) | 0.2.3 stable-release scope and evidence limits |
-| [docs/release-notes-0.2.3-rc2.md](docs/release-notes-0.2.3-rc2.md) | published prerelease: offline guard-lab and reviewed DSH contracts |
-| [docs/release-notes-0.2.3-rc1.md](docs/release-notes-0.2.3-rc1.md) | Windows Core fail-closed candidate and prerelease channel |
-| [docs/release-notes-0.2.2.md](docs/release-notes-0.2.2.md) | 0.2.2 host drift, live sentinel and DSH package acceptance |
-| [docs/release-notes-0.2.1.md](docs/release-notes-0.2.1.md) | 0.2.1 adapter/doctor changes and bounded evidence |
-| [docs/release-notes-0.2.0.md](docs/release-notes-0.2.0.md) | 0.2.0 changes, evidence levels, and known limits |
+| [Guides](docs/README.md#guides) | current harness capabilities, host drift and maintainer guidance |
+| [Design and contracts](docs/README.md#design) | architecture, threat model and compatibility |
+| [Lab](docs/README.md#lab) | experiment guide, task templates and candidate attack references |
+| [Test reports](docs/README.md#reports) | versioned Core, CLI, hook and Lab evidence |
+| [Release notes](docs/README.md#releases) | stable and prerelease scopes |
+| [Historical design and findings](docs/README.md#history) | early proposals, friction log and incident exploration |
 | [adapters/INTEGRATION.md](adapters/INTEGRATION.md) | self-adaptation checklist for an unlisted host |
-| [docs/threat-model.md](docs/threat-model.md) | honest limits: what this is and is not |
-| [docs/friction.md](docs/friction.md) | what real agents and host processes taught us (F1–F20) |
-| [docs/development-note-unguarded-deletion.md](docs/development-note-unguarded-deletion.md) | de-identified incident exploration and the recovery-aware direction |
-| [docs/test-report-codex-gpt-5.6-sol.md](docs/test-report-codex-gpt-5.6-sol.md) | v0.1.1 Codex evaluation (medium + high) |
-| [docs/test-report-workbuddy-windows-core.md](docs/test-report-workbuddy-windows-core.md) | community Windows Core/CLI feedback and resulting regressions |
-| [docs/test-report-dsh-0.1.5-rc.1.md](docs/test-report-dsh-0.1.5-rc.1.md) | DSH 0.1.5-rc.1 packaged-plugin and execution-level `bash` acceptance |
-| [docs/test-report-dsh-guard-lab.md](docs/test-report-dsh-guard-lab.md) | bounded DSH real-model Lab baseline; no L2 claim |
-| [docs/test-report-dsh-v0.1.1.md](docs/test-report-dsh-v0.1.1.md) | v0.1.1 DSH live test (DeepSeek V4 Pro high, minimal mode) |
 | [skills/recovery-audit/SKILL.md](skills/recovery-audit/SKILL.md) | evidence hierarchy, deterministic replay, recovery and landing gates |
 | [skills/delete-guard/references/policy.md](skills/delete-guard/references/policy.md) | full rule table and decision codes |
 | [skills/exfil-guard/references/rules.md](skills/exfil-guard/references/rules.md) | exfil rule table, reason codes, exemption format, audit shape |
@@ -561,18 +562,20 @@ compensation engine without restructuring.
 
 ## Status & roadmap
 
-**v0.2.3** combines the Windows/Core
-fixes and offline guard-lab MVP with validated text redaction, URI password
-detection, PyPI and newer GitHub token support, and narrower false-positive
-boundaries. Existing recovery tools, safe config inspection, Claude/Kimi
-bridges, doctor, host-drift checks and live sentinel remain available.
+**v0.2.4** adds focused recovery maintenance and the trash query
+to 0.2.3. It refuses hard-reset collisions with untracked/ignored content,
+checks restore sources and destinations, and preserves an occupied destination
+before a forced restore. The query supplies a shared CLI/agent/future UI
+contract. Existing text redaction, safe config inspection, offline Lab,
+Claude/Kimi bridges, doctor, host-drift checks and live sentinel remain available.
 The DSH bridge supports the reviewed `0.1.5-rc.1` and `0.2.0-rc.2` contracts;
 its optional text-read protection remains off by default.
 
-The [0.2.3 notes](docs/release-notes-0.2.3.md) describe this release's scope.
-The [rc2](docs/release-notes-0.2.3-rc2.md),
-[rc1](docs/release-notes-0.2.3-rc1.md), and
-[0.2.2](docs/release-notes-0.2.2.md) notes retain their historical scope.
+The [0.2.4 notes](docs/releases/release-notes-0.2.4.md) describe this release's scope.
+The [0.2.3](docs/releases/release-notes-0.2.3.md),
+[rc2](docs/releases/release-notes-0.2.3-rc2.md),
+[rc1](docs/releases/release-notes-0.2.3-rc1.md), and
+[0.2.2](docs/releases/release-notes-0.2.2.md) notes retain their historical scope.
 Check [GitHub Releases](https://github.com/mokuyoaxis/agent-guard/releases)
 and npm for published artifacts.
 
@@ -604,7 +607,7 @@ the tested agent. Broken controls or changed evidence produce `INCONCLUSIVE`,
 never an optimistic pass. The Lab cannot observe ordinary file
 reads, prove remote transfer, universally block LLM calls, or resist a same-UID
 adversary. Start with the zero-token controls and read the
-[guard-lab guide](docs/guard-lab.md) before involving a real harness.
+[guard-lab guide](docs/lab/guard-lab.md) before involving a real harness.
 The built-in cases report `CALIBRATION_ONLY`. A separate manual
 `injection-probe` treats bait contact as `EXPOSURE_OBSERVED`, and `compare`
 accepts a mitigation result only after an effective unguarded baseline and a

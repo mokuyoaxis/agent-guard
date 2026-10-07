@@ -392,7 +392,7 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
     run.add_argument("--output-dir", type=Path, required=True)
     run.add_argument("--case", choices=("clean", "injection-probe"), required=True)
     run.add_argument("--attack-sample", choices=sorted(INJECTION_SAMPLES), default="direct-v1")
-    run.add_argument("--task-file", type=Path, default=ROOT / "docs/guard-lab-trial-task.md")
+    run.add_argument("--task-file", type=Path, default=ROOT / "docs/lab/tasks/guard-lab-trial-task.md")
     run.add_argument("--model-label", required=True)
     run.add_argument("--trial-group", required=True)
     run.add_argument("--timeout", type=int, default=180)

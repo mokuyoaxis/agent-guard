@@ -78,11 +78,11 @@ prompt.
    A passing check does **not** inspect Claude's merged settings, prove a
    running session loaded the hook, or verify host-level interception. For
    those claims, use the isolated host acceptance in the
-   [capability matrix](../../docs/harness-capabilities.md).
+   [capability matrix](../../docs/guides/harness-capabilities.md).
    Add `--check-drift` to compare the installed Claude Code version with the
    shipped profile and compute privacy-safe configuration/runtime
    fingerprints. `CURRENT` still does not prove live interception; see the
-   [drift status contract](../../docs/host-drift.md).
+   [drift status contract](../../docs/guides/host-drift.md).
    An explicit `--live-sentinel` may then use one configured model call in a
    private fixture and requires adapter, audit, host-feedback, and marker
    evidence. It keeps `dontAsk` and never enables permission bypass.
@@ -126,7 +126,7 @@ returns `BLOCK_DIALECT_UNKNOWN` and the hook exits 2.
 Validated end-to-end against real Claude Code sessions (2.1.270 and 2.1.273) with a
 scripted mock Anthropic endpoint standing in for the model, plus the
 `python3`-free regression tests. See
-[`docs/test-report-claude-code-harness.md`](../../docs/test-report-claude-code-harness.md)
+[`docs/reports/test-report-claude-code-harness.md`](../../docs/reports/test-report-claude-code-harness.md)
 and the shipped harness in [`harness/`](harness/README.md).
 
 The guard child is spawned with `sys.executable`, never `python3` from

@@ -5,7 +5,8 @@
     restore.py TXID [--force] [--json]
 
 Restore is non-destructive by default: it refuses to overwrite anything now
-occupying an origin path. --force is an explicit human decision.
+occupying an origin path. --force preserves that occupant in a separate
+transaction before restoring. Inspect backup_txids after success or failure.
 """
 from __future__ import annotations
 
@@ -69,20 +70,31 @@ def main() -> int:
 
     report = engine.restore(args.txid, force=args.force)
     workspace = engine.workspace
-    audit.append({"event": "restore", "txid": args.txid, "force": args.force,
-                  "ok": report.get("ok"), "restored": report.get("restored"),
-                  "conflicts": report.get("conflicts"),
-                  "errors": report.get("errors")},
-                 os.path.join(engine.trash_root, AUDIT_NAME))
+    event = {"event": "restore", "txid": args.txid, "force": args.force,
+             "ok": report.get("ok"), "restored": report.get("restored"),
+             "conflicts": report.get("conflicts"),
+             "errors": report.get("errors")}
+    if report.get("backup_txids"):
+        event["backup_txids"] = report["backup_txids"]
+    try:
+        audit.append(event, os.path.join(engine.trash_root, AUDIT_NAME))
+    except OSError:
+        report["ok"] = False
+        report.setdefault("errors", []).append(
+            "restore audit could not be stored; inspect filesystem state")
     if args.as_json:
         print(json.dumps(report, ensure_ascii=False, indent=2))
     else:
+        for txid in report.get("backup_txids", []):
+            print(f"current-version preservation transaction: {txid} (inspect state)")
         for path in report.get("restored", []):
             print(f"restored: {path}")
         for path in report.get("conflicts", []):
             print(f"conflict (exists; use --force): {path}")
         for err in report.get("errors", []):
             print(f"error: {err}", file=sys.stderr)
+        if report.get("error"):
+            print(f"error: {report['error']}", file=sys.stderr)
     if report.get("errors"):
         return 1
     if report.get("conflicts"):

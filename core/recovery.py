@@ -6,7 +6,8 @@ Two compensation strategies, chosen by the caller (policy decides which):
                  workspace-relative structure under one transaction id
   snapshot_git - capture tracked modifications as a stash commit WITHOUT
                  changing the working tree (git stash create + store), so a
-                 subsequent reset --hard / restore stays reversible
+                 subsequent tracked-file changes stay reversible; hard
+                 reset also requires the untracked-collision preflight
 
 Everything lands in an append-only manifest (JSONL). Restore is itself
 non-destructive: it refuses to overwrite anything that now exists at the
@@ -29,7 +30,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from . import MANIFEST_NAME, TRASH_DIRNAME
 from .audit import new_txid, utc_now_iso
-from .classifier import PathSpec, _physical, _physical_keep_final
+from .classifier import PathSpec, _physical, _physical_keep_final, inside_path
 
 # Soft retention policy (docs/references: GC). Thresholds only MARK entries
 # GC_ELIGIBLE; actual purging is an explicit maintenance action - a system
@@ -44,7 +45,8 @@ _STORAGE_ERRNOS = {
 
 # A transaction directory is one direct child of the quarantine, never a
 # caller-supplied path. Accept simple historical identifiers too, but no
-# separators or dots that could turn an ID into a path traversal.
+# separators or dots that could turn an ID into a path traversal. Restore
+# uses the same identifier constraint as GC.
 _GC_TXID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*\Z")
 
 
@@ -302,6 +304,91 @@ class RecoveryEngine:
 
     # ------------------------------------------------------ git snapshot
 
+    def preflight_git_reset_hard(
+            self, cwd: Optional[str] = None, target: str = "HEAD",
+            ) -> Tuple[List[str], str]:
+        """Read-only check for content a tracked-only stash cannot protect.
+
+        Compare the target tree with Git's untracked paths (including ignored
+        paths and nested repositories). A collision includes either side
+        being an ancestor of the other: Git can replace a directory with a
+        file, or remove a file/symlink to create a directory. Refuse such a
+        reset; do not move originals or claim their bytes are in the stash.
+        Errors are static so callers can report them without leaking paths.
+        """
+        cwd = cwd or self.workspace
+        git_cwd = cwd
+        if re.match(r"(?:refs/)?stash(?:$|[~^@])", target):
+            return [], "Stash-relative targets change when a snapshot is stored"
+
+        def git(*args: str, optional: bool = False) -> bytes:
+            proc = subprocess.run(["git", "-C", git_cwd, *args],
+                                  capture_output=True, timeout=30)
+            if proc.stderr or (proc.returncode != 0 and not
+                               (optional and proc.returncode == 1)):
+                raise ValueError("Git preflight command failed")
+            return proc.stdout
+
+        def paths(data: bytes) -> List[str]:
+            if data and not data.endswith(b"\0"):
+                raise ValueError("incomplete Git path enumeration")
+            return [os.fsdecode(p) for p in data.split(b"\0") if p]
+
+        def parents(path: str) -> List[str]:
+            parts = path.split("/")
+            return ["/".join(parts[:i]) for i in range(1, len(parts))]
+
+        try:
+            # Whole-tree reset cannot be confined to a narrower workspace.
+            root = os.fsdecode(git("rev-parse", "--show-toplevel")).rstrip("\n")
+            if _physical(root) != _physical(self.workspace):
+                return [], "Git repository does not match the workspace"
+            # ls-files is scoped by its working directory. Reset is always
+            # whole-tree, even when invoked from a repository subdirectory.
+            git_cwd = root
+            sha = git("rev-parse", "--verify", "--end-of-options",
+                      target + "^{commit}").strip().decode("ascii")
+            tree = paths(git("ls-tree", "-r", "-z", "--full-tree", sha))
+            index = paths(git("ls-files", "--stage", "-z"))
+            # Submodule working trees are not captured by stash create.
+            if any(row.startswith("160000 ") for row in tree + index):
+                return [], "Submodule reset effects cannot be protected"
+            ignorecase = git("config", "--type=bool", "--get", "core.ignorecase",
+                             optional=True).strip() == b"true"
+
+            def key(path: str) -> str:
+                return path.casefold() if ignorecase else path
+
+            leaves = {key(row.split("\t", 1)[1]) for row in tree}
+            directories = {p for leaf in leaves for p in parents(leaf)}
+            # Intentionally omit --exclude-standard: ignored data is at risk
+            # too. -z preserves newlines, quoting, and non-ASCII path bytes.
+            others = paths(git("ls-files", "--others", "-z"))
+
+            def collides(path: str) -> bool:
+                path = key(path.rstrip("/"))
+                return (path in leaves or path in directories or
+                        any(p in leaves for p in parents(path)))
+
+            collisions = [p for p in others if collides(p)]
+            # Include future audit/snapshot files even before layout exists.
+            # Preserve both storage and its configured spelling: replacing
+            # a tracked symlink to external trash would sever recovery access.
+            for trash_path in {self.trash_root, _physical(self.trash_root)}:
+                for workspace_path in {self.workspace, _physical(self.workspace)}:
+                    trash = os.path.relpath(trash_path, workspace_path)
+                    if trash == ".":
+                        return [], "Quarantine overlaps the workspace root"
+                    if trash == os.pardir or trash.startswith(os.pardir + os.sep):
+                        continue
+                    trash = trash.replace(os.sep, "/")
+                    if collides(trash) or any(p.startswith(key(trash) + "/")
+                                             for p in leaves):
+                        collisions.append(trash)
+            return sorted(set(collisions)), ""
+        except (OSError, subprocess.TimeoutExpired, ValueError, IndexError):
+            return [], "Git hard reset preflight could not determine effects"
+
     def snapshot_git(self, cwd: Optional[str] = None,
                      txid: Optional[str] = None,
                      meta: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -491,24 +578,129 @@ class RecoveryEngine:
                 slot["state"] = "EMPTY"
         return out
 
+    def _validate_restore_target(self, origin: str) -> None:
+        """Check the parent chain, retaining the final symlink's location.
+
+        Recorded paths are absolute and normalized. Resolve both sides for
+        comparison so workspace aliases remain valid, but refuse a parent
+        that now points outside. This preflight is not an atomic filesystem
+        boundary against concurrent changes.
+        """
+        if (not isinstance(origin, str) or not origin or "\0" in origin or
+                not os.path.isabs(origin) or os.path.normpath(origin) != origin):
+            raise ValueError("invalid restore target path")
+        root = os.path.normcase(_physical(self.workspace))
+        target = os.path.normcase(_physical_keep_final(origin))
+        if target == root or not inside_path(target, root):
+            raise ValueError("restore target is outside workspace")
+
+    def _restore_transaction_dir(self, txid: str) -> str:
+        """Bind an ID to its own direct child of the selected quarantine."""
+        if not isinstance(txid, str) or not _GC_TXID_RE.fullmatch(txid):
+            raise ValueError("invalid quarantine transaction id")
+        tx_dir = os.path.join(self.trash_root, txid)
+        expected = os.path.join(_physical(self.trash_root), txid)
+        if (os.path.islink(tx_dir) or
+                os.path.normcase(_physical(tx_dir)) != os.path.normcase(expected)):
+            raise ValueError("uncontained quarantine transaction directory")
+        return tx_dir
+
+    def _validate_restore_source(self, trash: str, txid: str) -> None:
+        """Check the source parent chain without following a leaf link."""
+        tx_dir = self._restore_transaction_dir(txid)
+        if (not isinstance(trash, str) or not trash or "\0" in trash or
+                not os.path.isabs(trash) or os.path.normpath(trash) != trash):
+            raise ValueError("invalid restore source path")
+        root = os.path.normcase(_physical(tx_dir))
+        source = os.path.normcase(_physical_keep_final(trash))
+        if source == root or not inside_path(source, root):
+            raise ValueError("restore source is outside its transaction")
+
+    def _validate_restore_preservation(self, origin: str) -> None:
+        """Never relocate the quarantine or an alias used to reach it."""
+        current = _physical_keep_final(origin)
+        pairs = ((origin, self.trash_root),
+                 (current, _physical_keep_final(self.trash_root)),
+                 (current, _physical(self.trash_root)))
+        for target, storage in pairs:
+            target, storage = os.path.normcase(target), os.path.normcase(storage)
+            if inside_path(target, storage) or inside_path(storage, target):
+                raise ValueError("force restore target overlaps quarantine storage")
+
     def restore(self, txid: str, force: bool = False,
                 cwd: Optional[str] = None) -> Dict[str, Any]:
         """Undo one transaction. Refuses to overwrite unless force is set.
 
         Relocate items move back to their origin paths; snapshot items apply
         the stored stash (apply, never drop - the evidence stays until a
-        human prunes it).
+        human prunes it). Relocation targets must remain inside this
+        workspace and sources inside their own quarantine transaction;
+        force does not override either check. A forced overwrite first
+        preserves the current occupant in a separate relocation transaction.
+        backup_txids identifies preservation attempts, including failed ones.
         """
-        tx = self.transactions().get(txid)
+        if not isinstance(txid, str) or not _GC_TXID_RE.fullmatch(txid):
+            return {"ok": False, "error": "invalid quarantine transaction id"}
+        transactions = self.transactions()
+        tx = transactions.get(txid)
         if not tx:
             return {"ok": False, "error": f"unknown transaction: {txid}"}
         restored: List[str] = []
         conflicts: List[str] = []
         errors: List[str] = []
-        for item in tx["items"]:
+        backup_txids: List[str] = []
+        known_txids = set(transactions)
+        items = tx["items"]
+        try:
+            self._restore_transaction_dir(txid)
+        except (OSError, ValueError):
+            errors.append(
+                "restore source is outside its transaction or cannot be resolved")
+            items = []
+        try:
+            # Check every destination before restoring an earlier valid item
+            # or removing an existing occupant under force.
+            for item in items:
+                if item.get("type") == "relocate":
+                    self._validate_restore_target(item.get("origin_path"))
+        except (OSError, ValueError):
+            errors.append(
+                "restore target is outside workspace or cannot be resolved")
+            items = []
+        try:
+            for item in items:
+                if item.get("type") == "relocate":
+                    self._validate_restore_source(item.get("trash_path"), txid)
+        except (OSError, ValueError):
+            errors.append(
+                "restore source is outside its transaction or cannot be resolved")
+            items = []
+        try:
+            for item in items:
+                if (force and item.get("type") == "relocate" and
+                        os.path.lexists(item["origin_path"])):
+                    self._validate_restore_preservation(item["origin_path"])
+        except (OSError, ValueError):
+            errors.append(
+                "force restore target overlaps quarantine storage or cannot be resolved")
+            items = []
+        for item in items:
             if item.get("type") == "relocate":
                 origin = item["origin_path"]
                 trash = item["trash_path"]
+                try:
+                    # An earlier restore can itself recreate a parent link.
+                    self._validate_restore_target(origin)
+                except (OSError, ValueError):
+                    errors.append(
+                        "restore target is outside workspace or cannot be resolved")
+                    continue
+                try:
+                    self._validate_restore_source(trash, txid)
+                except (OSError, ValueError):
+                    errors.append(
+                        "restore source is outside its transaction or cannot be resolved")
+                    continue
                 if not os.path.lexists(trash):
                     errors.append(f"quarantine copy vanished: {trash}")
                     continue
@@ -516,14 +708,48 @@ class RecoveryEngine:
                     if not force:
                         conflicts.append(origin)
                         continue
-                    if os.path.isdir(origin) and not os.path.islink(origin):
-                        shutil.rmtree(origin)
-                    else:
-                        os.unlink(origin)
-                parent = os.path.dirname(origin)
-                if parent:
-                    os.makedirs(parent, exist_ok=True)
+                    try:
+                        self._validate_restore_preservation(origin)
+                        backup_txid = new_txid()
+                        backup_dir = self._restore_transaction_dir(backup_txid)
+                        if (backup_txid in known_txids or
+                                os.path.lexists(backup_dir)):
+                            raise ValueError("backup transaction already exists")
+                    except (OSError, ValueError) as exc:
+                        errors.append(f"cannot establish current-version backup: {exc}")
+                        continue
+                    known_txids.add(backup_txid)
+                    backup_txids.append(backup_txid)
+                    try:
+                        saved = self.relocate(
+                            [PathSpec(raw=origin, resolved=origin)],
+                            txid=backup_txid,
+                            meta={"tool": "restore", "restoring_txid": txid})
+                        if saved.get("storage_failure") or len(saved["moved"]) != 1:
+                            errors.append(
+                                f"current-version preservation failed; "
+                                f"inspect backup transaction {backup_txid}")
+                            continue
+                    except OSError as exc:
+                        errors.append(
+                            f"current-version preservation failed "
+                            f"(backup transaction {backup_txid}): {exc}")
+                        continue
+                    try:
+                        self._validate_restore_target(origin)
+                        self._validate_restore_source(trash, txid)
+                    except (OSError, ValueError):
+                        errors.append("restore paths changed after preservation")
+                        continue
+                    # Do not silently overwrite a version created while the
+                    # occupant was being preserved, even with force set.
+                    if os.path.lexists(origin):
+                        conflicts.append(origin)
+                        continue
                 try:
+                    parent = os.path.dirname(origin)
+                    if parent:
+                        os.makedirs(parent, exist_ok=True)
                     self._move(trash, origin)
                     restored.append(origin)
                 except OSError as exc:
@@ -541,19 +767,26 @@ class RecoveryEngine:
                     errors.append(
                         f"stash apply {sha}: {(apply.stderr or '').strip()}")
 
-        self._manifest_append([{
-            "type": "restore", "txid": txid, "force": force,
-            "restored": restored, "conflicts": conflicts, "errors": errors,
-        }])
-        # drop empty quarantine directories for tidy listings
-        txdir = os.path.join(self.trash_root, txid)
         try:
-            if os.path.isdir(txdir) and not os.listdir(txdir):
-                os.rmdir(txdir)
+            self._manifest_append([{
+                "type": "restore", "txid": txid, "force": force,
+                "restored": restored, "conflicts": conflicts, "errors": errors,
+            }])
         except OSError:
+            errors.append("restore journal could not be stored; inspect filesystem state")
+        # drop empty quarantine directories for tidy listings
+        try:
+            if not errors:
+                txdir = self._restore_transaction_dir(txid)
+                if os.path.isdir(txdir) and not os.listdir(txdir):
+                    os.rmdir(txdir)
+        except (OSError, ValueError):
             pass
-        return {"ok": not errors and not conflicts,
-                "restored": restored, "conflicts": conflicts, "errors": errors}
+        report = {"ok": not errors and not conflicts,
+                  "restored": restored, "conflicts": conflicts, "errors": errors}
+        if backup_txids:
+            report["backup_txids"] = backup_txids
+        return report
 
     # ------------------------------------------------------------- status
 

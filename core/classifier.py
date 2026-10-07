@@ -41,7 +41,7 @@ FS_DELETE_CMDS = {"rm", "rmdir", "unlink", "shred"}
 # Windows-native delete verbs. Recognised on EVERY dialect: a harness that
 # never configured `AGENT_GUARD_DIALECT` still defaults to posix, and a
 # posix-lexed `del /s /q build` must not be treated as an unknown verb.
-# See docs/development-note-unguarded-deletion.md (lesson: the normalized
+# See docs/history/development-note-unguarded-deletion.md (lesson: the normalized
 # target decides, not the spelling).
 WINDOWS_DELETE_CMDS = {"del", "erase", "rd", "rmdir", "ri"}
 SHELL_PREFIXES = {
@@ -56,7 +56,7 @@ INDETERMINACY_CHARS = ("$", "`")
 # Filesystem roots that must never be a deletion target, whatever the
 # workspace setting says. `rm -rf /home` blocks today only because /home
 # happens to sit outside the workspace root - an accident of configuration,
-# not a policy (see docs/development-note-unguarded-deletion.md).
+# not a policy (see docs/history/development-note-unguarded-deletion.md).
 #
 # Matching is EXACT: the rule fires when a target *is* one of these roots,
 # never when it merely lives under one, so `rm -rf /home/alice/build` stays
@@ -137,7 +137,7 @@ KIND_GIT_DISCARD = "git-discard"        # git restore <path> / git checkout -- <
 KIND_GIT_PUSH_FORCE = "git-push-force"  # force / mirror / ref-deletion push
 KIND_UNKNOWN = "unknown"                # destructive smell, no parseable shape
 
-# Whole-command-line shape facts (docs/friction.md F1/F2).
+# Whole-command-line shape facts (docs/history/friction.md F1/F2).
 CREATION_CMDS = {"touch", "mkdir", "cp", "mv", "install", "ln", "tee"}
 # cmd builtins with the same shape (F2 is about "created then destroyed",
 # which `copy x a.tmp && del a.tmp` expresses just as literally).
@@ -146,7 +146,9 @@ CMD_CREATION_CMDS = {"copy", "xcopy", "robocopy", "mkdir", "md", "mklink",
 REDIRECT_CREATE_TOKENS = {">", ">>"}
 # Kinds whose compensation depends on enumerating concrete targets; a target
 # created earlier in the same line is invisible to pre-execution compensation.
-TARGET_DEPENDENT_KINDS = {KIND_FS_DELETE, KIND_GIT_CLEAN, KIND_GIT_DISCARD}
+TARGET_DEPENDENT_KINDS = {
+    KIND_FS_DELETE, KIND_GIT_CLEAN, KIND_GIT_DISCARD, KIND_GIT_RESET_HARD,
+}
 
 
 @dataclass
@@ -839,9 +841,21 @@ def _parse_git(segment: List[str]) -> OpSpec:
         if "--hard" in rest:
             spec.kind = KIND_GIT_RESET_HARD
             spec.force = True
-            spec.targets = [
-                t for t in rest if t != "--hard" and not t.startswith("-")
-            ]
+            for tok in rest:
+                if tok in ("--hard", "-q", "--quiet"):
+                    continue
+                if tok.startswith("-"):
+                    spec.undeterminable = True
+                    spec.note("unsupported hard reset option or path limit")
+                    continue
+                spec.targets.append(tok)
+            if len(spec.targets) > 1:
+                spec.undeterminable = True
+                spec.note("hard reset requires a single target commit")
+            _scan_targets(spec)
+            if spec.wildcard:
+                spec.undeterminable = True
+                spec.note("hard reset target contains shell glob syntax")
             if not spec.targets:
                 spec.note("whole-tree reset (no path limit)")
         apply_global_uncertainty()
@@ -947,16 +961,17 @@ def _has_create_redirect(segment: List[str]) -> bool:
 
 
 def _apply_shape_rules(specs: List[OpSpec], cd_positions: List[int],
-                       creation_positions: List[int]) -> None:
-    """Whole-command-line restrictions (docs/friction.md F1/F2).
+                       creation_positions: List[int],
+                       segment_count: int = 1) -> None:
+    """Whole-command-line restrictions (docs/history/friction.md F1/F2).
 
     F1: a destructive op preceded by cd resolves against the wrong working
         directory - compensation would enumerate/snapshot the wrong tree.
         Applies to every destructive kind.
     F2: a target created earlier in the same line does not exist yet at
         interception time, so target-dependent compensation cannot cover it.
-        Position-independent compensations (reset --hard whole-tree stash,
-        force-push which is blocked anyway) are exempt.
+        Force-push, which is blocked anyway, is exempt. Hard reset also
+        needs a preflight of untracked content against its target tree.
     Shapes are DECISION-CLASS facts, not effect-uncertainty: the operation
     itself is well understood, only its safe automatic compensation is not.
     Policy maps them to ASK (single-execution authorization), keeping true
@@ -966,6 +981,10 @@ def _apply_shape_rules(specs: List[OpSpec], cd_positions: List[int],
         if spec.kind in (KIND_OTHER, KIND_UNKNOWN):
             continue
         idx = spec.segment_index
+        if spec.kind == KIND_GIT_RESET_HARD and segment_count != 1:
+            spec.undeterminable = True
+            spec.note("hard reset must be a standalone command; other "
+                      "segments may change its target or collisions")
         if any(pos < idx for pos in cd_positions):
             spec.shape = "F1"
             spec.note(
@@ -1152,14 +1171,19 @@ def _classify_posix(cmd: str) -> Tuple[List[OpSpec], Optional[str]]:
         elif head == "find":
             emit(_parse_find(seg), index)
         elif head == "git":
-            emit(_parse_git(seg), index)
+            spec = _parse_git(seg)
+            if spec.kind == KIND_GIT_RESET_HARD and len(seg) != len(segment):
+                spec.undeterminable = True
+                spec.note("hard reset wrappers may change its Git context")
+            emit(spec, index)
         # anything else: kind OTHER, intentionally ignored by policy
 
     for spec in specs:
         spec.dialect = dialects.DIALECT_POSIX
     _append_dialect_mismatches(
         specs, command_segments, dialects.DIALECT_POSIX)
-    _apply_shape_rules(specs, cd_positions, creation_positions)
+    _apply_shape_rules(specs, cd_positions, creation_positions,
+                       len(raw_segments))
     return [s for s in specs if s.kind != KIND_OTHER], None
 
 
@@ -1189,7 +1213,7 @@ def _classify_windows_dialect(cmd: str, dialect: str
     accepts `/`, while leaving `\\` in the fact makes Linux and Windows CI
     disagree about the same command.
 
-    Shape rules (docs/friction.md F1/F2) apply to Windows lines too: `cd`
+    Shape rules (docs/history/friction.md F1/F2) apply to Windows lines too: `cd`
     and the interpreter prefix set are shared shell concepts, so F1 means
     the same thing in cmd and PowerShell.
     """
@@ -1213,7 +1237,8 @@ def _classify_windows_dialect(cmd: str, dialect: str
         spec.targets = [t.replace("\\", "/") for t in spec.targets]
         _attribute_targets(spec)
     _append_dialect_mismatches(specs, stream.segments, dialect)
-    _apply_shape_rules(specs, cd_positions, creation_positions)
+    _apply_shape_rules(specs, cd_positions, creation_positions,
+                       len(stream.segments))
     return [s for s in specs if s.kind != KIND_OTHER], None
 
 
@@ -1230,7 +1255,7 @@ def classify_command(cmd: str, dialect: str = dialects.DEFAULT_DIALECT
     dialect layer exists to prevent.
 
     Heredoc bodies are stripped before POSIX parsing (they are written
-    payload, not commands - see docs/friction.md F5).
+    payload, not commands - see docs/history/friction.md F5).
 
     Returns (specs, parse_error). Segments that are not destructive are
     returned as kind=OTHER and ignored by policy. A parse_error (unbalanced

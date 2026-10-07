@@ -1,6 +1,6 @@
 """Regression suite for the 2026-09-20 incident — P1 (F1 masks hard boundaries).
 
-Public context: `docs/development-note-unguarded-deletion.md`. The detailed
+Public context: `docs/history/development-note-unguarded-deletion.md`. The detailed
 incident record and its evidence remain outside the published source tree.
 
 The defect: the F1 shape rule returned *before* the hard boundaries were

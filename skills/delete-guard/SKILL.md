@@ -67,6 +67,14 @@ A block is not an error to route around. Retrying the same operation in a
 disguised form (`/bin/rm`, `python -c`, a script) is a violation of the
 authorization pillar and is recorded in the audit log.
 
+`git reset --hard [commit]` first checks whether its target tree would
+overwrite untracked or ignored content. A tracked-only stash cannot recover
+those paths, so a collision returns `BLOCK_GIT_RESET_COLLISION` without
+moving them or creating a snapshot. Preserve the conflicting content
+separately before retrying. Use a standalone reset without shell wrappers;
+compound commands, submodule effects, unknown options, and stash-relative
+targets are refused as undeterminable. Unrelated untracked files are allowed.
+
 ## Compensation preflight and verification
 
 Before sandboxed use, ensure `.agent-trash/` is already ignored by a tracked
@@ -80,6 +88,26 @@ If the guard reports an internal, preflight, manifest, or compensation error,
 stop immediately. Inspect both the origin and `.agent-trash/`; never infer
 that an error means no filesystem change occurred. A durable
 `relocate-intent` can keep an interrupted relocation discoverable.
+
+## Quarantine location queries
+
+When the user asks where quarantines are or how many exist, use the shared
+read-only query with a current-directory or user-selected scope:
+
+```bash
+python3 <repo>/skills/delete-guard/scripts/status.py --trash-index --json
+python3 <repo>/skills/delete-guard/scripts/status.py --trash-index --root <projects> --max-depth 3 --json
+python3 <repo>/skills/delete-guard/scripts/status.py --trash-index --trash <custom-store> --json
+```
+
+Report the scope, candidate count, metadata-identified count and read/budget
+errors. Do not claim that unconfirmed/unreadable locations are absent or that
+the result covers the whole host. Explain that these are bucket locations,
+not file/transaction totals. If you supplement the result yourself, identify
+that source separately. Existing native status tools may show the current
+project only; use the CLI for this indexed query. Location metadata and cached
+JSON are not authorization to purge, and recovery file contents must not be
+read just to answer a location/count question.
 
 ## RESTRICTED mode
 
@@ -103,6 +131,16 @@ Every relocation writes `origin -> trash` pairs into
 overwrite anything that now exists at the origin unless a human passes
 `--force`. Git snapshots are stored as stashes named `agent-guard:<txid>`;
 restore applies them and never drops them.
+
+With human `--force`, an existing occupant is first preserved by the normal
+relocation journal in a separate transaction. The result's optional
+`backup_txids` lists preservation attempts; an ID alone does not prove the
+copy completed. Inspect those IDs with `restore.py list --json` and the
+filesystem after any error. A failed old-version move must not be followed
+by deleting the preserved occupant. Restoring a completed backup transaction
+uses the same `restore.py <txid>` command; if the origin is occupied, the
+usual conflict/force rules apply again. Preserved versions consume quarantine
+space and remain subject to its existing explicit GC policy.
 
 See `references/policy.md` for the complete rule table, verdict codes, and
 manifest format.

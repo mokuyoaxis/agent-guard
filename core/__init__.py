@@ -1,6 +1,6 @@
 """agent-guard core: a reliability layer for autonomous AI agents.
 
-Four pillars (see docs/architecture.md):
+Four pillars (see docs/design/architecture.md):
 
   Scope           - where the agent may act          -> policy.py
   Recoverability  - whether mistakes can be undone   -> recovery.py
