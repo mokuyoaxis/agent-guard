@@ -286,7 +286,8 @@ class TrashIndexTests(unittest.TestCase):
         proc = self.cli("--trash-index", "--json", configured=external)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         result = json.loads(proc.stdout)
-        self.assertEqual(result["roots"], [str(self.root)])
+        # Default cwd is physical even when TMPDIR has an alias (macOS /var).
+        self.assertEqual(result["roots"], [os.path.realpath(self.root)])
         self.assertEqual(result["trash_paths"], [str(external)])
         self.assertEqual(result["count"], 2)
 
@@ -297,6 +298,7 @@ class TrashIndexTests(unittest.TestCase):
                         configured=external)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         result = json.loads(proc.stdout)
+        self.assertEqual(result["roots"], [str(self.root)])
         self.assertEqual(result["trash_paths"], [])
         self.assertEqual(result["count"], 1)
 
@@ -332,7 +334,8 @@ class TrashIndexTests(unittest.TestCase):
         path = self.bucket(self.root / "中文\nquoted\"name")
         proc = self.cli("--trash-index", "--json")
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        self.assertEqual(json.loads(proc.stdout)["entries"][0]["trash_root"], str(path))
+        expected = Path(os.path.realpath(self.root)) / path.relative_to(self.root)
+        self.assertEqual(json.loads(proc.stdout)["entries"][0]["trash_root"], str(expected))
         human = self.cli("--trash-index")
         self.assertEqual(human.returncode, 0, human.stderr)
         self.assertIn("\\nquoted", human.stdout)
