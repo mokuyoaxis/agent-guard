@@ -129,6 +129,13 @@ is forwarded verbatim rather than swapped for POSIX, so `check.py` returns
 
 ## Notes
 
+The [0.2.4 official Flash/PTC report](../../docs/reports/test-report-dsh-0.2.4-ptc.md)
+also observed sampled root/child SDK Bash collision refusals. Its original root
+PTC task failed; a separate summary completed. This does not establish general
+PTC Node API mediation or injection L2. The 0.2.5-rc1 documentation update adds
+no new native-host/model result; use the
+[capability matrix](../../docs/guides/harness-capabilities.md) for the full scope.
+
 - Deletion commands inherit the caller's sandbox policy per invocation
   (`exec.agent.session`) through the native shell executor.
 - Once the adapter has registered its pre-execute listener, Core process and

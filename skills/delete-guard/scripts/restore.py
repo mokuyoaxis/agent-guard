@@ -11,6 +11,7 @@ transaction before restoring. Inspect backup_txids after success or failure.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -27,6 +28,26 @@ def context():
     trash_root = os.environ.get(
         "AGENT_GUARD_TRASH", os.path.join(workspace, TRASH_DIRNAME))
     return recovery.RecoveryEngine(workspace, trash_root)
+
+
+def restore_audit_event(txid, force, report):
+    """Non-recovery metadata only; exact paths/errors stay in the result/journal."""
+    event = {
+        "event": "restore", "force": force, "ok": report.get("ok"),
+        "restored_count": len(report.get("restored", [])),
+        "conflict_count": len(report.get("conflicts", [])),
+        "error_count": len(report.get("errors", [])) + bool(report.get("error")),
+    }
+    if report.get("error"):
+        # Invalid/unknown caller input is not an established transaction ID.
+        # Keep correlation without copying arbitrary input into the audit log.
+        event["txid_sha256"] = hashlib.sha256(
+            txid.encode("utf-8", errors="surrogatepass")).hexdigest()
+    else:
+        event["txid"] = txid
+    if report.get("backup_txids"):
+        event["backup_txids"] = report["backup_txids"]
+    return event
 
 
 def main() -> int:
@@ -69,13 +90,7 @@ def main() -> int:
         return 0
 
     report = engine.restore(args.txid, force=args.force)
-    workspace = engine.workspace
-    event = {"event": "restore", "txid": args.txid, "force": args.force,
-             "ok": report.get("ok"), "restored": report.get("restored"),
-             "conflicts": report.get("conflicts"),
-             "errors": report.get("errors")}
-    if report.get("backup_txids"):
-        event["backup_txids"] = report["backup_txids"]
+    event = restore_audit_event(args.txid, args.force, report)
     try:
         audit.append(event, os.path.join(engine.trash_root, AUDIT_NAME))
     except OSError:

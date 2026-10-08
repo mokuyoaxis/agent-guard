@@ -4,8 +4,13 @@
     safe_delete.py [--json] [--dry-run] [--reason TEXT] PATH...
 
 Globs are expanded here, explicitly, before classification: an opaque
-wildcard never reaches the filesystem unexamined. Every verdict is audited.
-Blocked requests exit 2 and leave the filesystem untouched.
+wildcard never reaches the filesystem unexamined. Assessments are best-effort
+audited; an unmatched glob returns before audit setup. --dry-run and policy
+refusals before compensation leave command targets unchanged, but may create
+quarantine/audit metadata and a Git local exclude rule. Policy blocks exit 2
+even in dry-run. A failed real compensation can leave partial target changes.
+New audit events contain decisions, counts and recovery IDs, not target paths
+or free-form --reason text. Exact recovery paths stay in the manifest/result.
 """
 from __future__ import annotations
 
@@ -53,12 +58,35 @@ def delete_directly(spec):
     return "absent"
 
 
+def safe_delete_audit_event(event, decision, code, target_count, *,
+                            phase=None, report=None, outcome=None):
+    """Build this writer's metadata; never copy input paths/reasons/errors.
+
+    Codes and outcome labels come from this CLI. Transaction IDs come from
+    the recovery engine; exact moved/skipped payloads stay in its journal
+    and the CLI result. Automatic audit session metadata is unchanged.
+    """
+    entry = {"event": event, "tool": "safe_delete", "decision": decision,
+             "code": code, "target_count": target_count}
+    if phase is not None:
+        entry["phase"] = phase
+    if outcome is not None:
+        entry["outcome"] = outcome
+    if report is not None:
+        if report.get("txid"):
+            entry["txid"] = report["txid"]
+        entry["moved_count"] = len(report.get("moved", []))
+        entry["skipped_count"] = len(report.get("skipped", []))
+    return entry
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("paths", nargs="+", help="paths or globs to delete")
     ap.add_argument("--json", action="store_true", dest="as_json")
     ap.add_argument("--dry-run", action="store_true")
-    ap.add_argument("--reason", default="", help="why this deletion is needed")
+    ap.add_argument("--reason", default="",
+                    help="why this deletion is needed (text is not persisted)")
     args = ap.parse_args()
 
     base = os.getcwd()
@@ -88,6 +116,7 @@ def main() -> int:
         return 0
     verdict = policy.decide_path_batch(specs, ctx, recursive=True)
     engine = recovery.RecoveryEngine(workspace, trash_root)
+    relocation_report = None
 
     result = {
         "tool": "safe_delete",
@@ -119,10 +148,8 @@ def main() -> int:
             return False
 
     if verdict.blocked:
-        record({"event": "decision", "tool": "safe_delete",
-                "decision": "BLOCK", "code": verdict.code,
-                "reasons": verdict.reasons, "targets": result["targets"],
-                "reason": args.reason})
+        record(safe_delete_audit_event(
+            "decision", "BLOCK", verdict.code, len(specs)))
         result["exit"] = 2
         print(json.dumps(result, ensure_ascii=False, indent=2) if args.as_json
               else f"BLOCKED [{verdict.code}]: {verdict.reasons}")
@@ -151,16 +178,14 @@ def main() -> int:
     # Authorization/intent must be durable before direct deletion. Dry-run
     # assessments are best-effort audited but never fail for audit storage.
     if args.dry_run:
-        record({"event": "decision", "tool": "safe_delete",
-                "decision": verdict.decision, "code": verdict.code,
-                "targets": result["targets"], "phase": "advisory",
-                "reason": args.reason})
+        record(safe_delete_audit_event(
+            "decision", verdict.decision, verdict.code, len(specs),
+            phase="advisory"))
     elif verdict.code != policy.CODE_ALLOW_NOOP:
         try:
-            record({"event": "decision", "tool": "safe_delete",
-                    "decision": verdict.decision, "code": verdict.code,
-                    "targets": result["targets"], "phase": "intent",
-                    "reason": args.reason}, required=True)
+            record(safe_delete_audit_event(
+                "decision", verdict.decision, verdict.code, len(specs),
+                phase="intent"), required=True)
         except Exception as exc:
             result["verdict"] = {
                 "decision": "BLOCK",
@@ -189,7 +214,8 @@ def main() -> int:
         result["deleted"] = deleted
     else:  # RELOCATE_*
         report = engine.relocate(specs, meta={
-            "tool": "safe_delete", "code": verdict.code, "reason": args.reason})
+            "tool": "safe_delete", "code": verdict.code})
+        relocation_report = report
         if report.get("storage_failure"):
             # Hard principle: capacity limits never downgrade to deletion.
             result["verdict"] = {
@@ -200,10 +226,9 @@ def main() -> int:
             }
             result["outcome"] = "BLOCKED: quarantine cannot accept relocation"
             result["exit"] = 2
-            record({"event": "decision", "tool": "safe_delete",
-                    "decision": "BLOCK",
-                    "code": policy.CODE_BLOCK_RELOCATE_FAILED_STORAGE,
-                    "targets": result["targets"], "reason": args.reason})
+            record(safe_delete_audit_event(
+                "decision", "BLOCK", policy.CODE_BLOCK_RELOCATE_FAILED_STORAGE,
+                len(specs), report=report))
             print(json.dumps(result, ensure_ascii=False, indent=2)
                   if args.as_json else result["outcome"])
             return 2
@@ -222,11 +247,9 @@ def main() -> int:
             result["moved"] = report["moved"]
             result["skipped"] = report["skipped"]
             result["exit"] = 2
-            record({"event": "decision", "tool": "safe_delete",
-                    "decision": "BLOCK",
-                    "code": policy.CODE_BLOCK_COMPENSATION_FAILED,
-                    "targets": result["targets"], "txid": report["txid"],
-                    "reason": args.reason})
+            record(safe_delete_audit_event(
+                "decision", "BLOCK", policy.CODE_BLOCK_COMPENSATION_FAILED,
+                len(specs), report=report))
             print(json.dumps(result, ensure_ascii=False, indent=2)
                   if args.as_json else result["outcome"])
             return 2
@@ -236,10 +259,10 @@ def main() -> int:
         result["skipped"] = report["skipped"]
 
     if not args.dry_run and verdict.code != policy.CODE_ALLOW_NOOP:
-        record({"event": "outcome", "tool": "safe_delete",
-                "targets": result["targets"], "txid": result.get("txid"),
-                "outcome": result.get("outcome"), "phase": "complete",
-                "reason": args.reason})
+        record(safe_delete_audit_event(
+            "outcome", verdict.decision, verdict.code, len(specs),
+            phase="complete", report=relocation_report,
+            outcome=result.get("outcome")))
     result["exit"] = 0
     if args.as_json:
         print(json.dumps(result, ensure_ascii=False, indent=2))

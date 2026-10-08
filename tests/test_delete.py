@@ -82,7 +82,7 @@ class SafeDeleteCLI(RepoFixture):
             self.root, ".agent-trash")))
         self.assertTrue(os.path.exists(outside))
 
-    def test_dry_run_touches_nothing(self):
+    def test_dry_run_keeps_target_and_audits_assessment(self):
         self.write("dry.txt")
         proc = run("safe_delete.py", "--json", "--dry-run", "dry.txt",
                    cwd=self.root)
@@ -93,6 +93,8 @@ class SafeDeleteCLI(RepoFixture):
             ["git", "-C", self.root, "status", "--porcelain"],
             capture_output=True, text=True, check=True)
         self.assertEqual(status.stdout, "?? dry.txt\n")
+        self.assertTrue(Path(self.root, '.agent-trash', 'audit.jsonl').is_file())
+        self.assertIn('/.agent-trash/', Path(self.root, '.git/info/exclude').read_text())
 
     def test_regenerable_delete_blocks_if_audit_intent_cannot_persist(self):
         with open(os.path.join(self.root, ".gitignore"), "a") as fh:

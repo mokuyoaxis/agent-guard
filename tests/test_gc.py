@@ -87,6 +87,66 @@ class GcPlanTests(RepoFixture):
         report = engine.gc_execute(["no-such-tx"])
         self.assertEqual(report["missing"], ["no-such-tx"])
 
+    def test_purged_old_transaction_leaves_active_gc_inventory(self):
+        engine, txid = self.write_tx("old.txt", age_days=31)
+        engine.gc_execute([txid])
+        before = Path(engine.manifest_path).read_bytes()
+        self.assertEqual(engine.transactions()[txid]["state"], "PURGED")
+        self.assertEqual(engine.tx_inventory(), [])
+        self.assertEqual(engine.gc_plan()["eligible"], [])
+        self.assertEqual(Path(engine.manifest_path).read_bytes(), before)
+
+    def test_purged_recreated_directory_is_not_counted_or_walked(self):
+        engine, txid = self.write_tx("old.txt", age_days=31)
+        engine.gc_execute([txid])
+        directory = Path(engine.trash_root, txid)
+        directory.mkdir()
+        personal = directory / "unmanaged.txt"
+        personal.write_bytes(b"do not claim this recreated directory")
+        with mock.patch("core.recovery.os.walk", side_effect=AssertionError("purged must not be walked")):
+            plan = engine.gc_plan(size_limit_bytes=0)
+        self.assertEqual(plan["eligible"], [])
+        self.assertEqual(plan["total_bytes"], 0)
+        with self.assertRaisesRegex(ValueError, "unmanaged"):
+            engine.validate_gc_targets([txid])
+        self.assertEqual(personal.read_bytes(), b"do not claim this recreated directory")
+
+    def test_purged_history_does_not_hide_active_old_transaction(self):
+        engine, purged = self.write_tx("first.txt", age_days=40)
+        engine.gc_execute([purged])
+        _, active = self.write_tx("second.txt", content="active", age_days=31)
+        plan = engine.gc_plan()
+        self.assertEqual([entry["txid"] for entry in plan["eligible"]], [active])
+        self.assertEqual(plan["total_bytes"], len("active"))
+        self.assertEqual(engine.transactions()[purged]["state"], "PURGED")
+
+    def test_failed_purge_remains_eligible(self):
+        engine, txid = self.write_tx("old.txt", age_days=31)
+        with mock.patch("core.recovery.shutil.rmtree", side_effect=OSError("synthetic failure")):
+            with self.assertRaises(OSError):
+                engine.gc_execute([txid])
+        self.assertEqual([entry["txid"] for entry in engine.gc_plan()["eligible"]], [txid])
+        self.assertEqual(engine.transactions()[txid]["state"], "RESTORABLE")
+
+    def test_status_and_gc_cli_do_not_report_purged_as_eligible(self):
+        engine, txid = self.write_tx("old.txt", age_days=31)
+        engine.gc_execute([txid])
+        status = run("status.py", "--json", cwd=self.root)
+        self.assertEqual(status.returncode, 0, status.stderr)
+        self.assertEqual(json.loads(status.stdout)["retention"]["gc_eligible"], [])
+        plan = run("gc.py", "--json", cwd=self.root)
+        self.assertEqual(plan.returncode, 0, plan.stderr)
+        self.assertEqual(json.loads(plan.stdout)["eligible"], [])
+
+    def test_all_eligible_after_purge_selects_nothing(self):
+        engine, txid = self.write_tx("old.txt", age_days=31)
+        engine.gc_execute([txid])
+        before = Path(engine.manifest_path).read_bytes()
+        result = run("gc.py", "--execute", "--all-eligible", cwd=self.root)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("nothing selected", result.stderr)
+        self.assertEqual(Path(engine.manifest_path).read_bytes(), before)
+
     def test_invalid_id_rejects_entire_batch_before_purge(self):
         engine, txid = self.write_tx("x.txt")
         sentinel = self.write("sentinel/keep.txt", "keep")

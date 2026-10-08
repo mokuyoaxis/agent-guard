@@ -186,6 +186,10 @@ facts still apply to variable templates.
 
 ## Configuration (environment)
 
+The 0.2.5-rc1 candidate adds provenance/count diagnostics to the existing
+exemption parser. Matching and file priority remain unchanged; the published
+0.2.4 package does not include these diagnostic fields and warnings.
+
 | Variable | Meaning |
 |---|---|
 | `AGENT_GUARD_EXFIL_CHANNEL` | default egress channel for both text CLIs |
@@ -198,20 +202,86 @@ facts still apply to variable templates.
 
 ## Repo-local exemptions (design 5.2)
 
-`.agent-guard/exfil-allow.toml` (or `.agent-guardignore`) is read from the
-**workspace root only**, so an agent cannot add one on the fly.
+`.agent-guard/exfil-allow.toml` (or `.agent-guardignore`) is read by the local
+guard from the **workspace root only**, not supplied as a per-call option.
+This location does not make the file read-only: a process with workspace
+write access can change exemptions. The host/operator must control its
+contents; this is not a same-UID isolation boundary.
 
-```toml
+Both filenames use the same small `key = value` grammar. The `.toml`
+extension does not promise a full TOML parser, and `.agent-guardignore` does
+not accept gitignore-style bare paths or `!` re-inclusion rules.
+
+```ini
 [rules]
 disable = []                       # rule-id globs; [] means none
 [values]
 sha256 =                          # exempt a literal WITHOUT tracking it
-  sha256:8ab1...e7
+  sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 [paths]
 ignore =                           # path globs skipped entirely
   docs/*.md
   tests/fixtures/secrets/*
 ```
+
+### Supported format and precedence
+
+| Section | Recommended key | Top-level aliases retained for compatibility |
+|---|---|---|
+| `[rules]` | `disable` | `rule`, `rules`, `disable` |
+| `[paths]` | `ignore` | `path`, `paths`, `ignore` |
+| `[values]` | `sha256` | `sha256`, `hash`, `hashes` |
+
+Keys and section names are case-insensitive. Values are separated by commas
+or whitespace; surrounding list brackets and single/double quotes are
+stripped. A subsequent line without `=` or a section header continues the
+previous key; indentation is recommended but is not required. Empty values
+and `[]` add no entries. Everything after the first `#` is a comment, even
+inside quotes. Escaped strings, patterns containing spaces or `#`, TOML
+multiline arrays, and gitignore negation are not supported. Patterns use
+Python `fnmatch`, whose `*` can match a slash; this is not gitignore matching.
+Value digests must be `sha256:` followed by 64 lowercase hexadecimal digits.
+
+The first readable UTF-8 file wins: `.agent-guard/exfil-allow.toml`, then
+`.agent-guardignore`. They are never merged. A readable empty or malformed
+preferred file still takes precedence; it does not activate the fallback.
+Missing, unreadable or non-UTF-8 files allow the next candidate to be tried.
+When neither can be loaded, no configured exemption applies and scanning
+continues. The lower-priority file is not read when the preferred one loads.
+
+### Configuration diagnostics
+
+After a successful scan, `check_span.py --json` adds an `exemption` object:
+`source`, `active`, `counts` (`rules`/`paths`/`hashes`), `diagnostics`, and
+`diagnostics_omitted`. `source` is one of the two fixed relative filenames,
+`null` when none was loaded, or `<provided>` for an explicit library object.
+Counts are configured entries, not proof that a pattern matched; existing
+`exempted` reports the number of payload spans actually removed.
+An input/channel refusal before configuration loading may omit this object.
+
+Diagnostics contain only a static `code`, a fixed relative `source` and an
+optional 1-based `line`. They never copy keys, patterns, hashes, raw lines,
+workspace addresses or exception text. At most 32 are retained; the omitted
+count records the remainder. Human checker warnings and all sanitizer CLI
+warnings go to stderr. JSON checker stdout remains one object; sanitizer
+stdout remains the payload or, under `--dry-run`, the JSON plan. Library
+`sanitize_text` returns the same safe metadata without printing warnings.
+
+| Code | Meaning |
+|---|---|
+| `EXEMPTION_IGNORED_LINE` | No assignment or prior key; bare gitignore lines have no effect |
+| `EXEMPTION_UNKNOWN_KEY` | Unrecognized top-level key; its values have no effect |
+| `EXEMPTION_UNKNOWN_SECTION` | Unknown section; recognized legacy keys may still work |
+| `EXEMPTION_LEGACY_SECTION_KEY` | Nonstandard key still uses the existing section fallback |
+| `EXEMPTION_MALFORMED_SECTION` | Malformed header still uses existing parsing |
+| `EXEMPTION_INVALID_HASH` | Entry cannot match the required lowercase digest format |
+| `EXEMPTION_UNSUPPORTED_NEGATION` | `!` is literal, not an exclusion/re-inclusion operator |
+| `EXEMPTION_READ_FAILED` / `EXEMPTION_ENCODING_INVALID` | Try the next file; raw errors are withheld |
+| `EXEMPTION_SHADOWED` | A present fallback file is not loaded because the preferred file was readable |
+
+These diagnostics do not change verdicts, matching or exit codes. Legacy
+parsing can retain valid entries alongside ignored input or warnings; a
+warning is neither whole-file rejection nor a trust/permission check.
 
 Three properties matter:
 
@@ -221,8 +291,9 @@ Three properties matter:
 2. **Path exemptions, not rule amnesty.** Scoping an exemption to a path
    keeps the rule fully active everywhere else. Disabling the rule wholesale
    is what would blind the guard.
-3. **A broken allowfile fails closed.** Malformed input is ignored and the
-   rules stay on - never the reverse.
+3. **Unrecognized input does not add exemptions.** Ignored lines and unknown
+   top-level keys leave scanning active; any recognized legacy entries still
+   follow the behavior documented above. Diagnostics expose this distinction.
 
 This repository ships such a file for its own documentation and fixtures,
 exactly as `SECURITY.md` documents "Expected scanner hits on this
@@ -231,6 +302,12 @@ that discuss the topic, and the noise-budget test still measures the whole
 corpus.
 
 ## Audit record shape
+
+This is a safe record shape for a trusted integration that chooses to persist
+egress evidence. `check_span.py` and `sanitize.py` do not automatically append
+these events, and cannot observe a caller declining a plan. It is not a claim
+that every egress decision has a durable record. Generic `core.audit` also adds
+session metadata; that metadata and existing logs require their own review.
 
 ```json
 {"event":"exfil-sanitize","rule_id":"secret/openai-key",

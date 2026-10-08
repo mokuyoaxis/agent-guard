@@ -1,10 +1,17 @@
 # Documentation / 文档导航
 
-Start with the [harness capability matrix](guides/harness-capabilities.md) for
-current coverage, the [architecture](design/architecture.md) for the shared
-Core, and the [Lab guide](lab/guard-lab.md) for experiment semantics.
+Start with [getting started](guides/getting-started.md) for installation and
+setup. The three main paths are [recovery protection](../skills/delete-guard/SKILL.md),
+[disclosure checks](../skills/exfil-guard/SKILL.md), and
+[behaviour experiments](lab/guard-lab.md). Use the
+[harness capability matrix](guides/harness-capabilities.md) for observed coverage
+and the [architecture](design/architecture.md) for the shared Core.
 
-先看当前能力矩阵、架构和 Lab 指南。测试报告按所测版本与配置保留；发布记录、
+Current source: [0.2.5-rc1 candidate](releases/release-notes-0.2.5-rc1.md).
+Published stable baseline: [0.2.4](releases/release-notes-0.2.4.md).
+Candidate preparation and package validation do not establish publication.
+
+先看入门指南，再按恢复保护、外发检测、Lab 验测选择入口。测试报告按所测版本与配置保留；发布记录、
 历史设计和外部案例各自归档，不能据此扩展当前产品的承诺。
 
 | Category / 分类 | Contents / 内容 |
@@ -20,6 +27,7 @@ Core, and the [Lab guide](lab/guard-lab.md) for experiment semantics.
 
 | Document / 文档 | Scope / 范围 |
 |---|---|
+| [Getting started](guides/getting-started.md) | 安装路径、Agent 接入提示词与最短验证流程 |
 | [Harness capabilities](guides/harness-capabilities.md) | 当前接入范围、证据等级与未验证路径 |
 | [Host drift](guides/host-drift.md) | 宿主版本、配置与本地基线检查 |
 | [Trash locations](guides/trash-index.md) | 0.2.4 的只读位置查询、Agent／前端共享 JSON 契约 |
@@ -81,6 +89,7 @@ coverage rather than treating every historical result as current acceptance.
 
 | Document / 文档 | Scope / 范围 |
 |---|---|
+| [0.2.5-rc1](releases/release-notes-0.2.5-rc1.md) | 当前维护候选、文档整理、版本例外与验收状态 |
 | [0.2.4](releases/release-notes-0.2.4.md) | 恢复维护、trash 查询及兼容性例外 |
 | [0.2.3](releases/release-notes-0.2.3.md) | 正式版范围与证据边界 |
 | [0.2.3-rc2](releases/release-notes-0.2.3-rc2.md) | 离线 Lab 与已复核 DSH 契约 |

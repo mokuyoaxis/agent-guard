@@ -8,8 +8,11 @@
 #
 # Important: this file exempts PATHS, not rules. The rule set stays fully
 # active everywhere else, so the guard still protects an agent working in
-# this repository. Exemptions are read only from the workspace root, so an
-# agent cannot add one on the fly.
+# this repository. The local guard reads this file from the workspace root;
+# this does not make it read-only or isolate it from same-UID writers.
+# Both configuration filenames use the documented section/key grammar,
+# not gitignore syntax. This readable preferred file takes precedence over
+# .agent-guardignore, including when empty; see the rules reference for diagnostics.
 #
 # Value exemptions are by `sha256:...` hash ONLY, never by value - writing a
 # secret into a tracked file is the exact bug this feature exists to prevent.

@@ -42,8 +42,10 @@ call. It must never silently become allow. Treat malformed payloads and
 adapter failures conservatively **when the adapter is invoked**; this does
 not protect a call when the host never starts the hook. For a shell tool,
 `check.py --enforce` may relocate files or snapshot Git state, so use it only
-in an authorized execution path; use advisory mode for non-mutating policy
-checks.
+in an authorized execution path. Advisory mode assesses without changing
+command targets, but may initialize quarantine/audit metadata and a Git local
+exclude rule. Its exit 0 does not authorize a BLOCK or ASK decision. See the
+[assessment contract](../skills/delete-guard/references/policy.md#assessment-and-dry-run-side-effects).
 
 ## 3. Configure and verify without destructive trials
 

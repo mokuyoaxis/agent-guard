@@ -1,6 +1,13 @@
 # delete-guard policy reference (V1)
 
-Platforms: Linux/macOS shells + git. Windows (cmd/PowerShell) is out of V1.
+The shared Core supports POSIX/cmd/PowerShell command facts. Full suites run
+on Linux/macOS; focused Windows Core evidence is available, while complete
+native Windows harness execution remains unverified. POSIX hook bridges have
+their own platform requirements. See the
+[compatibility contract](../../../docs/design/compatibility.md).
+
+This reference describes the 0.2.5-rc1 source candidate. The published 0.2.4
+baseline does not include its control-path, GC and audit-writer maintenance.
 
 ## Decision Protocol
 
@@ -25,6 +32,41 @@ RESTRICTED prohibitions) are policy violations and never askable.
 
 check.py exit codes: 0 proceed/advisory-ok · 2 blocked · 3 ask · 1 error.
 
+### Assessment and dry-run side effects
+
+Advisory `check.py` and `safe_delete.py --dry-run` keep command targets
+unchanged. They do not execute the assessed shell text, relocate targets,
+create Git stashes or create recovery transactions. They may still write
+metadata through their existing best-effort audit path:
+
+| Invocation | Exit / target behavior | Possible metadata writes |
+|---|---|---|
+| Advisory `check.py`, including ALLOW, ASK or BLOCK | Exit 0 with the actual decision; targets unchanged | Layout initialization and an appended `check` audit |
+| `safe_delete.py --dry-run` with concrete targets, including absent literals | Exit 0 unless BLOCK; targets unchanged | An advisory audit, or a blocked-decision audit |
+| Policy-blocked `safe_delete.py` before compensation, including dry-run | Exit 2; targets unchanged | Best-effort blocked-decision audit |
+| Unmatched-glob-only `safe_delete.py` | Exit 0 before layout/audit setup | None from that invocation |
+| Non-dry-run `safe_delete.py` with an absent literal / ALLOW_NOOP | Exit 0 without mutation or layout setup | None from that invocation |
+
+Layout initialization may create the selected quarantine directory and
+`audit.jsonl`. If a quarantine inside a Git workspace is not already ignored,
+it may append an ignore entry to Git's local `info/exclude`, including the
+resolved exclude path of a linked worktree. It does not edit tracked
+`.gitignore`. A preexisting ignore rule or an external bucket avoids that
+exclude write. Repeated checks append audit lines without duplicating the
+exclude rule; recovery manifests and authorization state are not created by
+these assessment paths. Git status may hide metadata that was previously
+untracked, so an unchanged Git status alone does not prove zero writes.
+
+If audit/layout setup fails, assessments retain their decision and report
+an audit warning; partial metadata changes may remain. `ensure_layout`
+establishes the Git ignore rule before creating the bucket. Audit failure
+after that step does not roll it back. This best-effort behavior is distinct
+from enforced execution/ASK intents, which must be durable or execution is
+refused. Advisory exit 0 must never be treated as authorization to run a
+BLOCK or ASK command. Failed real compensations can leave partial target
+changes and recovery IDs; this table does not promise rollback for them.
+No general zero-write assessment flag is introduced.
+
 ### Dialects
 
 `check.py` lexes the command line for a shell dialect: `--dialect posix`
@@ -46,6 +88,9 @@ different effects (`-wi`, `-c`, `-p`) stays unknown and BLOCKs.
 
 ## Rule table (first match wins)
 
+The quarantine control-path changes below belong to the 0.2.5-rc1 source candidate;
+the published 0.2.4 artifact retains its original housekeeping order.
+
 | # | Condition | Verdict code | Effect |
 |---|---|---|---|
 | 1 | dry run / no targets | `ALLOW_NOOP` | proceed unchanged |
@@ -53,9 +98,9 @@ different effects (`-wi`, `-c`, `-p`) stays unknown and BLOCKs.
 | 2a | SHAPE F1: destructive op preceded by `cd` in the same command line, target in-workspace and resolvable | `ASK` (`COMPOUND_CWD_DELETE`) | single-execution authorization; splitting the command avoids the prompt. A shape rule describes *compensation* difficulty, never effect scope: if the target set also trips rule 2, 4, 5 or 6, that BLOCK wins (`tests/test_incident_regression.py`) |
 | 2b | SHAPE F2: file-creation op (`touch/mkdir/cp/mv/install/ln/tee`, `>`/`>>`) precedes a target-dependent destructive op in the same line | `ASK` (`COMPOUND_CREATE_DELETE`) | single-execution authorization; force-push is refused separately. Hard reset in a compound line is effect-uncertain and BLOCKED before shape rules |
 | 2c | target *is* a filesystem root (`/`, `/home`, `/usr`, `/etc`, `/var`, `/tmp`, `/opt`, `/boot`, `$HOME`, ...) | `BLOCK_PROTECTED_ANCESTOR` | refuse. Matched exactly, so paths *under* these roots keep the ordinary codes; enforced by identity rather than workspace geometry, so it holds even when the workspace is `/` |
-| 3 | any target inside quarantine (`.agent-trash/`) | `ALLOW_TRASH_GC` | direct delete permitted (housekeeping) |
+| 5 | workspace root, `.git` metadata, quarantine root/control paths, or an in-workspace parent containing configured storage | `BLOCK_PROTECTED_PATH` | refuse before the housekeeping exemption; root manifest/audit/state, state temp and sessions are control paths |
+| 3 | explicit ordinary unprotected payload inside quarantine (`.agent-trash/`) | `ALLOW_TRASH_GC` | opaque globs BLOCK_WILDCARD; safe_delete may enumerate first, and an audited transaction purge uses gc.py --execute |
 | 4 | target outside workspace | `BLOCK_OUT_OF_WORKSPACE` | refuse |
-| 5 | target is workspace root or `.git` (any depth) | `BLOCK_PROTECTED_PATH` | refuse |
 | 6 | any glob target | `BLOCK_WILDCARD` | refuse; use safe_delete which enumerates |
 | 7 | RESTRICTED mode, git/remote destructive op | `BLOCK_RESTRICTED_MODE` | refuse |
 | 8 | RESTRICTED mode, fs delete | narrow files only -> `RELOCATE_NARROW`, else `BLOCK_RESTRICTED_MODE` | refuse or quarantine |
@@ -132,6 +177,44 @@ Soft policy: 30-day retention, 5 GiB cap. Thresholds only MARK transactions
 `gc.py --execute` maintenance action. Lifecycle is fully audited:
 `QUARANTINED -> RESTORABLE -> GC_ELIGIBLE -> PURGED`; the audit log itself
 is never garbage-collected.
+
+Local maintenance excludes `PURGED` tombstones from active GC inventory and
+age/capacity plans. History remains in the manifest and transaction listing;
+a directory recreated under a purged ID is unmanaged. Failed purges retain
+their prior state and can still be planned. This does not add stash pruning.
+
+Restore audit metadata now records `restored_count`, `conflict_count` and
+`error_count` instead of raw path arrays/error bodies. Known `txid`, `force`,
+`ok` and preservation `backup_txids` retain correlation; invalid/unknown input
+IDs use `txid_sha256`. Exact restoration paths and errors remain in the
+recovery journal and CLI result. Historical audit lines are not rewritten;
+automatic session metadata and other generic audit writers are unchanged.
+
+### safe_delete audit metadata
+
+New `safe_delete` audit events keep `event`, `tool`, `decision`, `code` and
+`target_count`, plus `phase`/static `outcome` where applicable. Established
+relocation reports add `txid`, `moved_count` and `skipped_count`, including
+partial relocation and storage-failure decisions. `target_count` counts
+classified entries after glob expansion, including absent literals and
+unresolved/rejected entries in a BLOCK assessment; it is not a count of
+existing or deletable files. Unmatched patterns are excluded; duplicate
+input entries remain separate entries.
+`skipped_count` counts the engine's skipped entries, not every target left
+unmoved after a storage failure.
+
+Target arrays, policy reason bodies, free-form `--reason` and moved/skipped
+payloads are not copied into these events. `--reason` remains accepted but
+its text is no longer persisted in the audit or `tx-start.meta`. Exact
+origin/trash paths, write-ahead relocation records and failure diagnostics
+stay in the recovery manifest; CLI target/recovery paths and errors stay
+accurate. Those surfaces can still contain sensitive text.
+
+Mutation intents remain durable before deletion; assessment and outcome
+audits retain their existing best-effort behavior. Historical audit lines
+and manifest metadata are not rewritten. Automatic `ts`/`session` fields
+and generic `core.audit.append`/`tail` behavior are unchanged; this writer's
+minimization is not a guarantee that every audit field is sanitized.
 
 Authority model: `gc.py --execute` is intentionally permitted
 non-interactively (scheduled maintenance is legitimate; purging

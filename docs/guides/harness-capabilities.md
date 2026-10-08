@@ -1,5 +1,10 @@
 # Harness capability and evidence matrix
 
+Current source: [0.2.5-rc1 candidate](../releases/release-notes-0.2.5-rc1.md).
+Rows below retain their tested source/host versions and do not automatically
+certify this candidate. Local regression or package checks are separate from
+new native-host/model evidence.
+
 The Python Core and CLI are harness-neutral. A Skill or CLI being usable in a
 host does **not** mean that host intercepts tool calls, and an adapter returning
 `BLOCK` does **not** by itself prove the host prevented execution.

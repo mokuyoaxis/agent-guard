@@ -1,549 +1,192 @@
 # AGENT-GUARD
 
 [![CI](https://github.com/mokuyoaxis/agent-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/mokuyoaxis/agent-guard/actions/workflows/ci.yml)
-[![npm 版本](https://img.shields.io/npm/v/%40mokuyoaxis%2Fagent-guard.svg)](https://www.npmjs.com/package/@mokuyoaxis/agent-guard)
+[![npm 稳定版](https://img.shields.io/npm/v/%40mokuyoaxis%2Fagent-guard.svg)](https://www.npmjs.com/package/@mokuyoaxis/agent-guard)
 [![License](https://img.shields.io/github/license/mokuyoaxis/agent-guard)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![v0.2.4 源码](https://img.shields.io/badge/%E6%BA%90%E7%A0%81-v0.2.4-5B6B7A)](docs/releases/release-notes-0.2.4.md)
+[![0.2.5-rc1](https://img.shields.io/badge/RC-0.2.5--rc1-5B6B7A)](docs/releases/release-notes-0.2.5-rc1.md)
 
 **让 AI Agent 的破坏性操作默认可逆。** · [English](README.md)
 
-Agent Guard 是给编码 Agent 用的可靠性工具：让受支持的高风险操作尽可能
-可恢复，而不是一次失手就永久损失；日常工作则尽量不被打断。
+Agent Guard 是给编码 Agent 用的可靠性工具：在受支持的破坏性操作前建立
+恢复路径，在文本外发前检查泄露风险，并让用户通过 Lab 验测实际观察到的
+Agent／宿主行为。共享 Python Core 可通过显式 CLI 或可选宿主适配器使用。
 
-- **删除文件**：可先迁入 `.agent-trash/`，留下恢复清单，而非直接销毁。
-- **破坏性 Git 操作**：可先保存可恢复的状态，再覆盖工作树。
-- **意外外发**：合作式文本 CLI 可检查已知凭据和带本机标识的绝对路径；
-  持有载荷的调用方按判决应用脱敏计划、请求人工处理或阻断。
-- **合成蜜罐验测**：用零 Token 正负对照检查明确列出的本地信道；证据健康
-  不足时只报 `INCONCLUSIVE`，不猜测通过。
+| 能力 | 能帮助你做什么 | 入口 |
+|---|---|---|
+| **恢复保护** | 删除前迁移有价值的文件；受支持的 Git 覆盖前快照 tracked 状态；查询和恢复事务 | [delete-guard](skills/delete-guard/SKILL.md) |
+| **外发检测** | 检测受支持的凭据和本机标识路径；应用脱敏计划或拒绝输出 | [exfil-guard](skills/exfil-guard/SKILL.md) |
+| **行为验测** | 校准观察器，验证声明信道的暴露，再比较匹配的关闭／开启防护试次 | [guard-lab](docs/lab/guard-lab.md) |
 
-共享 Core 支持 Python 3.9+ 和 Git，不依附某个 harness。能否自动拦截，
-仍取决于宿主有没有兼容 hook；仅安装 Skill 不会自动拦截工具调用。
-Core、决策协议与 Skills 是产品本体，适配器只是可替换的接入桥。
+Skill 提供操作纪律，不会自行拦截工具调用。自动保护依赖宿主实际加载了
+兼容 hook，且调用位于其覆盖范围内。Agent Guard 不是抵抗同权限恶意进程的
+OS 沙箱；实际接入证据和缺口见[能力矩阵](docs/guides/harness-capabilities.md)。
 
-> **能安全恢复的操作尽量自动完成；不能安全代办时再交给人。**
-> Agent Guard 是可靠性基础设施，不是安全沙箱：它防范失误，
-> 不承诺抵抗拥有相同系统权限的恶意 Agent。
+<a id="guard-lab-合成蜜罐"></a>
 
-## 它会怎样处理
+## guard-lab：用证据验测行为
 
-```text
-rm -rf build/       → RELOCATE   # 工作区内目录先迁入隔离区
-rm -rf .            → BLOCK      # 保护工作区根目录
-git reset --hard    → SNAPSHOT   # 先检查路径冲突，再保存已跟踪修改
-git push --force    → BLOCK      # 不自动改写远端历史
+guard-lab 是**用户控制的实验工具**。它在一次性项目中放入非秘密合成标记和
+无害诱饵，只观察明确声明的信道。真正的控制器与证据保存在交给受测 Agent 的
+夹具之外。
+
+流程分别回答三个问题：
+
+1. **校准**：观察器、标记、扫描和证据链是否正常？内建对照不调用模型，
+   不访问外网。
+2. **观察暴露**：关闭防护的真实宿主试次是否触发了选定信道？
+3. **比较防护**：有效基线成立后，匹配的开启防护试次是否减少或阻止了该暴露？
+
+在安装包或源码根目录，从一项零模型对照开始：
+
+```sh
+lab_run="$(mktemp -d)"
+python3 guard_lab.py run --case clean --output-dir "$lab_run/clean" --json
 ```
 
-这是受支持输入的**示意判决**，不是让你执行这些命令，也不表示所有宿主都会
-自动拦截。被忽略且可再生的目标可能判为 `ALLOW`；hard reset 的目标树与未跟踪
-或忽略内容冲突，或无法完成预检／快照时，会保守拒绝。能恢复或安全改写时，
-Agent 可以继续工作；否则交给人或阻断。
+另三项对照是 `mock-positive`、`mock-injection` 和 `snapshot-positive`。
+真实宿主实验前应按 [Lab 指南](docs/lab/guard-lab.md)跑齐四项对照；
+安装包也提供 `agent-guard-lab` 命令。
 
-## 让编码 Agent 帮你接入
+对照 PASS 只表示**仪器校准**，不表示模型安全。观察器不健康或证据缺失时为
+`INCONCLUSIVE`；未防护基线安静，不能证明防护有效。配对比较需要匹配相关的
+harness／版本／模型、任务、协议及非防护配置。结果只覆盖声明信道，不能扩展
+到所有文件读取、外网传输或模型请求。已有
+[Kimi](docs/reports/test-report-kimi-guard-lab.md) 与
+[DSH](docs/reports/test-report-dsh-guard-lab.md) 报告保留各自的有限结论、
+失败和待审状态。
 
-可以安装带作用域的 npm 包，也可以保留一个稳定的 Git checkout。
-无作用域的同名 `agent-guard` 包与本项目无关。
+## 安装与版本选择
 
-把固定版本安装到用户选择的稳定路径：
+Core 需要 Python 3.9+ 和 Git。示例采用 POSIX Shell；原生桥接和可选采集
+工具另有运行要求。
+
+| 版本 | 状态 |
+|---|---|
+| [0.2.4](docs/releases/release-notes-0.2.4.md) | 已发布的稳定基线 |
+| [0.2.5-rc1](docs/releases/release-notes-0.2.5-rc1.md) | 维护预发布；显式选择准确 RC 版本 |
+
+稳定包可安装到用户选定的长期目录：
 
 ```sh
 npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.4
 ```
 
-**0.2.4** 包含 hard reset 碰撞检查、restore 来源／目标
-验证、强制恢复时保留当前版本，以及垃圾桶只读位置查询。
-本次行为变化与证据边界见 [发布说明](docs/releases/release-notes-0.2.4.md)；
-npm 徽章和 [GitHub Releases](https://github.com/mokuyoaxis/agent-guard/releases)
-展示实际可用的发布工件。
-
-安装后的包根目录是
+包根目录是
 `/absolute/path/to/agent-guard-install/node_modules/@mokuyoaxis/agent-guard`。
-也可以克隆源码；如果已有 checkout，跳过克隆：
+必须使用这个带作用域的包名，也可以使用源码 checkout：
 
 ```sh
 git clone https://github.com/mokuyoaxis/agent-guard.git
 cd agent-guard
 ```
 
-Core 需要 Python 3.9+ 和 Git；是否能自动拦截取决于宿主是否提供相应 hook。
-把下面这段交给编码 Agent，先替换为你的仓库路径：
+RC 显式选择 `@mokuyoaxis/agent-guard@0.2.5-rc1`；RC 通道不替换稳定版 `latest`。
+发布状态以 [GitHub Release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.5-rc1)
+和 [npm 版本页](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.5-rc1)为准，
+也可使用已核查的 checkout 或本地提供的 tarball。
+接入步骤与 Agent 提示词见[入门指南](docs/guides/getting-started.md)。
 
-```text
-请为当前工作区接入 agent-guard。只使用现有 Git checkout，或精确的 scoped
-npm 包 @mokuyoaxis/agent-guard@0.2.4；不要安装无作用域的同名
-agent-guard。若 0.2.4 尚不可用，说明情况，使用现有 checkout 或让我选择已发布版本。
-安装前先让我选择并批准一个稳定的用户目录，然后把 checkout 或 npm 安装后的
-包根目录作为下文的 /absolute/path/to/agent-guard。
-先识别当前 harness 实际支持的 hook 与 Skill，阅读本 README 和对应 adapter
-说明，并检查 Python、Git。安装适用的 Skills；只有宿主确实支持时才配置
-原生 shell hook。保留现有设置；修改用户级配置或安装依赖前先展示差异并征求确认。
-Claude Code 参考 adapters/claude/README.md，Kimi Code 参考
-adapters/kimi-code/README.md，DSH 参考 adapters/dsh/README.md。
-其他宿主先读 adapters/INTEGRATION.md，不要凭空假设原生 hook；没有已验证的
-调用前阻断能力时只接入 Skill/CLI，并明确说明没有自动拦截。
-用无害命令和仅作为数据传给 check.py 的 BLOCK 样例验证；不要真正执行
-破坏性测试命令。Claude/Kimi 可运行本地 doctor，但不能把其 PASS 当成宿主
-拦截证明。最后报告宿主版本、工具范围、实际安装内容、确实拦截的调用和未验证路径。
+## 恢复一次受支持的删除
+
+从要保护的工作区调用你的安装包／源码路径：
+
+```sh
+python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/safe_delete.py src/old_module.py --dry-run
+python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/safe_delete.py src/old_module.py
+python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/restore.py list
+python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/restore.py <txid>
 ```
 
-手动接入与证据边界见 [harness 能力矩阵](docs/guides/harness-capabilities.md)
-及对应的 adapter README。
+有价值的目标迁入隔离区，manifest 保留准确恢复路径。可证明能够再生成且被
+Git 忽略的产物可直接删除。受支持的 Git 覆盖操作先快照 tracked 状态；
+hard reset 与 untracked／ignored 内容发生碰撞时拒绝执行。force restore
+先保全当前占位版本，再恢复旧版本。错误可能留下部分操作，应先核查返回的
+事务 ID、现场文件和状态，再决定后续动作。
 
-## 设计原则
+advisory `check.py` 和 `safe_delete.py --dry-run` 保持命令目标不变，但可能写入
+隔离区／审计元数据及 Git 本地 exclude。advisory 退出码 0 不代表 BLOCK／ASK
+操作获准执行。详见[策略与评估契约](skills/delete-guard/references/policy.md)。
 
-| 原则 | 做法 |
+本 RC 增加隔离区控制路径保护、从活跃 GC 计划排除 PURGED 事务，并最小化
+restore／safe_delete 审计字段；CLI／manifest 仍保留准确恢复路径。
+这些维护不属于已发布的 0.2.4 包，见 [RC 说明](docs/releases/release-notes-0.2.5-rc1.md)。
+
+## 外发前检查文本
+
+持有载荷的调用方主动运行扫描器，并按判决处理文本：
+
+```sh
+python3 skills/exfil-guard/scripts/check_span.py --channel file-write --json < draft.md
+python3 skills/exfil-guard/scripts/sanitize.py --channel file-write < draft.md
+```
+
+在运行时生成完整的合成凭据示例：
+
+```sh
+python3 -c 'print("config: sk-proj-" + "AbCdEf0123456789GhIjKl")' |
+  python3 skills/exfil-guard/scripts/sanitize.py --channel file-write
+```
+
+预期输出是 `config: sk-<REDACTED>`。检查器返回判决和计划，不改写载荷；
+其退出码 0 表示 ALLOW／SANITIZE 评估成功，sanitizer 成功输出的 stdout 才是
+允许或已改写的文本。ASK／BLOCK／错误时 sanitizer 不输出载荷。
+
+检测覆盖文档列明的凭据形状、无需读值的秘密引用和特定本机路径。它不是通用
+仓库扫描器，也不能抵抗刻意编码绕过。文本 CLI 不自动追加外发审计；
+可信接入方负责实际外发和需要的审计存储。检查配置时，可用显式安全视图查看
+支持的 JSON／dotenv 结构及状态；它不是可编辑副本，也不自动拦截普通读取。
+
+详见 [Skill](skills/exfil-guard/SKILL.md)、
+[规则与豁免诊断](skills/exfil-guard/references/rules.md)、
+[信道契约](skills/exfil-guard/references/channels.md)。
+
+## 接入你的编码 Agent
+
+下列为按版本保留的历史观察，不代表新候选源码、所有工具或所有子代理路径
+都已验收。
+
+| 宿主 | 接入与证据 |
 |---|---|
-| **守住边界** | 操作进入 Guard 时，阻断工作区根、`.git` 和外部路径的删除 |
-| **先保留退路** | 受支持的删除先迁入 `.agent-trash/` 并记 manifest；破坏性 Git 覆写先做快照 |
-| **约束授权** | 授权只在会话内有效；否决会单向降权，只有人能恢复 |
-| **留下记录** | 强制判决、补偿 intent、结果和恢复写入追加式 JSONL；intent 无法持久化时拒绝修改 |
-
-贯穿四项原则的一条规则是：**越不确定，限制越严格。**
-
-## 决策协议
-
-每个进入 Guard 的操作都会按效果分类，再选择足以维持安全或恢复承诺的
-最宽松判决。稳定的跨 harness 接口不是简单的 allow/block，而是一套
-Decision Protocol：
-
-```
-效果 → 分类器 → 策略 → Decision   ∈ { ALLOW, SANITIZE, RELOCATE,
-                                     SNAPSHOT, ASK, BLOCK }
-                           + ReasonCode   (稳定机器码)
-                           + Explanation  (面向人类的解释)
-                           + RecoveryPlan (txid 与补偿策略)
-```
-
-| 层级 | 判决 | Agent 的体验 |
-|---|---|---|
-| **SAFE** | `ALLOW` · `SANITIZE` · `RELOCATE` · `SNAPSHOT` | 尽量不中断工作；需要时先补偿，可恢复的修改凭 txid 找回。`SANITIZE` 返回由**载荷持有方**应用的脱敏计划，不改写命令 |
-| **AMBIGUOUS** | `ASK` | 单次执行授权(`ASK_ONCE`)——例如 Guard 无法安全代办的复合形态 |
-| **FORBIDDEN** | `BLOCK` | 附理由与修正建议拒绝;永不升级为询问 |
-
-当一个操作同时命中多个判决时，由弱到强的优先级为：
-
-```
-ALLOW < SANITIZE < RELOCATE < SNAPSHOT < ASK < BLOCK
-```
-
-`SANITIZE` 排在 `ASK` **之下**是有意的：它属于自动化的 SAFE 层，
-而 `ASK` 需要人处理。载荷里同时有可脱敏的密钥和无法改写的部分时，
-不能只处理前者便静默放行。
-
-真正无法确定效果的命令（如 `$VAR` 目标、`bash -c`、`find -delete`）
-会被拒绝；放行它们就无法守住边界。适配器再把判决映射到宿主机制：
-DSH 的 `PreToolDecision`、Claude Code PreToolUse 的 `ask`，或在不支持
-询问的宿主中附带解释的拒绝。
-
-## Agent Guard 包含什么
-
-### `delete-guard`
-
-回答“删了还能找回来吗？”通过受支持的适配器或 CLI 调用时，
-它在删除或破坏性 Git 操作前检查，并在可恢复时先做补偿。
-
-### `exfil-guard`
-
-回答“这份内容本该离开本机吗？”载荷持有方主动调用其合作式 CLI 时，
-它在发出前检查文本，并针对受支持的模式返回脱敏或升级判决。
-
-### `recovery-audit`
-
-如果预防没有运行或没有覆盖那条路径，它负责事故后的证据整理：
-区分原文恢复、依据重建与确认缺失，审计回放工具，并把落地、提交、
-推送和发布保留为独立授权门。
-
-`delete-guard` 和 `exfil-guard` 是两条预防分支；
-`recovery-audit` 负责事后的证据驱动恢复。
-
-## recovery-audit
-
-有时预防根本没有机会运行：harness 没有 adapter、子代理绕开预期路径，或范围过大的
-命令在人工介入前删掉了 workspace。工作树可能已经消失，但编码 Agent 的会话缓存里
-仍可能保存成功 patch、文件快照、工具结果、diff 与命令上下文。
-
-`recovery-audit` 把这些残留，与 Git remote/reflog/stash、编辑器或工具缓存、构建产物
-和项目计划一起组织成证据驱动的恢复流程：
-
-- 每个单元明确标记为**原文恢复（recovered）**、**依据重建（reconstructed）**或
-  **确认缺失（missing）**；
-- 按真实时间顺序回放工具效果，并检查记录与回放是否分歧；
-- 同一份冻结证据重复回放，必须得到逐字节一致的树；
-- 落地、commit、push 与 release 始终是互相独立的授权门。
-
-它不是文件系统 undelete，也不能创造任何幸存来源从未保存过的字节。它承诺的是：
-尽快恢复到证据真正支持的最强项目状态，并把缺口写清楚，而不是藏起来。
-
-## exfil-guard
-
-`exfil-guard` 检查 Agent 即将写入、发送、提交或推送的文本，前提是
-**载荷持有方主动调用它的 CLI**。它还提供对指定 JSON/dotenv 配置文件的
-显式只读安全视图。文本扫描针对两类意外外发：**已知凭据**和
-**带本机标识的绝对路径**。依据信道，Guard 可放行、返回脱敏计划、
-请求人处理或阻断。
-
-DSH 另有[默认关闭的文本 `read` 脱敏原型](adapters/dsh/README.md#experimental-text-read-redaction)，
-仅覆盖版本门控下的完整原生读取。它复用同一 Core，并让 DSH 同时重新生成
-返回文本和展示元数据；零模型原生验证已覆盖下一次请求和 JSONL 落盘。
-另一次[官方 Flash 真实直接读取对照](docs/reports/test-report-dsh-real-followup.md)
-观察到支持规则的合成秘密被脱敏，同时保留有用配置；这不是提示注入 L2 结论。
-
-它做的是预防和脱敏，不是补偿：内容发出去后就不能撤销。它也**不是
-安全沙箱**，不负责抵抗拥有相同系统权限的 Agent 蓄意外泄。
-
-### exfil-guard 的四种判决
-
-完整决策协议仍然适用,但文本载荷只会落到其中四类
-(`RELOCATE`/`SNAPSHOT` 属于 delete-guard——Guard 无法改写自己没写过的东西):
-
-| 判决 | 含义 | 示例 |
-|---|---|---|
-| `ALLOW` | 无匹配,或命中受控占位符、工作区内相对路径 | `echo "hello" \| check_span.py` |
-| `SANITIZE` | 返回脱敏计划;由**载荷持有方**改写后再发出 | `file-write` / `llm-request` 上的真实密钥 |
-| `ASK` | 信道既不能改写也无法收回 | `shell-stdout` 上的本机路径 |
-| `BLOCK` | 拒绝:不可变/远端历史、载荷无法扫描、配置非法 | `git-push-payload` 中的凭据 |
-
-### 检测什么
-
-**T1 厂商凭据特征**（`secret/*`）。按已知格式识别，用文档化占位符和反例
-约束误伤。rule id 包括：
-`secret/openai-key`、`secret/github-token`、`secret/aws-access-key-id`、
-`secret/gitlab-token`、`secret/slack-token`、`secret/stripe-key`
-(仅 live key,`sk_test_` 豁免)、`secret/pypi-token`、`secret/jwt`（结构化：
-头部须解码为 JSON，且 `alg` 是非空 ASCII 字符串），以及 `secret/private-key-block`
-(整段 `-----BEGIN ... PRIVATE KEY-----` 一次性脱敏)。规则表与保留边界见
-[skills/exfil-guard/references/rules.md](skills/exfil-guard/references/rules.md)。
-
-`secret/connection-password` 另检测 URI 用户信息中的非空口令，只遮口令，
-保留协议、账号与主机以便排错。支持百分号编码口令和 JSON 转义的协议斜杠；
-这不等于隐藏网络拓扑，也不覆盖所有 DSN 格式。
-
-**不读值的密钥引用**（`secret/source-reference`）。Guard 按变量名中的完整
-组成部分（如 `KEY`、`TOKEN`、`SECRET`、`PASSWORD`、`PASSWD`、`CRED`、`AUTH`）与
-密钥库**文件名**(`.env`、`*.pem`、`id_rsa*`、`.netrc`、`kubeconfig` 等)
-分类,并识别整环境展开(`printenv`、`env | ...`、
-`cat /proc/self/environ`)。这个扫描器**不解析变量的值**；这不代表其他
-Guard 输出或已有审计记录都已证明不含秘密。
-
-**带本机标识的路径**(`path/*`)。`path/workspace-relative` 为 `ALLOW`
-(工作区豁免);`path/system`(`/usr`、`/etc`、`C:\Windows`)为 `ALLOW`;
-`path/host-absolute`(位于 `HOME`/`TEMP`、CI 根或工作区祖先之下)为
-`SANITIZE`;`path/generic-absolute`(与本机无关联)为 `ASK`;
-`path/device`(UNC、`\\?\`、管道)为 `SANITIZE`。
-
-### 信道决定处置
-
-信道由两个事实定义:能否**改写**、发出后是否**留存**。`rewritable`
-决定了 `SANITIZE` 是否有意义;`persistence` 决定了 `BLOCK` 是否成立。
-
-| 信道 | 可改写 | 留存 | 默认 |
-|---|---|---|---|
-| `llm-request` | 是 | 远端 | SANITIZE |
-| `file-write` | 是 | 工作区 | SANITIZE |
-| `forge-comment` / `issue-body` / `pr-description` | 是 | 公开 | SANITIZE |
-| `git-commit-message` | 是(改 argv) | 远端历史 | **BLOCK** |
-| `git-push-payload` | 否 | **远端** | **BLOCK** |
-| `shell-stdout` | **否** | 本地记录 | ASK |
-| `shell-file-redirect` | 是 | 本地 | ASK |
-| `archive-upload` | 是 | 远端 | ASK |
-| `process-argv` | 是 | 本地 | ASK |
-
-信道名未知属于配置缺陷,而非"无风险":`check_span.py` 返回
-`BLOCK_OUTPUT_UNSCANNABLE`,绝不隐式放行。
-
-### 使用示例
-
-`check_span.py` 从 **stdin** 读取载荷,是纯函数——不写文件、不改写、
-也不打印匹配内容。`sanitize.py` 应用 Guard 返回的计划。
-
-```bash
-# 可改写信道上的凭据 -> SANITIZE,退出码 0
-echo 'config: sk-proj-AbCdEf…' | python3 skills/exfil-guard/scripts/check_span.py --channel file-write
-
-# 即将进入远端历史的凭据 -> BLOCK,退出码 2
-echo 'token=ghp_abcdefghijklmnopqrstuvwxyz…' | python3 skills/exfil-guard/scripts/check_span.py --channel git-push-payload
-
-# 应用脱敏计划(保留格式:sk-<REDACTED>)
-echo 'config: sk-proj-AbCdEf…' | python3 skills/exfil-guard/scripts/sanitize.py --channel file-write
-```
-
-退出码契约:`0` = ALLOW/SANITIZED · `2` = BLOCK · `3` = ASK · `1` = ERROR。
-`--json` 输出机器可读判决(仅偏移、rule id 与占位符——**绝不含匹配到的
-字节**);`--path` 为即将写入的文件启用仓库本地豁免文件。
-
-`sanitize.py` 同样落实上述退出码：ASK/BLOCK 和错误时 stdout 不输出正文。
-外部 `--plan` 必须与当前扫描一致，改写后复扫通过才输出。两个 CLI 共用默认
-工作区和宿主模式；stdin 在读取时即受到扫描上限限制（默认 4 MiB），外部计划文件
-也受同一上限约束。checker 使用显式模式或路径豁免产生的计划，仍须满足 sanitizer
-当前策略；计划本身不是发送授权。
-
-凭据检测支持经典和 `ghs_APPID_JWT` GitHub 安装令牌，完整遮挡长签名，并能识别
-紧贴中文的凭据。占位符豁免要求完整形状，token 内偶然出现示例词不会整段放行。
-秘密变量引用按名称组成部分判断，保留 `MONKEY` 等普通标识符和 `TOKEN_COUNT`
-等元数据名称。支持的形式和限制见[规则说明](skills/exfil-guard/references/rules.md)。
-
-新增 PyPI 发布令牌识别，按官方前缀与最小 body 形状完整遮挡长令牌。AWS 组／
-用户／角色／策略 ID 与访问密钥 ID 分开处理；JWT header 的 `alg` 须为非空
-ASCII 字符串。公钥变量名称与通用 `sk-` 形状仍保留已说明的保守边界。
-
-### 不打印值地查看配置
-
-此 CLI 从 `0.2.0` 源码开始提供，**不属于**此前的 `0.2.0-rc2`
-源码预览标签。
-
-```bash
-python3 skills/exfil-guard/scripts/view.py --workspace /path/to/workspace .env
-python3 skills/exfil-guard/scripts/view.py --workspace /path/to/workspace config.json
-```
-
-文件路径必须相对该工作区。JSON 结果保留字段名与结构，以及标量类型和
-`set`/`empty` 状态，**不返回标量值**；已知密钥形态的字段名也会隐藏，
-但未知秘密藏在字段名中仍是局限。仅支持 UTF-8 JSON 与严格的单行 dotenv
-子集（最多 256 KiB、16 层、2048 个节点）。符号链接、硬链接、特殊文件、
-越界路径、无效格式或平台缺少安全的相对目录描述符读取能力时一律拒绝。
-退出码 `0` 表示产生视图，`2` 表示拒绝，`1` 表示内部错误。视图仅供诊断，
-不能写回覆盖原配置；它也不会拦截 harness 的普通文件读取工具。
-
-### 与 delete-guard 的关系
-
-它们是同一承诺在动作两侧的两半:
-
-| | `delete-guard` | `exfil-guard` |
-|---|---|---|
-| 问题 | "还能回头吗?" | "这份内容本该离开吗?" |
-| 把守 | **删除之前** | **发出之前** |
-| 响应 | 先补偿,再执行 | 先脱敏,再发出 |
-| 失误代价 | 可凭 txid 恢复 | **不可逆** |
-| 入口 | `check.py -- <command>` | `check_span.py`(stdin) |
-
-二者共享词汇表(`core/policy.py`)、聚合逻辑(`worst()`)、豁免纪律与审计
-日志。`worst()` 由两个 Guard 共用,这正是 `SANITIZE` 的排序只需定义一次的原因。
-
-### 覆盖范围与局限
-
-这里如实说明,因为一个夸大自身能力的可靠性工具就是一份虚假的安全声明:
-
-- **不是沙箱。** 它不阻止对抗性外泄。把密钥混淆以绕过扫描的 Agent 不在
-  范围内;它抓的是**意外**。
-- **没有 hook 的信道在结构上不可达。** 无代理的托管模型调用、模型自身的
-  工具调用、程序内部产生的内容、人类剪贴板,一律**不给判决**——不作任何
-  覆盖声明。详见 `references/channels.md` 与
-  [docs/history/secret-guard-analysis.md](docs/history/secret-guard-analysis.md) §2.4 的
-  可达性表。
-- **不是文件扫描器。** 它不是 gitleaks 的替代品;它扫描 Guard 在**发出
-  路径上**能看到的内容。
-- **不改写历史。** 检测到已经进入 git 历史的密钥最多只是一份报告。
-  改写历史是需要人类执行、且自带风险的动作。
-- **本版本不含 T3 熵检测器。** 不把看起来随机的字符串直接当作凭据，减少
-  对普通标识符的干扰。
-
-## 手动使用（不依赖特定 harness）
-
-Core 没有第三方依赖。需要 Python 3.9+、POSIX shell 和 Git。
-
-```bash
-# 删除文件/目录/glob —— 进入隔离区而非销毁:
-python3 skills/delete-guard/scripts/safe_delete.py build/ --reason "stale"
-
-# 查看状态与恢复:
-python3 skills/delete-guard/scripts/status.py
-python3 skills/delete-guard/scripts/status.py --trash-index --root <projects> --json
-python3 skills/delete-guard/scripts/restore.py list
-python3 skills/delete-guard/scripts/restore.py <txid>
-
-# 隔离区维护(默认只出计划,不动数据):
-python3 skills/delete-guard/scripts/gc.py
-```
-
-本地新增的[垃圾桶位置查询](docs/guides/trash-index.md)提供 Agent 与未来前端
-共用的只读 JSON 接口，报告指定范围内的位置候选与布局标识；不读取恢复内容，
-地址也不代表清理授权。这项能力包含在 0.2.4 中。
-
-受支持的 harness 适配器可在 shell 命令执行前调用 Guard，再将退出码映射
-为宿主自己的工具判决：
-
-```text
-python3 skills/delete-guard/scripts/check.py --enforce -- "$COMMAND"
-退出码 0 → 宿主可以执行原命令
-退出码 2 → 拒绝
-退出码 3 → 宿主支持时询问用户；否则拒绝
-退出码 1 → Guard 出错，保守拒绝
-```
-
-## 受保护行为一览
-
-下列是命令确实进入 Guard、且目标符合所述条件时的示意结果；各宿主实际
-验证到的范围见 [能力矩阵](docs/guides/harness-capabilities.md)。
-
-```text
-rm -rf build/            → RELOCATE  (整树隔离后放行)
-rm -rf .                 → BLOCK     (workspace 根)
-rm -rf $DIR/             → BLOCK     (目标无法解析:fail-closed)
-rm *.log                 → BLOCK     (不透明通配;safe_delete 会显式展开)
-cd X && rm -rf build     → ASK_ONCE  (COMPOUND_CWD_DELETE)
-touch f && rm f          → ASK_ONCE  (COMPOUND_CREATE_DELETE)
-git clean -fd            → RELOCATE  (先 -n 枚举迁移再放行)
-git reset --hard         → SNAPSHOT  (路径冲突预检 + 已跟踪修改快照)
-reset 覆盖未跟踪内容     → BLOCK     (先单独保存冲突内容)
-git push --force         → BLOCK     (远端历史不交给 Agent 自动处理)
-node_modules/(已 ignore) → ALLOW     (可证明可再生)
-隔离区写满               → BLOCK     (绝不回退到永久删除)
-```
-
-## 接入与验证矩阵
-
-[![Node.js 22 smoke](https://img.shields.io/badge/Node.js-22%20smoke-339933?logo=nodedotjs&logoColor=white)](.github/workflows/ci.yml)
-[![Codex Skill/CLI tested](https://img.shields.io/badge/Codex-Skill%2FCLI%20tested-000000?logo=openai&logoColor=white)](docs/reports/test-report-codex-gpt-6-astra-high.md)
-[![DSH 0.1.5-rc.1 宿主 BLOCK 实测](https://img.shields.io/badge/DSH%200.1.5--rc.1-%E5%AE%BF%E4%B8%BB%20BLOCK%20%E5%AE%9E%E6%B5%8B-4D6BFE)](docs/reports/test-report-dsh-0.1.5-rc.1.md)
-[![ZCode win32 CLI evaluated](https://img.shields.io/badge/ZCode-win32%20CLI%20evaluated-7C5CE0)](docs/reports/test-report-zcode-glm-flash.md)
-[![Claude Code hook tested with scripted model](https://img.shields.io/badge/Claude%20Code-hook%20tested%20%28scripted%20model%29-D97757?logo=anthropic&logoColor=white)](docs/reports/test-report-claude-code-harness.md)
-[![Kimi Code 2.1.1 root Bash BLOCK](https://img.shields.io/badge/Kimi%20Code%202.1.1-root%20Bash%20BLOCK-5B9BD5)](docs/reports/test-report-kimi-code-block.md)
-[![WorkBuddy Windows Core/CLI evaluated](https://img.shields.io/badge/WorkBuddy-Windows%20Core%2FCLI%20evaluated-5B6B7A)](docs/reports/test-report-workbuddy-windows-core.md)
-[![Windows Core CI](https://img.shields.io/badge/Windows-Core%20CI-0078D4)](docs/releases/release-notes-0.2.3-rc1.md#focused-windows-ci)
-[![DSH native text-read checked](https://img.shields.io/badge/DSH-native%20text--read%20checked-4D6BFE)](docs/reports/test-report-release-readiness-0.2.3.md)
-
-徽章链接到各自范围内的证据，不代表所有工具和模型均已通过。
-DSH 文本读取脱敏是可选功能，默认关闭。
-
-“Core 可用”、“受 Skill 引导的 Agent 使用过”和“harness 会强制拦截每次匹配的
-工具调用”是三种不同强度的结论：
-
-| Harness／实测版本 | 接入路径 | 证据与边界 |
-|---|---|---|
-| **Claude Code 2.1.270 / 2.1.273** | [Bash 原生 `PreToolUse`](adapters/claude/README.md) | [真实 CLI＋脚本模型](docs/reports/test-report-claude-code-harness.md)：抽样 allow/ask/deny 与 Python 启动故障；其他工具未验证。 |
-| **DSH 0.1.5-rc.1** | [原生 pre-execute adapter](adapters/dsh/README.md) | [真实宿主打包插件探针](docs/reports/test-report-dsh-0.1.5-rc.1.md)：执行级 `BLOCK` 与已加载 adapter 的 Core 故障拒绝。另一次[真实模型 Lab 基线](docs/reports/test-report-dsh-guard-lab.md)在 guard-off 下未触发诱饵，故没有 L2 缓解结论；模型主动提出破坏性 `bash` 时的强制执行仍未验证。单独开启的读取脱敏路径见下一行。 |
-| **DSH CLI rc.1／工具与 FS rc.2／Node 22** | [实验性文本读取脱敏](adapters/dsh/README.md#experimental-text-read-redaction)，默认关闭 | [零模型原生验证](docs/reports/test-report-dsh-read-redaction.md)：下一次请求和 JSONL 落盘。[官方 Flash 真实读取 off/on](docs/reports/test-report-dsh-real-followup.md)：支持规则的合成秘密在工具内容／元数据／会话中被脱敏，有用配置保留；无提示注入 L2 结论。 |
-| **DSH 0.2.0-rc.2／Node 22** | [默认删除与可选文本读取 adapter](adapters/dsh/README.md) | [最新契约复核](docs/reports/test-report-release-readiness-0.2.3.md)：原生删除阻断、已审阅本地／沙箱 FS 的读取脱敏、下一次合成请求与 JSONL 落盘。原生 v4 Lab 支持仍有范围限制；没有新的真实模型 L2 结果。 |
-| **Codex CLI 0.154.0（所测会话）** | [Skill + 生产 CLI](docs/reports/test-report-codex-gpt-6-astra-high.md) | 较早源码的合作式验收；不声称原生 hook。 |
-| **WorkBuddy（版本未记录；Windows 11）** | [Core／CLI](docs/reports/test-report-workbuddy-windows-core.md) | 社区在 0.2.2 上发现两个 Core 缺陷，现有回归与聚焦 Windows CI 覆盖；没有 WorkBuddy adapter 或原生 hook 验证。 |
-| **ZCode（版本未记录；win32）** | [历史 Skill/CLI＋hook 试次](docs/reports/test-report-zcode-glm-flash.md) | 旧报告记录了持久许可绕过 hook；当前版本未验证。 |
-| **Kimi Code 0.42.0 / 2.1.1** | [Bash 原生 `PreToolUse`](adapters/kimi-code/README.md) | [有界实测](docs/reports/test-report-kimi-code-block.md)：2.1.1 在 OAuth 官方模型和另一条已配置模型路由上均取得根 Bash PASS；0.42.0 另有主／子代理 BLOCK、ASK 硬拒绝和 Python 故障拒绝。hook 缺席／超时仍可能放行。 |
-| **其他／未列出宿主** | [自适配指南](adapters/INTEGRATION.md) | 未独立验证调用前阻断与目标未执行前，不作原生支持声明。 |
-
-由 Agent 协助接入时，先识别真实宿主版本与工具名称，阅读上表对应指南，
-保留已有配置，并分别报告配置、本地探针、真实宿主三层证据。未列出的宿主
-依照[自适配清单](adapters/INTEGRATION.md)操作；提示词或 adapter 退出码
-本身不是拦截证明。修改用户级设置、安全策略或依赖前先征求确认。
-
-`tests/test_conformance.py` 覆盖共享 Core 和 Claude adapter；DSH 有 smoke 测试，
-Kimi 有针对性 adapter 测试。上述 Kimi 观察只覆盖实测调用，不构成所有 Shell
-语法或一般并发子代理安全保证。
-Kimi 或 Claude 安装可分别运行 `python3 doctor.py kimi --probe`、
-`python3 doctor.py claude --probe`，无需模型调用即可检查所选配置文件与
-本地 shell 桥。加 `--json` 可获取 `configuration`、`local_probe`、
-`host_interception` 机器可读状态；最后一项始终为 `UNVERIFIED`，
-因为本工具不能证明实际会话加载或强制执行了 hook。参见
-[Kimi](adapters/kimi-code/README.md) 与 [Claude](adapters/claude/README.md)
-适配指南。加 `--check-drift` 会在本机查询宿主版本，并对所选 hook 结构与
-Agent Guard 运行路径生成去敏指纹；结果使用 `CURRENT`、`STALE`、
-`DRIFTED`、`BROKEN` 或 `UNVERIFIED`。即使是 `CURRENT` 也只代表静态预检，
-不是实时拦截证明。可选基线只保存解析后的版本和 SHA-256 指纹，详见
-[宿主漂移检查说明](docs/guides/host-drift.md)。显式 `--live-sentinel` 可在私有空白
-夹具中消耗一次已配置模型调用，按 `PASS`、`FAIL`、`INCONCLUSIVE` 返回
-`NONE`／`NOTICE`、`CRITICAL` 或 `WARNING` 报警；仅仅“标记不存在”绝不算
-通过。它保留哈希化／去敏结果而不保留模型原始输出。这是可信提供方下的
-可靠性探针，不是针对恶意模型的沙盒。Kimi 的可选 doctor 因 TOML 解析需要 Python 3.11+；Core 与
-hook adapter 仍支持 Python 3.9+。
-各宿主的覆盖范围、证据等级和执行级验收条件见
-[harness 能力矩阵](docs/guides/harness-capabilities.md)。
-
-## 目录结构
-
-```
-agent-guard/
-├── skills/delete-guard/   # Agent 行为层:SKILL.md + CLI 脚本
-├── skills/exfil-guard/    # 出口侧技能:check_span.py · sanitize.py
-├── skills/recovery-audit/ # 证据驱动的仓库审计与恢复
-├── core/                  # classifier · policy · recovery · audit · redaction
-├── doctor.py              # 本地配置、探针与宿主漂移预检
-├── live_sentinel.py       # 可选实宿主哨兵与报警证据
-├── guard_lab.py           # 用户控制的离线合成蜜罐实验
-├── adapters/INTEGRATION.md # 未列出宿主的自适配检查清单
-├── adapters/claude/       # Claude Code PreToolUse hook 适配器
-├── adapters/kimi-code/   # Kimi Code PreToolUse hook 适配器
-├── adapters/dsh/          # DeepSeek Harness 接入桥
-├── adapters/codex/harness/# CLI 验收 driver；不是原生 hook
-├── tests/                 # unittest 测试套件,含跨 harness 一致性
-└── docs/                  # 使用指南 · 架构 · Lab · 测试报告 · 发布记录 · 历史设计
-```
-
-Skill 负责 Agent 行为引导,约束全部下沉 Core。未来的 `git-guard`、
-`database-guard`、`cloud-guard` 直接挂同一补偿引擎,无需重构仓库。
-
-## 文档
-
-[文档导航](docs/README.md)按用途列出全部文档。历史报告保留所测版本与证据边界。
-
-| 阅读 | 内容 |
+| Claude Code | Bash 原生 `PreToolUse`；2.1.270／2.1.273 的受限脚本宿主拦截记录。[接入](adapters/claude/README.md) |
+| Kimi Code | Bash 原生 `PreToolUse`；0.42.0 的有限主／子路径及 2.1.1 的根代理 Bash 记录。ASK 拒绝；缺失／超时 hook 不覆盖。[接入](adapters/kimi-code/README.md) |
+| DSH | 核查过 0.1.5-rc.1／0.2.0-rc.2 的删除路径；完整文本 read 防护默认关闭。特定 PTC Bash 拒绝不代表所有 PTC API 都受控。[接入](adapters/dsh/README.md) |
+| Codex／其他宿主 | 可显式使用 Skill／CLI。原生拦截需先验证宿主提供阻塞 hook。[适配指南](adapters/INTEGRATION.md) |
+
+精确版本、试验与缺口统一见[完整能力矩阵](docs/guides/harness-capabilities.md)。
+`doctor.py kimi|claude --probe` 只检查选定配置和本地适配路径；PASS 不证明
+真实宿主已加载 hook。漂移检查也是本地预检。live sentinel 为显式操作，
+可能消耗模型额度，只覆盖该次根代理 Bash 调用，见
+[宿主漂移指南](docs/guides/host-drift.md)。
+
+## 决策、事故恢复与文档
+
+共享协议是 `ALLOW · SANITIZE · RELOCATE · SNAPSHOT · ASK · BLOCK`，
+附带稳定 reason code 和说明。
+聚合优先级为 `BLOCK > ASK > RELOCATE/SNAPSHOT > SANITIZE > ALLOW`。
+不透明目标和保护边界拒绝执行；受支持的可恢复修改先补偿再继续。
+授权状态属于本地操作纪律，不是隔离的身份边界。
+
+事故后，[recovery-audit](skills/recovery-audit/SKILL.md)帮助依据尚存的
+Git／会话／缓存证据恢复项目，区分原文、重建与确认缺失；没有来源保留的字节
+无法凭空恢复。
+
+| 文档 | 用途 |
 |---|---|
-| [CONTRIBUTING.md](CONTRIBUTING.md) | 如何提出 Issue 与提交范围清晰的 Pull Request |
-| [使用指南](docs/README.md#guides) | 当前宿主能力、漂移检查与维护操作 |
-| [架构与契约](docs/README.md#design) | 数据流、威胁模型与兼容约定 |
-| [Lab](docs/README.md#lab) | 实验指南、任务模板与候选攻击素材 |
-| [测试报告](docs/README.md#reports) | 按版本记录的 Core、CLI、hook 与 Lab 证据 |
-| [发布记录](docs/README.md#releases) | 正式版与预览版各自的范围 |
-| [历史设计与经验](docs/README.md#history) | 早期方案、实现教训与事故探索 |
-| [adapters/INTEGRATION.md](adapters/INTEGRATION.md) | 未列出宿主的自适配检查清单 |
-| [skills/recovery-audit/SKILL.md](skills/recovery-audit/SKILL.md) | 证据优先级、确定性回放、恢复与落地门禁 |
-| [skills/delete-guard/references/policy.md](skills/delete-guard/references/policy.md) | 完整规则表与判决码 |
-| [skills/exfil-guard/references/rules.md](skills/exfil-guard/references/rules.md) | exfil 规则表、reason code、豁免格式与审计结构 |
-| [skills/exfil-guard/references/channels.md](skills/exfil-guard/references/channels.md) | 出口信道分类与不可达信道 |
-
-## 状态与路线图
-
-**v0.2.4** 在 0.2.3 上增加恢复维护与 trash 查询：拒绝 hard reset 与
-未跟踪／ignored 内容的碰撞，检查恢复来源和目标，强制恢复前先保存占位版本。
-只读查询提供 CLI、Agent 和未来前端共用的契约。已有文本脱敏、配置安全视图、
-离线 Lab、Claude/Kimi 接入桥、doctor、宿主漂移检查与实时哨兵继续提供。
-DSH 接入支持已复核的 `0.1.5-rc.1` 和 `0.2.0-rc.2` 契约；可选文本读取
-保护仍默认关闭。
-
-[0.2.4 说明](docs/releases/release-notes-0.2.4.md)记录本次范围；
-[0.2.3](docs/releases/release-notes-0.2.3.md)、
-[rc2](docs/releases/release-notes-0.2.3-rc2.md)、[rc1](docs/releases/release-notes-0.2.3-rc1.md)
-和 [0.2.2](docs/releases/release-notes-0.2.2.md) 说明保留各自历史范围。
-已发布工件以 [GitHub Releases](https://github.com/mokuyoaxis/agent-guard/releases)
-和 npm 为准。
-
-Core 和 Decision Protocol 由各 harness 共用。DSH、Claude、Kimi 的适配器
-以及 Codex/WorkBuddy/ZCode 的验收记录，统一列在兼容矩阵中。
-Kimi 结果包含所测调用的 hook 补偿与执行级 BLOCK 证据，不证明宿主强制执行
-所有 `BLOCK`，也不意味着任意 Agent 操作都受保护。实测旧的直连 Python hook
-启动故障会放行；可选 shell 桥在一次 Kimi 宿主故障注入中将其转为拒绝，
-但前提是桥自身成功运行；单凭配置校验无法证明 hook 在线。本次版本为 Issue #7
-新增了聚焦的真实 Windows Core 门，但各 harness 下的原生 cmd/PowerShell
-执行与一般并发子代理安全仍是明确缺口。
-后续 `git-guard`、`database-guard`、`cloud-guard` 继续复用同一协议与补偿引擎。
-
-## guard-lab 合成蜜罐
-
-可选的离线蜜罐 Lab 在一次性项目中放入不具备认证能力的合成
-标记。`clean`、`mock-positive`、`mock-injection` 与 `snapshot-positive` 四组
-对照不调用模型，也不访问外网；限时回环观察器记录假 Lab 工具、诱饵 URL 或
-经验证的合成快照，用户还可在试次结束后显式扫描选定输出，只保留哈希、阶段与
-命中的 bait id，不保存原值。
-
-真控制器与证据由用户保管，和交给受测 Agent 的夹具分开。观察器、控制文件或
-事件链有问题时只报 `INCONCLUSIVE`。Lab 不能看到普通文件读取，不能证明数据
-已经外发，不能普遍封禁 LLM 调用，也不能抵抗同一系统用户权限下的对手。
-涉及真实 harness 前，请先跑零 Token 对照并阅读
-[guard-lab 指南](docs/lab/guard-lab.md)。
-这些内建 case 只报 `CALIBRATION_ONLY`。另设的手动 `injection-probe` 会把诱饵
-命中记为 `EXPOSURE_OBSERVED`；只有未防护基线确实中招，并与相同协议、
-harness/版本/模型、实验组和任务哈希的开启防护试次配对，`compare` 才可能给出
-缓解成立。手动真实模型试次还必须由用户确认宿主确实完成，避免把“进程退出 0、
-但模型／配置已失败”误算成安静成功。基线没触发时只能报 `INCONCLUSIVE`，任何
-结果都不是对模型或厂商的通用安全认证。
+| [入门指南](docs/guides/getting-started.md) | 包路径、Agent 接入提示词、安全验证 |
+| [文档导航](docs/README.md) | 指南、设计、Lab、报告、发布与历史 |
+| [架构](docs/design/architecture.md) | 共享 Core、补偿与适配器数据流 |
+| [威胁模型](docs/design/threat-model.md) | 信任假设与尚未解决的边界 |
+| [兼容契约](docs/design/compatibility.md) | 接口与发布约定 |
+| [0.2.5-rc1 说明](docs/releases/release-notes-0.2.5-rc1.md) | 本候选变更与验收状态 |
 
 ## 参与贡献
 
-欢迎缺陷报告、设计提案、兼容性证据、文档修订与范围明确的代码改动。非小型或
-涉及安全边界的变更请先发
-[Issue](https://github.com/mokuyoaxis/agent-guard/issues)，实现请通过范围清晰的
-[Pull Request](https://github.com/mokuyoaxis/agent-guard/pulls) 提交。分享日志或
-测试证据前请先阅读[贡献指南](CONTRIBUTING.md)；不得公开凭据、私有配置或未经
-去敏的事故资料。
+欢迎缺陷报告、兼容性证据、文档修订和范围明确的代码改动。分享日志前阅读
+[CONTRIBUTING.md](CONTRIBUTING.md)，通过
+[Issues](https://github.com/mokuyoaxis/agent-guard/issues) 和
+[Pull Requests](https://github.com/mokuyoaxis/agent-guard/pulls)参与；
+不得公开凭据、私有配置和未脱敏事故记录。
 
 ## 社区友链
 

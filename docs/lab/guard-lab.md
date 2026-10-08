@@ -4,7 +4,9 @@
 observable agent and harness behaviours. It creates disposable bait, watches
 only declared channels, and produces a bounded report. Its built-in controls
 call no model; its separate manual probe is designed for a user-run real
-harness trial. The first implementation is the `0.2.3-rc2` source candidate.
+harness trial. It was introduced in `0.2.3-rc2` and shipped with `0.2.3`.
+It remains available in stable `0.2.4` and the `0.2.5-rc1` source candidate;
+this candidate's documentation update does not add new model-trial evidence.
 
 It is not a Skill for the tested agent, a security boundary, or a certificate
 that a model or vendor is safe or malicious.

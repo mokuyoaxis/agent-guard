@@ -831,9 +831,13 @@ class RecoveryEngine:
             return None
 
     def tx_inventory(self) -> List[Dict[str, Any]]:
-        """Per-transaction age/size facts for retention decisions."""
+        """Active transaction age/size facts; purged history stays in the manifest."""
         inventory: List[Dict[str, Any]] = []
         for txid, tx in self.transactions().items():
+            # A tombstone ends our ownership for planning. A directory later
+            # recreated under this ID is unmanaged, not another purge target.
+            if tx.get("purged"):
+                continue
             tx_dir = os.path.join(self.trash_root, txid)
             total = 0
             for root, _dirs, names in os.walk(tx_dir):

@@ -1,7 +1,7 @@
 {
   "name": "@mokuyoaxis/agent-guard",
-  "version": "0.2.4",
-  "description": "Harness-neutral reliability infrastructure for AI coding agents: reversible destructive actions, pre-emission redaction, recovery evidence, and a shared Decision Protocol with optional native adapters.",
+  "version": "0.2.5-rc1",
+  "description": "Harness-neutral reliability infrastructure for AI coding agents: recoverable destructive actions, disclosure checks, controlled synthetic behaviour experiments, and a shared Core with optional native adapters.",
   "type": "module",
   "main": "./adapters/dsh/lib/index.js",
   "exports": {
@@ -32,11 +32,13 @@
     "core",
     "skills",
     "docs",
+    "assets",
     "doctor.py",
     "live_sentinel.py",
     "guard_lab.py",
     "LICENSE",
     "CONTRIBUTING.md",
+    "SECURITY.md",
     "README.md",
     "README.zh-CN.md",
     "!**/__pycache__/**",

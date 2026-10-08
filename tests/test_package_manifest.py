@@ -15,9 +15,9 @@ class PackageManifestTests(unittest.TestCase):
         cls.manifest = json.loads(
             (ROOT / "package.json").read_text(encoding="utf-8"))
 
-    def test_scoped_public_stable_identity(self):
+    def test_scoped_public_candidate_identity(self):
         self.assertEqual(self.manifest["name"], "@mokuyoaxis/agent-guard")
-        self.assertEqual(self.manifest["version"], "0.2.4")
+        self.assertEqual(self.manifest["version"], "0.2.5-rc1")
         self.assertNotIn("private", self.manifest)
         self.assertEqual(
             self.manifest.get("publishConfig"), {"access": "public"})

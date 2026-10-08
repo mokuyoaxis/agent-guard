@@ -166,8 +166,10 @@ EXPLANATIONS: Dict[str, str] = {
                                    "/usr, /etc, ...), regardless of the "
                                    "workspace setting. Hard boundary - not "
                                    "askable.",
-    CODE_BLOCK_PROTECTED_PATH: "Target is the workspace root or git "
-                               "metadata. Hard boundary - not askable.",
+    CODE_BLOCK_PROTECTED_PATH: "Target is a protected workspace, Git or "
+                               "quarantine control path. Hard boundary - "
+                               "not askable; quarantine transaction cleanup "
+                               "uses the explicit GC entry point.",
     CODE_BLOCK_WILDCARD: "Glob target sets are opaque; use safe_delete, "
                          "which expands globs explicitly.",
     CODE_BLOCK_RESTRICTED_MODE: "This session is in RESTRICTED mode; the "
@@ -497,7 +499,20 @@ def decide_path_batch(specs: List[PathSpec], ctx: PolicyContext,
                        [f"protected filesystem root: {s.raw}"
                         for s in protected_ancestor[:5]])
 
+    # Housekeeping never overrides root, control-file or Git protection.
+    protected_other = [s for s in specs
+                       if s.protected in ("workspace-root", "git-metadata",
+                                          "quarantine-control")]
+    if protected_other:
+        return Verdict(DECISION_BLOCK, CODE_BLOCK_PROTECTED_PATH,
+                       [f"protected: {s.protected} ({s.raw})"
+                        for s in protected_other[:5]])
+
     if specs and all(s.inside_trash for s in specs):
+        if any(s.wildcard for s in specs):
+            return Verdict(DECISION_BLOCK, CODE_BLOCK_WILDCARD,
+                           ["quarantine globs may include protected evidence; "
+                            "enumerate explicitly with safe_delete"])
         return Verdict(DECISION_ALLOW, CODE_ALLOW_TRASH_GC)
 
     protected_outside = [s for s in specs
@@ -506,13 +521,6 @@ def decide_path_batch(specs: List[PathSpec], ctx: PolicyContext,
         return Verdict(DECISION_BLOCK, CODE_BLOCK_OUT_OF_WORKSPACE,
                        [f"outside workspace boundary: {s.raw}"
                         for s in protected_outside[:5]])
-
-    protected_other = [s for s in specs
-                       if s.protected in ("workspace-root", "git-metadata")]
-    if protected_other:
-        return Verdict(DECISION_BLOCK, CODE_BLOCK_PROTECTED_PATH,
-                       [f"protected: {s.protected} ({s.raw})"
-                        for s in protected_other[:5]])
 
     wild = [s for s in specs if s.wildcard]
     if wild:

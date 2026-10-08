@@ -43,7 +43,14 @@ Per `docs/design/threat-model.md`, the guard "may not claim" prevention of
 adversarial exfiltration, and per design 4.4 an unreachable channel gets
 **no verdict at all**.
 
-## Adapter mapping (design 4.5)
+## Proposed emitter integration mapping (design 4.5)
+
+The following is a design contract for integrations that own the payload,
+not a shipped host-support table. The default Claude/Kimi/DSH shell hooks
+handle delete-guard decisions and do not implement general pre-write or
+pre-request rewriting. The optional DSH complete text-read prototype uses a
+separate post-execute path. Actual support and evidence are listed in the
+[capability matrix](../../../docs/guides/harness-capabilities.md).
 
 | Core decision | Claude Code (`PreToolUse`) | DSH (`PreToolDecision`) | No-hook harness |
 |---|---|---|---|

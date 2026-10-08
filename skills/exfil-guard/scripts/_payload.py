@@ -12,6 +12,26 @@ from core.classifier import discover_workspace
 DEFAULT_STDIN_TIMEOUT_SEC = 10.0
 
 
+def emit_exemption_diagnostics(info):
+    """CLI warnings on stderr; text comes only from the static catalog."""
+    for row in info.get("diagnostics", []):
+        code = row.get("code")
+        message = redaction.EXEMPTION_DIAGNOSTICS.get(code)
+        if message is None:
+            continue
+        source = row.get("source")
+        if source not in (redaction.DEFAULT_ALLOWFILE, redaction.DEFAULT_IGNOREFILE):
+            source = "<provided>"
+        location = source
+        if type(row.get("line")) is int and row["line"] > 0:
+            location += ":" + str(row["line"])
+        print(f"exfil-guard warning: {code} {location}: {message}", file=sys.stderr)
+    omitted = info.get("diagnostics_omitted", 0)
+    if type(omitted) is int and omitted > 0:
+        print(f"exfil-guard warning: {omitted} additional configuration diagnostics omitted",
+              file=sys.stderr)
+
+
 class StdinIdle(Exception):
     """No first byte arrived within the configured wait."""
 

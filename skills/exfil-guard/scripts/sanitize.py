@@ -36,8 +36,8 @@ import _bootstrap  # noqa: F401
 
 from core import policy, redaction
 from core.redaction import get_channel, scan_text
-from _payload import (PayloadTooLarge, StdinIdle, read_bounded_text,
-                      read_payload, resolve_context)
+from _payload import (PayloadTooLarge, StdinIdle, emit_exemption_diagnostics,
+                      read_bounded_text, read_payload, resolve_context)
 
 REDACTED = "<REDACTED>"
 PATH_PLACEHOLDER = "<PATH>"
@@ -154,7 +154,8 @@ def sanitize_text(text: str, channel_name: str, workspace=None,
                for span, verdict in zip(scan.spans, verdicts)
                if verdict.decision == policy.DECISION_SANITIZE]
     if decision not in (policy.DECISION_ALLOW, policy.DECISION_SANITIZE):
-        return {"text": "", "plan": derived, "decision": decision}
+        return {"text": "", "plan": derived, "decision": decision,
+                "exemption": exemption.safe()}
     applied = derived if plan is None else _checked_plan(text, plan, derived)
     rewritten = apply_plan(text, applied)
     checked = scan_text(rewritten, channel=channel_name, workspace=workspace,
@@ -168,6 +169,7 @@ def sanitize_text(text: str, channel_name: str, workspace=None,
         "text": rewritten,
         "plan": applied,
         "decision": decision,
+        "exemption": exemption.safe(),
     }
 
 
@@ -216,6 +218,7 @@ def main() -> int:
     except (OSError, UnicodeError, ValueError, RuntimeError):
         print("sanitize: payload or plan validation failed", file=sys.stderr)
         return 1
+    emit_exemption_diagnostics(result["exemption"])
     if result["decision"] in (policy.DECISION_BLOCK, policy.DECISION_ASK):
         print("sanitize: " + result["decision"] + " payload withheld", file=sys.stderr)
         return 2 if result["decision"] == policy.DECISION_BLOCK else 3

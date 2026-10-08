@@ -34,6 +34,20 @@ report it.
 
 ## Data handling
 
-The guard writes only inside the workspace it protects:
-`.agent-trash/` (quarantine, manifest, state, audit). Nothing is sent
-anywhere; there is no telemetry.
+The command guards store recovery and audit data locally. The default bucket
+is the workspace's `.agent-trash/`; `AGENT_GUARD_TRASH` can select a custom or
+external bucket. Recovery may also write Git metadata, including local exclude
+rules and retained stashes. Linked worktrees can share Git metadata outside
+the selected worktree. Diagnostics and Lab commands use their declared output
+locations. A dry-run assessment can still write metadata.
+
+There is no automatic telemetry. Built-in Lab controls call no model and use
+only bounded loopback observation. Explicit live-host/model tests can contact
+the configured provider through the host and consume quota; they are separate
+from local command checks and require a selected experiment scope.
+
+Recovery manifests, CLI diagnostics and historical audit records can contain
+exact paths or other private text. Audit minimization in the 0.2.5-rc1 source
+candidate does not make every output or old record secret-free. The exfil text
+CLIs return decisions/plans or sanitized stdout; they do not automatically
+persist egress audit events. Review and redact evidence before sharing it.

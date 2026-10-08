@@ -18,13 +18,14 @@ leave?". The four pillars, restated for egress:
 - **Scope** - the egress boundary. The workspace is exempt; everything
   outside it is a host identifier until proven otherwise.
 - **Recoverability** - **weak, and do not pretend otherwise.** There is no
-  undo for a sent payload. The guard returns a *redaction plan* and an audit
-  record; it cannot un-send anything.
-- **Authorization** - unchanged. `NORMAL`/`RESTRICTED` is reused; rule
-  configuration is host-side, so you cannot disable a rule.
-- **Auditability** - every verdict is recorded as rule id, offsets and
-  length. **Never the matched bytes** - not even a hash, which would be
-  offline-crackable for a low-entropy secret.
+  undo for a sent payload. The checker returns a *redaction plan* and safe
+  verdict metadata; it cannot un-send anything.
+- **Authorization** - `NORMAL`/`RESTRICTED` is reused. Do not weaken the
+  user's rules or exemptions. Workspace configuration remains writable by
+  same-UID processes; its location is not a security boundary.
+- **Auditability** - trusted callers can persist safe rule ids, offsets and
+  lengths. The text CLIs do not automatically append an egress audit.
+  Matched bytes or hashes of low-entropy secrets must not be recorded.
 
 ## The one rule
 
@@ -83,7 +84,8 @@ intercept a harness's ordinary file-read tool.
 
 A `BLOCK` is not an obstacle to work around. Re-encoding a payload, splitting
 a secret across lines, or piping through a tool the guard does not scan is a
-violation of the authorization pillar and is recorded in the audit log.
+violation of this discipline and can bypass both detection and any caller's
+audit. An absent record does not establish that no emission occurred.
 
 ## Applying a redaction plan
 
@@ -100,9 +102,10 @@ checker-specific mode/path overrides still has to satisfy current sanitizer
 policy. URI passwords use `<REDACTED>` while retaining scheme/account/host;
 this is credential redaction, not network-topology hiding or an editable URI.
 
-If you decline to apply a plan on a rewritable channel, the API contract is
-"you were told": the audit records `sanitize-declined`. That is a choice
-with a record, not a default.
+The checker does not observe whether its plan was applied or declined.
+`sanitize-declined` is a proposed integration event, not an event automatically
+written by either text CLI. A trusted emitter must own enforcement and any
+recording; a checker SANITIZE decision alone is not completed redaction.
 
 ## Value-free detection (why `echo "$TOKEN"` is caught)
 
@@ -168,6 +171,15 @@ positives (path globs, and literal values **by sha256 hash only**). It is a
 host-side file: read from the workspace root, not settable per call. If a
 scan hits something you believe is benign, report it - do not weaken the
 rule, and do not route around the guard.
+
+In the 0.2.5-rc1 source candidate, both configuration filenames use the same limited section/key grammar;
+`.agent-guardignore` is not a gitignore file. The first readable UTF-8 file
+wins, including an empty or malformed preferred file. Inspect the checker's
+`exemption.source`, counts and diagnostics before assuming a configuration
+was applied; `exempted` counts actual removed spans. Human checker and
+sanitizer warnings use stderr and contain no configuration values. A warning
+can coexist with effective legacy entries and does not authorize changing
+the file or weakening a rule.
 
 See `references/rules.md` for the frozen rule table, the exemption format and
 the audit record shape; `references/channels.md` for the egress taxonomy.

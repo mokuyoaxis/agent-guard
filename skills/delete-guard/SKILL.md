@@ -16,19 +16,22 @@ enforces and how to work with it productively. The four pillars:
 
 - **Scope** - you act inside the workspace; the workspace root, `.git`, and
   everything outside are never yours to delete.
-- **Recoverability** - deletions are compensated (relocated to `.agent-trash/`
-  with a manifest, or snapshotted as a git stash) before they take effect.
+- **Recoverability** - supported valuable deletions relocate to the selected
+  quarantine with a manifest; supported Git overwrites snapshot tracked state.
+  Provably regenerable, ignored artifacts may be deleted directly.
 - **Authorization** - a human decides permission boundaries. You can be
   *downgraded* to RESTRICTED mode; you can never promote yourself back.
-- **Auditability** - every verdict, relocation, and restore is recorded in
-  JSONL. Nothing is invisible.
+- **Auditability** - supported writers record decision/recovery metadata in
+  JSONL according to their CLI contract. Mutation intents must be durable;
+  assessment/blocked audit may be best effort, and early no-op paths may not
+  write an audit. Calls outside the covered path are not automatically visible.
 
 ## The one rule
 
 **Prefer `safe_delete` over `rm`.** It applies the guard's recovery policy.
 
 ```bash
-# delete files/dirs/globs - they are quarantined, not destroyed:
+# delete explicit targets; valuable content is quarantined:
 python3 <repo>/skills/delete-guard/scripts/safe_delete.py src/old_module.py
 python3 <repo>/skills/delete-guard/scripts/safe_delete.py 'build/**/*.tmp' --reason "stale build output"
 
@@ -64,8 +67,9 @@ redirections) before destroying them (F2), is refused as undeterminable.
 Run deletions as standalone commands with an explicit workdir.
 
 A block is not an error to route around. Retrying the same operation in a
-disguised form (`/bin/rm`, `python -c`, a script) is a violation of the
-authorization pillar and is recorded in the audit log.
+disguised form (`/bin/rm`, `python -c`, a script) violates this discipline and
+can bypass both protection and audit. Do not treat a missing audit as proof
+that no operation occurred.
 
 `git reset --hard [commit]` first checks whether its target tree would
 overwrite untracked or ignored content. A tracked-only stash cannot recover
@@ -89,6 +93,25 @@ stop immediately. Inspect both the origin and `.agent-trash/`; never infer
 that an error means no filesystem change occurred. A durable
 `relocate-intent` can keep an interrupted relocation discoverable.
 
+## Assessment and preflight
+
+Advisory `check.py` and `safe_delete.py --dry-run` preserve command targets,
+but may create quarantine/audit metadata and a Git local exclude rule.
+They are not zero-write filesystem checks. Advisory exit 0 means the
+assessment completed; inspect the decision and never execute a BLOCK/ASK
+command merely because the exit was zero. Blocked safe_delete still exits 2
+under dry-run. Audit warnings do not imply that all metadata writes were
+undone. Use only a disposable fixture when verifying this behavior; the
+[policy reference](references/policy.md#assessment-and-dry-run-side-effects)
+defines the no-match, existing-ignore and external-bucket branches.
+
+In the 0.2.5-rc1 source candidate, new `safe_delete` audit events record decisions, target counts and established
+recovery IDs/counts rather than target paths or free-form reasons. `--reason`
+is still accepted, but its text is not persisted in audit or transaction
+metadata. Exact recovery paths remain in the CLI result and manifest.
+Historical records and automatic session metadata are unchanged; see the
+[policy reference](references/policy.md#safe_delete-audit-metadata).
+
 ## Quarantine location queries
 
 When the user asks where quarantines are or how many exist, use the shared
@@ -110,6 +133,13 @@ JSON are not authorization to purge, and recovery file contents must not be
 read just to answer a location/count question.
 
 ## RESTRICTED mode
+
+The 0.2.5-rc1 source candidate protects the quarantine root, root manifest,
+audit/state files, state temp file, sessions tree and storage access parents.
+Housekeeping does not override those checks. Use the existing explicit
+`gc.py --execute --txid <id>` entry for a validated, audited transaction purge.
+Ordinary unprotected payload housekeeping retains its existing policy.
+GC plans omit `PURGED` history; they do not delete stored Git stashes.
 
 After a human veto, the session runs with narrowed powers: explicit
 single-file deletes inside the workspace still work (quarantined as usual);
@@ -144,3 +174,8 @@ space and remain subject to its existing explicit GC policy.
 
 See `references/policy.md` for the complete rule table, verdict codes, and
 manifest format.
+
+The candidate's restore audit records counts and transaction associations rather
+than duplicate paths/error text. CLI results and recovery manifests still
+contain the exact data needed to inspect and restore; a failed CLI result
+must still be checked against the filesystem and preservation attempts.

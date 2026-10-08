@@ -4,6 +4,13 @@ This log records findings from host trials, CLI checks and regression tests.
 The initial entries came from a DSH session using `tools/pre-execute`, three
 model tools and a prompt section; later entries cover Core and other adapters.
 
+Entries preserve their recording date and original candidate/release state.
+F21–F23 changes subsequently shipped in 0.2.3; F24–F25 shipped in 0.2.4.
+F26–F31 are now included in the 0.2.5-rc1 source candidate, with publication
+still separate. Current version scope is in the
+[candidate notes](../releases/release-notes-0.2.5-rc1.md); historical failures and
+test counts below are not rewritten by a later success.
+
 ## F1 · Compound `cd X && rm y` resolves targets against the wrong base
 
 The interceptor classifies against the tool call's declared workdir. A
@@ -462,3 +469,80 @@ Regression: `tests/test_restore_boundary.py` (14),
 `tests/test_restore_source.py` (14), and `tests/test_restore_force.py` (22).
 These are sequential checks, not atomic same-UID isolation; cross-device
 copy failures can leave partial data requiring inspection.
+
+## F26 · Housekeeping overrode quarantine control protection
+
+The classifier already marked the quarantine root protected, but the policy's
+inside-trash allowance ran first. Root manifest/audit/state paths were also
+treated as ordinary content, and a regenerable parent could contain storage.
+
+**Fixed in local unreleased maintenance (2026-10-08):** protected-path decisions
+precede trash housekeeping. Root controls, session state and in-workspace
+storage access parents are classified explicitly, including parent aliases
+and a control leaf link. Ordinary payload rules and explicit transaction GC
+remain available. Opaque quarantine globs return `BLOCK_WILDCARD` before
+housekeeping, because their expansion could include root control files.
+This addresses supported deletion mistakes; arbitrary
+scripts/writes and malicious same-UID tampering remain outside the guarantee.
+
+## F27 · Purged history remained GC eligible
+
+Age planning reselected tombstoned transactions even after their directories
+were removed. Active inventory now excludes `PURGED` entries before walking
+or accounting their directories. History remains intact; recreated directories
+are not claimed again. Failed purges remain active. This local maintenance
+does not implement pruning retained Git stashes or rewrite old manifests.
+
+## F28 · Restore audit duplicated paths and failure bodies
+
+The CLI copied restoration/conflict paths and arbitrary move errors into
+non-recovery audit metadata. Local maintenance stores outcome counts and
+transaction associations instead. Unknown/invalid input IDs are hashed;
+recovery journal paths and CLI results remain exact. Generic audit append,
+automatic session metadata and other output paths are separate work.
+
+## F29 · Exemption format and loading failures were silent
+
+Both configuration filenames use a limited section/key parser, but the
+`.agent-guardignore` name suggested gitignore syntax. Bare lines were silently
+ignored, load failures silently tried the next file, and a readable empty or
+malformed preferred file hid the fallback. Nonstandard legacy section keys
+could also remain effective without an explanation.
+
+Local unreleased maintenance (2026-10-08) reports the selected fixed relative
+source, configured entry counts and bounded static diagnostics. Checker JSON
+and sanitizer library results carry the metadata; human checker/sanitizer
+warnings use stderr. Raw keys, patterns, hashes, lines and exception text
+are withheld. Legacy matching, precedence, verdicts, exit codes and payload/
+plan stdout formats are retained. This does not add gitignore parsing,
+change configuration authority or sanitize other audit/output writers.
+
+## F30 · Assessment audit writes were mistaken for zero-write checks
+
+Advisory check and safe_delete dry-run preserve command targets but use the
+existing audit path, which can initialize quarantine metadata and Git local
+exclude. A test named "touches nothing" checked target presence and Git status,
+which cannot detect an ignored audit directory. Blocked-request documentation
+also described the entire filesystem as untouched.
+
+Local contract clarification (2026-10-08) adds explicit target/metadata and
+failure regressions, corrects help/guidance, and documents early no-match and
+existing-ignore/external-bucket exceptions. Best-effort assessment audits and
+durable enforced intents retain their existing behavior. No zero-write CLI
+flag, audit relocation or unrelated writer minimization is introduced.
+
+## F31 · safe_delete duplicated paths and free-form reasons into audit
+
+safe_delete copied concrete targets, policy reason bodies and caller
+`--reason` text into decision/outcome audit events. Its transaction metadata
+also copied `--reason`, although restoration only needs the journal's exact
+origin/trash paths. A secret-bearing filename or an arbitrary private note
+therefore gained additional durable copies beyond the recovery journal.
+
+Local minimization (2026-10-08) builds this writer's events from decisions,
+codes, counts and established recovery IDs; partial/storage-failure reports
+retain transaction correlation. Free-form reason metadata is omitted.
+Exact CLI/recovery paths and error diagnostics remain available, with the
+same mutation-intent durability and assessment/outcome failure behavior.
+Historical records, automatic session identity and other audit/output
+writers remain outside this change.

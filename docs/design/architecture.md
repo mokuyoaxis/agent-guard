@@ -263,8 +263,11 @@ FORBIDDEN (BLOCK, never askable).
 5. **Lexical boundaries.** Workspace containment is decided on normalized
    paths; deleting a symlink removes the link, never the target, so symlink
    targets outside the workspace neither leak nor block.
-6. **Self-exclusion.** Targets inside `.agent-trash/` are exempted from
-   quarantine - housekeeping cannot recurse into itself forever.
+6. **Self-exclusion with protected controls.** Ordinary unprotected payloads
+   inside the selected quarantine use housekeeping rather than relocation.
+   The 0.2.5-rc1 candidate checks root/control paths and storage parents first;
+   housekeeping cannot override protection. Opaque globs must be enumerated
+   explicitly, and validated transaction purge uses the GC CLI.
 7. **Diagnostics do not silently become enforcement.** `guard-lab` records
    declared synthetic channels and evaluates one case criterion. It does not
    feed a Lab observation into Core policy or claim to ban model calls. A real
@@ -295,7 +298,17 @@ order of value:
    skill and the "prefer safe_delete" rule. Interception without prompting
    causes friction; prompting without interception is advisory only.
 
-## Roadmap
+## Delivery status and design directions
+
+The current source candidate is 0.2.5-rc1; 0.2.4 remains the published stable
+baseline. The candidate contains the documented lifecycle/audit maintenance
+and exemption diagnostics, alongside a README/documentation reorganization.
+See [candidate notes](../releases/release-notes-0.2.5-rc1.md) and
+[compatibility](compatibility.md) for behaviour and validation boundaries.
+
+The milestones below describe historical delivery and future design scope,
+not a committed schedule or a guarantee that new compensation types need no
+architecture changes.
 
 - V1 (this repo): delete-guard skill, fs + git compensations, Linux/macOS.
 - v0.1.1: durable relocation intents, explicit retention/GC policy, quoted
@@ -315,7 +328,7 @@ order of value:
     `tests/test_dialect_phase2.py`) cover further cmd/PowerShell spellings,
     option aliases and fail-closed edge cases. Hook payload dialect forwarding
     has adapter tests; this is not a Windows host execution claim.
-  - **Phase 3a (`0.2.3-rc1` candidate).** A blocking `windows-latest` Core
+  - **Phase 3a (shipped since `0.2.3-rc1`).** A blocking `windows-latest` Core
     job covers the Issue #7 dialect-mismatch and separator regressions,
     deterministic cmd/PowerShell facts, and recovery inside disposable
     fixtures. The job uses Python argv/bytes so a surrounding shell cannot
@@ -325,7 +338,7 @@ order of value:
     broader UNC/device paths and full-suite portability still require
     separate evidence. A focused Core runner is not a universal Windows E2E
     claim.
-- `0.2.3-rc2` source candidate: offline `guard-lab` MVP with disposable
+- Offline `guard-lab` MVP, introduced in `0.2.3-rc2` and shipped in `0.2.3`: disposable
   synthetic fixtures, zero-token controls, a bounded loopback observer,
   explicit-output marker scanning, chained evidence, and fail-inconclusive
   reports. General file-read visibility, remote callbacks, real-model rating,
@@ -335,4 +348,5 @@ order of value:
 - V3+: `database-guard` (compensations = transaction / backup /
   point-in-time recovery), `cloud-guard` (snapshot / state capture). The
   Guard answers "may this happen"; the Compensation Engine answers "how do
-  we come back" - both extend without restructuring the repository.
+  we come back". These remain design directions requiring separate scope and
+  implementation decisions.

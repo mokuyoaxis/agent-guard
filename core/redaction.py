@@ -896,6 +896,7 @@ class ScanResult:
     truncated: bool = False
     size_bytes: int = 0
     exempted: int = 0
+    exemption_info: Dict[str, Any] = field(default_factory=dict)
 
     @property
     def found(self) -> bool:
@@ -1006,6 +1007,29 @@ def _secret_source_reference(text: str) -> Optional[Tuple[str, int, int, str]]:
 
 DEFAULT_ALLOWFILE = ".agent-guard/exfil-allow.toml"
 DEFAULT_IGNOREFILE = ".agent-guardignore"
+EXEMPTION_DIAGNOSTIC_LIMIT = 32
+EXEMPTION_DIAGNOSTICS = {
+    "EXEMPTION_IGNORED_LINE": "Line has no assignment or preceding value key; gitignore syntax is unsupported.",
+    "EXEMPTION_UNKNOWN_KEY": "Unknown top-level key; its values are ignored.",
+    "EXEMPTION_UNKNOWN_SECTION": "Unknown section; recognized legacy keys may still apply.",
+    "EXEMPTION_LEGACY_SECTION_KEY": "Nonstandard key uses the legacy section fallback; its values still apply.",
+    "EXEMPTION_MALFORMED_SECTION": "Malformed section header uses legacy parsing; inspect the configuration.",
+    "EXEMPTION_INVALID_HASH": "Value is not a lowercase sha256 digest of 64 hexadecimal characters; it cannot match.",
+    "EXEMPTION_UNSUPPORTED_NEGATION": "Leading ! is a literal pattern character, not gitignore negation.",
+    "EXEMPTION_READ_FAILED": "Configuration could not be read; the next candidate is tried.",
+    "EXEMPTION_ENCODING_INVALID": "Configuration is not UTF-8; the next candidate is tried.",
+    "EXEMPTION_SHADOWED": "This file is not loaded because the preferred file was readable, even if empty or malformed.",
+}
+_EXEMPTION_RULE_KEYS = frozenset({"rule", "rules", "disable"})
+_EXEMPTION_PATH_KEYS = frozenset({"path", "paths", "ignore"})
+_EXEMPTION_HASH_KEYS = frozenset({"sha256", "hash", "hashes"})
+
+
+def _safe_exemption_source(source: str) -> Optional[str]:
+    """Only fixed workspace-relative filenames may leave the process."""
+    if source in (DEFAULT_ALLOWFILE, DEFAULT_IGNOREFILE):
+        return source
+    return "<provided>" if source else None
 
 
 @dataclass
@@ -1016,6 +1040,41 @@ class Exemption:
     paths: List[str] = field(default_factory=list)
     hashes: List[str] = field(default_factory=list)
     source: str = ""
+    diagnostics: List[Dict[str, Any]] = field(default_factory=list)
+    diagnostics_omitted: int = 0
+
+    def diagnose(self, code: str, source: str, line: int = 0) -> None:
+        """Bounded, static diagnostics; never copy keys, values or exceptions."""
+        if code not in EXEMPTION_DIAGNOSTICS:
+            return
+        if len(self.diagnostics) >= EXEMPTION_DIAGNOSTIC_LIMIT:
+            self.diagnostics_omitted += 1
+            return
+        row = {"code": code, "source": _safe_exemption_source(source)}
+        if type(line) is int and line > 0:
+            row["line"] = line
+        self.diagnostics.append(row)
+
+    def safe(self) -> Dict[str, Any]:
+        """Provenance and counts, never the exemption patterns or hashes."""
+        rows = []
+        for row in self.diagnostics[:EXEMPTION_DIAGNOSTIC_LIMIT]:
+            code = row.get("code")
+            if code not in EXEMPTION_DIAGNOSTICS:
+                continue
+            safe = {"code": code,
+                    "source": _safe_exemption_source(row.get("source", ""))}
+            if type(row.get("line")) is int and row["line"] > 0:
+                safe["line"] = row["line"]
+            rows.append(safe)
+        return {
+            "source": _safe_exemption_source(self.source),
+            "active": self.active,
+            "counts": {"rules": len(self.rules), "paths": len(self.paths),
+                       "hashes": len(self.hashes)},
+            "diagnostics": rows,
+            "diagnostics_omitted": self.diagnostics_omitted,
+        }
 
     @property
     def active(self) -> bool:
@@ -1059,35 +1118,51 @@ def _parse_allowfile(text: str, source: str) -> Exemption:
 
     Continuation lines are supported: a key whose value starts on its own
     line keeps consuming the indented lines that follow, which is how the
-    lists in `.agent-guard/exfil-allow.toml` stay readable. Malformed input
-    is ignored rather than fatal - a broken allowfile must never quietly
-    turn the guard off.
+    lists in `.agent-guard/exfil-allow.toml` stay readable. Preserve legacy
+    matching while diagnosing ignored or nonstandard constructs. Warnings
+    are not whole-file rejection; recognized entries can still apply.
     """
     exemption = Exemption(source=source)
     section = ""
     key = ""
-    values: List[str] = []
+    values: List[Tuple[str, int]] = []
+    key_line = 0
 
     def flush():
         if not key:
             return
-        items = [v.strip().strip("'\"") for v in values if v.strip("'\"")]
-        if key in ("rule", "rules", "disable") or section == "rules":
-            exemption.rules.extend(items)
-        elif key in ("path", "paths", "ignore") or section == "paths":
-            exemption.paths.extend(items)
-        elif key in ("sha256", "hash", "hashes") or section == "values":
-            exemption.hashes.extend(items)
+        if key in _EXEMPTION_RULE_KEYS or section == "rules":
+            target = exemption.rules
+        elif key in _EXEMPTION_PATH_KEYS or section == "paths":
+            target = exemption.paths
+        elif key in _EXEMPTION_HASH_KEYS or section == "values":
+            target = exemption.hashes
+        else:
+            exemption.diagnose("EXEMPTION_UNKNOWN_KEY", source, key_line)
+            return
+        if key not in (_EXEMPTION_RULE_KEYS | _EXEMPTION_PATH_KEYS |
+                       _EXEMPTION_HASH_KEYS):
+            exemption.diagnose("EXEMPTION_LEGACY_SECTION_KEY", source, key_line)
+        for value, line in values:
+            if not value.strip("'\""):
+                continue
+            item = value.strip().strip("'\"")
+            target.append(item)
+            if target is exemption.hashes:
+                if not re.fullmatch(r"sha256:[0-9a-f]{64}", item):
+                    exemption.diagnose("EXEMPTION_INVALID_HASH", source, line)
+            elif item.startswith("!"):
+                exemption.diagnose("EXEMPTION_UNSUPPORTED_NEGATION", source, line)
 
-    def push(raw: str):
+    def push(raw: str, line: int):
         """Split one value chunk on commas/whitespace, ignoring [] and ''."""
         chunk = raw.strip().strip("[]")
         for item in re.split(r"[,\s]+", chunk):
             item = item.strip().strip("'\"")
             if item:
-                values.append(item)
+                values.append((item, line))
 
-    for raw_line in text.splitlines():
+    for line_number, raw_line in enumerate(text.splitlines(), 1):
         line = raw_line.split("#", 1)[0].rstrip()
         if not line.strip():
             continue
@@ -1095,32 +1170,57 @@ def _parse_allowfile(text: str, source: str) -> Exemption:
             flush()
             key, values = "", []
             section = line.strip().strip("[]").strip().lower()
+            if not re.fullmatch(r"\[[^\[\]]+\]", line.strip()):
+                exemption.diagnose("EXEMPTION_MALFORMED_SECTION", source, line_number)
+            if section not in ("rules", "paths", "values"):
+                exemption.diagnose("EXEMPTION_UNKNOWN_SECTION", source, line_number)
             continue
         if "=" in line:
             flush()
             values = []
             key, _, value = line.partition("=")
             key = key.strip().lower()
-            push(value)
+            key_line = line_number
+            if not key:
+                exemption.diagnose("EXEMPTION_UNKNOWN_KEY", source, line_number)
+            push(value, line_number)
             continue
         if key:
-            push(line)
+            push(line, line_number)
+        else:
+            exemption.diagnose("EXEMPTION_IGNORED_LINE", source, line_number)
     flush()
     return exemption
 
 
 def load_exemption(workspace: Optional[str]) -> Exemption:
     """Read the repo-local exemption file; absent means "no exemptions"."""
+    result = Exemption()
     if not workspace:
-        return Exemption()
+        return result
     for relative in (DEFAULT_ALLOWFILE, DEFAULT_IGNOREFILE):
         path = os.path.join(workspace, relative)
         try:
             with open(path, "r", encoding="utf-8") as fh:
-                return _parse_allowfile(fh.read(), relative)
-        except (OSError, UnicodeDecodeError):
+                parsed = _parse_allowfile(fh.read(), relative)
+        except FileNotFoundError:
             continue
-    return Exemption()
+        except UnicodeDecodeError:
+            result.diagnose("EXEMPTION_ENCODING_INVALID", relative)
+            continue
+        except OSError:
+            result.diagnose("EXEMPTION_READ_FAILED", relative)
+            continue
+        result.rules, result.paths, result.hashes = parsed.rules, parsed.paths, parsed.hashes
+        result.source = parsed.source
+        for row in parsed.diagnostics:
+            result.diagnose(row["code"], relative, row.get("line", 0))
+        result.diagnostics_omitted += parsed.diagnostics_omitted
+        if relative == DEFAULT_ALLOWFILE and os.path.lexists(
+                os.path.join(workspace, DEFAULT_IGNOREFILE)):
+            result.diagnose("EXEMPTION_SHADOWED", DEFAULT_IGNOREFILE)
+        return result
+    return result
 
 
 def apply_exemption(spans: List[SpanSpec], exemption: Exemption,
@@ -1189,6 +1289,7 @@ def scan_text(text: str, channel: str = "",
             notes=["value-free reference detection", reason]))
     if exemption is None:
         exemption = load_exemption(workspace)
+    result.exemption_info = exemption.safe()
     # A source-reference fact must survive even inside a redaction span:
     # masking a literal URI password is not permission to resolve an env
     # secret embedded there. The aggregate BLOCK prevents plan application.

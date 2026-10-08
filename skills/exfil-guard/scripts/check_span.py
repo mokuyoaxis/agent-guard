@@ -39,7 +39,8 @@ from core.redaction import (
     CHANNELS, UNREACHABLE_CHANNELS, get_channel, scan_text,
 )
 from core import policy
-from _payload import PayloadTooLarge, StdinIdle, read_payload, resolve_context
+from _payload import (PayloadTooLarge, StdinIdle, emit_exemption_diagnostics,
+                      read_payload, resolve_context)
 
 
 def build_redaction_plan(spans, decisions, channel) -> list:
@@ -112,6 +113,8 @@ def main() -> int:
                      max_bytes=args.max_bytes, path=args.path)
     out["scanned"] = scan.scanned
     out["exempted"] = scan.exempted
+    if scan.exemption_info:
+        out["exemption"] = scan.exemption_info
     if args.path:
         out["path"] = args.path
     if not scan.scanned:
@@ -157,6 +160,7 @@ def _emit(out, decision, code, spans, plan, args, exit_code,
     if args.as_json:
         print(json.dumps(out, ensure_ascii=False, indent=2))
     else:
+        emit_exemption_diagnostics(out.get("exemption", {}))
         print(f"{decision} [{code}] {len(spans)} span(s) on "
               f"channel {out.get('channel')}")
         if out.get("explanation"):

@@ -74,6 +74,44 @@ must accept the additional refusal reason and ignore unknown optional fields.
 | `doctor.py --live-sentinel` and hashed hook receipt | minor | Explicit, opt-in real-host/model probe only. Default doctor behavior is unchanged; raw command/model output is not retained, and incomplete evidence is `INCONCLUSIVE` rather than PASS |
 | Cross-vocabulary mismatch floor (`0.2.3-rc1`) | minor safety fix | At a selected-dialect command boundary, a supported destructive shape that produced no operation becomes target-free `UNKNOWN` → `BLOCK_UNDETERMINABLE_EFFECT`; it never borrows a compensation plan from another grammar |
 
+### 0.2.5-rc1 assessment contract clarification (source candidate)
+
+Advisory and dry-run retain their existing best-effort audit behavior and
+metadata side effects. Tests and documentation distinguish unchanged command
+targets from zero filesystem writes, and advisory exit 0 from execution
+authorization. No flag, result field, policy decision, audit storage location
+or exit code changes. See the [assessment contract](../../skills/delete-guard/references/policy.md#assessment-and-dry-run-side-effects).
+
+### 0.2.5-rc1 safe_delete audit minimization (source candidate)
+
+New safe_delete audit events replace raw target/reason payloads with
+`target_count`; established relocation reports retain `txid` and add
+`moved_count`/`skipped_count`, including storage-failure decisions. Decision
+codes, phases and static outcome labels remain available. Free-form
+`--reason` stays accepted but is omitted from new audit events and
+`tx-start.meta`. Essential recovery paths/intents, CLI result fields,
+verdicts, exit codes and durability gates retain their behavior.
+Audit event shapes are not frozen. Historical records are not rewritten,
+and generic audit writers, automatic session identity and other output
+surfaces are unchanged. See the [writer contract](../../skills/delete-guard/references/policy.md#safe_delete-audit-metadata).
+
+### 0.2.5-rc1 exemption configuration diagnostics (source candidate)
+
+The existing limited parser, first-readable-file precedence and exemption
+matching are retained. No full TOML/gitignore parser, configuration migration,
+production dependency or new policy reason is added. Unknown top-level keys
+and bare lines remain ineffective; recognized legacy entries may still apply
+alongside warnings. Diagnostics do not change verdicts or exit codes.
+
+Successful text scans may add `exemption` provenance/count/diagnostic metadata
+to checker JSON and the sanitizer library result. Human checker and sanitizer
+CLI warnings use stderr; JSON checker stdout and sanitizer payload/plan stdout
+keep their respective formats. Normal missing/valid configurations remain
+quiet. Diagnostic codes are configuration metadata, not Decision Protocol
+reason codes. Consumers should tolerate the additive fields and warnings;
+the manifest is 0.2.5-rc1, selected as a prerelease candidate. The diagnostic
+grammar and privacy contract are in [rules.md](../../skills/exfil-guard/references/rules.md#configuration-diagnostics).
+
 ### 0.2.0 check output minimization
 
 `check.py` still returns the same decision class, reason code, static
@@ -161,9 +199,40 @@ Every expansion is recorded in the op notes for audit.
 
 ## Verdict changes since v0.1.1
 
+### 0.2.5-rc1 lifecycle and restore-audit maintenance (source candidate)
+
+Existing `BLOCK_PROTECTED_PATH` now wins before `ALLOW_TRASH_GC` for
+workspace/Git and quarantine control paths. Quarantine root metadata,
+session state and in-workspace storage parents are protected. Ordinary
+unprotected explicit payload housekeeping and the explicit GC CLI remain
+available. Opaque quarantine globs now return `BLOCK_WILDCARD`; safe_delete
+can enumerate a concrete batch before policy checks.
+See [F26](../history/friction.md#f26--housekeeping-overrode-quarantine-control-protection).
+This changes default verdicts and would ordinarily follow the minor-release
+contract. The maintainer explicitly selected 0.2.5-rc1 for this maintenance
+candidate instead of 0.3.0. This is a new, bounded exception for the existing
+control-path/glob, PURGED inventory, audit-writer and exemption-diagnostic
+maintenance, not an extension of the prior 0.2.4 exception to arbitrary changes.
+Existing decision/reason strings, CLI arguments and exit codes retain their
+roles. There is no manifest migration or production dependency. Publication,
+and any later stable 0.2.5 decision, remain separate from candidate preparation.
+The exact -rcN tag maps to GitHub prerelease and npm rc, preserving stable latest.
+See the [candidate notes](../releases/release-notes-0.2.5-rc1.md).
+
+Active `tx_inventory` and GC plans now omit `PURGED` history, while
+`transactions` and manifests retain it. Failed/unpurged transactions retain
+their prior eligibility rules; no stash deletion or storage migration is added.
+
+Restore audit records replace `restored`/`conflicts`/`errors` payload copies
+with `restored_count`/`conflict_count`/`error_count`. Established IDs and backup
+attempt IDs stay correlated; invalid/unknown caller IDs use `txid_sha256`.
+Audit shapes beyond manifests are not frozen. CLI parameters, exit codes,
+recovery manifests and returned recovery paths/errors retain their roles.
+This is one writer's minimization, not general recursive audit sanitization.
+
 A changed default verdict for an existing shape is a **minor** release and
 requires an entry in [friction.md](../history/friction.md) - never a silent behaviour
-shift. The explicit 0.2.4 exception is recorded above. Additive reason codes
+shift. The bounded 0.2.4 and 0.2.5-rc1 exceptions are recorded above. Additive reason codes
 are listed above; this table is for shapes
 whose *existing* verdict moved.
 
@@ -175,6 +244,7 @@ whose *existing* verdict moved.
 | Attached or newline-separated destructive commands (`echo ok;rm ...`, `echo ok` followed by newline and `rm ...`) | Could miss the destructive segment | Classifies and applies its normal policy | POSIX command boundaries must be preserved by the lexer |
 | `git reset --hard [ref]` with untracked/ignored or quarantine collisions | Tracked-only `SNAPSHOT` could proceed | `BLOCK` / `BLOCK_GIT_RESET_COLLISION` | Stash does not preserve the colliding content (0.2.4 maintenance exception, F24) |
 | Hard reset with uncertain preflight or unsupported compound/wrapper context | Could proceed or ask despite incomplete coverage | `BLOCK_UNDETERMINABLE_EFFECT` before compensation | Snapshot and preflight must describe the actual Git context (F24) |
+| Quarantine root/control paths, protected metadata inside trash, or an in-workspace storage parent | Could be allowed as housekeeping or regenerable content | `BLOCK_PROTECTED_PATH` | Recovery/state evidence protection precedes housekeeping (0.2.5-rc1 candidate, F26) |
 
 Unchanged on purpose: a genuine compensation fault (`git stash create`
 failing, a relocation that does not cover every target, an audit intent

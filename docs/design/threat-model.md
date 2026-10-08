@@ -10,8 +10,10 @@ bypass. Therefore:
   It defends against *mistakes*: misjudged context, mis-expanded commands,
   wrong working directory, hallucinated paths - which is what essentially
   all real-world "agent deleted my data" incidents are.
-- You may claim: default-recoverable deletions, full decision audit, graded
-  authorization, reduced blast radius of common accidents.
+- You may claim: recovery for supported valuable deletions, explicit audit
+  contracts for observed calls, graded authorization discipline, and reduced
+  blast radius of common accidents. Regenerable artifacts may be deleted
+  directly; best-effort audit and bypassed calls are not complete visibility.
 - You must NOT claim: sandboxing, containment of malicious agents,
   prevention of determined bypass.
 
@@ -27,10 +29,10 @@ bypass. Therefore:
 |---|---|---|---|
 | 1 | Agent deletes via unrecognized channel: its own script calling `unlink()`, `python -c`, `node -e` | Out of scope for command classification; prompt layer forbids circumvention; audit records what was seen | Real. Upgrade path: kernel-side enforcement (fanotify/eBPF/sandbox) or intercepting the FS service rather than the shell |
 | 2 | Agent tampers with `.agent-trash/state.json` to self-promote mode | Portable file is advisory by design; harness adapters SHOULD hold the authoritative mode in host memory the agent's shell cannot reach | Accepted for pure-CLI usage; documented |
-| 3 | Agent allocates a PTY to pass the `isatty()` human check | Documented heuristic; adapters enforce promotion out-of-band (human-only UI/command) | Heuristic, not cryptographic |
+| 3 | Agent allocates a PTY to pass the `isatty()` human check | The CLI check is a heuristic. An integration requiring human-only promotion must provide independent host authority; the shipped adapters do not supply isolated mode storage | Same-UID configuration/state remain writable; no authenticated human identity guarantee |
 | 4 | Agent edits/removes `manifest.jsonl` to hide provenance | Append-only by convention; audit log is separate; adapters may ship both off-box | Tamper-evident only if exported |
 | 5 | Symlink confusion (delete link vs target, trailing slash dereference) | Lexical boundary analysis; link relocation preserves the link; realpath recorded | Low |
-| 6 | TOCTOU between classification and execution | Window is milliseconds inside one process; adapters that need more should classify-and-execute atomically | Small, acknowledged |
+| 6 | TOCTOU between classification and execution | Checks and moves are not atomic. Native hooks run Core before handing control back to host execution; there is no promised maximum gap | Concurrent changes can invalidate facts or affect later execution. Atomic isolation remains unimplemented |
 | 7 | Destructive restore | Relocation destinations and sources are checked against the workspace and their quarantine transaction. IDs and directory locations are validated; leaf symlinks retain their semantics. Human `--force` preserves an occupant through a separate relocation transaction before replacement; failed preservation stops that item | Checks and moves are not atomic against concurrent changes. Cross-filesystem failures may leave a partial destination or backup; inspect the filesystem and reported transaction IDs. Preserved versions add storage use and follow existing explicit GC |
 | 8 | Quarantine bloat turns `.agent-trash` into a liability (exfil via packaging, disk exhaustion) | Existing `.gitignore` or `.git/info/exclude`; `status.py` exposes size; 30-day/5-GiB soft eligibility with explicit audited purge | A human or scheduler must execute purge; audit is retained |
 

@@ -6,6 +6,9 @@
 
 Advisory mode (default): prints the verdict and does not mutate command
 targets. It records the assessment when audit storage is available.
+Audit setup may create the quarantine, append audit.jsonl, and add a Git
+local exclude rule. Advisory exit 0 is not execution authorization; inspect
+the decision. It creates no relocation, snapshot or recovery transaction.
 --enforce: performs the compensations first (relocate targets / git snapshot
 / git-clean enumeration+relocation) and tells the caller to PROCEED, or
 refuses with BLOCKED. Any BLOCK in the line means nothing is executed.
