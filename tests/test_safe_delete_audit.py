@@ -21,6 +21,8 @@ class SafeDeleteAuditTests(RepoFixture):
         self.name = self.secret + '.txt'
         self.reason = 'arbitrary private deletion note\n' + self.secret
         self.trash = Path(self.root, '.agent-trash')
+        # CLI cwd is physical even when TMPDIR uses an alias (macOS /var).
+        self.cli_root = os.path.realpath(self.root)
 
     def cli(self, *args, injection=None, script='safe_delete.py', session=None):
         env = {k: v for k, v in os.environ.items() if not k.startswith('AGENT_GUARD_')}
@@ -46,6 +48,7 @@ module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
         self.assertNotIn(self.secret, raw)
         self.assertNotIn('arbitrary private deletion note', raw)
         self.assertNotIn(self.root, raw)
+        self.assertNotIn(self.cli_root, raw)
         records = [json.loads(line) for line in raw.splitlines() if line]
         allowed = {'event', 'tool', 'decision', 'code', 'target_count', 'phase',
                    'txid', 'outcome', 'moved_count', 'skipped_count', 'ts', 'session'}
@@ -65,7 +68,7 @@ module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
         self.assertEqual(transaction['state'], 'RESTORABLE')
         proc, report = self.cli(txid, script='restore.py')
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        self.assertEqual(report['restored'], [str(Path(self.root, name or self.name))])
+        self.assertEqual(report['restored'], [str(Path(self.cli_root, name or self.name))])
         self.assertEqual(Path(self.root, name or self.name).read_text(), 'recovery bytes')
         engine = RecoveryEngine(self.root)
         self.assertEqual(engine.transactions()[txid]['state'], 'RESTORED')
@@ -105,7 +108,7 @@ module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
         self.write(self.name, 'recovery bytes')
         proc, result = self.cli('--reason', self.reason, self.name)
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        origin = str(Path(self.root, self.name))
+        origin = str(Path(self.cli_root, self.name))
         self.assertEqual(result['moved'][0]['origin'], origin)
         self.assertFalse(Path(origin).exists())
         self.assertEqual(Path(result['moved'][0]['trash']).read_text(), 'recovery bytes')
