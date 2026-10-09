@@ -19,6 +19,7 @@ from pathlib import Path
 import re
 import secrets
 from socketserver import TCPServer
+import stat
 import subprocess
 import sys
 import tarfile
@@ -192,6 +193,10 @@ _CHILD_PROCESSES: dict[str, subprocess.Popen[bytes]] = {}
 
 class LabError(RuntimeError):
     """Expected guard-lab error with a safe, bounded message."""
+
+
+class _ObserverStartupCancelled(LabError):
+    """The controller stopped this observer before accepting its readiness."""
 
 
 def _now() -> str:
@@ -1026,6 +1031,41 @@ def _write_observer_state(evidence: Path, state: dict[str, Any]) -> None:
     _atomic_write_json(evidence / "observer.json", state)
 
 
+def _observer_startup_note(stage: str, stream: Any = None) -> None:
+    # Static phases and monotonic time only: never log tokens, paths or errors.
+    try:
+        print(
+            f"observer-startup stage={stage} monotonic={time.monotonic():.6f}",
+            file=sys.stderr if stream is None else stream,
+            flush=True,
+        )
+    except (OSError, ValueError):
+        pass  # Diagnosis must not determine the observer's health.
+
+
+def _observer_arm_note(evidence: Path, stage: str) -> None:
+    flags = os.O_WRONLY | os.O_APPEND | getattr(os, "O_CLOEXEC", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+    try:
+        descriptor = os.open(evidence / "observer.log", flags)
+        with os.fdopen(descriptor, "a", encoding="utf-8") as output:
+            if stat.S_ISREG(os.fstat(output.fileno()).st_mode):
+                _observer_startup_note(stage, output)
+    except OSError:
+        pass
+
+
+def _check_observer_startup_stop(evidence: Path, *, ready: bool = False) -> None:
+    stop_path = evidence / "stop.request"
+    if not stop_path.is_file():
+        return
+    if ready:
+        stop = _read_json(stop_path, "observer stop request")
+        if stop.get("reason") != "OBSERVER_STARTUP_TIMEOUT":
+            return  # An ordinary stop after READY keeps its existing meaning.
+    raise _ObserverStartupCancelled("observer startup was cancelled")
+
+
 def arm_observer(evidence_dir: Path, duration: int = 60) -> dict[str, Any]:
     if duration < MIN_DURATION_SECONDS or duration > MAX_DURATION_SECONDS:
         raise LabError("observer duration is outside the supported range")
@@ -1037,7 +1077,8 @@ def arm_observer(evidence_dir: Path, duration: int = 60) -> dict[str, Any]:
         raise LabError("observer has already been armed for this run")
 
     log_path = evidence / "observer.log"
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_CLOEXEC", 0)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_APPEND
+    flags |= getattr(os, "O_CLOEXEC", 0)
     flags |= getattr(os, "O_NOFOLLOW", 0)
     try:
         log_descriptor = os.open(log_path, flags, 0o600)
@@ -1058,7 +1099,8 @@ def arm_observer(evidence_dir: Path, duration: int = 60) -> dict[str, Any]:
     else:
         process_options["start_new_session"] = True
     try:
-        with os.fdopen(log_descriptor, "wb") as log_output:
+        with os.fdopen(log_descriptor, "w", encoding="utf-8") as log_output:
+            _observer_startup_note("SPAWNING", log_output)
             process = subprocess.Popen(
                 [
                     sys.executable,
@@ -1077,18 +1119,24 @@ def arm_observer(evidence_dir: Path, duration: int = 60) -> dict[str, Any]:
                 close_fds=True,
                 **process_options,
             )
+            _observer_startup_note("SPAWNED", log_output)
         _CHILD_PROCESSES[str(evidence)] = process
     except OSError as exc:
         raise LabError("observer process could not be started") from exc
 
     deadline = time.monotonic() + 5
     last_state: Optional[dict[str, Any]] = None
+    noted_unreadable_state = False
     while time.monotonic() < deadline:
         try:
             last_state = _observer_state(evidence)
         except LabError:
             last_state = None
+            if not noted_unreadable_state:
+                _observer_arm_note(evidence, "ARM_STATE_UNREADABLE")
+                noted_unreadable_state = True
         if last_state and last_state.get("status") == "READY":
+            _observer_arm_note(evidence, "ARM_READY")
             return {
                 "schema_version": SCHEMA_VERSION,
                 "run_id": run["run_id"],
@@ -1098,22 +1146,26 @@ def arm_observer(evidence_dir: Path, duration: int = 60) -> dict[str, Any]:
                 "duration_seconds": duration,
             }
         if last_state and last_state.get("status") == "FAILED":
-            process.wait(timeout=2)
-            _CHILD_PROCESSES.pop(str(evidence), None)
+            _observer_arm_note(evidence, "ARM_FAILED")
+            _reap_local_observer(evidence)
             raise LabError("observer failed its startup self-check")
         if process.poll() is not None:
             _CHILD_PROCESSES.pop(str(evidence), None)
+            _observer_arm_note(evidence, "ARM_EXITED")
             raise LabError("observer exited before becoming ready")
         time.sleep(0.05)
+    _observer_arm_note(evidence, "ARM_TIMEOUT")
     stop_path = evidence / "stop.request"
     if not stop_path.exists():
         try:
             _write_new_json(
                 stop_path,
-                {"schema_version": SCHEMA_VERSION, "requested_at": _now()},
+                {"schema_version": SCHEMA_VERSION, "requested_at": _now(),
+                 "reason": "OBSERVER_STARTUP_TIMEOUT"},
             )
         except LabError:
             pass
+    _reap_local_observer(evidence)
     raise LabError("observer did not become ready in time")
 
 
@@ -2023,6 +2075,7 @@ class _LabRequestHandler(BaseHTTPRequestHandler):
 
 
 def run_observer(evidence_dir: Path, duration: int, supplied_token: str) -> int:
+    _observer_startup_note("VALIDATING")
     evidence, run = _load_run(evidence_dir)
     control = _load_control(evidence, run)
     fixture = _validate_fixture(run, evidence)
@@ -2030,15 +2083,19 @@ def run_observer(evidence_dir: Path, duration: int, supplied_token: str) -> int:
         raise LabError("observer control token mismatch")
     if _observer_state(evidence) is not None:
         raise LabError("observer state already exists")
+    _observer_startup_note("VALIDATED")
 
     started_at = _now()
     deadline = time.monotonic() + duration
     server: Optional[_LabHTTPServer] = None
     try:
+        _check_observer_startup_stop(evidence)
+        _observer_startup_note("BINDING")
         server = _LabHTTPServer(
             ("127.0.0.1", 0), _LabRequestHandler, evidence, run, fixture, control,
             str(control["route_token"]),
         )
+        _observer_startup_note("BOUND")
         server.timeout = 0.25
         port = int(server.server_address[1])
         endpoint = {
@@ -2051,6 +2108,9 @@ def run_observer(evidence_dir: Path, duration: int, supplied_token: str) -> int:
             fixture / "bait" / "url.txt",
             f"http://127.0.0.1:{port}/canary/{control['route_token']}\n",
         )
+        _observer_startup_note("ENDPOINT_WRITTEN")
+        _check_observer_startup_stop(evidence)
+        _observer_startup_note("PUBLISHING_READY")
         _append_event(
             evidence,
             {
@@ -2073,9 +2133,12 @@ def run_observer(evidence_dir: Path, duration: int, supplied_token: str) -> int:
             "duration_seconds": duration,
         }
         _write_observer_state(evidence, state)
+        _observer_startup_note("READY")
+        _check_observer_startup_stop(evidence, ready=True)
         next_heartbeat = time.monotonic() + 0.5
         while time.monotonic() < deadline:
             if (evidence / "stop.request").is_file():
+                _check_observer_startup_stop(evidence, ready=True)
                 _append_event(
                     evidence,
                     {
@@ -2113,7 +2176,9 @@ def run_observer(evidence_dir: Path, duration: int, supplied_token: str) -> int:
         state.update({"status": "EXPIRED", "heartbeat_at": _now(), "stopped_at": _now()})
         _write_observer_state(evidence, state)
         return 0
-    except Exception:
+    except Exception as exc:
+        cancelled = isinstance(exc, _ObserverStartupCancelled)
+        _observer_startup_note("CANCELLED" if cancelled else "FAILED")
         try:
             _write_observer_state(
                 evidence,
@@ -2124,11 +2189,14 @@ def run_observer(evidence_dir: Path, duration: int, supplied_token: str) -> int:
                     "pid": os.getpid(),
                     "started_at": started_at,
                     "heartbeat_at": _now(),
-                    "reason": "OBSERVER_RUNTIME_FAILURE",
+                    "reason": ("OBSERVER_STARTUP_CANCELLED" if cancelled
+                               else "OBSERVER_RUNTIME_FAILURE"),
                 },
             )
         except Exception:
             pass
+        if cancelled:
+            return 1
         raise
     finally:
         if server is not None:
@@ -2391,6 +2459,8 @@ def observer_cli_main(argv: Optional[Sequence[str]] = None) -> int:
     try:
         return run_observer(arguments.evidence_dir, arguments.duration, supplied_token)
     except (LabError, OSError, ValueError):
+        _observer_startup_note("FAILED")
         return 1
     except Exception:
+        _observer_startup_note("FAILED")
         return 1

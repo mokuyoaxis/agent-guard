@@ -172,7 +172,7 @@ host-side file: read from the workspace root, not settable per call. If a
 scan hits something you believe is benign, report it - do not weaken the
 rule, and do not route around the guard.
 
-In the 0.2.5-rc1 source candidate, both configuration filenames use the same limited section/key grammar;
+Since 0.2.5-rc1, both configuration filenames use the same limited section/key grammar;
 `.agent-guardignore` is not a gitignore file. The first readable UTF-8 file
 wins, including an empty or malformed preferred file. Inspect the checker's
 `exemption.source`, counts and diagnostics before assuming a configuration

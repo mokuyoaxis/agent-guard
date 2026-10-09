@@ -6,9 +6,10 @@ model tools and a prompt section; later entries cover Core and other adapters.
 
 Entries preserve their recording date and original candidate/release state.
 F21–F23 changes subsequently shipped in 0.2.3; F24–F25 shipped in 0.2.4.
-F26–F31 are now included in the 0.2.5-rc1 source candidate, with publication
-still separate. Current version scope is in the
-[candidate notes](../releases/release-notes-0.2.5-rc1.md); historical failures and
+F26–F31 subsequently shipped in 0.2.5-rc1. The current local RC2 candidate adds
+shared audit metadata and observer startup maintenance; publication is pending.
+Current scope is in the
+[candidate notes](../releases/release-notes-0.2.5-rc2.md); historical failures and
 test counts below are not rewritten by a later success.
 
 ## F1 · Compound `cd X && rm y` resolves targets against the wrong base

@@ -22,6 +22,7 @@ CODE_RELOCATE_FAILED_STORAGE.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -76,13 +77,27 @@ def main() -> int:
     # Preflight both identity and audit durability before irreversible purge.
     # A failed final receipt still leaves this intent plus manifest tombstones.
     engine.validate_gc_targets(txids)
-    audit.append({"event": "gc-intent", "txids": txids},
+    known = engine.transactions()
+
+    def selection_metadata(selected):
+        return {
+            "txids": [txid for txid in selected if txid in known],
+            "missing_txid_sha256": [hashlib.sha256(
+                txid.encode("utf-8", errors="surrogatepass")).hexdigest()
+                for txid in selected if txid not in known],
+        }
+
+    audit.append({"event": "gc-intent", "target_count": len(txids),
+                  **selection_metadata(txids)},
                  os.path.join(trash_root, AUDIT_NAME))
     report = engine.gc_execute(txids)
+    missing = selection_metadata(report["missing"])
     audit.append({"event": "gc", "action": "PURGED",
-                  "purged": report["purged"], "missing": report["missing"],
+                  "purged": report["purged"], "missing": missing["txids"],
+                  "missing_count": len(report["missing"]),
+                  "missing_txid_sha256": missing["missing_txid_sha256"],
                   "plan_reasons": {e["txid"]: e["reason"]
-                                   for e in plan["eligible"]}},
+                                   for e in plan["eligible"] if e["txid"] in txids}},
                  os.path.join(trash_root, AUDIT_NAME))
     if args.as_json:
         print(json.dumps({"mode": "execute", **report}, ensure_ascii=False,

@@ -64,7 +64,7 @@ def safe_delete_audit_event(event, decision, code, target_count, *,
 
     Codes and outcome labels come from this CLI. Transaction IDs come from
     the recovery engine; exact moved/skipped payloads stay in its journal
-    and the CLI result. Automatic audit session metadata is unchanged.
+    and the CLI result. core.audit projects automatic session metadata.
     """
     entry = {"event": event, "tool": "safe_delete", "decision": decision,
              "code": code, "target_count": target_count}

@@ -5,8 +5,9 @@ observable agent and harness behaviours. It creates disposable bait, watches
 only declared channels, and produces a bounded report. Its built-in controls
 call no model; its separate manual probe is designed for a user-run real
 harness trial. It was introduced in `0.2.3-rc2` and shipped with `0.2.3`.
-It remains available in stable `0.2.4` and the `0.2.5-rc1` source candidate;
-this candidate's documentation update does not add new model-trial evidence.
+It remains available in stable `0.2.4` and published `0.2.5-rc1`;
+the `0.2.5-rc2` source candidate adds startup diagnosis and cancellation maintenance
+without adding new model-trial evidence. See the [RC2 notes](../releases/release-notes-0.2.5-rc2.md).
 
 It is not a Skill for the tested agent, a security boundary, or a certificate
 that a model or vendor is safe or malicious.
@@ -214,6 +215,17 @@ MiB and runs only after the observer stops. It records the byte count, SHA-256,
 matched bait IDs, and stage; it does not retain the input or matched value.
 Evidence is capped at 1024 events and a two MiB event log. Reaching a cap makes
 the observer/report inconclusive instead of silently dropping later events.
+
+Observer startup has a five-second readiness window. Private `observer.log`
+records static startup phases and monotonic timestamps for the controller,
+Python bootstrap, validation, loopback bind and readiness publication. These
+best-effort notes contain no tokens, paths or exception text and do not establish
+observer health. A startup timeout requests cooperative cancellation and waits
+up to two additional seconds to reap the local child; a still-live child stays
+registered without a forced signal. A child that sees startup cancellation
+records `FAILED` / `OBSERVER_STARTUP_CANCELLED`, keeping the report
+`INCONCLUSIVE` even if readiness was published late. Ordinary stops after
+successful readiness retain their existing meaning.
 
 The input file and `--stage` are user-selected evidence. `scan` does not parse
 or authenticate vendor-specific transcript schemas. If a captured stream mixes

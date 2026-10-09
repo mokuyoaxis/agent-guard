@@ -7,9 +7,11 @@ setup. The three main paths are [recovery protection](../skills/delete-guard/SKI
 [harness capability matrix](guides/harness-capabilities.md) for observed coverage
 and the [architecture](design/architecture.md) for the shared Core.
 
-Current source: [0.2.5-rc1 candidate](releases/release-notes-0.2.5-rc1.md).
+Published RC baseline: [0.2.5-rc1](releases/release-notes-0.2.5-rc1.md).
 Published stable baseline: [0.2.4](releases/release-notes-0.2.4.md).
-Candidate preparation and package validation do not establish publication.
+Current source: [0.2.5-rc2 candidate](releases/release-notes-0.2.5-rc2.md),
+including [shared audit metadata](guides/audit-metadata.md) and observer startup maintenance;
+publication remains pending.
 
 先看入门指南，再按恢复保护、外发检测、Lab 验测选择入口。测试报告按所测版本与配置保留；发布记录、
 历史设计和外部案例各自归档，不能据此扩展当前产品的承诺。
@@ -31,6 +33,7 @@ Candidate preparation and package validation do not establish publication.
 | [Harness capabilities](guides/harness-capabilities.md) | 当前接入范围、证据等级与未验证路径 |
 | [Host drift](guides/host-drift.md) | 宿主版本、配置与本地基线检查 |
 | [Trash locations](guides/trash-index.md) | 0.2.4 的只读位置查询、Agent／前端共享 JSON 契约 |
+| [Audit metadata](guides/audit-metadata.md) | RC2 候选的字段投影、会话关联、GC／status 契约与保留边界 |
 | [Publishing from ephemeral environments](guides/publishing-from-ephemeral-environments.md) | 临时环境中的 GitHub 发布操作参考 |
 
 Adapter setup remains in [adapters/](../adapters/INTEGRATION.md). Skill contracts
@@ -89,7 +92,8 @@ coverage rather than treating every historical result as current acceptance.
 
 | Document / 文档 | Scope / 范围 |
 |---|---|
-| [0.2.5-rc1](releases/release-notes-0.2.5-rc1.md) | 当前维护候选、文档整理、版本例外与验收状态 |
+| [0.2.5-rc2](releases/release-notes-0.2.5-rc2.md) | 当前源码候选；共享审计、observer 维护与兼容边界 |
+| [0.2.5-rc1](releases/release-notes-0.2.5-rc1.md) | 已发布的维护预发布基线、文档整理与版本例外 |
 | [0.2.4](releases/release-notes-0.2.4.md) | 恢复维护、trash 查询及兼容性例外 |
 | [0.2.3](releases/release-notes-0.2.3.md) | 正式版范围与证据边界 |
 | [0.2.3-rc2](releases/release-notes-0.2.3-rc2.md) | 离线 Lab 与已复核 DSH 契约 |

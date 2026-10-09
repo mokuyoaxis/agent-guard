@@ -4,6 +4,9 @@ agent-guard's promise is recoverability. A promise is only as good as its
 stability over time - this page states exactly what may change and what
 may not, per release class.
 
+Current source is the unpublished [0.2.5-rc2 candidate](../releases/release-notes-0.2.5-rc2.md).
+Versioned sections retain the origin of changes introduced by earlier releases.
+
 ## The adapter contract (frozen surface)
 
 Harness adapters integrate against exactly four things:
@@ -91,9 +94,40 @@ codes, phases and static outcome labels remain available. Free-form
 `--reason` stays accepted but is omitted from new audit events and
 `tx-start.meta`. Essential recovery paths/intents, CLI result fields,
 verdicts, exit codes and durability gates retain their behavior.
-Audit event shapes are not frozen. Historical records are not rewritten,
-and generic audit writers, automatic session identity and other output
-surfaces are unchanged. See the [writer contract](../../skills/delete-guard/references/policy.md#safe_delete-audit-metadata).
+Audit event shapes are not frozen. At the released RC1 baseline, generic
+audit/session handling is unchanged; the RC2 projection below
+extends it. See the [writer contract](../../skills/delete-guard/references/policy.md#safe_delete-audit-metadata).
+
+### 0.2.5-rc2 shared audit metadata maintenance (source candidate)
+
+`append` stores a closed metadata projection and returns the stored record;
+`tail` projects legacy records without rewriting them, skips non-object JSON,
+and returns no records for non-positive limits. Unknown/custom fields and
+free text under allowed names are omitted. Audit shapes are not frozen, but
+callers relying on arbitrary payload storage must adapt explicitly.
+
+Session/display identities become deterministic opaque correlation. Generated
+transaction/check IDs remain exact; noncanonical audit IDs become correlation
+tags, and `find_by_txid` accepts the original spelling. Unknown GC selections
+use digest metadata; CLI results and recovery journal IDs/paths remain exact.
+Ordinary status actor display is projected without changing authorization
+state or session selection. No decision/exit/flag semantics, manifest schema,
+audit locations or durability gates change. This work is not included in the
+published RC1; see the [full audit contract](../guides/audit-metadata.md).
+
+### 0.2.5-rc2 observer startup maintenance (source candidate)
+
+The readiness window stays five seconds after spawn. Startup logs add static
+phases and monotonic timestamps without tokens, paths or exception text.
+They remain diagnostic and do not establish evidence health. Startup timeout
+requests cooperative cancellation, then permits up to two seconds of local
+child reaping; a live child remains registered without a forced signal.
+Reap timeouts preserve the original LabError. Cancelled startup is
+`FAILED` / `OBSERVER_STARTUP_CANCELLED` and `INCONCLUSIVE`, including late READY
+publication; ordinary stops after accepted readiness retain their meaning.
+Public CLI arguments, exit codes, evidence levels and loopback scope stay
+unchanged. The first intermittent timeout's root cause is still unknown.
+See the [Lab contract](../lab/guard-lab.md) and [RC2 notes](../releases/release-notes-0.2.5-rc2.md).
 
 ### 0.2.5-rc1 exemption configuration diagnostics (source candidate)
 
@@ -109,7 +143,7 @@ CLI warnings use stderr; JSON checker stdout and sanitizer payload/plan stdout
 keep their respective formats. Normal missing/valid configurations remain
 quiet. Diagnostic codes are configuration metadata, not Decision Protocol
 reason codes. Consumers should tolerate the additive fields and warnings;
-the manifest is 0.2.5-rc1, selected as a prerelease candidate. The diagnostic
+these diagnostics originated in RC1 and remain in the RC2 source candidate. The diagnostic
 grammar and privacy contract are in [rules.md](../../skills/exfil-guard/references/rules.md#configuration-diagnostics).
 
 ### 0.2.0 check output minimization
@@ -228,7 +262,8 @@ with `restored_count`/`conflict_count`/`error_count`. Established IDs and backup
 attempt IDs stay correlated; invalid/unknown caller IDs use `txid_sha256`.
 Audit shapes beyond manifests are not frozen. CLI parameters, exit codes,
 recovery manifests and returned recovery paths/errors retain their roles.
-This is one writer's minimization, not general recursive audit sanitization.
+That released change is one writer's minimization. The RC2 shared
+projection is described above; it does not rewrite manifests or old log bytes.
 
 A changed default verdict for an existing shape is a **minor** release and
 requires an entry in [friction.md](../history/friction.md) - never a silent behaviour
@@ -244,7 +279,7 @@ whose *existing* verdict moved.
 | Attached or newline-separated destructive commands (`echo ok;rm ...`, `echo ok` followed by newline and `rm ...`) | Could miss the destructive segment | Classifies and applies its normal policy | POSIX command boundaries must be preserved by the lexer |
 | `git reset --hard [ref]` with untracked/ignored or quarantine collisions | Tracked-only `SNAPSHOT` could proceed | `BLOCK` / `BLOCK_GIT_RESET_COLLISION` | Stash does not preserve the colliding content (0.2.4 maintenance exception, F24) |
 | Hard reset with uncertain preflight or unsupported compound/wrapper context | Could proceed or ask despite incomplete coverage | `BLOCK_UNDETERMINABLE_EFFECT` before compensation | Snapshot and preflight must describe the actual Git context (F24) |
-| Quarantine root/control paths, protected metadata inside trash, or an in-workspace storage parent | Could be allowed as housekeeping or regenerable content | `BLOCK_PROTECTED_PATH` | Recovery/state evidence protection precedes housekeeping (0.2.5-rc1 candidate, F26) |
+| Quarantine root/control paths, protected metadata inside trash, or an in-workspace storage parent | Could be allowed as housekeeping or regenerable content | `BLOCK_PROTECTED_PATH` | Recovery/state evidence protection precedes housekeeping (introduced in 0.2.5-rc1, F26) |
 
 Unchanged on purpose: a genuine compensation fault (`git stash create`
 failing, a relocation that does not cover every target, an audit intent

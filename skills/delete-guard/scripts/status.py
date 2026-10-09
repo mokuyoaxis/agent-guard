@@ -81,6 +81,8 @@ def main() -> int:
         "AGENT_GUARD_TRASH", os.path.join(workspace, TRASH_DIRNAME))
     engine = recovery.RecoveryEngine(workspace, trash_root)
     state = policy.load_mode(trash_root)
+    # Project display-only identity/time metadata, never authorization state.
+    mode_metadata = audit.project({"ts": state["since"], "session": state["set_by"]})
     usage = engine.usage()
 
     stash_count = 0
@@ -96,8 +98,8 @@ def main() -> int:
     info = {
         "workspace": workspace,
         "mode": state["mode"],
-        "mode_since": state["since"],
-        "mode_set_by": state["set_by"],
+        "mode_since": mode_metadata.get("ts"),
+        "mode_set_by": mode_metadata.get("session"),
         "trash_root": trash_root,
         "usage": usage,
         "retention": {
@@ -118,7 +120,8 @@ def main() -> int:
 
     print(f"workspace : {info['workspace']}")
     print(f"mode      : {info['mode']}"
-          + (f" (since {state['since']} by {state['set_by']})" if state["since"] else ""))
+          + (f" (since {info['mode_since']} by {info['mode_set_by']})"
+             if info["mode_since"] else ""))
     print(f"quarantine: {trash_root}")
     print(f"usage     : {usage['files']} files, {usage['bytes']} bytes, "
           f"{usage['transactions']} transactions "
@@ -140,8 +143,8 @@ def main() -> int:
 
 
 def audit_tail(trash_root, n):
-    # Historical append-only records can contain raw commands. Never copy
-    # their free-form fields into an agent-visible status result.
+    # core.audit projects both historical field names and values. Status
+    # exposes a smaller summary, with no session or compensation details.
     fields = ("ts", "event", "action", "decision", "code", "txid",
               "check_id", "guard_latency_ms")
     return [{key: record[key] for key in fields if key in record}
@@ -153,8 +156,7 @@ DECISION_EVENTS = {"check", "enforce-block", "enforce-proceed", "ask",
 
 
 def decision_stats(trash_root):
-    """Local-only aggregation of recorded decisions (nothing leaves the
-    machine). Counts reason codes across all decision-bearing events; ask
+    """Aggregate projected reason codes for the status result; ask
     OUTCOMES are not visible to the guard and are therefore not claimed
     here."""
     import collections

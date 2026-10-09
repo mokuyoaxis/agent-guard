@@ -105,11 +105,14 @@ undone. Use only a disposable fixture when verifying this behavior; the
 [policy reference](references/policy.md#assessment-and-dry-run-side-effects)
 defines the no-match, existing-ignore and external-bucket branches.
 
-In the 0.2.5-rc1 source candidate, new `safe_delete` audit events record decisions, target counts and established
+Since 0.2.5-rc1, new `safe_delete` audit events record decisions, target counts and established
 recovery IDs/counts rather than target paths or free-form reasons. `--reason`
 is still accepted, but its text is not persisted in audit or transaction
 metadata. Exact recovery paths remain in the CLI result and manifest.
-Historical records and automatic session metadata are unchanged; see the
+At released RC1, historical records and automatic session handling are unchanged.
+The 0.2.5-rc2 source candidate projects shared metadata on append/read,
+uses opaque session correlation and limits status/GC metadata; see the
+[shared audit contract](../../docs/guides/audit-metadata.md) and the
 [policy reference](references/policy.md#safe_delete-audit-metadata).
 
 ## Quarantine location queries
@@ -134,7 +137,7 @@ read just to answer a location/count question.
 
 ## RESTRICTED mode
 
-The 0.2.5-rc1 source candidate protects the quarantine root, root manifest,
+The RC2 source retains RC1 protection for the quarantine root, root manifest,
 audit/state files, state temp file, sessions tree and storage access parents.
 Housekeeping does not override those checks. Use the existing explicit
 `gc.py --execute --txid <id>` entry for a validated, audited transaction purge.

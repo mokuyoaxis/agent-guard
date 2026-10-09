@@ -6,8 +6,9 @@ native Windows harness execution remains unverified. POSIX hook bridges have
 their own platform requirements. See the
 [compatibility contract](../../../docs/design/compatibility.md).
 
-This reference describes the 0.2.5-rc1 source candidate. The published 0.2.4
-baseline does not include its control-path, GC and audit-writer maintenance.
+This reference covers the 0.2.5-rc2 source candidate, including RC1 maintenance
+and shared audit metadata projection. The published 0.2.4 baseline lacks the RC's
+control-path, GC and audit-writer maintenance.
 
 ## Decision Protocol
 
@@ -88,7 +89,7 @@ different effects (`-wi`, `-c`, `-p`) stays unknown and BLOCKs.
 
 ## Rule table (first match wins)
 
-The quarantine control-path changes below belong to the 0.2.5-rc1 source candidate;
+The quarantine control-path changes below were introduced in 0.2.5-rc1;
 the published 0.2.4 artifact retains its original housekeeping order.
 
 | # | Condition | Verdict code | Effect |
@@ -145,7 +146,7 @@ a portable fallback.
 |---|---|
 | `AGENT_GUARD_WORKSPACE` | override workspace boundary discovery |
 | `AGENT_GUARD_TRASH` | override quarantine location |
-| `AGENT_GUARD_SESSION` | session identity recorded in audit/manifest |
+| `AGENT_GUARD_SESSION` | selects session authorization state; RC2 audit metadata uses opaque correlation |
 | `AGENT_GUARD_ARTIFACTS` | `os.pathsep`-joined extra artifact patterns |
 | `AGENT_GUARD_ALLOW_REGENERABLE` | `0` disables direct deletion of artifacts |
 
@@ -187,8 +188,9 @@ Restore audit metadata now records `restored_count`, `conflict_count` and
 `error_count` instead of raw path arrays/error bodies. Known `txid`, `force`,
 `ok` and preservation `backup_txids` retain correlation; invalid/unknown input
 IDs use `txid_sha256`. Exact restoration paths and errors remain in the
-recovery journal and CLI result. Historical audit lines are not rewritten;
-automatic session metadata and other generic audit writers are unchanged.
+recovery journal and CLI result. Historical audit lines are not rewritten.
+At released RC1, automatic session/generic handling is unchanged; the RC2
+[shared projection](../../../docs/guides/audit-metadata.md) extends it.
 
 ### safe_delete audit metadata
 
@@ -212,9 +214,10 @@ accurate. Those surfaces can still contain sensitive text.
 
 Mutation intents remain durable before deletion; assessment and outcome
 audits retain their existing best-effort behavior. Historical audit lines
-and manifest metadata are not rewritten. Automatic `ts`/`session` fields
-and generic `core.audit.append`/`tail` behavior are unchanged; this writer's
-minimization is not a guarantee that every audit field is sanitized.
+and manifest metadata are not rewritten. At released RC1, automatic session
+and generic append/tail handling is unchanged. The later unreleased
+[shared projection](../../../docs/guides/audit-metadata.md) limits these fields
+and legacy reads, while raw historical files and recovery surfaces remain.
 
 Authority model: `gc.py --execute` is intentionally permitted
 non-interactively (scheduled maintenance is legitimate; purging

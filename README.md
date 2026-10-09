@@ -4,7 +4,7 @@
 [![npm stable](https://img.shields.io/npm/v/%40mokuyoaxis%2Fagent-guard.svg)](https://www.npmjs.com/package/@mokuyoaxis/agent-guard)
 [![License](https://img.shields.io/github/license/mokuyoaxis/agent-guard)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![0.2.5-rc1](https://img.shields.io/badge/RC-0.2.5--rc1-5B6B7A)](docs/releases/release-notes-0.2.5-rc1.md)
+[![0.2.5-rc2 candidate](https://img.shields.io/badge/RC-0.2.5--rc2-5B6B7A)](docs/releases/release-notes-0.2.5-rc2.md)
 
 **Make destructive agent actions reversible by default.** · [简体中文](README.zh-CN.md)
 
@@ -75,7 +75,8 @@ native bridges and optional capture helpers have their own requirements.
 | Version | Status |
 |---|---|
 | [0.2.4](docs/releases/release-notes-0.2.4.md) | Published stable baseline |
-| [0.2.5-rc1](docs/releases/release-notes-0.2.5-rc1.md) | Maintenance release candidate; select the exact RC version |
+| [0.2.5-rc1](docs/releases/release-notes-0.2.5-rc1.md) | Published prerelease baseline; select the exact RC version |
+| [0.2.5-rc2](docs/releases/release-notes-0.2.5-rc2.md) | Maintenance source candidate; package publication pending |
 
 For the published stable package, use a chosen, stable user-owned prefix:
 
@@ -92,11 +93,12 @@ git clone https://github.com/mokuyoaxis/agent-guard.git
 cd agent-guard
 ```
 
-For the RC, select `@mokuyoaxis/agent-guard@0.2.5-rc1` explicitly; the RC
+For the published RC baseline, select `@mokuyoaxis/agent-guard@0.2.5-rc1` explicitly; the RC
 channel does not replace stable `latest`. Check the
 [GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.5-rc1)
 or [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.5-rc1)
-for publication. A reviewed checkout or locally supplied tarball is also usable. See
+for publication. The RC2 candidate is available as a reviewed checkout or
+locally supplied tarball; its manifest does not establish registry availability. See
 [setup and the agent setup prompt](docs/guides/getting-started.md).
 
 ## Recover a supported deletion
@@ -122,10 +124,17 @@ may write quarantine/audit metadata and a Git local exclude entry. Advisory
 exit 0 is not permission to execute a BLOCK or ASK.
 See the [policy and assessment contract](skills/delete-guard/references/policy.md).
 
-The RC adds quarantine control-path protection, excludes PURGED transactions
-from active GC planning, and minimizes restore/safe_delete audit fields.
+RC1 added quarantine control-path protection, excluded PURGED transactions
+from active GC planning, and minimized restore/safe_delete audit fields.
 Exact CLI/manifest recovery paths remain available. These changes are not in
 the published 0.2.4 package; see the [RC notes](docs/releases/release-notes-0.2.5-rc1.md).
+
+The RC2 source candidate also projects shared audit metadata,
+uses opaque session correlation, and limits legacy status/GC metadata.
+See the [audit contract and remaining boundaries](docs/guides/audit-metadata.md).
+It adds observer startup diagnostics and correct cancellation accounting;
+the original intermittent timeout's cause remains unknown. See the
+[RC2 scope and evidence](docs/releases/release-notes-0.2.5-rc2.md).
 
 ## Check text before emission
 
@@ -202,7 +211,7 @@ reconstruction and known gaps. It cannot recreate bytes that no source kept.
 | [Architecture](docs/design/architecture.md) | Shared Core, compensation and adapter flow |
 | [Threat model](docs/design/threat-model.md) | Trust assumptions and unresolved boundaries |
 | [Compatibility](docs/design/compatibility.md) | Interface and release contracts |
-| [0.2.5-rc1 notes](docs/releases/release-notes-0.2.5-rc1.md) | This candidate's changes and validation status |
+| [0.2.5-rc2 notes](docs/releases/release-notes-0.2.5-rc2.md) | Current source candidate's changes and validation status |
 
 ## Contributing
 

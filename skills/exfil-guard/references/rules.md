@@ -186,7 +186,7 @@ facts still apply to variable templates.
 
 ## Configuration (environment)
 
-The 0.2.5-rc1 candidate adds provenance/count diagnostics to the existing
+The RC2 source retains the provenance/count diagnostics introduced in RC1 for the existing
 exemption parser. Matching and file priority remain unchanged; the published
 0.2.4 package does not include these diagnostic fields and warnings.
 
@@ -306,8 +306,11 @@ corpus.
 This is a safe record shape for a trusted integration that chooses to persist
 egress evidence. `check_span.py` and `sanitize.py` do not automatically append
 these events, and cannot observe a caller declining a plan. It is not a claim
-that every egress decision has a durable record. Generic `core.audit` also adds
-session metadata; that metadata and existing logs require their own review.
+that every egress decision has a durable record. The RC2 source candidate
+projects supported metadata on append/read, including opaque session
+correlation and value-free source-key context. See the
+[shared audit contract](../../../docs/guides/audit-metadata.md); direct reads of
+old log bytes and other output channels remain outside that projection.
 
 ```json
 {"event":"exfil-sanitize","rule_id":"secret/openai-key",

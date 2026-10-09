@@ -265,7 +265,9 @@ module.audit.append=fail_outcome
         proc, result = self.cli('--dry-run', '--reason', self.reason, self.name, session=session)
         self.assertEqual(proc.returncode, 0)
         event, = self.events()
-        self.assertEqual(event['session'], session)
+        from core import audit
+        self.assertEqual(event['session'], audit.correlation_id(session))
+        self.assertNotIn(session, json.dumps(event))
         self.assertTrue(event['ts'])
 
 

@@ -237,7 +237,11 @@ class GcExecuteCliTests(RepoFixture):
         gc_events = [r for r in self.audit_records()
                      if r.get("event") == "gc"]
         self.assertEqual(gc_events[-1]["purged"], [txid])
-        self.assertEqual(gc_events[-1]["missing"], ["no-such-tx"])
+        import hashlib
+        self.assertEqual(gc_events[-1]["missing"], [])
+        self.assertEqual(gc_events[-1]["missing_count"], 1)
+        self.assertEqual(gc_events[-1]["missing_txid_sha256"], [
+            hashlib.sha256(b"no-such-tx").hexdigest()])
 
     def test_cli_rejects_traversal_without_touching_workspace(self):
         txid = self.quarantine()

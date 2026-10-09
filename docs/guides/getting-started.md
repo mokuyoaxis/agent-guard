@@ -10,8 +10,10 @@ Agent Guard 提供恢复保护、外发检测和用户控制的行为验测。�
 
 ## Select the package root
 
-The published stable baseline is 0.2.4. The current source candidate is
-0.2.5-rc1; see its [scope and status](../releases/release-notes-0.2.5-rc1.md).
+The published stable baseline is 0.2.4 and the published RC baseline is
+0.2.5-rc1; see its [scope](../releases/release-notes-0.2.5-rc1.md).
+Current source is the unpublished [0.2.5-rc2 candidate](../releases/release-notes-0.2.5-rc2.md),
+including [shared audit metadata](audit-metadata.md) and observer startup maintenance.
 Use a user-selected stable prefix for the published package:
 
 ```sh
@@ -20,10 +22,11 @@ npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-gua
 
 The package root is
 `/absolute/path/to/agent-guard-install/node_modules/@mokuyoaxis/agent-guard`.
-For the RC, select `@mokuyoaxis/agent-guard@0.2.5-rc1` explicitly and check its
+For the published RC baseline, select `@mokuyoaxis/agent-guard@0.2.5-rc1` explicitly and check its
 [GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.5-rc1)
 or [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.5-rc1)
-for publication. Its reviewed checkout or local tarball is also usable.
+for publication. Use a reviewed checkout or supplied local tarball to evaluate
+the RC2 candidate while its publication is pending.
 Do not infer RC availability from the manifest or use an unscoped same-name
 package. A checkout's default branch can differ from a tagged stable release.
 

@@ -23,6 +23,11 @@ the identity of the project.
 | Authorization | Who decides what? | `core/policy.py` (mode state machine) |
 | Auditability | What actually happened? | `core/audit.py` + `.agent-trash/*.jsonl` |
 
+The 0.2.5-rc2 source candidate adds a shared
+[audit metadata projection](../guides/audit-metadata.md) on append and legacy
+read, with opaque session correlation. Recovery manifests retain exact paths;
+authorization state and required audit durability remain separate contracts.
+
 A fifth, cross-cutting rule governs all four:
 
 > **Uncertainty increases restriction** (fail closed).
@@ -265,7 +270,7 @@ FORBIDDEN (BLOCK, never askable).
    targets outside the workspace neither leak nor block.
 6. **Self-exclusion with protected controls.** Ordinary unprotected payloads
    inside the selected quarantine use housekeeping rather than relocation.
-   The 0.2.5-rc1 candidate checks root/control paths and storage parents first;
+   Protection introduced in 0.2.5-rc1 checks root/control paths and storage parents first;
    housekeeping cannot override protection. Opaque globs must be enumerated
    explicitly, and validated transaction purge uses the GC CLI.
 7. **Diagnostics do not silently become enforcement.** `guard-lab` records
@@ -300,10 +305,10 @@ order of value:
 
 ## Delivery status and design directions
 
-The current source candidate is 0.2.5-rc1; 0.2.4 remains the published stable
-baseline. The candidate contains the documented lifecycle/audit maintenance
-and exemption diagnostics, alongside a README/documentation reorganization.
-See [candidate notes](../releases/release-notes-0.2.5-rc1.md) and
+The current source candidate is 0.2.5-rc2, unpublished; the published baselines
+are stable 0.2.4 and prerelease 0.2.5-rc1. It retains RC1 maintenance and adds
+shared audit metadata projection plus observer startup diagnosis/cancellation.
+See [candidate notes](../releases/release-notes-0.2.5-rc2.md) and
 [compatibility](compatibility.md) for behaviour and validation boundaries.
 
 The milestones below describe historical delivery and future design scope,
