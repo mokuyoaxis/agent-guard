@@ -305,8 +305,8 @@ order of value:
 
 ## Delivery status and design directions
 
-The current source candidate is 0.2.5-rc2, unpublished; the published baselines
-are stable 0.2.4 and prerelease 0.2.5-rc1. It retains RC1 maintenance and adds
+The current RC source is 0.2.5-rc2, with publication checked by its receipts;
+stable 0.2.4 and the previous prerelease 0.2.5-rc1 remain baselines. It retains RC1 maintenance and adds
 shared audit metadata projection plus observer startup diagnosis/cancellation.
 See [candidate notes](../releases/release-notes-0.2.5-rc2.md) and
 [compatibility](compatibility.md) for behaviour and validation boundaries.

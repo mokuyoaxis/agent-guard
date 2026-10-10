@@ -4,7 +4,7 @@ agent-guard's promise is recoverability. A promise is only as good as its
 stability over time - this page states exactly what may change and what
 may not, per release class.
 
-Current source is the unpublished [0.2.5-rc2 candidate](../releases/release-notes-0.2.5-rc2.md).
+Current RC source is [0.2.5-rc2](../releases/release-notes-0.2.5-rc2.md); publication is checked by its receipts.
 Versioned sections retain the origin of changes introduced by earlier releases.
 
 ## The adapter contract (frozen surface)

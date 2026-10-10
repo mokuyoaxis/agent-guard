@@ -1,6 +1,6 @@
 # Audit metadata / 审计元信息
 
-**Status: included in the unpublished 0.2.5-rc2 source candidate.** The published RC1
+**Status: included in 0.2.5-rc2.** The published RC1
 does not include this shared projection. Its restore/safe_delete writer
 minimization remains documented in the [RC notes](../releases/release-notes-0.2.5-rc1.md).
 See the [RC2 scope and evidence](../releases/release-notes-0.2.5-rc2.md).

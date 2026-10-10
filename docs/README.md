@@ -7,11 +7,11 @@ setup. The three main paths are [recovery protection](../skills/delete-guard/SKI
 [harness capability matrix](guides/harness-capabilities.md) for observed coverage
 and the [architecture](design/architecture.md) for the shared Core.
 
-Published RC baseline: [0.2.5-rc1](releases/release-notes-0.2.5-rc1.md).
+Previous published RC baseline: [0.2.5-rc1](releases/release-notes-0.2.5-rc1.md).
 Published stable baseline: [0.2.4](releases/release-notes-0.2.4.md).
-Current source: [0.2.5-rc2 candidate](releases/release-notes-0.2.5-rc2.md),
+Current RC: [0.2.5-rc2](releases/release-notes-0.2.5-rc2.md),
 including [shared audit metadata](guides/audit-metadata.md) and observer startup maintenance;
-publication remains pending.
+publication is established by its GitHub/npm receipts.
 
 先看入门指南，再按恢复保护、外发检测、Lab 验测选择入口。测试报告按所测版本与配置保留；发布记录、
 历史设计和外部案例各自归档，不能据此扩展当前产品的承诺。
@@ -92,7 +92,7 @@ coverage rather than treating every historical result as current acceptance.
 
 | Document / 文档 | Scope / 范围 |
 |---|---|
-| [0.2.5-rc2](releases/release-notes-0.2.5-rc2.md) | 当前源码候选；共享审计、observer 维护与兼容边界 |
+| [0.2.5-rc2](releases/release-notes-0.2.5-rc2.md) | 当前维护 RC；共享审计、observer 维护与兼容边界 |
 | [0.2.5-rc1](releases/release-notes-0.2.5-rc1.md) | 已发布的维护预发布基线、文档整理与版本例外 |
 | [0.2.4](releases/release-notes-0.2.4.md) | 恢复维护、trash 查询及兼容性例外 |
 | [0.2.3](releases/release-notes-0.2.3.md) | 正式版范围与证据边界 |

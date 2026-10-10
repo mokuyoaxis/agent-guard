@@ -6,8 +6,8 @@ model tools and a prompt section; later entries cover Core and other adapters.
 
 Entries preserve their recording date and original candidate/release state.
 F21–F23 changes subsequently shipped in 0.2.3; F24–F25 shipped in 0.2.4.
-F26–F31 subsequently shipped in 0.2.5-rc1. The current local RC2 candidate adds
-shared audit metadata and observer startup maintenance; publication is pending.
+F26–F31 subsequently shipped in 0.2.5-rc1. RC2 adds shared audit metadata and
+observer startup maintenance; publication is checked by its versioned receipts.
 Current scope is in the
 [candidate notes](../releases/release-notes-0.2.5-rc2.md); historical failures and
 test counts below are not rewritten by a later success.

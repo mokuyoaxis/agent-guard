@@ -1,6 +1,6 @@
 # Harness capability and evidence matrix
 
-Current source: [0.2.5-rc2 candidate](../releases/release-notes-0.2.5-rc2.md), package unpublished.
+Current RC source: [0.2.5-rc2](../releases/release-notes-0.2.5-rc2.md); publication is checked by its receipts.
 Rows below retain their tested source/host versions and do not automatically
 certify this candidate. Local regression or package checks are separate from
 new native-host/model evidence.

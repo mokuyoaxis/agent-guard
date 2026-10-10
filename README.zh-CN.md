@@ -64,8 +64,8 @@ Core 需要 Python 3.9+ 和 Git。示例采用 POSIX Shell；原生桥接和可�
 | 版本 | 状态 |
 |---|---|
 | [0.2.4](docs/releases/release-notes-0.2.4.md) | 已发布的稳定基线 |
-| [0.2.5-rc1](docs/releases/release-notes-0.2.5-rc1.md) | 已发布的预发布基线；显式选择准确 RC 版本 |
-| [0.2.5-rc2](docs/releases/release-notes-0.2.5-rc2.md) | 维护源码候选，包尚未发布 |
+| [0.2.5-rc1](docs/releases/release-notes-0.2.5-rc1.md) | 已发布的历史预发布基线 |
+| [0.2.5-rc2](docs/releases/release-notes-0.2.5-rc2.md) | 维护预发布；以准确版本的发布回执为准 |
 
 稳定包可安装到用户选定的长期目录：
 
@@ -82,10 +82,10 @@ git clone https://github.com/mokuyoaxis/agent-guard.git
 cd agent-guard
 ```
 
-已发布的 RC 基线显式选择 `@mokuyoaxis/agent-guard@0.2.5-rc1`；RC 通道不替换稳定版 `latest`。
-发布状态以 [GitHub Release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.5-rc1)
-和 [npm 版本页](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.5-rc1)为准，
-RC2 候选可使用已核查的 checkout 或本地提供的 tarball；manifest 版本不代表 registry 已可安装。
+RC2 显式选择 `@mokuyoaxis/agent-guard@0.2.5-rc2`；RC 通道不替换稳定版 `latest`。
+发布状态以 [GitHub Release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.5-rc2)
+和 [npm 版本页](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.5-rc2)为准，
+也可使用已核查的 checkout 或提供的 tarball；manifest 版本不代表 registry 已可安装。
 接入步骤与 Agent 提示词见[入门指南](docs/guides/getting-started.md)。
 
 ## 恢复一次受支持的删除

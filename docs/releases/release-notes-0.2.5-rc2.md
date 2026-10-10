@@ -1,14 +1,16 @@
 # Agent Guard 0.2.5-rc2
 
-Maintenance source candidate, prepared 2026-10-09; **package publication pending**.
-The published baselines are stable [0.2.4](release-notes-0.2.4.md) and
-prerelease [0.2.5-rc1](release-notes-0.2.5-rc1.md).
-If published, the exact RC tag routes to GitHub prerelease and npm `rc`,
-preserving stable `latest` and existing version artifacts.
+Maintenance prerelease, prepared 2026-10-09; double-channel publication
+authorized 2026-10-10. The stable baseline is [0.2.4](release-notes-0.2.4.md),
+and the previous prerelease is [0.2.5-rc1](release-notes-0.2.5-rc1.md).
+The exact RC tag routes to GitHub prerelease and npm `rc`, preserving stable
+`latest` and existing version artifacts. Publication receipts are the
+[GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.5-rc2)
+and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.5-rc2).
 
 维护者已选择 RC2 候选准备范围：共享审计元信息最小化、Lab observer 启动与取消收尾、
-配套文档及回归，并另行授权 main 提交／推送。包发布仍待独立授权与远端门禁；
-本机验收及源码推送不作为 GitHub／npm 发布凭据。
+配套文档及回归，并已授权 main 提交／推送及本次 GitHub prerelease／npm rc 双推。
+发布仍需精确提交远端门禁和两个渠道的同工件核查；状态以版本化发布回执为准。
 
 ## Changes since RC1
 

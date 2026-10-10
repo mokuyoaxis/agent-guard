@@ -75,8 +75,8 @@ native bridges and optional capture helpers have their own requirements.
 | Version | Status |
 |---|---|
 | [0.2.4](docs/releases/release-notes-0.2.4.md) | Published stable baseline |
-| [0.2.5-rc1](docs/releases/release-notes-0.2.5-rc1.md) | Published prerelease baseline; select the exact RC version |
-| [0.2.5-rc2](docs/releases/release-notes-0.2.5-rc2.md) | Maintenance source candidate; package publication pending |
+| [0.2.5-rc1](docs/releases/release-notes-0.2.5-rc1.md) | Previous published prerelease baseline |
+| [0.2.5-rc2](docs/releases/release-notes-0.2.5-rc2.md) | Maintenance prerelease; check the exact publication receipts |
 
 For the published stable package, use a chosen, stable user-owned prefix:
 
@@ -93,12 +93,12 @@ git clone https://github.com/mokuyoaxis/agent-guard.git
 cd agent-guard
 ```
 
-For the published RC baseline, select `@mokuyoaxis/agent-guard@0.2.5-rc1` explicitly; the RC
+For RC2, select `@mokuyoaxis/agent-guard@0.2.5-rc2` explicitly; the RC
 channel does not replace stable `latest`. Check the
-[GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.5-rc1)
-or [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.5-rc1)
-for publication. The RC2 candidate is available as a reviewed checkout or
-locally supplied tarball; its manifest does not establish registry availability. See
+[GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.5-rc2)
+and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.5-rc2)
+for publication. A reviewed checkout or supplied tarball is also usable;
+the manifest alone does not establish registry availability. See
 [setup and the agent setup prompt](docs/guides/getting-started.md).
 
 ## Recover a supported deletion
