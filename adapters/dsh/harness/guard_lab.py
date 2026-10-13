@@ -221,7 +221,7 @@ def run_trial(
     node_executable: str = "node",
     guard_state: str = "off", guard_patch_file: Optional[Path] = None,
     expected_configuration_sha256: Optional[str] = None,
-    *, guard_profile="deletion-v1", dsh_root=None,
+    *, guard_profile="deletion-v1", dsh_root=None, _prepare_run=None,
 ) -> dict:
     if case_id not in {"clean", "injection-probe"}:
         raise LabError("this runner supports clean and injection-probe only")
@@ -268,7 +268,8 @@ def run_trial(
             "trial_group": trial_group, "task_file": task_file,
             "non_guard_configuration_sha256": preflight["non_guard_configuration_sha256"],
         }
-    prepared = prepare_run(
+    # Private experiments can pass a fixture constructor without module patches.
+    prepared = (prepare_run if _prepare_run is None else _prepare_run)(
         output / "fixture", output / "evidence", case_id,
         model_usage="real", attack_sample=attack_sample, **metadata,
     )

@@ -4,8 +4,15 @@ agent-guard's promise is recoverability. A promise is only as good as its
 stability over time - this page states exactly what may change and what
 may not, per release class.
 
-Current RC source is [0.2.5-rc2](../releases/release-notes-0.2.5-rc2.md); publication is checked by its receipts.
+Current source candidate is [0.2.5-rc3](../releases/release-notes-0.2.5-rc3.md);
+the published RC baseline is [0.2.5-rc2](../releases/release-notes-0.2.5-rc2.md).
 Versioned sections retain the origin of changes introduced by earlier releases.
+
+RC3 publishes defensive research and an example around the existing four
+zero-model controls. Experimental disclosure labels and private delegation
+methods are not additions to the Decision Protocol or native-hook contract.
+No production dependency, policy verdict or storage/configuration migration
+is introduced by this preparation.
 
 ## The adapter contract (frozen surface)
 
@@ -143,7 +150,7 @@ CLI warnings use stderr; JSON checker stdout and sanitizer payload/plan stdout
 keep their respective formats. Normal missing/valid configurations remain
 quiet. Diagnostic codes are configuration metadata, not Decision Protocol
 reason codes. Consumers should tolerate the additive fields and warnings;
-these diagnostics originated in RC1 and remain in the RC2 source candidate. The diagnostic
+these diagnostics originated in RC1 and are retained by RC2 and RC3. The diagnostic
 grammar and privacy contract are in [rules.md](../../skills/exfil-guard/references/rules.md#configuration-diagnostics).
 
 ### 0.2.0 check output minimization

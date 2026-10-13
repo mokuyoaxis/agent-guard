@@ -7,11 +7,12 @@ setup. The three main paths are [recovery protection](../skills/delete-guard/SKI
 [harness capability matrix](guides/harness-capabilities.md) for observed coverage
 and the [architecture](design/architecture.md) for the shared Core.
 
-Previous published RC baseline: [0.2.5-rc1](releases/release-notes-0.2.5-rc1.md).
+Published RC baseline: [0.2.5-rc2](releases/release-notes-0.2.5-rc2.md).
 Published stable baseline: [0.2.4](releases/release-notes-0.2.4.md).
-Current RC: [0.2.5-rc2](releases/release-notes-0.2.5-rc2.md),
-including [shared audit metadata](guides/audit-metadata.md) and observer startup maintenance;
-publication is established by its GitHub/npm receipts.
+Source candidate: [0.2.5-rc3](releases/release-notes-0.2.5-rc3.md), with
+[blue-team research](research/README.md) and a [four-control example](lab/blue-team-calibration.md).
+Evaluate the source preview through a reviewed checkout or tarball;
+GitHub/npm package publication needs separate versioned receipts.
 
 先看入门指南，再按恢复保护、外发检测、Lab 验测选择入口。测试报告按所测版本与配置保留；发布记录、
 历史设计和外部案例各自归档，不能据此扩展当前产品的承诺。
@@ -20,7 +21,8 @@ publication is established by its GitHub/npm receipts.
 |---|---|
 | [Guides](#guides) / 使用指南 | 宿主接入证据、漂移检查、维护者发布指南 |
 | [Design](#design) / 架构与契约 | 当前架构、威胁模型与兼容契约 |
-| [Lab](#lab) / 实验与候选素材 | Lab 流程、任务模板、外部攻击案例 |
+| [Lab](#lab) / 防守验测 | 校准流程、任务模板及历史候选参考 |
+| [Research](#research) / 防守研究 | 来源、发送授权、父子代理与正常任务评分 |
 | [Reports](#reports) / 测试报告 | 按宿主、版本和观察范围记录的证据 |
 | [Releases](#releases) / 发布记录 | 正式版与预览版各自的范围 |
 | [History](#history) / 历史设计与经验 | 早期设计、实现教训和事故探索 |
@@ -33,7 +35,7 @@ publication is established by its GitHub/npm receipts.
 | [Harness capabilities](guides/harness-capabilities.md) | 当前接入范围、证据等级与未验证路径 |
 | [Host drift](guides/host-drift.md) | 宿主版本、配置与本地基线检查 |
 | [Trash locations](guides/trash-index.md) | 0.2.4 的只读位置查询、Agent／前端共享 JSON 契约 |
-| [Audit metadata](guides/audit-metadata.md) | RC2 候选的字段投影、会话关联、GC／status 契约与保留边界 |
+| [Audit metadata](guides/audit-metadata.md) | RC2 引入的字段投影、会话关联、GC／status 契约与保留边界 |
 | [Publishing from ephemeral environments](guides/publishing-from-ephemeral-environments.md) | 临时环境中的 GitHub 发布操作参考 |
 
 Adapter setup remains in [adapters/](../adapters/INTEGRATION.md). Skill contracts
@@ -52,6 +54,7 @@ remain in [skills/](../skills/delete-guard/SKILL.md).
 | Document / 文档 | Scope / 范围 |
 |---|---|
 | [Guard Lab guide](lab/guard-lab.md) | 操作流程、信道、L0/L1/L2 语义与限制 |
+| [Blue-team calibration](lab/blue-team-calibration.md) | 可从 checkout／包运行的四种零模型控制 |
 | [Clean task](lab/tasks/guard-lab-clean-task.md) | 干净对照任务模板 |
 | [Injection trial task](lab/tasks/guard-lab-trial-task.md) | 提示注入试次任务模板 |
 | [Native-read trial task](lab/tasks/guard-lab-read-trial-task.md) | 原生读取脱敏任务模板 |
@@ -61,6 +64,13 @@ Task templates and external case references are separate from completed test
 reports. A scripted provider checks host behavior; a real-model injection
 trial needs an effective unguarded baseline before a matched comparison.
 
+## Research
+
+[研究导航](research/README.md)汇总本项目防守研究的整理稿：
+数据流观察、正文发送授权、父子来源与独立评分。私有实验方法、公开校准入口与生产
+覆盖分别说明。Lab 小规模推进，欢迎 fork、PR 与独立复现；公开资料不包含诱导载荷
+或私有运行原件。
+
 ## Reports
 
 Each report preserves its original version, configuration, result and limits.
@@ -69,6 +79,7 @@ coverage rather than treating every historical result as current acceptance.
 
 | Document / 文档 | Scope / 范围 |
 |---|---|
+| [Blue-team Lab, October 2026](reports/blue-team-lab-2026-10.md) | 来源／发送授权／任务效用与失败的去敏阶段摘要；不升级正式证据等级 |
 | [0.2.3 contract review](reports/test-report-release-readiness-0.2.3.md) | 发布前契约复核与 DSH 原生验收 |
 | [0.2.4 official Flash / PTC](reports/test-report-dsh-0.2.4-ptc.md) | 实模主／子代理碰撞拒绝；原始主 PTC 任务失败与独立收尾分别记录 |
 | [Claude Code harness](reports/test-report-claude-code-harness.md) | 脚本模型驱动的真实宿主 hook 验证 |
@@ -92,7 +103,8 @@ coverage rather than treating every historical result as current acceptance.
 
 | Document / 文档 | Scope / 范围 |
 |---|---|
-| [0.2.5-rc2](releases/release-notes-0.2.5-rc2.md) | 当前维护 RC；共享审计、observer 维护与兼容边界 |
+| [0.2.5-rc3](releases/release-notes-0.2.5-rc3.md) | 蓝队研究／文档源码候选与零模型示例；包发布另行核查 |
+| [0.2.5-rc2](releases/release-notes-0.2.5-rc2.md) | 已发布的维护 RC；共享审计、observer 维护与兼容边界 |
 | [0.2.5-rc1](releases/release-notes-0.2.5-rc1.md) | 已发布的维护预发布基线、文档整理与版本例外 |
 | [0.2.4](releases/release-notes-0.2.4.md) | 恢复维护、trash 查询及兼容性例外 |
 | [0.2.3](releases/release-notes-0.2.3.md) | 正式版范围与证据边界 |

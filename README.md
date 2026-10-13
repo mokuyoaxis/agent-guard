@@ -4,7 +4,7 @@
 [![npm stable](https://img.shields.io/npm/v/%40mokuyoaxis%2Fagent-guard.svg)](https://www.npmjs.com/package/@mokuyoaxis/agent-guard)
 [![License](https://img.shields.io/github/license/mokuyoaxis/agent-guard)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![0.2.5-rc2 candidate](https://img.shields.io/badge/RC-0.2.5--rc2-5B6B7A)](docs/releases/release-notes-0.2.5-rc2.md)
+[![0.2.5-rc3 candidate](https://img.shields.io/badge/RC-0.2.5--rc3-5B6B7A)](docs/releases/release-notes-0.2.5-rc3.md)
 
 **Make destructive agent actions reversible by default.** · [简体中文](README.zh-CN.md)
 
@@ -65,6 +65,23 @@ external transfer or model request. Existing
 [DSH](docs/reports/test-report-dsh-guard-lab.md) reports retain their bounded
 results, failures and review states.
 
+RC3 adds [blue-team research](docs/research/README.md), a
+[sanitized experiment report](docs/reports/blue-team-lab-2026-10.md) and a
+[portable four-control example](docs/lab/blue-team-calibration.md).
+The research covers provenance, disclosure permissions and task utility in
+bounded private experiments; those methods do not extend production hook
+coverage. Lab proceeds gradually. Forks, PRs and independent defensive
+reproductions are welcome; preserve failed and inconclusive results.
+
+From the RC3 checkout or review package, run all four existing controls:
+
+```sh
+blue_run="$(mktemp -d)"
+python3 docs/lab/examples/blue-team-calibration.py --output-dir "$blue_run/controls"
+```
+
+This example calls no model; its summary describes instrument calibration.
+
 <a id="quick-start-with-your-coding-agent"></a>
 
 ## Install and choose a version
@@ -77,6 +94,7 @@ native bridges and optional capture helpers have their own requirements.
 | [0.2.4](docs/releases/release-notes-0.2.4.md) | Published stable baseline |
 | [0.2.5-rc1](docs/releases/release-notes-0.2.5-rc1.md) | Previous published prerelease baseline |
 | [0.2.5-rc2](docs/releases/release-notes-0.2.5-rc2.md) | Maintenance prerelease; check the exact publication receipts |
+| [0.2.5-rc3](docs/releases/release-notes-0.2.5-rc3.md) | Research/documentation source preview; package publication requires separate receipts |
 
 For the published stable package, use a chosen, stable user-owned prefix:
 
@@ -100,6 +118,10 @@ and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.5-
 for publication. A reviewed checkout or supplied tarball is also usable;
 the manifest alone does not establish registry availability. See
 [setup and the agent setup prompt](docs/guides/getting-started.md).
+
+Evaluate RC3 through a reviewed source checkout or supplied tarball. Its
+manifest and a main-branch commit do not establish a registry release;
+version tags and GitHub/npm package publication are separate steps.
 
 ## Recover a supported deletion
 
@@ -129,7 +151,7 @@ from active GC planning, and minimized restore/safe_delete audit fields.
 Exact CLI/manifest recovery paths remain available. These changes are not in
 the published 0.2.4 package; see the [RC notes](docs/releases/release-notes-0.2.5-rc1.md).
 
-The RC2 source candidate also projects shared audit metadata,
+RC2 introduced shared audit metadata projection,
 uses opaque session correlation, and limits legacy status/GC metadata.
 See the [audit contract and remaining boundaries](docs/guides/audit-metadata.md).
 It adds observer startup diagnostics and correct cancellation accounting;
@@ -211,13 +233,15 @@ reconstruction and known gaps. It cannot recreate bytes that no source kept.
 | [Architecture](docs/design/architecture.md) | Shared Core, compensation and adapter flow |
 | [Threat model](docs/design/threat-model.md) | Trust assumptions and unresolved boundaries |
 | [Compatibility](docs/design/compatibility.md) | Interface and release contracts |
-| [0.2.5-rc2 notes](docs/releases/release-notes-0.2.5-rc2.md) | Current source candidate's changes and validation status |
+| [Blue-team research](docs/research/README.md) | Defensive methods, sanitized results and a zero-model starting point |
+| [0.2.5-rc3 notes](docs/releases/release-notes-0.2.5-rc3.md) | Current source candidate's scope and validation status |
 
 ## Contributing
 
 Bug reports, compatibility evidence, documentation fixes and focused code
 changes are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before sharing
-logs. Use [Issues](https://github.com/mokuyoaxis/agent-guard/issues) and
+defensive research, independent reproductions or logs. Use
+[Issues](https://github.com/mokuyoaxis/agent-guard/issues) and
 [Pull Requests](https://github.com/mokuyoaxis/agent-guard/pulls); keep credentials,
 private configuration and unredacted incident records out of public reports.
 

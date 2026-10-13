@@ -3,8 +3,9 @@
 ## Reporting
 
 Open a GitHub issue for non-sensitive issues, or contact the maintainer
-directly for anything you believe is exploitable. Please include the
-verdict JSON and audit lines involved.
+directly for anything you believe is exploitable. Include the minimal
+sanitized verdict/audit metadata needed to explain it, using synthetic data
+where possible. See [CONTRIBUTING.md](CONTRIBUTING.md) before sharing captures.
 
 ## What agent-guard claims to be
 
@@ -27,10 +28,10 @@ will therefore report hits such as:
 - credential-adjacent wording in `docs/guides/publishing-from-ephemeral-environments.md`
   (a guide about *avoiding* credential leaks).
 
-As of v0.1.0 a full self-scan reports 61 hits (29 high / 10 medium / 22
-low) with **zero in runtime decision paths** - all are documentation or
-test fixtures. If you find a hit outside docs/tests/fixtures, please
-report it.
+A historical v0.1.0 self-scan reported 61 hits (29 high / 10 medium / 22 low).
+That count is a dated checkpoint, not a current runtime-reachability audit.
+Review the concrete call and its context; report unexpected runtime behavior
+with a minimal, sanitized reproduction.
 
 ## Data handling
 
@@ -47,7 +48,12 @@ the configured provider through the host and consume quota; they are separate
 from local command checks and require a selected experiment scope.
 
 Recovery manifests, CLI diagnostics and historical audit records can contain
-exact paths or other private text. Audit minimization in the 0.2.5-rc1 source
-candidate does not make every output or old record secret-free. The exfil text
+exact paths or other private text. Writer minimization introduced in RC1 and
+the shared projection introduced in RC2 remain in RC3; they do not make every
+output or old record secret-free. The exfil text
 CLIs return decisions/plans or sanitized stdout; they do not automatically
 persist egress audit events. Review and redact evidence before sharing it.
+
+The [public blue-team research](docs/research/README.md) shares sanitized
+methods and aggregate observations. Raw sessions, private configuration and
+reusable induction payloads are not part of those new public materials.

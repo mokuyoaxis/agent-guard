@@ -6,6 +6,11 @@ host completion explicitly user-declared. No production dependency is added.
 The default remains guard-off; the paired workflow below supplies the local
 Guard patch only to guard-on members.
 
+For a zero-model starting point, use the [four-control example](../../../docs/lab/blue-team-calibration.md).
+The [defensive research](../../../docs/research/README.md) describes separate
+private provenance/delegation experiments; it does not expand this runner's
+single-root native receipt contract.
+
 ## Select the runtime
 
 Use Node.js 22.23.2 or another runtime with the required native Zstandard APIs.

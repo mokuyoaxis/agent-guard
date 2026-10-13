@@ -6,14 +6,15 @@ native Windows harness execution remains unverified. POSIX hook bridges have
 their own platform requirements. See the
 [compatibility contract](../../../docs/design/compatibility.md).
 
-This reference covers the 0.2.5-rc2 source candidate, including RC1 maintenance
+This reference covers the 0.2.5-rc3 source candidate, retaining RC1 maintenance
 and shared audit metadata projection. The published 0.2.4 baseline lacks the RC's
 control-path, GC and audit-writer maintenance.
 
 ## Decision Protocol
 
 The stable cross-harness interface is Decision + ReasonCode + Explanation
-(+ RecoveryPlan in payload). Five decision classes:
+(+ RecoveryPlan in payload). The deletion path uses the five classes below;
+the shared text policy also supports `SANITIZE`.
 
 | Decision | Meaning | Interaction tier |
 |---|---|---|
@@ -215,8 +216,8 @@ accurate. Those surfaces can still contain sensitive text.
 Mutation intents remain durable before deletion; assessment and outcome
 audits retain their existing best-effort behavior. Historical audit lines
 and manifest metadata are not rewritten. At released RC1, automatic session
-and generic append/tail handling is unchanged. The later unreleased
-[shared projection](../../../docs/guides/audit-metadata.md) limits these fields
+and generic append/tail handling is unchanged. The
+[shared projection](../../../docs/guides/audit-metadata.md) introduced in RC2 limits these fields
 and legacy reads, while raw historical files and recovery surfaces remain.
 
 Authority model: `gc.py --execute` is intentionally permitted

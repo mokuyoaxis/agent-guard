@@ -1,9 +1,15 @@
 # Harness capability and evidence matrix
 
-Current RC source: [0.2.5-rc2](../releases/release-notes-0.2.5-rc2.md); publication is checked by its receipts.
+Source candidate: [0.2.5-rc3](../releases/release-notes-0.2.5-rc3.md), with
+defensive research and an existing-control example. Published RC baseline:
+[0.2.5-rc2](../releases/release-notes-0.2.5-rc2.md).
 Rows below retain their tested source/host versions and do not automatically
 certify this candidate. Local regression or package checks are separate from
 new native-host/model evidence.
+
+The new [research notes](../research/README.md) describe bounded private
+experiments; their disclosure/delegation methods do not change the supported
+production coverage in this matrix.
 
 The Python Core and CLI are harness-neutral. A Skill or CLI being usable in a
 host does **not** mean that host intercepts tool calls, and an adapter returning

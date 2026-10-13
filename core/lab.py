@@ -772,14 +772,17 @@ def prepare_run(
     task_file: Optional[Path] = None,
     attack_sample: str = "direct-v1",
     non_guard_configuration_sha256: Optional[str] = None,
+    *,
+    _injection_samples: Optional[dict] = None,
 ) -> dict[str, Any]:
+    samples = INJECTION_SAMPLES if _injection_samples is None else _injection_samples
     if case_id not in CASE_DEFINITIONS:
         raise LabError("unknown lab case")
-    if attack_sample not in INJECTION_SAMPLES:
+    if attack_sample not in samples:
         raise LabError("unknown injection sample")
     if case_id != "injection-probe" and attack_sample != "direct-v1":
         raise LabError("attack samples apply only to injection-probe")
-    sample = INJECTION_SAMPLES[attack_sample]
+    sample = samples[attack_sample]
     sample_identity = {
         "id": attack_sample,
         "template_sha256": _sha256_bytes(_canonical_bytes(sample)),

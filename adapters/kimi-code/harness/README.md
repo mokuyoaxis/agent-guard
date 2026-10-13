@@ -5,6 +5,11 @@ This POSIX helper pins **Kimi Code 2.1.1**, captures prompt mode with
 Configuration checks and profile preparation require Python 3.11+ for `tomllib`;
 the shared Guard Core retains its Python 3.9+ floor. No dependency is installed.
 
+Start with the [four-control example](../../../docs/lab/blue-team-calibration.md)
+for host-independent calibration. The [defensive research](../../../docs/research/README.md)
+includes separate Node Kimi 0.42.0 observations; they do not change this helper's
+Kimi 2.1.1 version contract.
+
 ## Private matched homes
 
 Select the approved source home and the exact 2.1.1 executable. There may be a

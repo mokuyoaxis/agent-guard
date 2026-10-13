@@ -9,7 +9,7 @@ F21–F23 changes subsequently shipped in 0.2.3; F24–F25 shipped in 0.2.4.
 F26–F31 subsequently shipped in 0.2.5-rc1. RC2 adds shared audit metadata and
 observer startup maintenance; publication is checked by its versioned receipts.
 Current scope is in the
-[candidate notes](../releases/release-notes-0.2.5-rc2.md); historical failures and
+[candidate notes](../releases/release-notes-0.2.5-rc3.md); historical failures and
 test counts below are not rewritten by a later success.
 
 ## F1 · Compound `cd X && rm y` resolves targets against the wrong base

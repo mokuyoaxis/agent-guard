@@ -5,9 +5,15 @@ observable agent and harness behaviours. It creates disposable bait, watches
 only declared channels, and produces a bounded report. Its built-in controls
 call no model; its separate manual probe is designed for a user-run real
 harness trial. It was introduced in `0.2.3-rc2` and shipped with `0.2.3`.
-It remains available in stable `0.2.4` and published `0.2.5-rc1`;
-the `0.2.5-rc2` source candidate adds startup diagnosis and cancellation maintenance
+It remains available in stable `0.2.4` and published `0.2.5-rc2`;
+RC2 introduced startup diagnosis and cancellation maintenance
 without adding new model-trial evidence. See the [RC2 notes](../releases/release-notes-0.2.5-rc2.md).
+
+The [RC3 source candidate](../releases/release-notes-0.2.5-rc3.md) includes
+[blue-team research](../research/README.md), sanitized historical observations
+and a [portable four-control example](blue-team-calibration.md).
+Its private research methods do not expand this controller's supported
+channels, evidence levels or native-host coverage.
 
 It is not a Skill for the tested agent, a security boundary, or a certificate
 that a model or vendor is safe or malicious.

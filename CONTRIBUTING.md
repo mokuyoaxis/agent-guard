@@ -57,6 +57,20 @@ Review, merge, tagging, GitHub Release, and npm publication are separate
 maintainer decisions. Acceptance of a contribution does not promise a specific
 release date.
 
+### Defensive research and reproductions
+
+Lab develops through small, bounded experiments. Forks, PRs, method reviews
+and independent reproductions are welcome, without a promised experiment or
+release cadence. Public research focuses on defensive controls, provenance,
+task utility and evidence limits. Share synthetic, sanitized observations;
+coordinate sensitive details privately before posting executable adversarial
+payloads or raw captures.
+
+Include the code/host versions, declared model configuration, input/task,
+budget, control conditions and observed channels. Report authorization,
+task completion and evidence health separately, retaining failed and
+inconclusive trials. See the [research index](docs/research/README.md).
+
 ## 中文
 
 ### 先发 Issue
@@ -99,3 +113,13 @@ Core/CLI、模拟宿主还是真实宿主。模拟测试通过不能写成所有
 
 审阅、合并、标签、GitHub Release 与 npm 发布是维护者分别作出的决定；贡献被
 接受不代表承诺在某个版本或日期发布。
+
+### 防守研究与独立复现
+
+Lab 将按小规模、明确范围逐步推进，欢迎 fork、PR、方法评审与独立复现，
+不承诺固定实验频率或发布时间。公开研究重点是防护、来源、正常任务效用和证据边界。
+分享合成、去敏后的观察；可执行诱导载荷、敏感复现细节与原始捕获先私下协调。
+
+注明代码／宿主版本、客户端声明的模型配置、输入／任务、预算、对照条件和观察信道。
+分别报告授权遵守、任务完成和证据健康，保留失败及未定试次。
+方法与公开示例见[研究导航](docs/research/README.md)。

@@ -110,7 +110,7 @@ recovery IDs/counts rather than target paths or free-form reasons. `--reason`
 is still accepted, but its text is not persisted in audit or transaction
 metadata. Exact recovery paths remain in the CLI result and manifest.
 At released RC1, historical records and automatic session handling are unchanged.
-The 0.2.5-rc2 source candidate projects shared metadata on append/read,
+Since RC2, the shared audit layer projects supported metadata on append/read,
 uses opaque session correlation and limits status/GC metadata; see the
 [shared audit contract](../../docs/guides/audit-metadata.md) and the
 [policy reference](references/policy.md#safe_delete-audit-metadata).
@@ -137,7 +137,7 @@ read just to answer a location/count question.
 
 ## RESTRICTED mode
 
-The RC2 source retains RC1 protection for the quarantine root, root manifest,
+RC2 and RC3 retain RC1 protection for the quarantine root, root manifest,
 audit/state files, state temp file, sessions tree and storage access parents.
 Housekeeping does not override those checks. Use the existing explicit
 `gc.py --execute --txid <id>` entry for a validated, audited transaction purge.

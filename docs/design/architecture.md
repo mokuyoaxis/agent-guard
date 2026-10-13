@@ -23,7 +23,7 @@ the identity of the project.
 | Authorization | Who decides what? | `core/policy.py` (mode state machine) |
 | Auditability | What actually happened? | `core/audit.py` + `.agent-trash/*.jsonl` |
 
-The 0.2.5-rc2 source candidate adds a shared
+Release 0.2.5-rc2 introduced a shared
 [audit metadata projection](../guides/audit-metadata.md) on append and legacy
 read, with opaque session correlation. Recovery manifests retain exact paths;
 authorization state and required audit durability remain separate contracts.
@@ -305,10 +305,12 @@ order of value:
 
 ## Delivery status and design directions
 
-The current RC source is 0.2.5-rc2, with publication checked by its receipts;
-stable 0.2.4 and the previous prerelease 0.2.5-rc1 remain baselines. It retains RC1 maintenance and adds
-shared audit metadata projection plus observer startup diagnosis/cancellation.
-See [candidate notes](../releases/release-notes-0.2.5-rc2.md) and
+The current source candidate is 0.2.5-rc3; stable 0.2.4 and published RC2 remain
+baselines. It retains the recovery, shared audit and observer maintenance,
+and adds [defensive research](../research/README.md) plus an example using the
+existing zero-model controls. Private research methods do not add a general
+authorization service or new production enforcement point.
+See [candidate notes](../releases/release-notes-0.2.5-rc3.md) and
 [compatibility](compatibility.md) for behaviour and validation boundaries.
 
 The milestones below describe historical delivery and future design scope,

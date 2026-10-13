@@ -10,9 +10,11 @@ Agent Guard 提供恢复保护、外发检测和用户控制的行为验测。�
 
 ## Select the package root
 
-The published stable baseline is 0.2.4; the previous published RC baseline is
-0.2.5-rc1. Current RC source is [0.2.5-rc2](../releases/release-notes-0.2.5-rc2.md),
-including [shared audit metadata](audit-metadata.md) and observer startup maintenance.
+The published stable baseline is 0.2.4; the published RC baseline is
+[0.2.5-rc2](../releases/release-notes-0.2.5-rc2.md), including
+[shared audit metadata](audit-metadata.md) and observer startup maintenance.
+The [RC3 source candidate](../releases/release-notes-0.2.5-rc3.md) adds defensive
+research and a [zero-model calibration example](../lab/blue-team-calibration.md).
 Use a user-selected stable prefix for the published package:
 
 ```sh
@@ -28,6 +30,9 @@ for publication. A reviewed checkout or supplied local tarball can be evaluated
 independently of registry availability.
 Do not infer RC availability from the manifest or use an unscoped same-name
 package. A checkout's default branch can differ from a tagged stable release.
+
+Evaluate RC3 from a reviewed source checkout or supplied review tarball.
+Its manifest or a main-branch commit does not establish registry availability.
 
 Core needs Python 3.9+ and Git, with no third-party Python packages. POSIX
 examples/bridges require a POSIX shell. The optional pinned DSH read path uses

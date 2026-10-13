@@ -186,7 +186,7 @@ facts still apply to variable templates.
 
 ## Configuration (environment)
 
-The RC2 source retains the provenance/count diagnostics introduced in RC1 for the existing
+RC2 and RC3 retain the provenance/count diagnostics introduced in RC1 for the existing
 exemption parser. Matching and file priority remain unchanged; the published
 0.2.4 package does not include these diagnostic fields and warnings.
 
@@ -306,7 +306,7 @@ corpus.
 This is a safe record shape for a trusted integration that chooses to persist
 egress evidence. `check_span.py` and `sanitize.py` do not automatically append
 these events, and cannot observe a caller declining a plan. It is not a claim
-that every egress decision has a durable record. The RC2 source candidate
+that every egress decision has a durable record. Since RC2, shared audit
 projects supported metadata on append/read, including opaque session
 correlation and value-free source-key context. See the
 [shared audit contract](../../../docs/guides/audit-metadata.md); direct reads of
