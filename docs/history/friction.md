@@ -462,3 +462,25 @@ Regression: `tests/test_restore_boundary.py` (14),
 `tests/test_restore_source.py` (14), and `tests/test_restore_force.py` (22).
 These are sequential checks, not atomic same-UID isolation; cross-device
 copy failures can leave partial data requiring inspection.
+
+## F26 · Housekeeping overrode quarantine control protection
+
+In released 0.2.4, the inside-trash allowance ran before protected-path
+checks. A deletion of the quarantine root could receive `ALLOW_TRASH_GC`;
+root manifest/audit/state and session paths were treated as ordinary payload,
+and a regenerable parent could contain configured storage.
+
+**Backported in 0.2.4-hotfix.1 (prepared 2026-10-18):** reuse
+the RC classifier/policy repair so protected paths win before housekeeping.
+Protect the root/control paths, storage parents and reviewed aliases, and
+refuse opaque quarantine globs. Ordinary unprotected payload cleanup and
+explicit transaction GC remain available. No new reason code, dependency,
+storage migration or general interpreter/write coverage is introduced.
+
+Regression: `tests/test_quarantine_controls.py` covers classification,
+POSIX/cmd/PowerShell command facts, enforced checking and safe_delete root,
+glob and mixed-business/control refusals. Scope remains supported deletion
+mistakes; this does not establish same-UID isolation or new native-host
+evidence. This opt-in hotfix leaves the 0.2.5 RC scope intact. Its release
+routing is described in the
+[compatibility contract](../design/compatibility.md#quarantine-control-maintenance-hotfix).

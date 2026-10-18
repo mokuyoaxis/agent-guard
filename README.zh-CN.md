@@ -4,7 +4,7 @@
 [![npm 版本](https://img.shields.io/npm/v/%40mokuyoaxis%2Fagent-guard.svg)](https://www.npmjs.com/package/@mokuyoaxis/agent-guard)
 [![License](https://img.shields.io/github/license/mokuyoaxis/agent-guard)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![v0.2.4 源码](https://img.shields.io/badge/%E6%BA%90%E7%A0%81-v0.2.4-5B6B7A)](docs/releases/release-notes-0.2.4.md)
+[![0.2.4-hotfix.1 热修复](https://img.shields.io/badge/Hotfix-0.2.4--hotfix.1-5B6B7A)](docs/releases/release-notes-0.2.4-hotfix.1.md)
 
 **让 AI Agent 的破坏性操作默认可逆。** · [English](README.md)
 
@@ -45,15 +45,17 @@ Agent 可以继续工作；否则交给人或阻断。
 可以安装带作用域的 npm 包，也可以保留一个稳定的 Git checkout。
 无作用域的同名 `agent-guard` 包与本项目无关。
 
-把固定版本安装到用户选择的稳定路径：
+发布后，把热修复的固定版本安装到用户选择的稳定路径：
 
 ```sh
-npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.4
+npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.4-hotfix.1
 ```
 
-**0.2.4** 包含 hard reset 碰撞检查、restore 来源／目标
-验证、强制恢复时保留当前版本，以及垃圾桶只读位置查询。
-本次行为变化与证据边界见 [发布说明](docs/releases/release-notes-0.2.4.md)；
+**0.2.4-hotfix.1** 是基于 0.2.4 的可选热修复，仅增加回收站根／控制路径保护，
+保留基线的 hard reset、restore 和垃圾桶只读查询行为。使用独立 npm `hotfix`
+渠道，`latest`、`rc` 及现有 0.2.5 RC 累计内容保持各自路线。按 SemVer，此后缀
+排序低于 0.2.4，需要显式选择热修复版本或渠道。
+本次行为变化与验证范围见 [热修复说明](docs/releases/release-notes-0.2.4-hotfix.1.md)；
 npm 徽章和 [GitHub Releases](https://github.com/mokuyoaxis/agent-guard/releases)
 展示实际可用的发布工件。
 
@@ -71,8 +73,8 @@ Core 需要 Python 3.9+ 和 Git；是否能自动拦截取决于宿主是否提�
 
 ```text
 请为当前工作区接入 agent-guard。只使用现有 Git checkout，或精确的 scoped
-npm 包 @mokuyoaxis/agent-guard@0.2.4；不要安装无作用域的同名
-agent-guard。若 0.2.4 尚不可用，说明情况，使用现有 checkout 或让我选择已发布版本。
+npm 包 @mokuyoaxis/agent-guard@0.2.4-hotfix.1；不要安装无作用域的同名
+agent-guard。若 0.2.4-hotfix.1 尚不可用，说明情况，使用现有 checkout 或让我选择已发布版本。
 安装前先让我选择并批准一个稳定的用户目录，然后把 checkout 或 npm 安装后的
 包根目录作为下文的 /absolute/path/to/agent-guard。
 先识别当前 harness 实际支持的 hook 与 Skill，阅读本 README 和对应 adapter

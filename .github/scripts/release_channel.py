@@ -10,6 +10,7 @@ from typing import Dict
 _NUMBER = r"(?:0|[1-9][0-9]*)"
 _STABLE_RE = re.compile(rf"^{_NUMBER}\.{_NUMBER}\.{_NUMBER}$")
 _RC_RE = re.compile(rf"^{_NUMBER}\.{_NUMBER}\.{_NUMBER}-rc{_NUMBER}$")
+_HOTFIX_RE = re.compile(rf"^{_NUMBER}\.{_NUMBER}\.{_NUMBER}-hotfix\.{_NUMBER}$")
 
 
 def release_channel(version: str) -> Dict[str, str]:
@@ -26,8 +27,15 @@ def release_channel(version: str) -> Dict[str, str]:
             "RELEASE_PRERELEASE": "true",
             "NPM_DIST_TAG": "rc",
         }
+    if _HOTFIX_RE.fullmatch(version):
+        return {
+            "RELEASE_KIND": "hotfix",
+            "RELEASE_PRERELEASE": "true",
+            "NPM_DIST_TAG": "hotfix",
+        }
     raise ValueError(
-        "release version must be X.Y.Z or X.Y.Z-rcN without leading zeros")
+        "release version must be X.Y.Z, X.Y.Z-rcN or X.Y.Z-hotfix.N "
+        "without leading zeros")
 
 
 def main(argv: list[str]) -> int:

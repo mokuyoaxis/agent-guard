@@ -1,4 +1,4 @@
-"""Release-channel routing stays strict and keeps RCs off npm latest."""
+"""Release-channel routing keeps RC and hotfix streams off npm latest."""
 import importlib.util
 from pathlib import Path
 import subprocess
@@ -31,22 +31,40 @@ class ReleaseChannelTests(unittest.TestCase):
 
     def test_non_project_tag_shapes_are_rejected(self):
         for version in ("v0.2.3", "0.2.3-rc.1", "0.2.3-beta1",
-                        "01.2.3", "0.02.3", "0.2.03", "0.2.3-rc01"):
+                        "01.2.3", "0.02.3", "0.2.03", "0.2.3-rc01",
+                        "0.2.4-hotfix", "0.2.4-hotfix1", "0.2.4-hotfix.01",
+                        "0.02.4-hotfix.1", "0.2.4-hotfix.1.extra",
+                        "0.2.4+hotfix.1", "0.2.4-hotfix.1\nNPM_DIST_TAG=latest"):
             with self.subTest(version=version):
                 with self.assertRaises(ValueError):
                     release_channel.release_channel(version)
 
+    def test_hotfix_routes_to_its_own_prerelease_channel(self):
+        for version in ("0.2.4-hotfix.1", "0.2.4-hotfix.2"):
+            with self.subTest(version=version):
+                self.assertEqual(release_channel.release_channel(version), {
+                    "RELEASE_KIND": "hotfix",
+                    "RELEASE_PRERELEASE": "true",
+                    "NPM_DIST_TAG": "hotfix",
+                })
+
     def test_cli_output_is_safe_for_github_env(self):
-        proc = subprocess.run(
-            [sys.executable, str(SCRIPT), "0.2.3-rc1"],
-            text=True, capture_output=True, check=False,
-        )
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        self.assertEqual(set(proc.stdout.splitlines()), {
-            "RELEASE_KIND=prerelease",
-            "RELEASE_PRERELEASE=true",
-            "NPM_DIST_TAG=rc",
-        })
+        for version, kind, prerelease, tag in (
+            ("0.2.4", "stable", "false", "latest"),
+            ("0.2.5-rc3", "prerelease", "true", "rc"),
+            ("0.2.4-hotfix.1", "hotfix", "true", "hotfix"),
+        ):
+            with self.subTest(version=version):
+                proc = subprocess.run(
+                    [sys.executable, str(SCRIPT), version],
+                    text=True, capture_output=True, check=False,
+                )
+                self.assertEqual(proc.returncode, 0, proc.stderr)
+                self.assertEqual(set(proc.stdout.splitlines()), {
+                    "RELEASE_KIND=" + kind,
+                    "RELEASE_PRERELEASE=" + prerelease,
+                    "NPM_DIST_TAG=" + tag,
+                })
 
 
 if __name__ == "__main__":

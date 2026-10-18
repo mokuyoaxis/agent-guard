@@ -15,9 +15,9 @@ class PackageManifestTests(unittest.TestCase):
         cls.manifest = json.loads(
             (ROOT / "package.json").read_text(encoding="utf-8"))
 
-    def test_scoped_public_stable_identity(self):
+    def test_scoped_public_hotfix_identity(self):
         self.assertEqual(self.manifest["name"], "@mokuyoaxis/agent-guard")
-        self.assertEqual(self.manifest["version"], "0.2.4")
+        self.assertEqual(self.manifest["version"], "0.2.4-hotfix.1")
         self.assertNotIn("private", self.manifest)
         self.assertEqual(
             self.manifest.get("publishConfig"), {"access": "public"})
@@ -81,6 +81,7 @@ class PackageManifestTests(unittest.TestCase):
         self.assertIn("workflow_dispatch:", workflow)
         self.assertIn("tags:", workflow)
         self.assertIn("-rc[0-9]+", workflow)
+        self.assertIn("-hotfix.[0-9]+", workflow)
         self.assertIn("@mokuyoaxis/agent-guard", workflow)
         self.assertIn("secrets.NPM_TOKEN", workflow)
         self.assertIn("npm whoami", workflow)

@@ -53,9 +53,9 @@ different effects (`-wi`, `-c`, `-p`) stays unknown and BLOCKs.
 | 2a | SHAPE F1: destructive op preceded by `cd` in the same command line, target in-workspace and resolvable | `ASK` (`COMPOUND_CWD_DELETE`) | single-execution authorization; splitting the command avoids the prompt. A shape rule describes *compensation* difficulty, never effect scope: if the target set also trips rule 2, 4, 5 or 6, that BLOCK wins (`tests/test_incident_regression.py`) |
 | 2b | SHAPE F2: file-creation op (`touch/mkdir/cp/mv/install/ln/tee`, `>`/`>>`) precedes a target-dependent destructive op in the same line | `ASK` (`COMPOUND_CREATE_DELETE`) | single-execution authorization; force-push is refused separately. Hard reset in a compound line is effect-uncertain and BLOCKED before shape rules |
 | 2c | target *is* a filesystem root (`/`, `/home`, `/usr`, `/etc`, `/var`, `/tmp`, `/opt`, `/boot`, `$HOME`, ...) | `BLOCK_PROTECTED_ANCESTOR` | refuse. Matched exactly, so paths *under* these roots keep the ordinary codes; enforced by identity rather than workspace geometry, so it holds even when the workspace is `/` |
-| 3 | any target inside quarantine (`.agent-trash/`) | `ALLOW_TRASH_GC` | direct delete permitted (housekeeping) |
+| 5 | workspace root, `.git` metadata, quarantine root/control paths, or an in-workspace parent containing configured storage | `BLOCK_PROTECTED_PATH` | refuse before the housekeeping exemption; root manifest/audit/state, state temp and sessions are control paths |
+| 3 | explicit ordinary unprotected payload inside quarantine (`.agent-trash/`) | `ALLOW_TRASH_GC` | opaque globs are refused; safe_delete may enumerate first, and transaction purges use gc.py --execute with an explicit selection |
 | 4 | target outside workspace | `BLOCK_OUT_OF_WORKSPACE` | refuse |
-| 5 | target is workspace root or `.git` (any depth) | `BLOCK_PROTECTED_PATH` | refuse |
 | 6 | any glob target | `BLOCK_WILDCARD` | refuse; use safe_delete which enumerates |
 | 7 | RESTRICTED mode, git/remote destructive op | `BLOCK_RESTRICTED_MODE` | refuse |
 | 8 | RESTRICTED mode, fs delete | narrow files only -> `RELOCATE_NARROW`, else `BLOCK_RESTRICTED_MODE` | refuse or quarantine |
@@ -71,8 +71,15 @@ different effects (`-wi`, `-c`, `-p`) stays unknown and BLOCKs.
 | 14 | rooted recursive delete | `RELOCATE_TREE` | quarantine whole tree, proceed |
 | 15 | named files/dirs | `RELOCATE_PATHS` | quarantine, proceed |
 
-Precedence inside rule groups: `outside-workspace` > `workspace-root` >
-`git-metadata`. RESTRICTED narrows before NORMAL relaxes.
+Filesystem-root and workspace/Git/quarantine protection win before ordinary
+housekeeping. Targets outside the workspace retain their boundary refusal,
+except ordinary unprotected payload inside the explicitly configured quarantine.
+RESTRICTED narrows before NORMAL relaxes.
+
+The 0.2.4-hotfix.1 maintenance hotfix backports the RC control-path repair onto 0.2.4.
+The original 0.2.4 artifact does not include this protection. This hotfix uses
+an explicit version or npm hotfix selection.
+The existing 0.2.5 RC line retains its accumulated changes.
 
 ## Verdict actions
 

@@ -33,7 +33,7 @@ import shlex
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
-from . import dialects
+from . import AUDIT_NAME, MANIFEST_NAME, STATE_NAME, dialects
 
 # ---------------------------------------------------------------- vocabulary
 
@@ -192,6 +192,7 @@ class PathSpec:
     inside_trash: bool = False
     protected: Optional[str] = None     # None | ancestor-root | workspace-root
                                         # | outside-workspace | git-metadata
+                                        # | quarantine-control
     error: Optional[str] = None
 
 # ------------------------------------------------------------- path analysis
@@ -248,6 +249,26 @@ def _physical_keep_final(path: str) -> str:
     if not name:  # filesystem root
         return abspath
     return os.path.join(os.path.realpath(parent), name)
+
+
+def _quarantine_control_path(absolute: str, physical: str,
+                             trash_root: str, trash_physical: str,
+                             workspace: str) -> bool:
+    """Protect storage access and root metadata, retaining leaf-link location."""
+    # A configured final link is also the access path to an external bucket.
+    # Deleting its parent would sever that access even if storage is elsewhere.
+    if (inside_path(physical, workspace) and
+            any(inside_path(storage, physical) for storage in
+                (trash_physical, _physical_keep_final(trash_root)))):
+        return True
+    controls = {MANIFEST_NAME, AUDIT_NAME, STATE_NAME, STATE_NAME + ".tmp",
+                "sessions"}
+    for candidate in (physical, _physical_keep_final(absolute)):
+        if inside_path(candidate, trash_physical):
+            relative = os.path.relpath(candidate, trash_physical)
+            if relative.split(os.sep)[0] in controls:
+                return True
+    return False
 
 
 def workspace_boundary_root(workspace: str) -> str:
@@ -365,6 +386,9 @@ def classify_paths(
             # content. `rm -rf .` stays a hard BLOCK. (When no trash_root is
             # given, trash_physical is None and cannot match a real path.)
             spec.protected = "workspace-root"
+        elif trash_root and _quarantine_control_path(
+                absolute, physical, trash_root, trash_physical, workspace):
+            spec.protected = "quarantine-control"
         elif not spec.inside_workspace:
             spec.protected = "outside-workspace"
         else:

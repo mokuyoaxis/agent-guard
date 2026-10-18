@@ -4,7 +4,7 @@
 [![npm version](https://img.shields.io/npm/v/%40mokuyoaxis%2Fagent-guard.svg)](https://www.npmjs.com/package/@mokuyoaxis/agent-guard)
 [![License](https://img.shields.io/github/license/mokuyoaxis/agent-guard)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![v0.2.4 source](https://img.shields.io/badge/Source-v0.2.4-5B6B7A)](docs/releases/release-notes-0.2.4.md)
+[![0.2.4-hotfix.1 source](https://img.shields.io/badge/Hotfix-0.2.4--hotfix.1-5B6B7A)](docs/releases/release-notes-0.2.4-hotfix.1.md)
 
 **Make destructive agent actions reversible by default.** · [简体中文](README.zh-CN.md)
 
@@ -54,16 +54,20 @@ the guard asks the human or blocks the operation.
 Use the scoped npm package or a stable Git checkout. The unscoped
 `agent-guard` package is unrelated to this project.
 
-Pinned npm installation into a stable, user-owned prefix:
+After publication, install the exact hotfix into a stable, user-owned prefix:
 
 ```sh
-npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.4
+npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.4-hotfix.1
 ```
 
-**0.2.4** adds hard-reset collision checks,
-restore path validation, current-version preservation on forced restore, and
-a read-only trash location query. See the [release notes](docs/releases/release-notes-0.2.4.md)
-for behavior changes and evidence limits. The npm badge and
+**0.2.4-hotfix.1** is an opt-in maintenance hotfix based on 0.2.4, adding
+quarantine root/control-path protection. It retains the baseline's hard-reset,
+restore and read-only trash-query behavior. It uses the
+separate npm `hotfix` channel; `latest`, `rc` and the cumulative 0.2.5 RC line
+keep their existing roles. SemVer ranks this suffix below 0.2.4, so users
+must explicitly select the hotfix version or channel. See the
+[hotfix notes](docs/releases/release-notes-0.2.4-hotfix.1.md) for scope and
+validation. The npm badge and
 [GitHub Releases](https://github.com/mokuyoaxis/agent-guard/releases) show
 which artifacts are available.
 
@@ -82,8 +86,8 @@ the host's hook support. Then give your coding agent the following setup prompt
 
 ```text
 Set up agent-guard for this workspace. Use either an existing Git checkout or
-the exact scoped npm package @mokuyoaxis/agent-guard@0.2.4;
-never install the unscoped package named agent-guard. If 0.2.4 is unavailable,
+the exact scoped npm package @mokuyoaxis/agent-guard@0.2.4-hotfix.1;
+never install the unscoped package named agent-guard. If 0.2.4-hotfix.1 is unavailable,
 report that and use the existing checkout or ask me to choose a published
 version. Before installing, ask me to choose and
 approve a stable user-owned prefix. Treat the checkout or installed package

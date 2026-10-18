@@ -161,9 +161,35 @@ Every expansion is recorded in the op notes for audit.
 
 ## Verdict changes since v0.1.1
 
+### Quarantine-control maintenance hotfix
+
+The 0.2.4-hotfix.1 maintenance hotfix backports the existing RC protection for the
+quarantine root, control files/session state, in-workspace storage parents
+and reviewed aliases. `BLOCK_PROTECTED_PATH` now takes precedence over
+`ALLOW_TRASH_GC`; opaque quarantine globs return `BLOCK_WILDCARD`.
+Ordinary unprotected payload housekeeping and explicit transaction GC remain
+available. Mixed batches containing a protected target are refused before
+the deletion entry point moves or removes business files.
+
+Existing decision/reason strings, CLI arguments, exit codes and storage
+formats are retained. This tightens the default verdict for formerly allowed
+operations. On 2026-10-18 the maintainer selected 0.2.4-hotfix.1 as a bounded
+maintenance exception to the normal 0.x minor-release rule, limited to this
+storage-protection repair. The original 0.2.4 tag/package is unchanged.
+The 0.2.5 RC line retains its cumulative scope and version target.
+
+SemVer treats -hotfix.1 as a prerelease suffix below 0.2.4. Publication routes
+X.Y.Z-hotfix.N to GitHub prerelease and npm hotfix; users explicitly select
+the version or channel. Existing stable tags continue to use latest, and RC
+tags continue to use rc. Artifact availability is established by GitHub/npm
+publication receipts.
+See [F26](../history/friction.md#f26--housekeeping-overrode-quarantine-control-protection).
+
+### Existing verdict changes
+
 A changed default verdict for an existing shape is a **minor** release and
 requires an entry in [friction.md](../history/friction.md) - never a silent behaviour
-shift. The explicit 0.2.4 exception is recorded above. Additive reason codes
+shift. The bounded maintenance exceptions are recorded above. Additive reason codes
 are listed above; this table is for shapes
 whose *existing* verdict moved.
 
