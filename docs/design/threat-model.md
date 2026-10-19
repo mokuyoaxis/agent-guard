@@ -8,8 +8,8 @@ bypass. Therefore:
 
 - agent-guard is **reliability infrastructure**, not a security boundary.
   It defends against *mistakes*: misjudged context, mis-expanded commands,
-  wrong working directory, hallucinated paths - which is what essentially
-  all real-world "agent deleted my data" incidents are.
+  wrong working directory and hallucinated paths. It does not cover every
+  cause of data loss or every destructive operation.
 - You may claim: recovery for supported valuable deletions, explicit audit
   contracts for observed calls, graded authorization discipline, and reduced
   blast radius of common accidents. Regenerable artifacts may be deleted

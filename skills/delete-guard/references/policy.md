@@ -6,9 +6,10 @@ native Windows harness execution remains unverified. POSIX hook bridges have
 their own platform requirements. See the
 [compatibility contract](../../../docs/design/compatibility.md).
 
-This reference covers the 0.2.5-rc3 source candidate, retaining RC1 maintenance
-and shared audit metadata projection. The published 0.2.4 baseline lacks the RC's
-control-path, GC and audit-writer maintenance.
+This reference covers 0.2.5, retaining RC1–RC3
+maintenance and shared audit metadata projection. The original published
+0.2.4 baseline lacks the RC's control-path, GC and audit-writer maintenance;
+the opt-in 0.2.4-hotfix.1 backports only control-path protection.
 
 ## Decision Protocol
 
@@ -33,6 +34,12 @@ would forfeit the core guarantee. Hard boundaries
 RESTRICTED prohibitions) are policy violations and never askable.
 
 check.py exit codes: 0 proceed/advisory-ok · 2 blocked · 3 ask · 1 error.
+
+The 0.2.5 feedback maintenance changes explanations and optional
+result metadata, not this decision table. `ALLOW_NOOP` means no recovery
+action for recognized operations; it does not establish that unrecognized
+commands are harmless. Human check output now includes the explanation.
+See [status and cleanup feedback](../../../docs/guides/recovery-feedback.md).
 
 ### Assessment and dry-run side effects
 
@@ -173,6 +180,12 @@ Retention/GC is intentionally manual in V1; `restore.py list` distinguishes
 `status.py` reports both historical and currently restorable counts.
 
 ## Retention / GC (B4)
+
+Successful relocations report retained storage and GC commands; enforced
+partial relocations retain their failed outcome and recovery association.
+The same working directory and workspace/trash environment settings must be
+used for maintenance. The `gc` command hints are optional result metadata,
+not new audit fields, automatic execution, or permission to purge.
 
 Soft policy: 30-day retention, 5 GiB cap. Thresholds only MARK transactions
 `GC_ELIGIBLE` (oldest first under the cap); purging is an explicit

@@ -1,6 +1,6 @@
 # 蓝队零模型校准 / Blue-team calibration
 
-RC3 提供一个便携示例，将现有四种 Lab 控制依次运行并保存简短摘要。
+RC3 引入的便携示例保留在 0.2.5 中，将现有四种 Lab 控制依次运行并保存简短摘要。
 它复用已交付的 Core，不需要 DSH、Kimi、模型账户、私有 home 或新的 Python 依赖。
 需要 Python 3.9+，并允许本机 IPv4 回环监听；完整 Core 安装仍按[入门指南](../guides/getting-started.md)检查。
 

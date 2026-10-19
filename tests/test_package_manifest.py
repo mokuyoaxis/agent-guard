@@ -17,7 +17,7 @@ class PackageManifestTests(unittest.TestCase):
 
     def test_scoped_public_candidate_identity(self):
         self.assertEqual(self.manifest["name"], "@mokuyoaxis/agent-guard")
-        self.assertEqual(self.manifest["version"], "0.2.5-rc3")
+        self.assertEqual(self.manifest["version"], "0.2.5")
         self.assertNotIn("private", self.manifest)
         self.assertEqual(
             self.manifest.get("publishConfig"), {"access": "public"})
@@ -81,6 +81,7 @@ class PackageManifestTests(unittest.TestCase):
         self.assertIn("workflow_dispatch:", workflow)
         self.assertIn("tags:", workflow)
         self.assertIn("-rc[0-9]+", workflow)
+        self.assertIn("-hotfix.[0-9]+", workflow)
         self.assertIn("@mokuyoaxis/agent-guard", workflow)
         self.assertIn("secrets.NPM_TOKEN", workflow)
         self.assertIn("npm whoami", workflow)

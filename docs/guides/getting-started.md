@@ -10,29 +10,40 @@ Agent Guard 提供恢复保护、外发检测和用户控制的行为验测。�
 
 ## Select the package root
 
-The published stable baseline is 0.2.4; the published RC baseline is
-[0.2.5-rc2](../releases/release-notes-0.2.5-rc2.md), including
-[shared audit metadata](audit-metadata.md) and observer startup maintenance.
-The [RC3 source candidate](../releases/release-notes-0.2.5-rc3.md) adds defensive
-research and a [zero-model calibration example](../lab/blue-team-calibration.md).
-Use a user-selected stable prefix for the published package:
+The stable release line is [0.2.5](../releases/release-notes-0.2.5.md), and the
+prerelease line remains [0.2.5-rc3](../releases/release-notes-0.2.5-rc3.md).
+The optional [0.2.4-hotfix.1](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.4-hotfix.1)
+backports quarantine protection onto the stable line.
+Version 0.2.5 combines RC1–RC3 and clearer status, command and storage feedback.
+Its [GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.5)
+and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.5)
+establish package availability. Use a user-selected stable prefix:
 
 ```sh
-npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.4
+npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.5
 ```
 
 The package root is
 `/absolute/path/to/agent-guard-install/node_modules/@mokuyoaxis/agent-guard`.
-For RC2, select `@mokuyoaxis/agent-guard@0.2.5-rc2` explicitly and check its
-[GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.5-rc2)
-and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.5-rc2)
-for publication. A reviewed checkout or supplied local tarball can be evaluated
-independently of registry availability.
-Do not infer RC availability from the manifest or use an unscoped same-name
-package. A checkout's default branch can differ from a tagged stable release.
+To select the prerelease, use `@mokuyoaxis/agent-guard@0.2.5-rc3` explicitly;
+its [GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.5-rc3)
+and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.5-rc3)
+identify the published package. For the stable-line fix alone, select
+`@mokuyoaxis/agent-guard@0.2.4-hotfix.1`. These opt-in channels do not move
+stable `latest`.
 
-Evaluate RC3 from a reviewed source checkout or supplied review tarball.
-Its manifest or a main-branch commit does not establish registry availability.
+For a reviewed local checkout or explicitly selected local tarball, use a
+separate prefix:
+
+```sh
+npm install --offline --ignore-scripts --no-audit --no-fund --prefix /absolute/path/to/agent-guard-review /absolute/path/to/mokuyoaxis-agent-guard-0.2.5.tgz
+```
+
+The review package root is
+`/absolute/path/to/agent-guard-review/node_modules/@mokuyoaxis/agent-guard`.
+Keep the selected package/checkout path consistent when configuring the host.
+Do not infer publication from a manifest/main commit or use an unscoped
+same-name package. A checkout's default branch can differ from a tagged stable release.
 
 Core needs Python 3.9+ and Git, with no third-party Python packages. POSIX
 examples/bridges require a POSIX shell. The optional pinned DSH read path uses

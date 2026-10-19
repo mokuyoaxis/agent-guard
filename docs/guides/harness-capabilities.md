@@ -1,10 +1,11 @@
 # Harness capability and evidence matrix
 
-Source candidate: [0.2.5-rc3](../releases/release-notes-0.2.5-rc3.md), with
-defensive research and an existing-control example. Published RC baseline:
-[0.2.5-rc2](../releases/release-notes-0.2.5-rc2.md).
+Stable release line: [0.2.5](../releases/release-notes-0.2.5.md).
+It retains RC1–RC3 and adds clearer startup, command and storage
+feedback. Published prerelease, checked on 2026-10-19:
+[0.2.5-rc3](../releases/release-notes-0.2.5-rc3.md).
 Rows below retain their tested source/host versions and do not automatically
-certify this candidate. Local regression or package checks are separate from
+certify a later release. Local regression or package checks are separate from
 new native-host/model evidence.
 
 The new [research notes](../research/README.md) describe bounded private

@@ -144,6 +144,44 @@ class QuarantineControlTests(RepoFixture):
         self.assertEqual(json.loads(result.stdout)['code'], 'BLOCK_PROTECTED_PATH')
         self.assertEqual(Path(filename).read_text(), 'keep')
 
+    def run_safe_delete(self, *paths):
+        env = {k: v for k, v in os.environ.items()
+               if not k.startswith('AGENT_GUARD_')}
+        return subprocess.run(
+            [sys.executable, str(ROOT / 'skills/delete-guard/scripts/safe_delete.py'),
+             '--json', *paths], cwd=self.root, env=env,
+            capture_output=True, text=True, timeout=30)
+
+    def test_safe_delete_refuses_root_without_consuming_payload(self):
+        payload = self.write('.agent-trash/tx1/payload', 'keep')
+        manifest = self.write('.agent-trash/manifest.jsonl', '')
+        result = self.run_safe_delete('.agent-trash')
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertEqual(json.loads(result.stdout)['verdict']['code'],
+                         'BLOCK_PROTECTED_PATH')
+        self.assertEqual(Path(payload).read_text(), 'keep')
+        self.assertEqual(Path(manifest).read_text(), '')
+
+    def test_safe_delete_glob_refuses_controls_before_removing_payload(self):
+        payload = self.write('.agent-trash/tx1/payload', 'keep')
+        manifest = self.write('.agent-trash/manifest.jsonl', '')
+        result = self.run_safe_delete('.agent-trash/*')
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertEqual(json.loads(result.stdout)['verdict']['code'],
+                         'BLOCK_PROTECTED_PATH')
+        self.assertEqual(Path(payload).read_text(), 'keep')
+        self.assertEqual(Path(manifest).read_text(), '')
+
+    def test_safe_delete_mixed_batch_refuses_before_moving_business_file(self):
+        business = self.write('src/keep.txt', 'business')
+        control = self.write('.agent-trash/manifest.jsonl', '')
+        result = self.run_safe_delete('src/keep.txt', '.agent-trash/manifest.jsonl')
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertEqual(json.loads(result.stdout)['verdict']['code'],
+                         'BLOCK_PROTECTED_PATH')
+        self.assertEqual(Path(business).read_text(), 'business')
+        self.assertEqual(Path(control).read_text(), '')
+
 
 if __name__ == '__main__':
     unittest.main()

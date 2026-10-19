@@ -1,5 +1,13 @@
 # Agent Guard 0.2.5-rc3
 
+Publication status checked 2026-10-19: RC3 was published on 2026-10-14 as a
+[GitHub prerelease](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.5-rc3)
+and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.5-rc3).
+The next stable release line is [0.2.5](release-notes-0.2.5.md).
+The following preparation snapshot retains its original results and limits.
+
+## Preparation snapshot · 2026-10-13
+
 Source candidate prepared 2026-10-13. Published baselines remain stable
 [0.2.4](release-notes-0.2.4.md) and prerelease
 [0.2.5-rc2](release-notes-0.2.5-rc2.md). The maintainer authorized the normal

@@ -305,12 +305,14 @@ order of value:
 
 ## Delivery status and design directions
 
-The current source candidate is 0.2.5-rc3; stable 0.2.4 and published RC2 remain
-baselines. It retains the recovery, shared audit and observer maintenance,
-and adds [defensive research](../research/README.md) plus an example using the
-existing zero-model controls. Private research methods do not add a general
-authorization service or new production enforcement point.
-See [candidate notes](../releases/release-notes-0.2.5-rc3.md) and
+The stable release line is 0.2.5. Previous stable 0.2.4, opt-in
+0.2.4-hotfix.1 and prerelease 0.2.5-rc3 retain their separate artifacts.
+Version 0.2.5 retains RC recovery, shared audit,
+observer maintenance and [defensive research](../research/README.md), plus
+clearer local startup/status and retained-storage feedback. Private research
+methods do not add a general authorization service or production enforcement
+point. Deletion rules and execution routes retain their RC behavior.
+See [candidate notes](../releases/release-notes-0.2.5.md) and
 [compatibility](compatibility.md) for behaviour and validation boundaries.
 
 The milestones below describe historical delivery and future design scope,

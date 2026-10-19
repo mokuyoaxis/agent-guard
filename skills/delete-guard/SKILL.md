@@ -32,15 +32,15 @@ enforces and how to work with it productively. The four pillars:
 
 ```bash
 # delete explicit targets; valuable content is quarantined:
-python3 <repo>/skills/delete-guard/scripts/safe_delete.py src/old_module.py
-python3 <repo>/skills/delete-guard/scripts/safe_delete.py 'build/**/*.tmp' --reason "stale build output"
+python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/safe_delete.py src/old_module.py
+python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/safe_delete.py 'build/**/*.tmp' --reason "stale build output"
 
 # undo a transaction (list first if unsure):
-python3 <repo>/skills/delete-guard/scripts/restore.py list
-python3 <repo>/skills/delete-guard/scripts/restore.py <txid>
+python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/restore.py list
+python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/restore.py '<txid>'
 
 # current guard state:
-python3 <repo>/skills/delete-guard/scripts/status.py
+python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/status.py
 ```
 
 Globs passed to `safe_delete` are expanded explicitly before anything moves.
@@ -54,7 +54,9 @@ can receive:
 
 | Verdict | Meaning | Your move |
 |---|---|---|
-| `ALLOW` (harness may show `PROCEED`) | safe as-is or compensation already applied | continue; record and verify any `txid` |
+| `ALLOW` | no recovery action for recognized operations; unrecognized effects are unchecked | continue only within the authorized scope; do not infer that scripts or overwrites are safe |
+| `RELOCATE` / `SNAPSHOT` (harness may show `PROCEED` after compensation) | quarantine or tracked Git snapshot required | record and verify the resulting `txid` before continuing |
+| `ASK` | this understood operation needs single-execution approval | use the host's human approval path; if unavailable, stop or split the command |
 | `BLOCK_UNDETERMINABLE_EFFECT` | targets unresolvable (`$VAR`, `bash -c`, `find -delete`, `xargs`) | restate with explicit paths, or use `safe_delete` |
 | `BLOCK_WILDCARD` | glob target set is opaque | use `safe_delete` with the glob |
 | `BLOCK_OUT_OF_WORKSPACE` / `BLOCK_PROTECTED_PATH` / `BLOCK_PROTECTED_ANCESTOR` | outside boundary, workspace root, `.git`, or a filesystem root (`/`, `/home`, `/usr`, `$HOME`) | do not retry; this is a hard boundary. Ask the human if it is truly needed |
@@ -63,8 +65,10 @@ can receive:
 
 Shape rules on compound commands: a single line that `cd`s anywhere before a
 destructive op (F1), or that creates files (`touch/mkdir/cp/mv/tee`,
-redirections) before destroying them (F2), is refused as undeterminable.
-Run deletions as standalone commands with an explicit workdir.
+redirections) before destroying them (F2), can return `ASK` when its targets
+are resolvable and within policy boundaries. Unresolvable effects and hard
+boundaries still return `BLOCK`; hosts without a usable approval path deny
+the `ASK` call. Run deletions as standalone commands with an explicit workdir.
 
 A block is not an error to route around. Retrying the same operation in a
 disguised form (`/bin/rm`, `python -c`, a script) violates this discipline and
@@ -117,13 +121,26 @@ uses opaque session correlation and limits status/GC metadata; see the
 
 ## Quarantine location queries
 
+In 0.2.5, deletion/status results explain
+retained storage and include GC commands. Moving files to quarantine keeps
+their data on disk. Review the plan before choosing `--execute --all-eligible`
+or a specific `--execute --txid`; use the same working directory and workspace/
+trash settings. Age/size thresholds do not perform automatic cleanup.
+
+`status.py` reports local recovery data and does not verify host activation.
+DSH's status tool separately reports the plugin process startup check and
+listener registration, with live interception still `UNVERIFIED`. A missing
+plugin cannot supply its own status tool. `ALLOW_NOOP` does not certify
+unrecognized script/interpreter effects. See the
+[feedback guide](../../docs/guides/recovery-feedback.md).
+
 When the user asks where quarantines are or how many exist, use the shared
 read-only query with a current-directory or user-selected scope:
 
 ```bash
-python3 <repo>/skills/delete-guard/scripts/status.py --trash-index --json
-python3 <repo>/skills/delete-guard/scripts/status.py --trash-index --root <projects> --max-depth 3 --json
-python3 <repo>/skills/delete-guard/scripts/status.py --trash-index --trash <custom-store> --json
+python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/status.py --trash-index --json
+python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/status.py --trash-index --root /absolute/path/to/projects --max-depth 3 --json
+python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/status.py --trash-index --trash /absolute/path/to/custom-store --json
 ```
 
 Report the scope, candidate count, metadata-identified count and read/budget
@@ -137,10 +154,10 @@ read just to answer a location/count question.
 
 ## RESTRICTED mode
 
-RC2 and RC3 retain RC1 protection for the quarantine root, root manifest,
+Version 0.2.5 retains RC1 protection for the quarantine root, root manifest,
 audit/state files, state temp file, sessions tree and storage access parents.
 Housekeeping does not override those checks. Use the existing explicit
-`gc.py --execute --txid <id>` entry for a validated, audited transaction purge.
+`gc.py --execute --txid '<txid>'` entry for a validated, audited transaction purge.
 Ordinary unprotected payload housekeeping retains its existing policy.
 GC plans omit `PURGED` history; they do not delete stored Git stashes.
 

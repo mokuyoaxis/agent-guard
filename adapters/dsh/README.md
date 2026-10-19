@@ -18,12 +18,12 @@ retains the earlier failures and correction history.
 
 ## Install
 
-The [0.2.4 release](../../docs/releases/release-notes-0.2.4.md) updates the shared
-Core and docs without broadening the admitted DSH versions or native-read
-coverage. Install the exact version:
+The [0.2.5 release](../../docs/releases/release-notes-0.2.5.md) includes the
+startup/status diagnostics below without broadening admitted DSH versions or
+native-read coverage. Install the exact stable version:
 
 ```bash
-dsh plugin --profile <your-profile> add @mokuyoaxis/agent-guard@0.2.4
+dsh plugin --profile 'your-profile' add @mokuyoaxis/agent-guard@0.2.5
 ```
 
 Use an exact package version whose host contract matches your DSH installation.
@@ -31,16 +31,49 @@ The package ships prebuilt JavaScript and its Python Core; Python 3.9+ and
 Git must already be available. Installation does not enable the optional
 text-read guard.
 
+As checked on 2026-10-19, the published opt-in versions are
+`@mokuyoaxis/agent-guard@0.2.4-hotfix.1` for the stable-line quarantine fix and
+`@mokuyoaxis/agent-guard@0.2.5-rc3` for the cumulative prerelease.
+Versioned [GitHub](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.5)
+and [npm](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.5)
+receipts establish 0.2.5 availability. A reviewed checkout or tarball is also
+usable as described in [getting started](../../docs/guides/getting-started.md).
+
 ## What gets registered
 
 | Contribution | Mechanism | Behavior |
 |---|---|---|
-| Interception | `tools/pre-execute` waterfall | destructive-looking bash runs through `check.py --enforce` first; ALLOW proceeds (compensation applied), ASK escalates once to the human, BLOCK denies with explanation and remediation |
+| Interception | `tools/pre-execute` waterfall | destructive-looking bash runs through `check.py --enforce` first; permitted calls proceed after any required compensation, ASK uses the host approval path or denies when unavailable, BLOCK denies with explanation and remediation |
 | `agent_guard_safe_delete` | model tool | recoverable delete with explicit glob expansion and manifest |
 | `agent_guard_restore` | model tool | list / non-overwriting restore of quarantine transactions; forced overwrite remains human-only CLI functionality |
-| `agent_guard_status` | model tool | mode, usage, retention view, recent decisions |
+| `agent_guard_status` | model tool | adapter diagnostics, mode, usage, retention view, GC commands and recent decisions; no live-host certification |
 | Prompt section | system prompt (order 105) | deletion discipline for the model |
 | Experimental text `read` redaction | opt-in `tools/post-execute` value replacement | shared Core scans a complete read and DSH regenerates content and presentation metadata; unsupported or unscannable results are withheld |
+
+## Startup and status diagnostics
+
+Version 0.2.5 runs `python3 check.py --help`
+before contributing the Hook/tools. This tests Python and imports in the
+plugin process, without assessing a command or writing guard metadata.
+Missing dependencies or a failed/timed-out startup check produce an explicit
+initialization error instead of a log-only disabled adapter. The local check
+has a 10-second timeout; the existing command-check timeout remains unchanged.
+
+Startup success says that the listener was registered, while live host
+interception remains `UNVERIFIED`. `agent_guard_status.adapter` reports that
+distinction and the most recent checker result. It does not turn a local
+Python test into a check of every shell/sandbox environment. If the plugin
+never loads, its tools may be absent: inspect the host's plugin activation
+status. An initialization error does not stop the host's other tools.
+
+Checker process errors, timeout and unusable output remain denials with
+static diagnostics separate from policy refusals. Relocation results state
+that data still occupies storage; status includes accurate GC commands.
+Status-query timeout, unsuccessful exit and unusable reports return `ok: false`
+with a `STATUS_*` diagnostic and adapter facts, without changing the last
+command-checker result. Partial relocation failures retain their recovery IDs
+and storage guidance when files have moved.
+See [status and cleanup feedback](../../docs/guides/recovery-feedback.md).
 
 ## Configuration (cordis.patch.yml row)
 

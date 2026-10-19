@@ -31,6 +31,7 @@ import _bootstrap  # noqa: F401
 
 from core import AUDIT_NAME, TRASH_DIRNAME
 from core import audit, classifier, dialects, policy, recovery
+from core.messages import QUARANTINE_NOTICE, gc_guidance, print_gc_guidance
 
 
 _REDACTED_COMMAND = "<redacted>"
@@ -165,13 +166,25 @@ def main() -> int:
 
     def finish(code):
         out["exit"] = code
+        retained = [item for item in out.get("compensations", [])
+                    if item["strategy"] in ("relocate", "clean-enumerate")
+                    and item.get("moved", 0) > 0]
+        if retained:
+            out["storage_notice"] = QUARANTINE_NOTICE
+            out["gc"] = gc_guidance()
         if args.as_json:
             print(json.dumps(out, ensure_ascii=False, indent=2))
         else:
             summary = f"{out['decision']} [{out['code']}]"
             print(summary)
+            print(out["explanation"])
             for reason in out["reasons"][:4]:
                 print(f"  - {reason}")
+            for item in retained:
+                print(f"  retained: {item['moved']} target(s), txid={item['txid']}")
+            if retained:
+                print(out["storage_notice"])
+                print_gc_guidance(out["gc"])
         return code
 
     def record(entry, required=False):

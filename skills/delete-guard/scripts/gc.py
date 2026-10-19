@@ -31,6 +31,7 @@ import _bootstrap  # noqa: F401
 
 from core import AUDIT_NAME, TRASH_DIRNAME, audit
 from core import classifier, recovery
+from core.messages import gc_guidance, print_gc_guidance
 
 
 def main() -> int:
@@ -52,7 +53,7 @@ def main() -> int:
     plan = engine.gc_plan()
 
     if not args.execute:
-        payload = {"mode": "plan", **plan}
+        payload = {"mode": "plan", **plan, "gc": gc_guidance()}
         if args.as_json:
             print(json.dumps(payload, ensure_ascii=False, indent=2))
         else:
@@ -63,7 +64,8 @@ def main() -> int:
                       f"{entry['bytes']}B {entry['items']} items")
             if not plan["eligible"]:
                 print("  nothing eligible")
-            print("(dry plan; pass --execute to purge)")
+            print("Dry plan. No recovery copies were removed.")
+            print_gc_guidance(payload["gc"])
         return 0
 
     txids = list(args.txid)

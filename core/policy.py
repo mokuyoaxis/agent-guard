@@ -122,7 +122,8 @@ CODE_BLOCK_GIT_RESET_COLLISION = "BLOCK_GIT_RESET_COLLISION"
 
 # Human-facing one-liners: why the guard cannot just do it (or did do it).
 EXPLANATIONS: Dict[str, str] = {
-    CODE_ALLOW_NOOP: "Nothing to delete; command may run unchanged.",
+    CODE_ALLOW_NOOP: "No recovery action is needed for the recognized operations. "
+                     "Unrecognized command effects have not been checked.",
     CODE_ALLOW_REGENERABLE: "All targets are git-ignored and match known "
                             "artifact patterns; deleted directly.",
     CODE_ALLOW_TRASH_GC: "Targets live inside the quarantine; housekeeping "

@@ -7,12 +7,15 @@ setup. The three main paths are [recovery protection](../skills/delete-guard/SKI
 [harness capability matrix](guides/harness-capabilities.md) for observed coverage
 and the [architecture](design/architecture.md) for the shared Core.
 
-Published RC baseline: [0.2.5-rc2](releases/release-notes-0.2.5-rc2.md).
-Published stable baseline: [0.2.4](releases/release-notes-0.2.4.md).
-Source candidate: [0.2.5-rc3](releases/release-notes-0.2.5-rc3.md), with
-[blue-team research](research/README.md) and a [four-control example](lab/blue-team-calibration.md).
-Evaluate the source preview through a reviewed checkout or tarball;
-GitHub/npm package publication needs separate versioned receipts.
+Stable release line: [0.2.5](releases/release-notes-0.2.5.md), combining
+RC1–RC3 and clearer startup, command and storage feedback. The exact
+[GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.5)
+and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.5)
+establish publication and npm `latest` availability; 0.2.4 is the previous stable.
+The opt-in `rc` line remains [0.2.5-rc3](releases/release-notes-0.2.5-rc3.md), and `hotfix` is the
+opt-in [0.2.4-hotfix.1](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.4-hotfix.1)
+quarantine protection backport. The [getting-started guide](guides/getting-started.md)
+explains exact-version and local-package installation.
 
 先看入门指南，再按恢复保护、外发检测、Lab 验测选择入口。测试报告按所测版本与配置保留；发布记录、
 历史设计和外部案例各自归档，不能据此扩展当前产品的承诺。
@@ -29,9 +32,13 @@ GitHub/npm package publication needs separate versioned receipts.
 
 ## Guides
 
+当前源码中的[状态与清理反馈](guides/recovery-feedback.md)说明本地 Python／Hook／宿主验证的区别、
+ALLOW_NOOP 覆盖边界及准确 GC 用法；纳入 0.2.5。
+
 | Document / 文档 | Scope / 范围 |
 |---|---|
 | [Getting started](guides/getting-started.md) | 安装路径、Agent 接入提示词与最短验证流程 |
+| [Status and cleanup feedback](guides/recovery-feedback.md) | Python／插件状态、ALLOW_NOOP、保留空间与手动 GC |
 | [Harness capabilities](guides/harness-capabilities.md) | 当前接入范围、证据等级与未验证路径 |
 | [Host drift](guides/host-drift.md) | 宿主版本、配置与本地基线检查 |
 | [Trash locations](guides/trash-index.md) | 0.2.4 的只读位置查询、Agent／前端共享 JSON 契约 |
@@ -103,7 +110,9 @@ coverage rather than treating every historical result as current acceptance.
 
 | Document / 文档 | Scope / 范围 |
 |---|---|
-| [0.2.5-rc3](releases/release-notes-0.2.5-rc3.md) | 蓝队研究／文档源码候选与零模型示例；包发布另行核查 |
+| [0.2.5](releases/release-notes-0.2.5.md) | 正式版范围；累计 RC 维护、明确反馈与升级影响 |
+| [0.2.4-hotfix.1](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.4-hotfix.1) | 已发布的稳定线回收站保护回补；不含完整 RC 累计内容 |
+| [0.2.5-rc3](releases/release-notes-0.2.5-rc3.md) | 已发布的研究／文档预发布版与零模型示例 |
 | [0.2.5-rc2](releases/release-notes-0.2.5-rc2.md) | 已发布的维护 RC；共享审计、observer 维护与兼容边界 |
 | [0.2.5-rc1](releases/release-notes-0.2.5-rc1.md) | 已发布的维护预发布基线、文档整理与版本例外 |
 | [0.2.4](releases/release-notes-0.2.4.md) | 恢复维护、trash 查询及兼容性例外 |

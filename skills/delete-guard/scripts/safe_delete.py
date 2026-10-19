@@ -25,6 +25,7 @@ import _bootstrap  # noqa: F401
 
 from core import AUDIT_NAME, TRASH_DIRNAME, audit
 from core import classifier, policy, recovery
+from core.messages import QUARANTINE_NOTICE, gc_guidance, print_gc_guidance
 
 
 def expand_globs(patterns):
@@ -78,6 +79,16 @@ def safe_delete_audit_event(event, decision, code, target_count, *,
         entry["moved_count"] = len(report.get("moved", []))
         entry["skipped_count"] = len(report.get("skipped", []))
     return entry
+
+
+def print_result(result, as_json):
+    if as_json:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return
+    print(result["outcome"] + (f" txid={result['txid']}" if result.get("txid") else ""))
+    if "storage_notice" in result:
+        print(result["storage_notice"])
+        print_gc_guidance(result["gc"])
 
 
 def main() -> int:
@@ -216,6 +227,12 @@ def main() -> int:
         report = engine.relocate(specs, meta={
             "tool": "safe_delete", "code": verdict.code})
         relocation_report = report
+        result["txid"] = report["txid"]
+        result["moved"] = report["moved"]
+        result["skipped"] = report["skipped"]
+        if report["moved"]:
+            result["storage_notice"] = QUARANTINE_NOTICE
+            result["gc"] = gc_guidance()
         if report.get("storage_failure"):
             # Hard principle: capacity limits never downgrade to deletion.
             result["verdict"] = {
@@ -229,8 +246,7 @@ def main() -> int:
             record(safe_delete_audit_event(
                 "decision", "BLOCK", policy.CODE_BLOCK_RELOCATE_FAILED_STORAGE,
                 len(specs), report=report))
-            print(json.dumps(result, ensure_ascii=False, indent=2)
-                  if args.as_json else result["outcome"])
+            print_result(result, args.as_json)
             return 2
         if report.get("skipped"):
             result["verdict"] = {
@@ -243,20 +259,13 @@ def main() -> int:
             }
             result["outcome"] = (
                 "BLOCKED: partial relocation remains recoverable")
-            result["txid"] = report["txid"]
-            result["moved"] = report["moved"]
-            result["skipped"] = report["skipped"]
             result["exit"] = 2
             record(safe_delete_audit_event(
                 "decision", "BLOCK", policy.CODE_BLOCK_COMPENSATION_FAILED,
                 len(specs), report=report))
-            print(json.dumps(result, ensure_ascii=False, indent=2)
-                  if args.as_json else result["outcome"])
+            print_result(result, args.as_json)
             return 2
         result["outcome"] = "relocated to quarantine"
-        result["txid"] = report["txid"]
-        result["moved"] = report["moved"]
-        result["skipped"] = report["skipped"]
 
     if not args.dry_run and verdict.code != policy.CODE_ALLOW_NOOP:
         record(safe_delete_audit_event(
@@ -264,10 +273,7 @@ def main() -> int:
             phase="complete", report=relocation_report,
             outcome=result.get("outcome")))
     result["exit"] = 0
-    if args.as_json:
-        print(json.dumps(result, ensure_ascii=False, indent=2))
-    else:
-        print(result["outcome"] + (f" txid={result['txid']}" if result.get("txid") else ""))
+    print_result(result, args.as_json)
     return 0
 
 

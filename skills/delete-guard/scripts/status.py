@@ -16,6 +16,8 @@ import _bootstrap  # noqa: F401
 
 from core import AUDIT_NAME, TRASH_DIRNAME
 from core import audit, classifier, policy, recovery
+from core.messages import (
+    HOST_STATUS_NOTICE, QUARANTINE_NOTICE, gc_guidance, print_gc_guidance)
 
 
 def main() -> int:
@@ -113,6 +115,9 @@ def main() -> int:
         "guard_snapshots": stash_count,
         "decisions": decision_stats(engine.trash_root),
         "recent_audit": audit_tail(engine.trash_root, args.tail),
+        "host_status_notice": HOST_STATUS_NOTICE,
+        "storage_notice": QUARANTINE_NOTICE,
+        "gc": gc_guidance(),
     }
     if args.as_json:
         print(json.dumps(info, ensure_ascii=False, indent=2))
@@ -123,6 +128,7 @@ def main() -> int:
           + (f" (since {info['mode_since']} by {info['mode_set_by']})"
              if info["mode_since"] else ""))
     print(f"quarantine: {trash_root}")
+    print(info["host_status_notice"])
     print(f"usage     : {usage['files']} files, {usage['bytes']} bytes, "
           f"{usage['transactions']} transactions "
           f"({usage['restorable_transactions']} restorable)")
@@ -131,6 +137,9 @@ def main() -> int:
     print(f"retention : soft {ret['soft_days']}d / "
           f"{ret['soft_limit_bytes'] // (1024**3)}GiB; "
           f"{len(ret['gc_eligible'])} GC-eligible")
+    print(info["storage_notice"])
+    print("GC is manual; age and size thresholds do not trigger deletion.")
+    print_gc_guidance(info["gc"])
     stats = info["decisions"]
     if stats:
         print(f"decisions : {top_codes(stats)}")

@@ -9,8 +9,28 @@ F21–F23 changes subsequently shipped in 0.2.3; F24–F25 shipped in 0.2.4.
 F26–F31 subsequently shipped in 0.2.5-rc1. RC2 adds shared audit metadata and
 observer startup maintenance; publication is checked by its versioned receipts.
 Current scope is in the
-[candidate notes](../releases/release-notes-0.2.5-rc3.md); historical failures and
+[candidate notes](../releases/release-notes-0.2.5.md); historical failures and
 test counts below are not rewritten by a later success.
+
+## Current feedback maintenance · status, explanations and retained storage
+
+2026-10-19: this feedback work is included in 0.2.5.
+The recording below describes the implementation work on 2026-10-18.
+
+2026-10-18, unreleased 0.2.5 work: script existence was only a file check,
+default DSH startup could return without registering protection, and generic
+runtime errors did not explain what failed. A local Python/import probe and
+explicit initialization failures now separate local readiness from listener
+registration and unverified live-host interception. Runtime failures retain
+deny behavior and report static diagnostics.
+
+`ALLOW_NOOP` previously said “Nothing to delete” for commands whose effects
+were not recognized. Its explanation now describes that limitation, without
+changing the reason code or verdict. Relocation results/status/GC plans explain
+retained storage and explicit plan/selection commands. They do not add
+automatic purge or alter rm/glob policy. See the
+[feedback guide](../guides/recovery-feedback.md) for current semantics;
+historical test evidence below retains its original scope.
 
 ## F1 · Compound `cd X && rm y` resolves targets against the wrong base
 

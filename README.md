@@ -4,7 +4,7 @@
 [![npm stable](https://img.shields.io/npm/v/%40mokuyoaxis%2Fagent-guard.svg)](https://www.npmjs.com/package/@mokuyoaxis/agent-guard)
 [![License](https://img.shields.io/github/license/mokuyoaxis/agent-guard)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![0.2.5-rc3 candidate](https://img.shields.io/badge/RC-0.2.5--rc3-5B6B7A)](docs/releases/release-notes-0.2.5-rc3.md)
+[![0.2.5](https://img.shields.io/badge/release-0.2.5-5B6B7A)](docs/releases/release-notes-0.2.5.md)
 
 **Make destructive agent actions reversible by default.** · [简体中文](README.zh-CN.md)
 
@@ -65,7 +65,7 @@ external transfer or model request. Existing
 [DSH](docs/reports/test-report-dsh-guard-lab.md) reports retain their bounded
 results, failures and review states.
 
-RC3 adds [blue-team research](docs/research/README.md), a
+Since RC3, the package includes [blue-team research](docs/research/README.md), a
 [sanitized experiment report](docs/reports/blue-team-lab-2026-10.md) and a
 [portable four-control example](docs/lab/blue-team-calibration.md).
 The research covers provenance, disclosure permissions and task utility in
@@ -73,7 +73,7 @@ bounded private experiments; those methods do not extend production hook
 coverage. Lab proceeds gradually. Forks, PRs and independent defensive
 reproductions are welcome; preserve failed and inconclusive results.
 
-From the RC3 checkout or review package, run all four existing controls:
+From a checkout or package containing the example, run all four existing controls:
 
 ```sh
 blue_run="$(mktemp -d)"
@@ -91,15 +91,19 @@ native bridges and optional capture helpers have their own requirements.
 
 | Version | Status |
 |---|---|
-| [0.2.4](docs/releases/release-notes-0.2.4.md) | Published stable baseline |
-| [0.2.5-rc1](docs/releases/release-notes-0.2.5-rc1.md) | Previous published prerelease baseline |
-| [0.2.5-rc2](docs/releases/release-notes-0.2.5-rc2.md) | Maintenance prerelease; check the exact publication receipts |
-| [0.2.5-rc3](docs/releases/release-notes-0.2.5-rc3.md) | Research/documentation source preview; package publication requires separate receipts |
+| [0.2.5](docs/releases/release-notes-0.2.5.md) | Stable release line; npm `latest`; availability in the versioned receipts below |
+| [0.2.4](docs/releases/release-notes-0.2.4.md) | Previous stable release |
+| [0.2.4-hotfix.1](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.4-hotfix.1) | Opt-in quarantine protection backport; npm `hotfix` |
+| [0.2.5-rc3](docs/releases/release-notes-0.2.5-rc3.md) | Published prerelease, including RC1/RC2 maintenance; npm `rc` |
+Publication is established by the exact
+[GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.5)
+and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.5).
+A checkout or manifest alone does not establish package availability.
 
-For the published stable package, use a chosen, stable user-owned prefix:
+For the stable release, use a chosen, stable user-owned prefix:
 
 ```sh
-npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.4
+npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.5
 ```
 
 The package root is
@@ -111,17 +115,17 @@ git clone https://github.com/mokuyoaxis/agent-guard.git
 cd agent-guard
 ```
 
-For RC2, select `@mokuyoaxis/agent-guard@0.2.5-rc2` explicitly; the RC
-channel does not replace stable `latest`. Check the
-[GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.5-rc2)
-and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.5-rc2)
-for publication. A reviewed checkout or supplied tarball is also usable;
-the manifest alone does not establish registry availability. See
-[setup and the agent setup prompt](docs/guides/getting-started.md).
+To select the published prerelease, use `@mokuyoaxis/agent-guard@0.2.5-rc3`.
+The [GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.5-rc3)
+and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.5-rc3)
+identify that package. For only the stable-line quarantine protection fix,
+select `@mokuyoaxis/agent-guard@0.2.4-hotfix.1` explicitly. Neither channel
+replaces stable `latest`.
 
-Evaluate RC3 through a reviewed source checkout or supplied tarball. Its
-manifest and a main-branch commit do not establish a registry release;
-version tags and GitHub/npm package publication are separate steps.
+Version 0.2.5 combines RC1–RC3 with clearer startup, command and storage
+feedback. A reviewed local checkout or supplied tarball is also usable. See
+[release notes](docs/releases/release-notes-0.2.5.md) and
+[setup and the agent setup prompt](docs/guides/getting-started.md).
 
 ## Recover a supported deletion
 
@@ -131,7 +135,7 @@ From the workspace being protected, point at your package/checkout root:
 python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/safe_delete.py src/old_module.py --dry-run
 python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/safe_delete.py src/old_module.py
 python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/restore.py list
-python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/restore.py <txid>
+python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/restore.py '<txid>'
 ```
 
 Valuable targets are relocated with exact recovery paths in a manifest.
@@ -141,6 +145,11 @@ untracked/ignored content are refused. Force restore preserves the current
 occupant before replacement. Errors can leave partial work: inspect the
 reported transaction IDs, filesystem and state before retrying.
 
+Version 0.2.5 makes these results explicit:
+quarantined data still occupies storage, GC is manual, and `ALLOW_NOOP`
+does not certify unrecognized command effects. Local status does not prove
+that a host loaded the guard. See [status and cleanup feedback](docs/guides/recovery-feedback.md).
+
 Advisory `check.py` and `safe_delete.py --dry-run` preserve command targets but
 may write quarantine/audit metadata and a Git local exclude entry. Advisory
 exit 0 is not permission to execute a BLOCK or ASK.
@@ -148,8 +157,9 @@ See the [policy and assessment contract](skills/delete-guard/references/policy.m
 
 RC1 added quarantine control-path protection, excluded PURGED transactions
 from active GC planning, and minimized restore/safe_delete audit fields.
-Exact CLI/manifest recovery paths remain available. These changes are not in
-the published 0.2.4 package; see the [RC notes](docs/releases/release-notes-0.2.5-rc1.md).
+Exact CLI/manifest recovery paths remain available. The original 0.2.4 package
+lacks these changes; 0.2.4-hotfix.1 backports only quarantine control-path
+protection. See the [RC notes](docs/releases/release-notes-0.2.5-rc1.md).
 
 RC2 introduced shared audit metadata projection,
 uses opaque session correlation, and limits legacy status/GC metadata.
@@ -234,7 +244,7 @@ reconstruction and known gaps. It cannot recreate bytes that no source kept.
 | [Threat model](docs/design/threat-model.md) | Trust assumptions and unresolved boundaries |
 | [Compatibility](docs/design/compatibility.md) | Interface and release contracts |
 | [Blue-team research](docs/research/README.md) | Defensive methods, sanitized results and a zero-model starting point |
-| [0.2.5-rc3 notes](docs/releases/release-notes-0.2.5-rc3.md) | Current source candidate's scope and validation status |
+| [0.2.5 notes](docs/releases/release-notes-0.2.5.md) | Release scope, upgrade impact and validation boundaries |
 
 ## Contributing
 

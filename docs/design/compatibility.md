@@ -4,17 +4,50 @@ agent-guard's promise is recoverability. A promise is only as good as its
 stability over time - this page states exactly what may change and what
 may not, per release class.
 
-Current source candidate is [0.2.5-rc3](../releases/release-notes-0.2.5-rc3.md);
-the published RC baseline is [0.2.5-rc2](../releases/release-notes-0.2.5-rc2.md).
-Versioned sections retain the origin of changes introduced by earlier releases.
+The stable release line is [0.2.5](../releases/release-notes-0.2.5.md), carrying
+the cumulative RC maintenance below. The opt-in prerelease remains
+[0.2.5-rc3](../releases/release-notes-0.2.5-rc3.md), 0.2.4 is the previous stable, and
+[0.2.4-hotfix.1](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.4-hotfix.1)
+is an opt-in quarantine protection backport. Versioned sections retain the
+origin and preparation labels of changes introduced by earlier releases.
 
 RC3 publishes defensive research and an example around the existing four
 zero-model controls. Experimental disclosure labels and private delegation
 methods are not additions to the Decision Protocol or native-hook contract.
 No production dependency, policy verdict or storage/configuration migration
-is introduced by this preparation.
+is introduced by the research documentation.
 
 ## The adapter contract (frozen surface)
+
+### 0.2.5 feedback maintenance
+
+Deletion rules, wildcard refusal, Decision/reason codes, CLI flags and exit
+roles retain their contracts. `ALLOW_NOOP` receives a clearer explanation;
+human check output displays explanations. Optional `storage_notice`/`gc`
+metadata describes actual retained files and maintenance commands without
+entering the shared audit payload. Status gains a local-versus-host notice.
+
+The DSH adapter now checks local Python/checker imports before registration
+and reports startup failure explicitly rather than returning silently when
+shell/script dependencies are missing. This changes plugin lifecycle
+diagnostics, not the Core policy or the host's ability to continue other
+tools. Python must also be available on the plugin process PATH for this
+startup probe. Its scope is the plugin process; live interception remains
+`UNVERIFIED`. Status adds adapter facts and static runtime diagnostics.
+Failed status queries return `ok: false`, `report: null` and `STATUS_*`
+diagnostics for execution failure, timeout, unsuccessful exit or unusable
+reports. Partial relocation failures preserve the existing failure/exit
+semantics and expose their transaction IDs and retained-storage guidance.
+No storage/configuration migration, new dependency or rm execution route is
+introduced. Details are in the [feedback guide](../guides/recovery-feedback.md).
+
+The maintainer selected 0.2.5 for the cumulative RC1–RC3 maintenance and this
+feedback work. It carries forward the bounded RC1 maintenance exception
+documented below. Quarantine control-path refusals inherited from RC1 and
+explicit DSH initialization failure are upgrade-visible changes. This choice
+does not permit unrelated verdict changes under the patch versioning rules.
+
+### Existing decision surface
 
 Harness adapters integrate against exactly four things:
 

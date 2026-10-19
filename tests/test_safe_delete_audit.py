@@ -132,6 +132,8 @@ module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
         self.assertEqual(proc.returncode, 2, proc.stderr)
         self.assertEqual(result['verdict']['code'], policy.CODE_BLOCK_COMPENSATION_FAILED)
         self.assertEqual(result['skipped'][0]['raw'], absent)
+        self.assertIn('still use disk space', result['storage_notice'])
+        self.assertIn('--execute --txid', result['gc']['purge_transaction_command'])
         intent, blocked = self.events()
         self.assertEqual(intent['target_count'], 2)
         self.assertEqual((blocked['txid'], blocked['moved_count'], blocked['skipped_count']),
@@ -154,11 +156,30 @@ module.recovery.RecoveryEngine._move=staticmethod(fail_second)
         proc, result = self.cli('--reason', self.reason, self.name, second, injection=injection)
         self.assertEqual(proc.returncode, 2, proc.stderr)
         self.assertEqual(result['verdict']['code'], policy.CODE_BLOCK_RELOCATE_FAILED_STORAGE)
+        self.assertEqual(len(result['moved']), 1)
+        self.assertIn('still use disk space', result['storage_notice'])
+        self.assertIn('--execute --txid', result['gc']['purge_transaction_command'])
         self.assertEqual(Path(self.root, second).read_text(), 'second bytes')
         intent, blocked = self.events()
         self.assertEqual((blocked['target_count'], blocked['moved_count'], blocked['skipped_count']), (2, 1, 0))
         self.assertTrue(blocked['txid'])
+        self.assertEqual(result['txid'], blocked['txid'])
         self.restore(blocked['txid'])
+
+    def test_storage_failure_before_move_does_not_claim_retained_data(self):
+        self.write(self.name, 'recovery bytes')
+        injection = '''def fail_move(src,dest):
+    raise module.recovery.StorageUnavailable('synthetic storage failure')
+module.recovery.RecoveryEngine._move=staticmethod(fail_move)
+'''
+        proc, result = self.cli(self.name, injection=injection)
+        self.assertEqual(proc.returncode, 2, proc.stderr)
+        self.assertEqual(result['verdict']['code'], policy.CODE_BLOCK_RELOCATE_FAILED_STORAGE)
+        self.assertEqual(result['moved'], [])
+        self.assertNotIn('storage_notice', result)
+        self.assertNotIn('gc', result)
+        self.assertEqual(Path(self.root, self.name).read_text(), 'recovery bytes')
+        self.assertEqual(self.events()[-1]['txid'], result['txid'])
 
     def test_regenerable_delete_has_durable_minimal_intent_before_mutation(self):
         name = 'node_modules/pkg/' + self.name

@@ -9,8 +9,9 @@ where possible. See [CONTRIBUTING.md](CONTRIBUTING.md) before sharing captures.
 
 ## What agent-guard claims to be
 
-Reliability infrastructure: it makes destructive actions reversible by
-default and records evidence. It is **not a security sandbox** - an agent
+Reliability infrastructure: it provides recovery for supported destructive
+actions and records evidence under the documented audit contracts. It is
+**not a security sandbox** - an agent
 with the same OS privileges as the guard can bypass it. See
 [docs/design/threat-model.md](docs/design/threat-model.md) before relying on it.
 
@@ -49,7 +50,8 @@ from local command checks and require a selected experiment scope.
 
 Recovery manifests, CLI diagnostics and historical audit records can contain
 exact paths or other private text. Writer minimization introduced in RC1 and
-the shared projection introduced in RC2 remain in RC3; they do not make every
+the shared projection introduced in RC2 remain in 0.2.5;
+they do not make every
 output or old record secret-free. The exfil text
 CLIs return decisions/plans or sanitized stdout; they do not automatically
 persist egress audit events. Review and redact evidence before sharing it.

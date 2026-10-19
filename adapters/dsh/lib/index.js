@@ -27,7 +27,11 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
+
+const runFile = promisify(execFile);
 
 export const name = "agent_guard";
 
@@ -217,7 +221,13 @@ function dialectSelector(args, config, env) {
 function buildRuntime(ctx, config, shell, systemPrompt) {
   const repoRoot = config.repoRoot || PACKAGE_ROOT;
   const scriptsDir = path.join(repoRoot, "skills", "delete-guard", "scripts");
-  const pythonReady = fs.existsSync(path.join(scriptsDir, "check.py"));
+  const diagnostics = {
+    startup_check: "NOT_RUN",
+    startup_scope: "plugin_process",
+    hook_registered: false,
+    last_checker_result: "NOT_RUN",
+    host_interception: "UNVERIFIED",
+  };
 
   // The caller's sandbox policy travels with the session so guard
   // invocations inherit exactly what the calling agent already has.
@@ -277,7 +287,7 @@ function buildRuntime(ctx, config, shell, systemPrompt) {
     systemPrompt,
     repoRoot,
     scriptsDir,
-    pythonReady,
+    diagnostics,
     shQuote,
     runScript,
     outText,
@@ -288,20 +298,36 @@ function buildRuntime(ctx, config, shell, systemPrompt) {
 // Async functions cannot be mistaken for constructor plugins by Cordis.
 // The host must await optional read-guard startup before admitting work.
 export async function apply(ctx, config) {
+  function refuseStartup(detail) {
+    const code = config.readResultGuard ? "READ_GUARD_STARTUP_REFUSED" : "GUARD_STARTUP_FAILED";
+    throw new Error(`[agent-guard] ${code}: ${detail} No guard hook or tools were registered. Other host tools may still run.`);
+  }
   const shell = ctx.get ? ctx.get("shell") : undefined;
   if (shell === undefined) {
-    if (config.readResultGuard) throw new Error("[agent-guard] READ_GUARD_STARTUP_REFUSED");
-    console.error("[agent-guard] shell service unavailable; adapter disabled");
-    return;
+    refuseStartup("The shell service is unavailable.");
   }
   const systemPrompt = ctx.get ? ctx.get("systemPrompt") : undefined;
   const rt = buildRuntime(ctx, config, shell, systemPrompt);
 
-  if (!rt.pythonReady) {
-    if (config.readResultGuard) throw new Error("[agent-guard] READ_GUARD_STARTUP_REFUSED");
-    console.error("[agent-guard] check.py not found under", rt.repoRoot);
-    return;
+  if (!fs.existsSync(path.join(rt.scriptsDir, "check.py"))) {
+    refuseStartup("check.py was not found. Check the package or repoRoot setting.");
   }
+
+  // --help loads Python and the checker imports without assessing a command
+  // or writing guard metadata. This checks the plugin process environment;
+  // the caller's shell/sandbox environment is only exercised by actual tools.
+  try {
+    await runFile("python3", [path.join(rt.scriptsDir, "check.py"), "--help"], {
+      timeout: 10000,
+      maxBuffer: 65536,
+    });
+  } catch (error) {
+    refuseStartup(error.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER" ?
+      "The local checker startup check exceeded its output limit. Check the package and checker entry point." :
+      error.killed ? "The local checker startup check timed out." :
+      "The local Python checker could not run. Check python3 on the plugin process PATH and the checker imports.");
+  }
+  rt.diagnostics.startup_check = "PASSED";
 
   if (config.readResultGuard) {
     return import("./read_result_guard.js").then(async ({ installReadResultGuard }) => {
@@ -318,6 +344,13 @@ function contribute(ctx, config, rt) {
   const { systemPrompt } = rt;
   ctx.effect(() => {
     const disposers = [];
+
+    function checkerFailure(code, detail) {
+      rt.diagnostics.last_checker_result = code;
+      const reason = `[agent-guard] ${code}: ${detail} Command denied (fail-closed).`;
+      console.error(reason);
+      return { kind: "deny", reason };
+    }
 
     // ---- 1) interception -------------------------------------------------
     disposers.push(
@@ -352,20 +385,23 @@ function contribute(ctx, config, rt) {
             exec
           );
         } catch (_err) {
-          console.error("[agent-guard] check.py infrastructure error");
-          return {
-            kind: "deny",
-            reason: "[agent-guard] guard infrastructure error (fail-closed)",
-          };
+          return checkerFailure("CHECKER_EXECUTION_FAILED",
+            "The checker could not start or finish. Check Python and the caller's shell environment; inspect recovery state before retrying.");
+        }
+        if (result.timedOut) {
+          return checkerFailure("CHECKER_TIMEOUT",
+            "The checker timed out. Inspect recovery state before retrying.");
+        }
+        if (![0, 2, 3].includes(result.exitCode)) {
+          return checkerFailure("CHECKER_PROCESS_FAILED",
+            "The checker did not complete with a supported exit status. Check the Python runtime and recovery state.");
         }
         const verdict = rt.parseJson(rt.outText(result.stdout));
-        if (!verdict || !verdict.decision) {
-          console.error("[agent-guard] unparseable guard output");
-          return {
-            kind: "deny",
-            reason: "[agent-guard] unparseable guard output (fail-closed)",
-          };
+        if (!verdict || !["ALLOW", "ASK", "BLOCK"].includes(verdict.decision)) {
+          return checkerFailure("CHECKER_INVALID_OUTPUT",
+            "The checker returned no usable decision. Check the package and recovery state.");
         }
+        rt.diagnostics.last_checker_result = "OK";
         if (verdict.decision === "ALLOW") {
           const comps = verdict.compensations || [];
           if (comps.length > 0) {
@@ -375,6 +411,8 @@ function contribute(ctx, config, rt) {
               "check_id=" + (verdict.check_id || "unknown")
             );
           }
+          if (verdict.storage_notice) console.log("[agent-guard]", verdict.storage_notice,
+            "Use agent_guard_status for usage and GC commands.");
           return next();
         }
         const reasons = Array.isArray(verdict.reasons)
@@ -403,11 +441,22 @@ function contribute(ctx, config, rt) {
         };
       })
     );
+    rt.diagnostics.hook_registered = true;
 
     // ---- 2) model tools --------------------------------------------------
     function renderJson(_args, value) {
+      // Keep diagnostics and storage guidance visible before long target/audit
+      // arrays consume the existing model-facing preview budget.
+      const display = {
+        ...(value.adapter ? { adapter: value.adapter } : {}),
+        ...(value.report?.storage_notice ? {
+          storage_notice: value.report.storage_notice,
+          gc: value.report.gc,
+        } : {}),
+        ...value,
+      };
       return [
-        { type: "text", text: JSON.stringify(value, null, 2).slice(0, 4000) },
+        { type: "text", text: JSON.stringify(display, null, 2).slice(0, 4000) },
       ];
     }
 
@@ -416,6 +465,24 @@ function contribute(ctx, config, rt) {
       description:
         "Working directory (repo root) for this operation; defaults to the session workspace.",
     };
+
+    function adapterStatus() {
+      return {
+        ...rt.diagnostics,
+        note: "Startup checks the plugin process Python only. Hook registration and a local status result do not verify live host interception or every shell environment.",
+      };
+    }
+
+    function statusFailure(diagnostic, detail, exitCode = null) {
+      return {
+        ok: false,
+        exitCode,
+        report: null,
+        diagnostic,
+        stderr: detail,
+        adapter: adapterStatus(),
+      };
+    }
 
     function makeTool(name, description, parameterSpec, buildArgs) {
       return {
@@ -429,19 +496,44 @@ function contribute(ctx, config, rt) {
         execute: async (args, exec) => {
           assertToolArgs(name, parameterSpec, args);
           const plan = buildArgs(args);
-          const result = await rt.runScript(
-            plan.script,
-            plan.argString,
-            plan.workdir,
-            120000,
-            exec
-          );
+          let result;
+          try {
+            result = await rt.runScript(
+              plan.script,
+              plan.argString,
+              plan.workdir,
+              120000,
+              exec
+            );
+          } catch (error) {
+            if (name !== "agent_guard_status") throw error;
+            return statusFailure("STATUS_EXECUTION_FAILED",
+              "Status could not run in the caller's shell environment. Check Python and the package; adapter diagnostics below remain available.");
+          }
           const parsed = rt.parseJson(rt.outText(result.stdout));
+          if (name === "agent_guard_status") {
+            if (result.timedOut) {
+              return statusFailure("STATUS_TIMEOUT",
+                "Status timed out. No recovery report is available; inspect the workspace before retrying.", result.exitCode);
+            }
+            if (result.exitCode !== 0) {
+              return statusFailure("STATUS_PROCESS_FAILED",
+                "Status exited unsuccessfully. Check Python, the package and recovery data.", result.exitCode);
+            }
+            if (typeof parsed?.workspace !== "string" || typeof parsed?.mode !== "string" ||
+                !Number.isFinite(parsed?.usage?.bytes)) {
+              return statusFailure("STATUS_INVALID_OUTPUT",
+                "Status returned no usable recovery report. Check the package and caller's shell environment.", result.exitCode);
+            }
+          }
           return {
             ok: result.exitCode === 0,
             exitCode: result.exitCode,
             report: parsed === undefined ? rt.outText(result.stdout) : parsed,
             stderr: rt.outText(result.stderr).slice(0, 2000),
+            ...(name === "agent_guard_status" ? {
+              adapter: adapterStatus(),
+            } : {}),
           };
         },
       };
@@ -451,7 +543,7 @@ function contribute(ctx, config, rt) {
       ctx.tools.register(
         makeTool(
           "agent_guard_status",
-          "Show agent-guard state: authorization mode, quarantine usage, retention/GC view, recent decisions.",
+          "Show adapter diagnostics, recovery mode, quarantine usage and GC commands. Local status does not verify live host interception.",
           { cwd: CWD_PROP },
           (args) => ({ script: "status.py", argString: "--json", workdir: args.cwd })
         )
@@ -461,7 +553,7 @@ function contribute(ctx, config, rt) {
       ctx.tools.register(
         makeTool(
           "agent_guard_safe_delete",
-          "Recoverable delete: globs expanded explicitly, targets quarantined to .agent-trash/ with a manifest. Preferred over raw rm.",
+          "Delete with the existing recovery policy: valuable targets go to quarantine and still use disk space; eligible generated artifacts may be deleted directly. Accepts paths and globs.",
           {
             paths: {
               type: "array",
@@ -512,22 +604,24 @@ function contribute(ctx, config, rt) {
           text: [
             "## Deletion discipline (agent-guard)",
             "",
-            "This workspace runs agent-guard: an automatic recovery system with human escalation - not an approval system. Irreversible destruction is not a default capability.",
+            "Agent Guard checks supported destructive-looking Bash commands and provides recovery tools. Other tools and scripts may be outside its coverage.",
             "",
-            "- To delete files/directories/globs, prefer the agent_guard_safe_delete tool: targets are quarantined under .agent-trash/ with a manifest and stay restorable. Pass cwd when operating in a repo below the workspace root.",
+            "- To delete files/directories/globs, prefer agent_guard_safe_delete. Valuable targets move to quarantine and still use disk space; eligible generated artifacts may be deleted directly. Pass cwd for the intended repo. Status includes GC planning and explicit purge commands.",
             "- Raw rm / git clean / git reset --hard are intercepted before execution. Most are compensated automatically (relocate or snapshot) and simply proceed; note the txid.",
             "- Shape rules: a command line that cds before deleting (COMPOUND_CWD_DELETE), or creates files and then deletes them (COMPOUND_CREATE_DELETE), triggers a single-execution user authorization. Splitting the deletion into its own standalone command avoids the prompt entirely.",
             "- True effect-uncertainty ($VAR targets, bash -c, find -delete, xargs-fed lists) stays hard-BLOCKED: restating with explicit concrete paths is the only remedy.",
             "- BLOCK_OUT_OF_WORKSPACE, BLOCK_PROTECTED_PATH (.git, workspace root) and BLOCK_FORCE_PUSH are policy violations and never askable: do not retry variants; ask the human if truly needed.",
             "- In RESTRICTED mode only explicit single-file deletes inside the workspace are permitted; only a human can restore NORMAL.",
-            "- Never circumvent the guard (no /bin/rm, python os.unlink, node fs.rmSync, relocated scripts). Every decision is audit-logged; circumvention is a violation.",
+            "- Never circumvent the guard (no /bin/rm, python os.unlink, node fs.rmSync, relocated scripts). Calls outside the covered path may have no recovery or audit record.",
             "- Undo with agent_guard_restore(txid). Inspect state with agent_guard_status().",
           ].join("\n"),
         })
       );
     }
 
+    console.log("[agent-guard] Hook registered; local Python checker passed. Live host interception is unverified. Inspect agent_guard_status for diagnostics.");
     return () => {
+      rt.diagnostics.hook_registered = false;
       while (disposers.length) {
         const d = disposers.pop();
         try {
