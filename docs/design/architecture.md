@@ -312,8 +312,12 @@ observer maintenance and [defensive research](../research/README.md), plus
 clearer local startup/status and retained-storage feedback. Private research
 methods do not add a general authorization service or production enforcement
 point. Deletion rules and execution routes retain their RC behavior.
-See [candidate notes](../releases/release-notes-0.2.5.md) and
+See [release notes](../releases/release-notes-0.2.5.md) and
 [compatibility](compatibility.md) for behaviour and validation boundaries.
+The unpublished [0.2.6 preparation](../releases/release-notes-0.2.6.md) adds
+optional Kimi Stop feedback, its doctor checks and Lab preflight diagnostics.
+Core policy is unchanged. The tag decision is pending; scope and delivery
+limits are tracked in [unreleased maintenance](../releases/unreleased.md).
 
 The milestones below describe historical delivery and future design scope,
 not a committed schedule or a guarantee that new compensation types need no

@@ -10,12 +10,26 @@ payload field names and decision contract are field-compatible with Claude
 Code's hooks, so `pre_tool_use.py` here delegates to
 `../claude/pre_tool_use.py` instead of reimplementing the mapping.
 
-Verified against **@moonshot-ai/kimi-code 0.42.0 and 2.1.1**. The detailed
+Verified against **@moonshot-ai/kimi-code 0.42.0, 2.1.1 and 2.3.0**. The detailed
 contract comparison below was established against 0.42.0; the 2.1.1 trials
 independently observed authenticated root `Bash` blocks through the same
 exit-2 hook path on an OAuth official model and a second configured model
 route. Connection details and private route identifiers are omitted. See the
 [bounded report](../../docs/reports/test-report-kimi-code-block.md).
+
+The unpublished checkout adds exact **2.3.0** after eight prompt-CLI and eight
+ACP root-Bash trials with fixed loopback responses, including BLOCK, ASK
+refusal, Python startup failure, recovery and Stop delivery. ACP hooks ran
+in the session workspace even when the server started elsewhere. There were
+no external model calls. See the [2.3.0 evidence and limits](../../docs/reports/test-report-kimi-code-block.md#kimi-230-acceptance).
+This does not extend subagent, other-tool or real-model claims; the separate
+[Lab helper](harness/README.md) remains pinned to 2.1.1. Published 0.2.5 keeps
+its earlier tested-version list.
+
+This README describes the unpublished [0.2.6 preparation](../../docs/releases/release-notes-0.2.6.md).
+The optional Stop helper, doctor checks and setup guidance are tracked in
+[unreleased maintenance](../../docs/releases/unreleased.md). The tag decision
+is pending; published 0.2.5 retains its recorded scope.
 
 For the separate honeytoken experiment, see the
 [guard-lab pair and local follow-up](../../docs/reports/test-report-kimi-guard-lab.md).
@@ -46,8 +60,12 @@ allowed. `blockDecision()` collects any hook result with `action === "block"`.
 
 ## Install
 
-1. Add the hook and the skill root to `~/.kimi-code/config.toml` — see
-   [`config.example.toml`](config.example.toml). `matcher` is a **regular
+1. Merge the hook and skill root into `~/.kimi-code/config.toml` — see
+   [`config.example.toml`](config.example.toml). Place the top-level
+   `extraSkillDirs` before the first TOML table, or extend its existing array;
+   append the `[[hooks]]` blocks separately. Appending the entire example
+   after an existing table puts `extraSkillDirs` inside that table.
+   `matcher` is a **regular
    expression** matched against the tool name; an empty string matches every
    tool. Use `^Bash$` to select only the shell tool. An unanchored `Bash`
    pattern can also match future tool names containing that word. The example
@@ -64,19 +82,30 @@ allowed. `blockDecision()` collects any hook result with `action === "block"`.
    extraSkillDirs = ["/absolute/path/to/agent-guard/skills"]
    ```
 
-3. Restart the session. Hooks are read at session start.
+3. Set the PreToolUse hook's `timeout = 120`, then restart the session.
+   The adapter waits up to 90 seconds for the guard; the host needs additional
+   time for Python startup and the refusal to return. An outer 90-second
+   timeout races that inner deadline. Kimi allows the tool if the hook itself
+   times out, so this margin reduces the race without making host timeouts
+   fail-closed. Start a new Kimi process after editing hooks; a running
+   setup process keeps its earlier hook configuration.
 
 4. From the repository root, run `python3 doctor.py kimi --probe`. The doctor
    checks the configured matcher and command, then exercises the bridge with
    harmless Bash payloads, a Bash→Core policy refusal, the host-specific
    ASK→hard-refusal mapping, and a deliberately missing interpreter. `--json`
-   reports `configuration`, `local_probe`, and
+   reports PreToolUse `configuration`, `local_probe`, and
    `host_interception` separately; the latter remains `UNVERIFIED` even when
    the local probe passes. The doctor also rejects an invalid
    `AGENT_GUARD_DIALECT` in the current process. It does **not** invoke a
    model, edit the configuration, inspect a running Kimi session, or prove
-   host-level interception. The optional Kimi doctor uses Python 3.11+ for
+   host-level interception. It accepts the host's 1–600 second timeout range
+   and does not test deadline exhaustion; use the recommended 120 seconds
+   even when a shorter configuration passes the doctor.
+   The optional Kimi doctor uses Python 3.11+ for
    TOML parsing; the guard adapter itself continues to support Python 3.9+.
+   In the unpublished 0.2.6 preparation, a separate `feedback` result checks the optional
+   Stop hook. See the [Stop doctor checks](#stop-doctor-checks-unreleased).
    Add `--check-drift` to compare the installed Kimi Code version with the
    shipped profile and compute privacy-safe configuration/runtime
    fingerprints. `CURRENT` still does not prove live interception; see the
@@ -87,6 +116,14 @@ allowed. `blockDecision()` collects any hook result with `action === "block"`.
    not rewrite it. Kimi prompt mode uses its machine-readable stream; adding
    `--auto` or `--yolo` is neither needed nor valid alongside `--prompt` in
    Kimi 2.x.
+
+For an npm installation, `tests/` is not shipped. The source unittest
+references below apply to a full checkout; use the installed doctor for local
+probes and report the unit suite as `NOT_INCLUDED`. Finish this configuration
+stage with a handoff recording paths, probe results and pending fresh-process
+verification. The doctor's `UNVERIFIED` host-interception/model-delivery fields
+are expected. Repeat probes only to check a new change or investigate a
+failure. If the setup hits a step limit, preserve that handoff for continuation.
 
 ## Decision mapping
 
@@ -106,8 +143,104 @@ sets `ask_is_block=True` because this CLI cannot enforce a prompt:
 This table describes adapter output **when the adapter actually starts**.
 It does not describe a missing hook or a failed hook command.
 
+## Optional recovery feedback (unreleased checkout addition)
+
+The tested 0.42.0, 2.1.1 and 2.3.0 success-hook paths do not include the hook's
+recovery explanation in the next model request. A successful Bash result
+alone can therefore hide that the guard already moved files to quarantine.
+The 0.2.6 preparation adds a separate, opt-in **POSIX Stop hook**. It is not included
+in the published 0.2.5 package. The existing PreToolUse installation keeps
+its current behavior until this additional hook is configured.
+
+```toml
+# Keep the existing PreToolUse hook. Add this only when the extra response is wanted.
+[[hooks]]
+event = "Stop"
+command = "/bin/sh /absolute/path/to/agent-guard/adapters/kimi-code/hook_bridge.sh /absolute/path/to/python3 --stop-feedback"
+timeout = 30
+```
+
+Confirm the selected root contains [`stop_feedback.py`](stop_feedback.py)
+before adding this hook. Replace and quote paths as in the PreToolUse
+installation. Start a new
+session after changing the configuration. This hook reads the existing audit
+and, for incomplete compensations, correlates transaction headers in the
+recovery journal. It reports actual txids, recorded moves, recovery-state
+inspection and restore commands. File relocations include the retained-space
+notice and complete GC commands with the recorded transaction IDs. Restoring
+files moves them back without freeing total disk space; permanent GC removes
+their recovery copies. Git snapshots are named
+separately; GC does not remove their stash entries. No command, restore or
+purge is executed by this hook, and deletion policy is unchanged.
+
+**The initial answer appears first.** When new compensation records exist,
+Stop asks the model for one additional response to supplement or correct it.
+It cannot repair the earlier Bash tool result or prevent an inaccurate initial
+answer. The feedback asks for a brief supplement with commands copied in full;
+the model can still omit or misstate details. No compensation, direct regenerable deletion, an empty clean
+enumeration and a clean Git snapshot with nothing to save produce no extra response. Partial failures identify incomplete
+recovery records without claiming that Bash ran or every file is recoverable.
+
+Emission cursors live in `$KIMI_CODE_HOME/agent-guard-feedback/` (default
+`~/.kimi-code/agent-guard-feedback/`), scoped to the physical workspace,
+trash location and session. A POSIX lock and atomic checkpoint prevent
+concurrent Stop calls from emitting the same records again. Cursors record
+emission, **not model acknowledgement**. Cancellation, exhausted model/step
+budgets, failed hook launch or host changes can still prevent delivery.
+Cursor corruption or replacement/truncation of the append-only audit produces
+an explicit feedback-unavailable message; it does not rewind silently or
+modify recovery data. Inspect `restore.py list` from the original workspace.
+
+The scope is the session, not an authenticated agent identity. A parent and
+child sharing a session/workspace may have their records emitted by whichever
+Stop runs first. This does not guarantee a separate notice to every actor.
+The local doctor checks below do not establish delivery to a running model.
+
+### Stop doctor checks (unreleased)
+
+Run `python3 doctor.py kimi --probe --json` from the checkout containing the
+Stop helper. Existing top-level `configuration` and `local_probe` fields
+describe PreToolUse. The separate `feedback` object reports:
+
+| Field | Meaning |
+|---|---|
+| `configured` | `false` when no agent-guard Stop definition is found; `null` when the configuration cannot be checked. |
+| `configuration` | `NOT_CONFIGURED`, `PASS`, `FAIL`, or `UNVERIFIED`. Checks the event, command, matcher, timeout, duplicate definitions and helper presence. |
+| `local_probe` | `NOT_RUN` without `--probe`, or when absent/invalid; otherwise `PASS` or `FAIL`. |
+| `model_delivery` | Always `UNVERIFIED`; local execution does not prove a live host loaded Stop or a model received it. |
+| `problems` | Stop-specific configuration or local execution failures. |
+
+The command must use this installation's absolute shell/bridge/Python paths
+followed by `--stop-feedback`. Use `event = "Stop"`, omit `matcher` or leave
+it empty, and choose an integer timeout from 1 to 600 seconds (recommended
+30). A Bash matcher would filter out Stop. Unrelated Stop commands are ignored.
+
+`--probe` uses a temporary home, workspace, recovery audit and emission cursor.
+It checks silent no-record/active-Stop cases, a synthetic transaction's
+retained-space and complete GC guidance, then repeat-Stop silence. It performs
+no real deletion, restore, GC or model call and leaves existing recovery records
+alone. An executable Python path or an existing helper file alone is not a
+successful runtime probe. The probe uses a fixed local deadline; it does not
+exhaust the configured host timeout.
+
+An absent optional Stop does not fail the doctor. A configured Stop that fails
+configuration or a requested local probe makes the CLI exit 1, even when
+PreToolUse passes. An unreadable config reports Stop as `UNVERIFIED`, rather
+than claiming it is disabled. Neither local success nor a passing Bash live
+sentinel changes `feedback.model_delivery`. These additions are absent from
+published 0.2.5; they belong to the unpublished
+[0.2.6 preparation](../../docs/releases/release-notes-0.2.6.md).
+
 ## Known limitations — read before claiming interception
 
+- **Hook launch and timeout are separate from adapter refusal.** A local
+  0.42.0 / 2.1.1 audit confirmed that a nonexistent hook command or a started
+  hook exceeding its one-second test deadline still allowed an inert Bash
+  sentinel to run. The bridge blocked a missing Python interpreter when the
+  bridge itself started. A longer timeout does not protect a missing hook.
+  Stop Python startup failure produced one feedback-unavailable continuation;
+  it did not undo the preceding Bash call. These were fixed loopback-response
+  trials of the actual CLIs, not new real-model trials.
 - **ASK is not supported by this host's hook contract.** Even outside
   `kimi --auto`, Kimi 0.42.0 treats `permissionDecision: "ask"` as allow.
   This adapter therefore maps Core ASK to exit 2 (BLOCK). The failure class
@@ -122,6 +255,8 @@ It does not describe a missing hook or a failed hook command.
   the agent to split and retry instead of proceeding without compensation.
   The 2.1.1 live sentinel exercised a hard `BLOCK`, not a live ASK path, so
   this conservative mapping is not advertised as a 2.1.1 approval-UI test.
+  The 2.3.0 prompt/ACP trials observed ASK being hard-refused with fixed
+  responses; they do not establish native approval-UI behavior either.
 - **Subagent inheritance is observational, not a blanket guarantee.** In two
   isolated sandboxes using one configured model route, single and concurrent
   subagent Bash calls reached the native hook and produced recoverable audit
@@ -164,14 +299,15 @@ It does not describe a missing hook or a failed hook command.
 
 ## Verification
 
-```sh
-# Should exit 2 with a BLOCK code (the string is data, never executed):
-printf '%s' '{"hook_event_name":"PreToolUse","session_id":"t","cwd":"/tmp/agent-guard-kimi-sandbox-20260921","tool_name":"Bash","tool_input":{"command":"rm -rf /"},"tool_call_id":"c1"}' \
-  | python3 adapters/kimi-code/pre_tool_use.py; echo "exit=$?"
+From the repository root:
 
-# Should exit 0 silently:
-printf '%s' '{"hook_event_name":"PreToolUse","session_id":"t","cwd":"/tmp/agent-guard-kimi-sandbox-20260921","tool_name":"Bash","tool_input":{"command":"ls -la"},"tool_call_id":"c2"}' \
-  | python3 adapters/kimi-code/pre_tool_use.py; echo "exit=$?"
+```sh
+python3 doctor.py kimi --probe --json
+python3 -m unittest tests.test_doctor tests.test_kimi_adapter tests.test_kimi_feedback
 ```
 
-Set `AGENT_GUARD_DEBUG=1` to print the raw Core verdict JSON to stderr.
+These are local checks. They do not certify a running session or the optional
+Stop hook's delivery. See the [versioned host report](../../docs/reports/test-report-kimi-code-block.md)
+for actual CLI trials and their limits. Set `AGENT_GUARD_DEBUG=1` in the Kimi
+process environment for adapter troubleshooting; the TOML example does not
+define a debug switch.

@@ -1,5 +1,11 @@
 # agent-guard adapter for Claude Code
 
+We currently focus on DSH and Kimi Code. This Claude Code adapter and its past
+test results remain available as a reference; testing new Claude versions is
+paused. For local setup, follow the [integration requirements](../INTEGRATION.md)
+and independently test the installed version. The results below cover only
+the recorded versions.
+
 Wraps Claude Code's `PreToolUse` hook so matching Bash calls that reach the
 hook pass through the shared core (`skills/delete-guard/scripts/check.py`)
 before execution. A missing, mismatched, or timed-out hook is not covered.

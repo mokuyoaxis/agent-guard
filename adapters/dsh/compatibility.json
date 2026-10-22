@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "profile_id": "dsh-pre-execute-bash-v1",
+  "harness": "dsh",
+  "display_name": "DeepSeek Harness",
+  "tested_versions": ["0.1.5-rc.1", "0.2.0-rc.2", "0.2.1-alpha.4"],
+  "contract": {
+    "event": "tools/pre-execute",
+    "tools": ["bash"],
+    "blocking": true,
+    "ask": "native-or-deny",
+    "scope": "default-deletion-adapter"
+  }
+}

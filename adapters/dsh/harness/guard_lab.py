@@ -14,6 +14,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import time
 from typing import Optional, Sequence
 
 
@@ -111,19 +112,48 @@ def _host_options(
     return argv, _environment(home)
 
 
+def _preflight_error(stage, reason, result, streams, elapsed, timeout):
+    # Keep diagnostics useful without echoing configuration, argv or stderr.
+    details = {
+        "reason": reason, "exit_code": result["exit_code"],
+        "start_failed": result["start_failed"], "timed_out": result["timed_out"],
+        "output_limit_exceeded": result["output_limit_exceeded"],
+        "elapsed_seconds": round(elapsed, 3), "timeout_seconds": timeout,
+        "stdout_captured_bytes": len(streams["stdout"]),
+        "stderr_captured_bytes": len(streams["stderr"]),
+    }
+    return LabError("DSH " + stage + " preflight failed: "
+                    + json.dumps(details, sort_keys=True))
+
+
+def _capture_preflight(stage, argv, cwd, environment, timeout):
+    started = time.monotonic()
+    result, streams = _capture_process(argv, cwd, environment, timeout)
+    elapsed = time.monotonic() - started
+    # A deadline/limit may cause a negative exit code when capture stops the child.
+    if result["start_failed"]:
+        reason = "START_FAILED"
+    elif result["timed_out"]:
+        reason = "TIMEOUT"
+    elif result["output_limit_exceeded"]:
+        reason = "OUTPUT_LIMIT"
+    elif result["exit_code"] != 0:
+        reason = "NONZERO_EXIT"
+    elif not streams["stdout"].strip():
+        reason = "EMPTY_STDOUT"
+    else:
+        return result, streams, elapsed
+    raise _preflight_error(stage, reason, result, streams, elapsed, timeout)
+
+
 def _config_dump(
     argv: Sequence[str], cwd: Path, environment: dict[str, str],
     guard_state: str = "off",
     *, guard_profile="deletion-v1", workspace=None, dsh_root=None,
 ) -> bytes:
-    result, output = _capture_process(
-        [*argv, "--dump-config"], cwd, environment, 15,
+    _, output, _ = _capture_preflight(
+        "config", [*argv, "--dump-config"], cwd, environment, 15,
     )
-    if (
-        result["exit_code"] != 0 or result["timed_out"]
-        or result["output_limit_exceeded"] or not output["stdout"].strip()
-    ):
-        raise LabError("DSH config preflight failed; raw diagnostics are not printed")
     normalize_composition(output["stdout"], guard_state,
         **_profile_options(guard_profile, workspace, dsh_root))
     return output["stdout"]
@@ -138,14 +168,12 @@ def check_host(
     home = home.expanduser().resolve()
     context = dict(guard_profile=guard_profile, workspace=workspace, dsh_root=dsh_root)
     argv, environment = _host_options(executable, home, patches, guard_state, guard_patch_file, **context)
-    result, output = _capture_process([argv[0], "--version"], home.resolve(), environment, 10)
+    result, output, elapsed = _capture_preflight(
+        "version", [argv[0], "--version"], home.resolve(), environment, 10,
+    )
     version = output["stdout"].strip().decode("ascii", errors="replace")
-    if (
-        result["exit_code"] != 0 or result["timed_out"]
-        or result["output_limit_exceeded"]
-        or version not in HOST_CONTRACTS
-    ):
-        raise LabError("DSH version preflight requires a reviewed exact host version")
+    if version not in HOST_CONTRACTS:
+        raise _preflight_error("version", "UNSUPPORTED_VERSION", result, output, elapsed, 10)
     if guard_profile == "read-redaction-v1" and _launcher_root(argv[0], version) != Path(dsh_root).resolve():
         raise LabError("read profile root must match the selected DSH launcher")
     configuration = _config_dump(argv, home.resolve(), environment, guard_state, **context)

@@ -1,5 +1,6 @@
 """The local doctor must not promote a config or bridge test to host proof."""
 
+import io
 import json
 import os
 from pathlib import Path
@@ -10,6 +11,9 @@ import sys
 import tempfile
 import textwrap
 import unittest
+from unittest import mock
+
+import doctor
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -100,6 +104,246 @@ class DoctorTests(unittest.TestCase):
         config = self.cwd / "settings.json"
         config.write_text(json.dumps(data), encoding="utf-8")
         return config
+
+    def stop_hook(self, **overrides):
+        hook = {"event": "Stop", "command": self.command(KIMI_BRIDGE) + " --stop-feedback",
+                "timeout": 30}
+        hook.update(overrides)
+        return hook
+
+    def write_kimi(self, stops=()):
+        hooks = [{"event": "PreToolUse", "matcher": "^Bash$",
+                  "command": self.command(KIMI_BRIDGE), "timeout": 120}, *stops]
+        config = self.cwd / "config.toml"
+        config.write_text("".join("[[hooks]]\n" + "".join(
+            f"{key} = {json.dumps(value)}\n" for key, value in hook.items())
+            for hook in hooks), encoding="utf-8")
+        return config
+
+    @unittest.skipIf(sys.version_info < (3, 11), "Kimi TOML parsing needs Python 3.11")
+    def test_kimi_feedback_is_optional_and_ignores_unrelated_stop(self):
+        for stops in ((), ({"event": "Stop", "command": "printf unrelated"},)):
+            with self.subTest(stops=stops):
+                proc = self.run_doctor("kimi", self.write_kimi(stops))
+                self.assertEqual(proc.returncode, 0, proc.stderr)
+                report = json.loads(proc.stdout)
+                self.assertEqual(report["configuration"], "PASS")
+                self.assertEqual(report["feedback"], {
+                    "configured": False, "configuration": "NOT_CONFIGURED",
+                    "local_probe": "NOT_RUN", "model_delivery": "UNVERIFIED", "problems": []})
+
+    @unittest.skipIf(sys.version_info < (3, 11), "Kimi TOML parsing needs Python 3.11")
+    def test_kimi_feedback_configuration_and_runtime_are_separate(self):
+        config = self.write_kimi([self.stop_hook()])
+        for flags, expected in (((), "NOT_RUN"), (("--probe",), "PASS")):
+            with self.subTest(probe=expected):
+                proc = self.run_doctor("kimi", config, *flags)
+                self.assertEqual(proc.returncode, 0, proc.stderr)
+                report = json.loads(proc.stdout)
+                self.assertEqual(report["configuration"], "PASS")
+                self.assertEqual(report["feedback"]["configuration"], "PASS")
+                self.assertEqual(report["feedback"]["local_probe"], expected)
+                self.assertEqual(report["feedback"]["model_delivery"], "UNVERIFIED")
+                self.assertEqual(report["host_interception"], "UNVERIFIED")
+
+    @unittest.skipIf(sys.version_info < (3, 11), "Kimi TOML parsing needs Python 3.11")
+    def test_kimi_feedback_rejects_wrong_event_filters_commands_and_duplicates(self):
+        command = self.command(KIMI_BRIDGE)
+        marker = self.cwd / "injected-command"
+        unsafe_command = command + " --stop-feedback; touch " + str(marker)
+        invalid = [
+            [self.stop_hook(event="PostToolUse")], [self.stop_hook(matcher="^Bash$")],
+            [self.stop_hook(timeout=True)], [self.stop_hook(timeout=0)], [self.stop_hook(timeout=601)],
+            [self.stop_hook(command=command)], [self.stop_hook(command=command + " --unknown")],
+            [self.stop_hook(command=unsafe_command)],
+            [self.stop_hook(command=self.command(CLAUDE_BRIDGE) + " --stop-feedback")],
+            [self.stop_hook(command=f"{sys.executable} {doctor.KIMI_FEEDBACK}")],
+            [self.stop_hook(), self.stop_hook()],
+        ]
+        for stops in invalid:
+            with self.subTest(stops=stops):
+                # Configuration cases do not need to rerun every PreToolUse
+                # probe. Keep --probe for injection to verify it cannot run.
+                flags = ("--probe",) if stops[0]["command"] == unsafe_command else ()
+                proc = self.run_doctor("kimi", self.write_kimi(stops), *flags)
+                self.assertEqual(proc.returncode, 1)
+                report = json.loads(proc.stdout)
+                self.assertEqual(report["configuration"], "PASS")
+                self.assertEqual(report["local_probe"], "PASS" if flags else "NOT_RUN")
+                self.assertEqual(report["problems"], [])
+                self.assertTrue(report["feedback"]["configured"])
+                self.assertEqual(report["feedback"]["configuration"], "FAIL")
+                self.assertEqual(report["feedback"]["local_probe"], "NOT_RUN")
+                self.assertTrue(report["feedback"]["problems"])
+                self.assertFalse(marker.exists())
+
+    @unittest.skipIf(sys.version_info < (3, 11), "Kimi TOML parsing needs Python 3.11")
+    def test_kimi_unreadable_or_invalid_config_does_not_claim_feedback_disabled(self):
+        config = self.cwd / "invalid.toml"
+        for contents in (None, b"hooks = [", b"\xff", b'hooks = "wrong-shape"'):
+            with self.subTest(contents=contents):
+                if contents is not None:
+                    config.write_bytes(contents)
+                proc = self.run_doctor("kimi", config, "--probe")
+                self.assertEqual(proc.returncode, 1)
+                report = json.loads(proc.stdout)
+                self.assertEqual(report["configuration"], "FAIL")
+                self.assertIsNone(report["feedback"]["configured"])
+                self.assertEqual(report["feedback"]["configuration"], "UNVERIFIED")
+                self.assertEqual(report["feedback"]["local_probe"], "NOT_RUN")
+
+    @unittest.skipIf(sys.version_info < (3, 11), "Kimi TOML parsing needs Python 3.11")
+    def test_kimi_missing_feedback_helper_is_configuration_failure(self):
+        config = self.write_kimi([self.stop_hook()])
+        with mock.patch.dict(os.environ, self.env, clear=True), \
+                mock.patch.object(doctor, "KIMI_FEEDBACK", self.cwd / "missing-feedback.py"), \
+                mock.patch.object(doctor, "_probe_feedback") as probe:
+            report = doctor._diagnose("kimi", config, False)
+        self.assertEqual(report.configuration, "PASS")
+        self.assertEqual(report.feedback.configuration, "FAIL")
+        self.assertIn("stop_feedback.py is missing", report.feedback.problems[0])
+        probe.assert_not_called()
+
+    @unittest.skipIf(sys.version_info < (3, 11), "Kimi TOML parsing needs Python 3.11")
+    def test_kimi_executable_interpreter_does_not_prove_feedback_runs(self):
+        interpreter = self.cwd / "broken-python"
+        for body in ("exit 0\n", "echo PRIVATE_RUNTIME_OUTPUT >&2\nexit 17\n"):
+            with self.subTest(body=body):
+                interpreter.write_text("#!/bin/sh\n" + body, encoding="utf-8")
+                interpreter.chmod(0o700)
+                config = self.write_kimi([self.stop_hook(
+                    command=self.command(KIMI_BRIDGE, interpreter) + " --stop-feedback")])
+                proc = self.run_doctor("kimi", config, "--probe")
+                self.assertEqual(proc.returncode, 1)
+                report = json.loads(proc.stdout)
+                self.assertEqual(report["local_probe"], "PASS")
+                self.assertEqual(report["feedback"]["configuration"], "PASS")
+                self.assertEqual(report["feedback"]["local_probe"], "FAIL")
+                self.assertEqual(report["feedback"]["model_delivery"], "UNVERIFIED")
+                self.assertTrue(report["feedback"]["problems"])
+                self.assertNotIn("PRIVATE_RUNTIME_OUTPUT", proc.stdout + proc.stderr)
+
+    @unittest.skipIf(sys.version_info < (3, 11), "Kimi TOML parsing needs Python 3.11")
+    def test_kimi_probes_leave_inherited_home_and_recovery_data_untouched(self):
+        protected = self.cwd / "existing-user-data"
+        protected.mkdir()
+        for name in ("audit.jsonl", "manifest.json", "feedback-cursor.json", "config.toml"):
+            (protected / name).write_bytes(b"PRIVATE_EXISTING_DATA\n")
+        before = {path: (path.read_bytes(), path.stat().st_mtime_ns)
+                  for path in protected.iterdir()}
+        self.env.update(HOME=str(protected), KIMI_CODE_HOME=str(protected),
+                        AGENT_GUARD_WORKSPACE=str(protected), AGENT_GUARD_TRASH=str(protected),
+                        AGENT_GUARD_SESSION_ID="existing-session",
+                        AGENT_GUARD_SENTINEL_RECEIPT=str(protected / "receipt.json"))
+        proc = self.run_doctor("kimi", self.write_kimi([self.stop_hook()]), "--probe")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(json.loads(proc.stdout)["feedback"]["local_probe"], "PASS")
+        self.assertEqual({path: (path.read_bytes(), path.stat().st_mtime_ns)
+                          for path in protected.iterdir()}, before)
+
+    @unittest.skipIf(sys.version_info < (3, 11), "Kimi TOML parsing needs Python 3.11")
+    def test_kimi_stop_configuration_and_helper_are_covered_by_drift(self):
+        config = self.write_kimi([self.stop_hook()])
+        host = self.host_executable("Kimi Code CLI 2.1.1", "kimi-feedback")
+        baseline = self.cwd / "feedback-baseline.json"
+        proc = self.run_doctor("kimi", config, "--probe", "--host-executable", str(host),
+                               "--write-baseline", str(baseline))
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        initial = json.loads(proc.stdout)
+        self.assertEqual(initial["feedback"]["local_probe"], "PASS")
+        self.assertTrue(initial["baseline_written"])
+        self.assertEqual(baseline.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(set(json.loads(baseline.read_text())), {
+            "schema_version", "harness", "profile", "host_version",
+            "configuration_fingerprint", "runtime_fingerprint"})
+        for stops in ([self.stop_hook(timeout=31)], []):
+            with self.subTest(stops=stops):
+                self.write_kimi(stops)
+                proc = self.run_doctor("kimi", config, "--host-executable", str(host),
+                                       "--baseline", str(baseline))
+                self.assertEqual(proc.returncode, 1)
+                report = json.loads(proc.stdout)
+                self.assertEqual(report["drift_status"], "DRIFTED")
+                self.assertIn("hook configuration changed since baseline", report["drift_problems"])
+                if not stops:
+                    self.assertIn("guard runtime changed since baseline", report["drift_problems"])
+        # Track the optional helper's bytes, without changing the checkout.
+        original = Path.read_bytes
+        def changed_helper(path):
+            content = original(path)
+            return content + b"\n# changed helper\n" if path == doctor.KIMI_FEEDBACK else content
+        profile = doctor._load_profile("kimi")
+        original_pre = doctor._runtime_fingerprint("kimi", profile)
+        original_stop = doctor._runtime_fingerprint("kimi", profile, True)
+        with mock.patch.object(Path, "read_bytes", changed_helper):
+            self.assertEqual(doctor._runtime_fingerprint("kimi", profile), original_pre)
+            self.assertNotEqual(doctor._runtime_fingerprint("kimi", profile, True), original_stop)
+
+    @unittest.skipIf(sys.version_info < (3, 11), "Kimi TOML parsing needs Python 3.11")
+    def test_kimi_pretooluse_wrapper_and_unconfigured_fingerprints_stay_compatible(self):
+        config = self.write_kimi()
+        with mock.patch.dict(os.environ, self.env, clear=True):
+            original = doctor._check_kimi_config(config)[2]
+            report = doctor._diagnose("kimi", config, False)
+            self.assertEqual(report.configuration_fingerprint, original)
+            self.write_kimi([{"event": "Stop", "command": "printf unrelated"}])
+            self.assertEqual(doctor._diagnose("kimi", config, False).configuration_fingerprint, original)
+            self.write_kimi([self.stop_hook(matcher="^Bash$")])
+            with mock.patch.object(doctor, "_probe_feedback") as probe:
+                self.assertEqual(doctor.check_kimi(config, run_probe=True), [])
+                probe.assert_not_called()
+        claude = self.run_doctor("claude", self.write_claude(self.claude_config()))
+        self.assertEqual(claude.returncode, 0, claude.stderr)
+        self.assertNotIn("feedback", json.loads(claude.stdout))
+
+    @unittest.skipIf(sys.version_info < (3, 11), "Kimi TOML parsing needs Python 3.11")
+    def test_kimi_feedback_failure_blocks_baseline_and_live_model_call(self):
+        config = self.write_kimi([self.stop_hook(matcher="^Bash$")])
+        host = self.host_executable("Kimi Code CLI 2.1.1", "kimi-bad-feedback")
+        baseline = self.cwd / "refused-baseline.json"
+        proc = self.run_doctor("kimi", config, "--probe", "--host-executable", str(host),
+                               "--write-baseline", str(baseline))
+        self.assertEqual(proc.returncode, 1)
+        report = json.loads(proc.stdout)
+        self.assertEqual(report["drift_status"], "BROKEN")
+        self.assertFalse(report["baseline_written"])
+        self.assertFalse(baseline.exists())
+        output = io.StringIO()
+        with mock.patch.dict(os.environ, self.env, clear=True), \
+                mock.patch("sys.stdout", output), \
+                mock.patch("live_sentinel.run_live_sentinel") as live:
+            code = doctor.main(["kimi", "--config", str(config), "--json",
+                                "--host-executable", str(host), "--live-sentinel"])
+        self.assertEqual(code, 1)
+        self.assertEqual(json.loads(output.getvalue())["live_sentinel"]["reason"], "LOCAL_PREFLIGHT_FAILED")
+        live.assert_not_called()
+
+    @unittest.skipIf(sys.version_info < (3, 11), "Kimi TOML parsing needs Python 3.11")
+    def test_kimi_human_output_separates_optional_feedback_from_pretooluse(self):
+        for stops, state, code in (([], "NOT_CONFIGURED", 0),
+                                   ([self.stop_hook()], "PASS", 0),
+                                   ([self.stop_hook(matcher="Bash")], "FAIL", 1)):
+            with self.subTest(state=state):
+                config = self.write_kimi(stops)
+                proc = subprocess.run([sys.executable, str(DOCTOR), "kimi", "--config", str(config)],
+                                      capture_output=True, text=True, cwd=self.cwd, env=self.env, timeout=30)
+                self.assertEqual(proc.returncode, code)
+                self.assertIn("PASS: kimi PreToolUse configuration", proc.stdout)
+                self.assertIn("FEEDBACK_CONFIGURATION: " + state, proc.stdout)
+                self.assertIn("FEEDBACK_LOCAL_PROBE: NOT_RUN", proc.stdout)
+                self.assertIn("MODEL_DELIVERY: UNVERIFIED", proc.stdout)
+                if code:
+                    self.assertIn("FEEDBACK_FAIL:", proc.stderr)
+
+    @unittest.skipIf(sys.version_info < (3, 11), "Kimi TOML parsing needs Python 3.11")
+    def test_kimi_feedback_python_path_with_spaces(self):
+        python = self.cwd / "python with spaces"
+        python.symlink_to(sys.executable)
+        config = self.write_kimi([self.stop_hook(
+            command=self.command(KIMI_BRIDGE, python) + " --stop-feedback")])
+        proc = self.run_doctor("kimi", config, "--probe")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(json.loads(proc.stdout)["feedback"]["local_probe"], "PASS")
 
     def test_claude_selected_config_and_probe_stay_unverified(self):
         config = self.write_claude(self.claude_config())
@@ -299,24 +543,25 @@ class DoctorTests(unittest.TestCase):
         self.assertEqual(report["local_probe"], "PASS")
         self.assertEqual(report["host_interception"], "UNVERIFIED")
 
-        host = self.host_executable("kimi, version 0.42.0", "kimi-current")
-        proc = self.run_doctor(
-            "kimi", config, "--check-drift", "--host-executable", str(host))
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        report = json.loads(proc.stdout)
-        self.assertEqual(report["profile"], "kimi-code-pretooluse-bash-v1")
-        self.assertEqual(report["host_version"], "0.42.0")
-        self.assertEqual(report["drift_status"], "CURRENT")
-
-        current_host = self.host_executable(
-            "Kimi Code CLI 2.1.1", "kimi-current-2")
-        proc = self.run_doctor(
-            "kimi", config, "--check-drift",
-            "--host-executable", str(current_host))
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        report = json.loads(proc.stdout)
-        self.assertEqual(report["host_version"], "2.1.1")
-        self.assertEqual(report["drift_status"], "CURRENT")
+        versions = (
+            ("0.42.0", "kimi, version 0.42.0", "CURRENT", 0),
+            ("2.1.1", "Kimi Code CLI 2.1.1", "CURRENT", 0),
+            ("2.3.0", "2.3.0", "CURRENT", 0),
+            ("2.3.1", "2.3.1", "STALE", 1),
+        )
+        for version, output, status, exit_code in versions:
+            with self.subTest(version=version):
+                host = self.host_executable(output, f"kimi-{version}")
+                proc = self.run_doctor(
+                    "kimi", config, "--check-drift",
+                    "--host-executable", str(host))
+                self.assertEqual(proc.returncode, exit_code, proc.stderr)
+                report = json.loads(proc.stdout)
+                self.assertEqual(report["profile"], "kimi-code-pretooluse-bash-v1")
+                self.assertEqual(report["host_version"], version)
+                self.assertEqual(report["drift_status"], status)
+                self.assertEqual(report["host_interception"], "UNVERIFIED")
+                self.assertEqual(report["feedback"]["model_delivery"], "UNVERIFIED")
 
 
 if __name__ == "__main__":

@@ -17,6 +17,12 @@ opt-in [0.2.4-hotfix.1](https://github.com/mokuyoaxis/agent-guard/releases/tag/0
 quarantine protection backport. The [getting-started guide](guides/getting-started.md)
 explains exact-version and local-package installation.
 
+[0.2.6 preparation](releases/release-notes-0.2.6.md) covers Kimi Stop feedback,
+its doctor checks, Kimi 2.3.0 root-Bash compatibility, DSH Lab preflight
+diagnostics and alpha.4 default deletion compatibility. This local version is
+unpublished, with the tag decision pending. The additions are absent from
+published 0.2.5; see [unreleased maintenance](releases/unreleased.md).
+
 先看入门指南，再按恢复保护、外发检测、Lab 验测选择入口。测试报告按所测版本与配置保留；发布记录、
 历史设计和外部案例各自归档，不能据此扩展当前产品的承诺。
 
@@ -47,6 +53,11 @@ ALLOW_NOOP 覆盖边界及准确 GC 用法；纳入 0.2.5。
 
 Adapter setup remains in [adapters/](../adapters/INTEGRATION.md). Skill contracts
 remain in [skills/](../skills/delete-guard/SKILL.md).
+
+We currently focus on DSH and Kimi Code. Claude Code's adapter and past
+reports remain available; testing new Claude versions is paused. For other
+hosts, ask the official agent to follow the
+[integration requirements](../adapters/INTEGRATION.md) and configure Agent Guard locally.
 
 ## Design
 
@@ -90,11 +101,12 @@ coverage rather than treating every historical result as current acceptance.
 | [0.2.3 contract review](reports/test-report-release-readiness-0.2.3.md) | 发布前契约复核与 DSH 原生验收 |
 | [0.2.4 official Flash / PTC](reports/test-report-dsh-0.2.4-ptc.md) | 实模主／子代理碰撞拒绝；原始主 PTC 任务失败与独立收尾分别记录 |
 | [Claude Code harness](reports/test-report-claude-code-harness.md) | 脚本模型驱动的真实宿主 hook 验证 |
-| [Kimi Code blocking](reports/test-report-kimi-code-block.md) | 所测版本的 Bash BLOCK 与故障路径 |
+| [Kimi Code blocking and feedback](reports/test-report-kimi-code-block.md) | 0.42.0／2.1.1 历史试次与 2.3.0 根代理 CLI／ACP 固定响应复验，含 Stop 和 cwd 边界 |
 | [Kimi Code Lab](reports/test-report-kimi-guard-lab.md) | 历史配对试次与后续本地复核 |
 | [Codex / GPT-6 Astra](reports/test-report-codex-gpt-6-astra-high.md) | Skill／CLI 验收，不声明原生拦截 |
 | [Codex / GPT-5.6 Sol](reports/test-report-codex-gpt-5.6-sol.md) | v0.1.1 历史 Skill／CLI 评估 |
 | [DSH 0.1.5-rc.1](reports/test-report-dsh-0.1.5-rc.1.md) | 打包插件与执行级 Bash 验收 |
+| [DSH alpha.4 compatibility](reports/test-report-dsh-alpha4.md) | 默认删除适配的真实 Profile／Bash／主子代理、恢复和审批；可选 read／Lab 不扩展 |
 | [DSH 0.2 upgrade](reports/test-report-dsh-0.2-upgrade.md) | 升级初期兼容快照，后续状态见契约复核 |
 | [DSH Lab baseline](reports/test-report-dsh-guard-lab.md) | 真实模型基线；未形成 L2 结论 |
 | [DSH native sessions](reports/test-report-dsh-native-session.md) | 原生工具结果捕获与保留日志复核 |
@@ -110,6 +122,8 @@ coverage rather than treating every historical result as current acceptance.
 
 | Document / 文档 | Scope / 范围 |
 |---|---|
+| [0.2.6 preparation](releases/release-notes-0.2.6.md) | 本地维护版范围、升级影响与证据；尚未发布，tag 待定 |
+| [Unreleased maintenance](releases/unreleased.md) | 0.2.6 准备中的 Kimi Stop／doctor／2.3.0、DSH 预检及版本声明边界 |
 | [0.2.5](releases/release-notes-0.2.5.md) | 正式版范围；累计 RC 维护、明确反馈与升级影响 |
 | [0.2.4-hotfix.1](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.4-hotfix.1) | 已发布的稳定线回收站保护回补；不含完整 RC 累计内容 |
 | [0.2.5-rc3](releases/release-notes-0.2.5-rc3.md) | 已发布的研究／文档预发布版与零模型示例 |

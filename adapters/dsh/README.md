@@ -10,7 +10,7 @@ a bounded local worker. Both ship inside this package.
 The [0.2.3 contract review](../../docs/reports/test-report-release-readiness-0.2.3.md)
 verifies the default deletion path on `0.2.0-rc.2` and `0.1.5-rc.1`, and
 the opt-in read path on the reviewed new local and sandbox filesystem providers.
-The package admits both exact host versions. Lab preflight accepts both and
+Those are the published 0.2.5 host declarations. Lab preflight accepts both and
 binds their native formats separately; unsupported session shapes remain
 inconclusive. A running Web service's plugin inventory does not validate this
 checkout or its agent scope. The [initial upgrade check](../../docs/reports/test-report-dsh-0.2-upgrade.md)
@@ -38,6 +38,17 @@ Versioned [GitHub](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.5)
 and [npm](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.5)
 receipts establish 0.2.5 availability. A reviewed checkout or tarball is also
 usable as described in [getting started](../../docs/guides/getting-started.md).
+
+The local [0.2.6 preparation](../../docs/releases/release-notes-0.2.6.md) adds
+Lab version/config preflight diagnostics; it is unpublished and its tag is
+pending. This checkout also admits `0.2.1-alpha.4` for the default deletion
+adapter, alongside `0.1.5-rc.1` and `0.2.0-rc.2`. It retains the existing
+interception and recovery logic. Alpha.4 is not admitted for optional native
+read protection or Lab. See [DSH compatibility](../../docs/design/dsh-compatibility.md)
+for the exact declarations and [native validation](../../docs/reports/test-report-dsh-alpha4.md)
+for the evidence. Use a reviewed local package/checkout for these additions;
+published 0.2.5 does not acquire them. See the [Lab runner](harness/README.md)
+for the separate preflight diagnostic fields.
 
 ## What gets registered
 

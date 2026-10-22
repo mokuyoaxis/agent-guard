@@ -33,10 +33,11 @@ identify the published package. For the stable-line fix alone, select
 stable `latest`.
 
 For a reviewed local checkout or explicitly selected local tarball, use a
-separate prefix:
+separate prefix. The current [0.2.6 preparation](../releases/release-notes-0.2.6.md)
+is unpublished, with the tag decision pending; use the local artifact:
 
 ```sh
-npm install --offline --ignore-scripts --no-audit --no-fund --prefix /absolute/path/to/agent-guard-review /absolute/path/to/mokuyoaxis-agent-guard-0.2.5.tgz
+npm install --offline --ignore-scripts --no-audit --no-fund --prefix /absolute/path/to/agent-guard-review /absolute/path/to/mokuyoaxis-agent-guard-0.2.6.tgz
 ```
 
 The review package root is
@@ -45,6 +46,24 @@ Keep the selected package/checkout path consistent when configuring the host.
 Do not infer publication from a manifest/main commit or use an unscoped
 same-name package. A checkout's default branch can differ from a tagged stable release.
 
+The [unreleased 0.2.6 additions](../releases/unreleased.md) require files
+from the reviewed checkout or local package. In particular, published 0.2.5
+does not contain `adapters/kimi-code/stop_feedback.py`. Check the selected
+root before configuring the optional Stop hook. A local version or filename
+does not establish publication or the availability of these features in an
+existing installation. The stable registry install above remains 0.2.5.
+
+The unpublished checkout also adds DSH `0.2.1-alpha.4` for the default deletion
+adapter. Published 0.2.5 retains its earlier host declaration; alpha.4 users
+need the reviewed checkout/local package. Optional native read and Lab keep
+their separate two-version scope. Check [DSH compatibility](../design/dsh-compatibility.md)
+before enabling a profile.
+
+The unpublished Kimi Bash profile also adds exact version `2.3.0`, based on
+[prompt CLI and ACP trials](../reports/test-report-kimi-code-block.md#kimi-230-acceptance).
+Published 0.2.5 retains its earlier list. The Kimi Lab capture helper remains
+pinned to 2.1.1; updating the Bash profile does not update that separate path.
+
 Core needs Python 3.9+ and Git, with no third-party Python packages. POSIX
 examples/bridges require a POSIX shell. The optional pinned DSH read path uses
 Node 22; Kimi TOML helpers need Python 3.11+. Windows Core evidence does not
@@ -52,24 +71,47 @@ establish Windows-native hook bridge or full-suite portability.
 
 ## Set up a coding agent
 
-Replace the root path in this prompt, and give it to your agent:
+Replace the root path below with your installation path, then give the prompt
+to your host's official coding agent. The
+[integration guide](../../adapters/INTEGRATION.md) covers the hook requirements
+and checks it should follow for the installed version.
+
+We currently focus on DSH and Kimi Code. The Claude Code adapter remains a
+reference; testing new Claude versions is paused. Other hosts are configured
+locally by their official agents.
 
 ```text
 Set up Agent Guard for this workspace using /absolute/path/to/agent-guard.
+Before changing anything, read adapters/INTEGRATION.md in full, including
+its verification and evidence requirements. Do this even if an adapter exists.
+Read this host's current official hook documentation and inspect its installed version.
 Identify the actual host version, tool names and hook/skill capabilities.
 Read the README, Skill contracts and matching adapter guide; check Python/Git.
 Use the selected checkout/package version and preserve existing settings.
+For a host outside the DSH/Kimi maintenance focus, keep any new bridge and
+configuration local; reuse the shared Core and versioned references.
+Check which verification files that root includes. The npm package omits
+tests/; use its local doctor/probes and report source unit tests as NOT_INCLUDED.
 Respect already-approved paths and configuration scope. Ask only for missing
 information or changes beyond that scope, including new dependencies.
 Install/reference the relevant Skills. Configure a native hook only where a
 blocking event is supported; otherwise report Skill/CLI-only operation.
+Reuse the shared Core and its decisions; do not copy or relax its policy.
+Check required project/hook trust through the host's normal review flow
+within the authorized scope. Report activation as pending until it is complete.
+Keep the user's selected account/provider; report model checks that cannot run.
 Claude: adapters/claude/README.md. Kimi: adapters/kimi-code/README.md.
 DSH: adapters/dsh/README.md. Other hosts: adapters/INTEGRATION.md.
 Verify a harmless call. Submit BLOCK-shaped commands only as data to check.py;
 never execute deletion of real data as a test. For Claude/Kimi, run the local
 doctor, but do not treat PASS as proof of actual host interception.
+Finish configuration and local probes with a clear handoff before fresh-host
+verification. Report startup/reload requirements and preserve a checkpoint if
+the step budget ends. UNVERIFIED host-interception/model-delivery fields are
+expected local-doctor results; repeating the same probes will not clear them.
 Report the host/version, installed paths, configuration scope, covered tools,
 observed interception and unverified paths separately.
+Use the handoff format in section 4 of adapters/INTEGRATION.md.
 guard-lab is the user's controller, not a Skill to install into the tested
 agent. Run real-host/model experiments only in an explicitly selected scope.
 ```
@@ -103,6 +145,14 @@ controlled sentinel. An explicit live sentinel may consume provider quota;
 its result covers one sampled root-agent Bash call. See
 [host drift](host-drift.md) and the
 [capability matrix](harness-capabilities.md).
+
+For Kimi's optional Stop feedback, choose whether the extra response is
+wanted, follow the [separate setup](../../adapters/kimi-code/README.md#optional-recovery-feedback-unreleased-checkout-addition),
+and start a new session. In the unpublished 0.2.6 preparation, the doctor reports Stop
+configuration and local execution separately under `feedback`. An absent Stop
+is optional; a configured but invalid or failing Stop exits 1. `--probe` uses
+synthetic records in temporary storage. `feedback.model_delivery` remains
+`UNVERIFIED`; local PASS does not establish model receipt.
 
 ## Try the three paths
 

@@ -17,7 +17,7 @@ class PackageManifestTests(unittest.TestCase):
 
     def test_scoped_public_candidate_identity(self):
         self.assertEqual(self.manifest["name"], "@mokuyoaxis/agent-guard")
-        self.assertEqual(self.manifest["version"], "0.2.5")
+        self.assertEqual(self.manifest["version"], "0.2.6")
         self.assertNotIn("private", self.manifest)
         self.assertEqual(
             self.manifest.get("publishConfig"), {"access": "public"})
@@ -67,7 +67,19 @@ class PackageManifestTests(unittest.TestCase):
 
     def test_dsh_bundle_uses_the_scoped_package_name(self):
         dsh = self.manifest["dsh"]
-        self.assertEqual(dsh["engines"]["dsh"], "0.1.5-rc.1 || 0.2.0-rc.2")
+        profile = json.loads((ROOT / "adapters/dsh/compatibility.json").read_text(
+            encoding="utf-8"))
+        self.assertEqual(profile["tested_versions"], [
+            "0.1.5-rc.1", "0.2.0-rc.2", "0.2.1-alpha.4"])
+        self.assertEqual(profile["contract"]["scope"], "default-deletion-adapter")
+        support = " || ".join(profile["tested_versions"])
+        self.assertEqual(dsh["engines"]["dsh"], support)
+        self.assertEqual(self.manifest["engines"]["dsh"], support)
+        self.assertEqual(self.manifest["peerDependencies"], {
+            "@deepseek-ai/dsh": support})
+        self.assertEqual(self.manifest["peerDependenciesMeta"], {
+            "@deepseek-ai/dsh": {"optional": True}})
+        self.assertNotIn("dependencies", self.manifest)
         patch_path = ROOT / dsh["bundle"]["patch"]
         patch = patch_path.read_text(encoding="utf-8")
         self.assertIn("name: '@mokuyoaxis/agent-guard'", patch)

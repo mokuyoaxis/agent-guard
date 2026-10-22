@@ -1,8 +1,17 @@
 {
   "name": "@mokuyoaxis/agent-guard",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "Harness-neutral reliability infrastructure for AI coding agents: recoverable destructive actions, disclosure checks, controlled synthetic behaviour experiments, and a shared Core with optional native adapters.",
   "type": "module",
+  "engines": {
+    "dsh": "0.1.5-rc.1 || 0.2.0-rc.2 || 0.2.1-alpha.4"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh": "0.1.5-rc.1 || 0.2.0-rc.2 || 0.2.1-alpha.4"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh": { "optional": true }
+  },
   "main": "./adapters/dsh/lib/index.js",
   "exports": {
     ".": "./adapters/dsh/lib/index.js",
@@ -46,7 +55,7 @@
   ],
   "dsh": {
     "engines": {
-      "dsh": "0.1.5-rc.1 || 0.2.0-rc.2"
+      "dsh": "0.1.5-rc.1 || 0.2.0-rc.2 || 0.2.1-alpha.4"
     },
     "bundle": {
       "patch": "./adapters/dsh/cordis.patch.yml"

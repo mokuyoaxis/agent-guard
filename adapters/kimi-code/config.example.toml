@@ -1,7 +1,8 @@
 # Kimi Code adapter - agent-guard
 #
-# Append to ~/.kimi-code/config.toml. Hooks are read at session start, so
-# restart the session after editing.
+# Merge into ~/.kimi-code/config.toml; do not append this whole file.
+# Put extraSkillDirs before the first [table], or extend its existing array.
+# The [[hooks]] blocks can go at the end. Restart the session after editing.
 #
 # `matcher` is a REGULAR EXPRESSION tested against the tool name
 # (`matches()` in the Kimi Code bundle uses `new RegExp(pattern).test(value)`;
@@ -19,8 +20,19 @@ matcher = "^Bash$"
 # Replace all three paths for your machine. Use an absolute POSIX sh and Python.
 # The shell bridge turns Python launch failures into Kimi's blocking exit 2.
 command = "/bin/sh /absolute/path/to/agent-guard/adapters/kimi-code/hook_bridge.sh /absolute/path/to/python3"
-timeout = 90
+# The adapter waits up to 90s for the guard. Leave time for Python startup
+# and returning exit 2: a host timeout allows the tool instead of blocking it.
+timeout = 120
 
-# Optional: surface the raw Core verdict on stderr for troubleshooting.
-# [experimental]
-# agent_guard_debug = true
+# Optional recovery feedback (unreleased checkout addition, POSIX only).
+# Kimi ignores successful PreToolUse feedback. This Stop hook requests one
+# extra model response AFTER the initial answer when new recovery records exist.
+# Uncomment only if that extra response is wanted. The PreToolUse hook above
+# remains required for interception; this Stop hook only reports saved data.
+# [[hooks]]
+# event = "Stop"
+# command = "/bin/sh /absolute/path/to/agent-guard/adapters/kimi-code/hook_bridge.sh /absolute/path/to/python3 --stop-feedback"
+# timeout = 30
+
+# Optional debug: start Kimi with AGENT_GUARD_DEBUG=1 in its environment.
+# There is no adapter-specific TOML debug option.

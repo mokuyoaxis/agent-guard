@@ -35,6 +35,105 @@ def native_runtime_available():
 NATIVE_RUNTIME_AVAILABLE = native_runtime_available()
 
 
+class DshPreflightDiagnostics(unittest.TestCase):
+    def details(self, error, stage="config"):
+        message = str(error)
+        prefix = "DSH " + stage + " preflight failed: "
+        self.assertTrue(message.startswith(prefix), message)
+        return json.loads(message[len(prefix):])
+
+    def test_capture_failures_report_safe_metadata_and_primary_cause(self):
+        host = {"exit_code": 0, "start_failed": False,
+                "timed_out": False, "output_limit_exceeded": False}
+        cases = (
+            ("START_FAILED", {"start_failed": True, "exit_code": None}, b""),
+            ("TIMEOUT", {"timed_out": True, "exit_code": -15}, b"private-config"),
+            ("OUTPUT_LIMIT", {"output_limit_exceeded": True, "exit_code": -9}, b"private-config"),
+            ("NONZERO_EXIT", {"exit_code": 23}, b""),
+            ("EMPTY_STDOUT", {}, b" \n\t"),
+        )
+        argv, cwd, environment = ["private-command", "private-argument"], Path("private-home"), {"PRIVATE_KEY": "private-value"}
+        for reason, flags, stdout in cases:
+            with self.subTest(reason=reason):
+                result = {**host, **flags}
+                streams = {"stdout": stdout, "stderr": b"private-stderr"}
+                with patch.object(runner, "_capture_process", return_value=(result, streams)) as capture:
+                    with self.assertRaises(LabError) as raised:
+                        runner._config_dump(argv, cwd, environment)
+                details = self.details(raised.exception)
+                self.assertEqual(details["reason"], reason)
+                for key, value in result.items():
+                    self.assertEqual(details[key], value)
+                self.assertEqual(details["timeout_seconds"], 15)
+                self.assertGreaterEqual(details["elapsed_seconds"], 0)
+                self.assertEqual(details["stdout_captured_bytes"], len(stdout))
+                self.assertEqual(details["stderr_captured_bytes"], len(streams["stderr"]))
+                self.assertNotIn("private-", str(raised.exception))
+                self.assertNotIn("PRIVATE_KEY", str(raised.exception))
+                capture.assert_called_once_with([*argv, "--dump-config"], cwd, environment, 15)
+
+    def test_version_timeout_stops_before_configuration(self):
+        result = {"exit_code": -15, "start_failed": False,
+                  "timed_out": True, "output_limit_exceeded": False}
+        streams = {"stdout": b"0.2.0-rc.2", "stderr": b"private-stderr"}
+        with patch.object(runner, "_host_options", return_value=(["private-command"], {})), \
+                patch.object(runner, "_capture_process", return_value=(result, streams)) as capture:
+            with self.assertRaises(LabError) as raised:
+                runner.check_host("private-command", Path.cwd())
+        details = self.details(raised.exception, "version")
+        self.assertEqual(details["reason"], "TIMEOUT")
+        self.assertEqual(details["timeout_seconds"], 10)
+        capture.assert_called_once_with(["private-command", "--version"], Path.cwd(), {}, 10)
+
+    def test_unsupported_version_does_not_echo_untrusted_banner(self):
+        result = {"exit_code": 0, "start_failed": False,
+                  "timed_out": False, "output_limit_exceeded": False}
+        streams = {"stdout": b"private-version-banner", "stderr": b"private-stderr"}
+        with patch.object(runner, "_host_options", return_value=(["private-command"], {})), \
+                patch.object(runner, "_capture_process", return_value=(result, streams)) as capture:
+            with self.assertRaises(LabError) as raised:
+                runner.check_host("private-command", Path.cwd())
+        details = self.details(raised.exception, "version")
+        self.assertEqual(details["reason"], "UNSUPPORTED_VERSION")
+        self.assertEqual(details["exit_code"], 0)
+        self.assertNotIn("private-", str(raised.exception))
+        self.assertEqual(capture.call_count, 1)
+
+    @unittest.skipUnless(os.name == "posix", "POSIX capture required")
+    def test_real_config_exit_reports_code_without_payload(self):
+        script = "import sys; print('private-config'); print('private-stderr', file=sys.stderr); sys.exit(23)"
+        with tempfile.TemporaryDirectory(prefix="agent-guard-preflight-") as temporary:
+            with self.assertRaises(LabError) as raised:
+                runner._config_dump([sys.executable, "-c", script], Path(temporary), dict(os.environ))
+        details = self.details(raised.exception)
+        self.assertEqual((details["reason"], details["exit_code"]), ("NONZERO_EXIT", 23))
+        self.assertEqual(details["stdout_captured_bytes"], len(b"private-config\n"))
+        self.assertEqual(details["stderr_captured_bytes"], len(b"private-stderr\n"))
+        self.assertNotIn("private-", str(raised.exception))
+
+    @unittest.skipUnless(os.name == "posix", "POSIX capture required")
+    def test_real_signal_is_distinct_from_capture_deadline(self):
+        script = "import os,signal; os.kill(os.getpid(), signal.SIGTERM)"
+        with tempfile.TemporaryDirectory(prefix="agent-guard-preflight-") as temporary:
+            with self.assertRaises(LabError) as raised:
+                runner._config_dump([sys.executable, "-c", script], Path(temporary), dict(os.environ))
+        details = self.details(raised.exception)
+        self.assertEqual((details["reason"], details["exit_code"]), ("NONZERO_EXIT", -15))
+        self.assertFalse(details["timed_out"])
+
+    @unittest.skipUnless(os.name == "posix", "POSIX capture required")
+    def test_real_missing_executable_has_no_exit_code(self):
+        with tempfile.TemporaryDirectory(prefix="agent-guard-preflight-") as temporary:
+            with self.assertRaises(LabError) as raised:
+                runner._config_dump([str(Path(temporary) / "private-missing-command")],
+                                    Path(temporary), dict(os.environ))
+        details = self.details(raised.exception)
+        self.assertEqual(details["reason"], "START_FAILED")
+        self.assertIsNone(details["exit_code"])
+        self.assertTrue(details["start_failed"])
+        self.assertNotIn("private-", str(raised.exception))
+
+
 @unittest.skipUnless(os.name == "posix" and NATIVE_RUNTIME_AVAILABLE, "POSIX / Node with Zstandard DSH runner")
 class DshGuardLabTests(unittest.TestCase):
     def setUp(self):
@@ -67,6 +166,10 @@ class DshGuardLabTests(unittest.TestCase):
                     print('0.1.2' if behavior == 'wrong-version' else {host_version!r})
                 raise SystemExit(0)
             if '--dump-config' in sys.argv:
+                if behavior == 'preflight-exit':
+                    print('private-config')
+                    print('private-stderr', file=sys.stderr)
+                    raise SystemExit(23)
                 if behavior == 'empty-config':
                     raise SystemExit(0)
                 print('- id: headless-runner')
@@ -434,6 +537,19 @@ class DshGuardLabTests(unittest.TestCase):
         ], capture_output=True, text=True, check=False, timeout=10)
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertNotIn("DO_NOT_PUBLISH_CONFIG", completed.stdout)
+        self.assertFalse((self.home / "ran").exists())
+
+    def test_cli_preflight_failure_has_safe_diagnostics_and_exit_status(self):
+        completed = subprocess.run([
+            sys.executable, str(SCRIPT), "check", "--dsh-home", str(self.home),
+            "--dsh-executable", self.fake_host("preflight-exit"),
+        ], capture_output=True, text=True, check=False, timeout=10)
+        self.assertEqual(completed.returncode, 1)
+        prefix = "DSH Lab: DSH config preflight failed: "
+        self.assertTrue(completed.stderr.startswith(prefix), completed.stderr)
+        details = json.loads(completed.stderr[len(prefix):])
+        self.assertEqual((details["reason"], details["exit_code"]), ("NONZERO_EXIT", 23))
+        self.assertNotIn("private-", completed.stdout + completed.stderr)
         self.assertFalse((self.home / "ran").exists())
 
     def test_capture_and_review_work_in_separate_cli_processes(self):

@@ -145,6 +145,31 @@ class KimiAdapter(unittest.TestCase):
         self.assertIn('matcher = "^Bash$"', config)
         self.assertIn("hook_bridge.sh", config)
 
+    @unittest.skipIf(sys.version_info < (3, 11), "TOML parsing needs tomllib")
+    def test_example_timeout_leaves_room_for_inner_guard_refusal(self):
+        import tomllib
+
+        config = tomllib.loads(CONFIG.read_text(encoding="utf-8"))
+        self.assertEqual(config["extraSkillDirs"], ["/absolute/path/to/agent-guard/skills"])
+        self.assertEqual([hook["event"] for hook in config["hooks"]], ["PreToolUse"])
+        self.assertGreater(config["hooks"][0]["timeout"], 90)
+
+    @unittest.skipIf(sys.version_info < (3, 11), "TOML parsing needs tomllib")
+    def test_optional_stop_example_keeps_pre_tool_interception(self):
+        import tomllib
+
+        example = CONFIG.read_text(encoding="utf-8")
+        start = example.index("# [[hooks]]")
+        end = example.index("# timeout = 30", start) + len("# timeout = 30")
+        enabled = "\n".join(line.removeprefix("# ") for line in example[start:end].splitlines())
+        config = tomllib.loads(example[:start] + enabled + example[end:])
+        pre, stop = config["hooks"]
+        self.assertEqual((pre["event"], pre["matcher"]), ("PreToolUse", "^Bash$"))
+        self.assertNotIn("--stop-feedback", shlex.split(pre["command"]))
+        self.assertEqual(stop["event"], "Stop")
+        self.assertEqual(shlex.split(stop["command"])[-1], "--stop-feedback")
+        self.assertNotIn("matcher", stop)
+
     def test_shell_bridge_maps_interpreter_failure_to_block(self):
         shell = shutil.which("sh")
         if not shell:

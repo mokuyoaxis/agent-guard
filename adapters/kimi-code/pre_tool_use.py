@@ -33,7 +33,7 @@ to the observed root Bash call recorded in the public test report.
         event = "PreToolUse"
         matcher = "^Bash$"        # regular expression over the tool name
         command = "/bin/sh /path/to/agent-guard/adapters/kimi-code/hook_bridge.sh /absolute/path/to/python3"
-        timeout = 90
+        timeout = 120  # outer hook timeout; the inner guard deadline is 90s
 
 Because the two contracts match, this adapter **delegates to the shared
 Claude adapter** rather than reimplementing the payload -> core -> decision

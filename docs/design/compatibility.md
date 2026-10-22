@@ -19,6 +19,55 @@ is introduced by the research documentation.
 
 ## The adapter contract (frozen surface)
 
+<a id="unreleased-feedback-and-diagnostic-maintenance"></a>
+
+### 0.2.6 feedback and diagnostic maintenance (unpublished preparation)
+
+The [0.2.6 preparation](../releases/release-notes-0.2.6.md) adds an opt-in POSIX Kimi
+Stop hook after the existing PreToolUse path. It may request an extra response
+after new compensation records. It does not change the earlier tool result,
+Core verdicts, recovery format or deletion rules; it stores separate local
+emission cursors. Existing PreToolUse setups keep their behavior until Stop
+is explicitly configured. The current example recommends an outer 120-second
+PreToolUse timeout, leaving margin around the existing 90-second guard check.
+
+DSH Lab version/config preflight errors gain a JSON diagnostic suffix after
+the stage-specific text, with fixed reason categories, child exit status,
+timing and captured byte counts. The Lab CLI still reports errors on stderr
+and exits 1; normal receipts, supported host versions and the 10/15-second
+budgets retain their contracts. Consumers should not match the entire older
+generic error sentence. Raw host/configuration output is not included.
+The Kimi CLI doctor adds the separate `feedback` result described below.
+An absent optional Stop passes; a configured Stop that fails configuration
+or a requested probe exits 1 and makes drift `BROKEN`. This is an
+upgrade-visible diagnostic change. Existing top-level fields and the
+importable `check_kimi()` wrapper retain PreToolUse scope; Claude output is
+unchanged. Configured Stop fields/helper bytes join the existing fingerprints.
+The runtime fingerprint also includes package metadata, so version changes
+can produce `DRIFTED` against an older baseline. Model delivery remains
+`UNVERIFIED` even after a Bash live sentinel.
+
+The Kimi Bash profile also adds exact `2.3.0` alongside `0.42.0` and `2.1.1`
+after bounded prompt-CLI/ACP root-Bash trials. This is a declaration change;
+the Core, adapter and bridge stay unchanged. Unlisted versions remain
+`STALE`; a changed profile fingerprint can make an older baseline `DRIFTED`.
+The separately pinned 2.1.1 Lab helper and subagent coverage do not expand.
+See the [2.3.0 evidence](../reports/test-report-kimi-code-block.md#kimi-230-acceptance).
+
+The later DSH compatibility work adds `0.2.1-alpha.4` to the default deletion
+adapter alongside the two existing exact versions. Top-level engines and an
+optional DSH peer align with the nested declaration, so the reviewed loaders
+can enforce the list. This installs no production dependency and changes no
+Core policy. Optional native-read fingerprints and Lab host formats remain
+separately pinned. See [DSH compatibility](dsh-compatibility.md) and the
+[native report](../reports/test-report-dsh-alpha4.md).
+
+The maintainer selected 0.2.6 for this bounded feedback/diagnostic maintenance;
+the additive surfaces below are carried as an explicit maintenance-version
+exception. This does not relax the general minor-release rules or authorize
+Core policy changes. These additions are absent from published 0.2.5.
+0.2.6 is not published; the tag decision is pending.
+
 ### 0.2.5 feedback maintenance
 
 Deletion rules, wildcard refusal, Decision/reason codes, CLI flags and exit
@@ -115,6 +164,7 @@ must accept the additional refusal reason and ignore unknown optional fields.
 | `.agent-guard/exfil-allow.toml` exemption file | minor | Read from the workspace root only; values exempted by `sha256:...`, never by value |
 | `doctor.py --check-drift` report and adapter `compatibility.json` profiles | minor | Additive local preflight. Without drift flags the doctor keeps its previous process-execution and exit behavior; `CURRENT` never promotes live interception above `UNVERIFIED` |
 | `doctor.py --live-sentinel` and hashed hook receipt | minor | Explicit, opt-in real-host/model probe only. Default doctor behavior is unchanged; raw command/model output is not retained, and incomplete evidence is `INCONCLUSIVE` rather than PASS |
+| Kimi doctor `feedback` object (unreleased) | additive diagnostic | Existing top-level fields retain PreToolUse scope; optional Stop has separate configuration/local results and always-unverified model delivery. Absent Stop passes; a configured Stop failure exits 1 and prevents baseline creation/live sentinel. Configured Stop fields/helper join drift fingerprints. `check_kimi()` retains its PreToolUse-only contract; Claude output is unchanged. |
 | Cross-vocabulary mismatch floor (`0.2.3-rc1`) | minor safety fix | At a selected-dialect command boundary, a supported destructive shape that produced no operation becomes target-free `UNKNOWN` → `BLOCK_UNDETERMINABLE_EFFECT`; it never borrows a compensation plan from another grammar |
 
 ### 0.2.5-rc1 assessment contract clarification (source candidate)

@@ -101,6 +101,7 @@ try {
       return () => {};
     },
   };
+  let sandboxPolicy;
   const ctx = {
     tools: {
       register: (tool) => {
@@ -108,7 +109,7 @@ try {
         return () => {};
       },
     },
-    get: (name) => ({ shell, systemPrompt }[name]),
+    get: (name) => ({ shell, systemPrompt, sandboxPolicy }[name]),
     on: (name, handler) => {
       handlers.push({ name, handler });
       return () => {};
@@ -327,6 +328,29 @@ try {
   assert.equal(nativeRequests[0].signal, nativeSignal);
   assert.equal(nativeRequests[0].workdir, "/synthetic/workspace");
   assert.equal(nativeRequests[0].timeoutMs, 90000);
+  // Resolve the calling session's policy afresh for root/child invocations;
+  // a child must not inherit a cached policy from an earlier root call.
+  const rootSession = { id: "synthetic-root-session" };
+  const childSession = { id: "synthetic-child-session" };
+  const policies = new Map([
+    [rootSession, { mode: "read-only", workspaceRoot: "/synthetic/root" }],
+    [childSession, { mode: "workspace-write", workspaceRoot: "/synthetic/child" }],
+  ]);
+  const resolvedSessions = [];
+  sandboxPolicy = { resolve: ({ session }) => {
+    resolvedSessions.push(session);
+    return policies.get(session);
+  } };
+  for (const session of [rootSession, childSession, rootSession]) {
+    const scopedExec = { ...nativeExec, agent: { session } };
+    const result = await handlers[0].handler(scopedExec, next);
+    assert.equal(result.kind, "deny");
+    const request = nativeRequests.at(-1);
+    assert.equal(request.sandboxPolicy, policies.get(session));
+    assert.equal(request.signal, nativeSignal);
+  }
+  assert.deepEqual(resolvedSessions, [rootSession, childSession, rootSession]);
+  sandboxPolicy = undefined;
   const nativeStatus = await statusTool.execute({}, {});
   assert.equal(nativeStatus.ok, true);
   // A legacy method must never be retried after the new execution started.

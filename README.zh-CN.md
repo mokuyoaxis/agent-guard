@@ -8,9 +8,18 @@
 
 **让 AI Agent 的破坏性操作默认可逆。** · [English](README.md)
 
-Agent Guard 是给编码 Agent 用的可靠性工具：在受支持的破坏性操作前建立
-恢复路径，在文本外发前检查泄露风险，并让用户通过 Lab 验测实际观察到的
-Agent／宿主行为。共享 Python Core 可通过显式 CLI 或可选宿主适配器使用。
+Agent Guard 在受支持的删除、覆盖操作前保留恢复数据，检查待外发文本中的
+敏感信息，并提供 Lab 来测试 Agent 和宿主的实际行为。共享 Python Core
+可通过命令行工具或宿主适配器调用。
+
+**负责接入本项目的 AI agent：** 修改配置或编写桥接前，必须先读取
+[适配要求](adapters/INTEGRATION.md)，再阅读
+[接入流程](docs/guides/getting-started.md#set-up-a-coding-agent)和对应适配器指南。
+确认实际宿主／版本，查阅其官方 hook 文档，完成验证后报告实际覆盖范围。
+不能仅凭 Skill 已安装或配置已复制，就告诉用户防护已生效。
+
+目前主要维护 **DSH 和 Kimi Code** 的接入。其他宿主建议交给对应的官方
+编码 Agent 在本地配置。
 
 | 能力 | 能帮助你做什么 | 入口 |
 |---|---|---|
@@ -78,10 +87,12 @@ Core 需要 Python 3.9+ 和 Git。示例采用 POSIX Shell；原生桥接和可�
 
 | 版本 | 状态 |
 |---|---|
-| [0.2.5](docs/releases/release-notes-0.2.5.md) | 正式版；npm `latest`；实际可用性见下方版本化回执 |
+| [0.2.6](docs/releases/release-notes-0.2.6.md) | 本地维护版准备，尚未发布；tag 待定 |
+| [0.2.5](docs/releases/release-notes-0.2.5.md) | 正式版；npm `latest`；发布地址见下方 |
 | [0.2.4](docs/releases/release-notes-0.2.4.md) | 上一稳定版 |
 | [0.2.4-hotfix.1](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.4-hotfix.1) | 显式选择的回收站保护回补；npm `hotfix` |
 | [0.2.5-rc3](docs/releases/release-notes-0.2.5-rc3.md) | 已发布预发布版，包含 RC1／RC2 维护；npm `rc` |
+
 实际发布状态以精确版本的
 [GitHub Release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.5)和
 [npm 版本页](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.5)为准，
@@ -108,10 +119,16 @@ cd agent-guard
 若只需要稳定线的回收站保护修复，可显式选择 `@mokuyoaxis/agent-guard@0.2.4-hotfix.1`。
 这两个通道均不替换稳定版 `latest`。
 
-0.2.5 汇合 RC1—RC3，并明确启动、命令与空间占用反馈，
+0.2.5 包含 RC1—RC3 的改动，并补充启动、命令判定和空间占用提示，
 也可使用已核查的 checkout 或提供的 tarball。
 范围见[发布说明](docs/releases/release-notes-0.2.5.md)，接入步骤与 Agent 提示词见
 [入门指南](docs/guides/getting-started.md)。
+
+[0.2.6 准备](docs/releases/release-notes-0.2.6.md)补充 Kimi 可选 Stop 恢复反馈、
+独立 Stop doctor 检查、DSH Lab 预检诊断，以及 DSH `0.2.1-alpha.4` 的默认删除适配。
+当前尚未发布，tag 待定。
+使用前确认 checkout／本地包包含对应文件；已发布 0.2.5 保持其原范围，
+详见[未发布维护](docs/releases/unreleased.md)。
 
 ## 恢复一次受支持的删除
 
@@ -179,15 +196,18 @@ python3 -c 'print("config: sk-proj-" + "AbCdEf0123456789GhIjKl")' |
 
 ## 接入你的编码 Agent
 
-下列为按版本保留的历史观察，不代表新候选源码、所有工具或所有子代理路径
-都已验收。
+让对应宿主的官方编码 Agent 按[适配指南](adapters/INTEGRATION.md)，为当前
+安装的版本配置 Agent Guard。优先使用能在工具执行前阻止调用的 hook。
+我们主要维护 DSH 和 Kimi Code 的接入；其他宿主由 Agent 在本地配置桥接。
+
+下表记录所测源码、宿主版本和工具路径；其他组合需要另行验证。
 
 | 宿主 | 接入与证据 |
 |---|---|
-| Claude Code | Bash 原生 `PreToolUse`；2.1.270／2.1.273 的受限脚本宿主拦截记录。[接入](adapters/claude/README.md) |
-| Kimi Code | Bash 原生 `PreToolUse`；0.42.0 的有限主／子路径及 2.1.1 的根代理 Bash 记录。ASK 拒绝；缺失／超时 hook 不覆盖。[接入](adapters/kimi-code/README.md) |
-| DSH | 核查过 0.1.5-rc.1／0.2.0-rc.2 的删除路径；完整文本 read 防护默认关闭。特定 PTC Bash 拒绝不代表所有 PTC API 都受控。[接入](adapters/dsh/README.md) |
-| Codex／其他宿主 | 可显式使用 Skill／CLI。原生拦截需先验证宿主提供阻塞 hook。[适配指南](adapters/INTEGRATION.md) |
+| Claude Code | 保留参考实现，暂缓新版本验收。Bash 原生 `PreToolUse`；2.1.270／2.1.273 的受限脚本宿主拦截记录。[接入](adapters/claude/README.md) |
+| Kimi Code | Bash 原生 `PreToolUse`；0.42.0 的有限主／子路径及 2.1.1 的根代理 Bash 记录。本地未发布 checkout 新增 2.3.0 prompt／ACP 根代理 Bash 固定响应证据。ASK 拒绝；缺失／超时 hook 不覆盖。[接入](adapters/kimi-code/README.md) |
+| DSH | 默认删除适配覆盖 0.1.5-rc.1／0.2.0-rc.2；本地未发布 checkout 增加 0.2.1-alpha.4。可选原生 read 与 Lab 保留各自的两版边界。[兼容范围](docs/design/dsh-compatibility.md) · [接入](adapters/dsh/README.md) |
+| Codex／其他宿主 | 推荐官方 Agent 按当前版本完成本地 hook 接入，并验证确实阻止执行。没有阻塞 hook 时，Skill／CLI 仍属于协作式使用。[适配指南](adapters/INTEGRATION.md) |
 
 精确版本、试验与缺口统一见[完整能力矩阵](docs/guides/harness-capabilities.md)。
 `doctor.py kimi|claude --probe` 只检查选定配置和本地适配路径；PASS 不证明

@@ -1,6 +1,114 @@
-# Kimi Code 0.42.0 / 2.1.1: bounded Bash enforcement tests
+# Kimi Code 0.42.0 / 2.1.1 / 2.3.0: bounded Bash enforcement tests
 
-## Current-host live sentinel: Kimi Code 2.1.1
+<a id="kimi-230-acceptance"></a>
+
+## Kimi 2.3.0 follow-up (2026-10-22, unpublished checkout)
+
+The actual npm Kimi Code **2.3.0** CLI ran sixteen isolated trials with the
+unpublished 0.2.6 checkout's existing PreToolUse bridge and optional Stop
+helper. Eight used prompt CLI; eight used ACP with the service launched from
+directory A and a session created in directory B. Each fixture had its own
+home, configuration and Git workspace. Fixed OpenAI-compatible loopback
+responses drove Bash calls: **36 loopback model-protocol requests, zero external
+model calls**, and no production credentials. The environment was Linux
+ARM64/PRoot Debian with Node 22.23.4.
+
+The ACP client did not advertise a terminal capability, so Kimi executed
+Bash locally. The hook observer recorded the original payload, process cwd,
+bridge exit code and output without changing the decision. All invoked ACP
+hooks ran in B and carried B as payload cwd, independently of startup in A.
+
+| Case, run once through both prompt CLI and ACP | Observation |
+|---|---|
+| Harmless allow | Hook exited 0; the owned marker was created; empty Stop added no request. |
+| Policy BLOCK | Core reported `BLOCK_FORCE_PUSH`; exit 2 blocked the inert command and its bypass marker was absent. |
+| Core ASK | The adapter hard-refused with exit 2; the bypass marker was absent. This was no approval-UI test. |
+| Missing Python after the shell bridge started | The bridge converted startup failure to exit 2; the marker was absent. |
+| No hook configured | No hook receipt; the harmless bypass marker was created. This remains an uncovered path. |
+| Recoverable deletion | The owned file was relocated; Stop supplied its actual txid, retained-space notice and complete GC commands in the next request; restoration matched the original bytes. |
+| Partial compensation | The call was refused after a recorded move; Stop supplied the incomplete status and recovery guidance; the moved file restored exactly. |
+| Same recoverable call without Stop | The file remained recoverable, but no recovery explanation entered a later request. |
+
+Successful PreToolUse recovery output still did not reach the first request
+after Bash. Stop added a third request in the two compensation cases. These
+fixed responses establish delivery into a request, not a real model's
+understanding or accurate final wording. No purge was run.
+
+The `km` Web wrapper was separately checked with a private configuration:
+2.3.0 startup, HTTP 200, status recognition and shutdown passed. That was
+not a Web-session tool-call trial. Normal/login Bash, an inherited old PATH,
+and repeated configuration loading selected the updated executable; this is
+local launcher evidence, not a new portable shell-configuration feature.
+
+The unpublished checkout now lists exact version 2.3.0 in the
+[Bash compatibility profile](../../adapters/kimi-code/compatibility.json).
+The shared Core, payload mapping and bridge were unchanged. This admits the
+observed root Bash contract; it does not establish 2.3.0 subagent, background,
+concurrent, other-tool, client-provided terminal, timeout-failure or real-model
+coverage. The [Lab capture helper](../../adapters/kimi-code/harness/README.md)
+remains pinned to 2.1.1. Published 0.2.5 keeps its recorded version list.
+The historical observations below retain their original versions and limits.
+
+## Recovery-feedback follow-up (2026-10-20, unreleased source)
+
+A new Kimi 2.1.1 session used the checkout's PreToolUse 120-second hook and
+optional Stop 30-second hook, with an isolated HOME, skills directory,
+workspace and model budget. One configured model route completed three
+requests, all HTTP 200. The client route does not independently identify
+remote model weights; private connection and transaction identifiers are omitted.
+
+The session performed one guarded deletion of a synthetic valuable file.
+Stop supplied the recorded transaction ID and the full state, restore and
+GC commands. The final supplement stated that retained files occupy storage
+and restoration does not free total disk space. After the model stopped,
+the controller restored the exact original bytes, confirmed RESTORED, and
+verified a repeated Stop emitted no duplicate notice. The model did not
+execute restore or purge itself.
+
+The initial answer still appeared before Stop. This passing final supplement
+does not guarantee every model's wording or cover the user's full daily
+configuration, background work, shared-session actors or long conversations.
+Fixed loopback normal/blocked calls separately confirmed ordinary commands
+without compensations require no extra reply, and refused calls did not create
+their inert markers.
+
+This helper is absent from published 0.2.5. See [unreleased availability](../releases/unreleased.md)
+and [setup and delivery limits](../../adapters/kimi-code/README.md#optional-recovery-feedback-unreleased-checkout-addition).
+
+## Hook failure audit (2026-10-20, local checkout)
+
+Fourteen isolated trials used the actual 0.42.0 and 2.1.1 CLIs, native Bash
+and the current checkout's bridge. Each CLI ran the seven cases below.
+Thirty-two model-protocol requests received fixed loopback responses;
+there were no external model calls or production credentials. These tests
+establish hook behavior, not a real model's interpretation of feedback.
+
+| Case, independently tested on both versions | Observed result |
+|---|---|
+| Started guard, process-local invalid dialect | Exit-2 refusal reached the host; inert Bash marker absent |
+| Started bridge, missing Python interpreter | Exit-2 refusal; marker absent |
+| Hook command does not exist | Bash ran and created the marker; no adapter started |
+| Started hook delayed past a one-second host timeout | Bash ran and created the marker |
+| Recoverable deletion and optional Stop feedback | Real txid, retained-space notice and complete GC commands entered the next request; public restore returned the original bytes |
+| Stop Python startup failure | One feedback-unavailable continuation; the earlier successful Bash marker remained |
+| Stop without compensation records | No additional model request |
+
+The PreToolUse example now uses `timeout = 120`. Its previous 90-second
+outer timeout matched the adapter's inner 90-second guard deadline and
+left no startup/return margin. The one-second timeout probe demonstrates
+the host's timeout behavior; it does not claim a measured 90-second race.
+The longer example timeout reduces that race, while missing hooks and host
+timeouts still allow tools. Local doctor checks do not exercise deadline
+exhaustion or certify live interception.
+
+The optional Stop addition is **not in the published 0.2.5 package**.
+These new records supplement the earlier authenticated live trials below;
+they do not replace their model, tool, subagent or failure limits. User
+configuration, deletion policy and recovery formats were unchanged.
+
+<a id="current-host-live-sentinel-kimi-code-211"></a>
+
+## Live sentinel (2026-09-27, Kimi Code 2.1.1)
 
 On 2026-09-27, the checksum-verified official Linux ARM64 build of Kimi Code
 CLI 2.1.1 ran two authenticated model routes in new isolated fixtures:
@@ -34,10 +142,11 @@ cwd, and a timed-out host is always `INCONCLUSIVE` even if block evidence was
 already present. The second route's prompt also forbids retrying after a block.
 Only the post-fix, exact-command, normally exited runs are counted as PASS.
 
-This current-host evidence covers one root-agent `Bash` call. It does not add
+This sentinel evidence covers one root-agent `Bash` call. It does not add
 2.1.1 evidence for subagents, concurrent calls, ASK behavior, non-`Bash`
-tools, hook absence/timeouts or adapter-startup faults. Those remain separate
-from the broader historical 0.42.0 observations below.
+tools, hook absence/timeouts or adapter-startup faults. The later fixed-loopback
+failure audit above provides separate, bounded fault observations for both
+versions; the broader historical 0.42.0 observations follow below.
 
 ## Historical Kimi Code 0.42.0 trials
 

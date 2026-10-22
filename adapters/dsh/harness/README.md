@@ -46,6 +46,17 @@ the shipped baseline overlay is always last.
 Use `--node-executable /absolute/path/to/node` to select the decoder runtime
 explicitly. This option does not change the runtime chosen by the DSH launcher.
 
+In the unpublished [0.2.6 preparation](../../../docs/releases/release-notes-0.2.6.md), version/config
+process failures report `START_FAILED`, `TIMEOUT`, `OUTPUT_LIMIT`,
+`NONZERO_EXIT`, or `EMPTY_STDOUT`; an unreviewed version reports
+`UNSUPPORTED_VERSION`. The error includes the exit code (negative for a POSIX
+signal; null if startup failed), capture flags, elapsed/deadline seconds, and
+captured stdout/stderr byte counts. Timeout/limit reasons take precedence over
+the signal used to stop the child. These diagnostics omit raw output, command
+arguments, environment values and paths. Version/config deadlines remain
+10/15 seconds, with no automatic retries. Published 0.2.5 retains the older
+generic preflight errors; use a reviewed checkout/package for these diagnostics.
+
 ## Capture and review the clean control
 
 Every `--output-dir` must be new, with an existing parent. The task file is

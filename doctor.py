@@ -22,6 +22,7 @@ from core.dialects import resolve_dialect
 
 ROOT = Path(__file__).resolve().parent
 KIMI_BRIDGE = ROOT / "adapters" / "kimi-code" / "hook_bridge.sh"
+KIMI_FEEDBACK = ROOT / "adapters" / "kimi-code" / "stop_feedback.py"
 CLAUDE_BRIDGE = ROOT / "adapters" / "claude" / "hook_bridge.sh"
 PROFILE_PATHS = {
     "kimi": ROOT / "adapters" / "kimi-code" / "compatibility.json",
@@ -42,6 +43,29 @@ class HostProfile:
 
 
 @dataclass
+class FeedbackDiagnosis:
+    configured: Optional[bool]
+    configuration: str
+    local_probe: str
+    problems: list[str]
+    command: Optional[tuple[Path, Path, Path]] = None
+    fingerprint: Optional[str] = None
+
+    @property
+    def failed(self) -> bool:
+        return self.configuration == "FAIL" or self.local_probe == "FAIL"
+
+    def as_dict(self) -> dict:
+        return {
+            "configured": self.configured,
+            "configuration": self.configuration,
+            "local_probe": self.local_probe,
+            "model_delivery": "UNVERIFIED",
+            "problems": self.problems,
+        }
+
+
+@dataclass
 class Diagnosis:
     harness: str
     config_path: Path
@@ -55,9 +79,14 @@ class Diagnosis:
     runtime_fingerprint: Optional[str] = None
     drift_problems: Optional[list[str]] = None
     baseline_written: bool = False
+    feedback: Optional[FeedbackDiagnosis] = None
+
+    @property
+    def failed(self) -> bool:
+        return bool(self.problems or self.feedback and self.feedback.failed)
 
     def as_dict(self) -> dict:
-        return {
+        report = {
             "harness": self.harness,
             "configuration": self.configuration,
             "local_probe": self.local_probe,
@@ -71,6 +100,9 @@ class Diagnosis:
             "drift_problems": self.drift_problems or [],
             "baseline_written": self.baseline_written,
         }
+        if self.feedback is not None:
+            report["feedback"] = self.feedback.as_dict()
+        return report
 
 
 def _load_profile(harness: str) -> HostProfile:
@@ -119,7 +151,9 @@ def _fingerprint(value: Any) -> str:
     return "sha256:" + hashlib.sha256(encoded).hexdigest()
 
 
-def _runtime_fingerprint(harness: str, profile: HostProfile) -> str:
+def _runtime_fingerprint(
+        harness: str, profile: HostProfile, include_feedback: bool = False,
+) -> str:
     paths = {
         ROOT / "package.json",
         profile.path,
@@ -138,6 +172,8 @@ def _runtime_fingerprint(harness: str, profile: HostProfile) -> str:
             ROOT / "adapters" / "kimi-code" / "pre_tool_use.py",
             ROOT / "adapters" / "claude" / "pre_tool_use.py",
         })
+        if include_feedback:
+            paths.add(KIMI_FEEDBACK)
     digest = hashlib.sha256()
     for path in sorted(paths, key=lambda item: str(item.relative_to(ROOT))):
         relative = str(path.relative_to(ROOT)).encode("utf-8")
@@ -218,7 +254,7 @@ def _executable(path: Path) -> bool:
 
 
 def _bridge_command(
-        command: object, expected_bridge: Path,
+        command: object, expected_bridge: Path, *, stop_feedback: bool = False,
 ) -> tuple[list[str], Optional[tuple[Path, Path, Path]]]:
     if not isinstance(command, str):
         return ["hook command must be a string"], None
@@ -226,6 +262,10 @@ def _bridge_command(
         tokens = _command_tokens(command)
     except ValueError:
         return ["hook command has invalid shell quoting"], None
+    if stop_feedback:
+        if len(tokens) != 4 or tokens[-1] != "--stop-feedback":
+            return ["Stop command must be: ABSOLUTE_SH ABSOLUTE_BRIDGE ABSOLUTE_PYTHON --stop-feedback"], None
+        tokens = tokens[:-1]
     if len(tokens) != 3 or not all(Path(part).is_absolute() for part in tokens):
         return ["hook command must be: ABSOLUTE_SH ABSOLUTE_BRIDGE ABSOLUTE_PYTHON"], None
 
@@ -257,10 +297,10 @@ def _probe(harness: str, shell: Path, bridge: Path, python: Path) -> list[str]:
             "tool_input": {"command": "touch .guard-doctor-ask && rm .guard-doctor-ask"},
             "cwd": cwd,
         })
-        probe_env = dict(os.environ)
-        probe_env.pop("AGENT_GUARD_DIALECT", None)
-        probe_env.pop("AGENT_GUARD_SESSION", None)
+        probe_env = {key: value for key, value in os.environ.items()
+                     if not key.startswith("AGENT_GUARD_")}
         probe_env["AGENT_GUARD_WORKSPACE"] = cwd
+        probe_env["AGENT_GUARD_TRASH"] = str(Path(cwd) / ".agent-trash")
         cases = (
             (python, payload, 0, "valid Bash payload", None, None),
             (python, "{", 2, "malformed payload", None, "malformed hook payload"),
@@ -327,36 +367,85 @@ def _dialect_problems() -> list[str]:
     return []
 
 
+def _probe_feedback(shell: Path, bridge: Path, python: Path) -> list[str]:
+    from core import AUDIT_NAME, audit
+
+    with tempfile.TemporaryDirectory(prefix="agent-guard-doctor-feedback-") as temporary:
+        workspace = Path(temporary)
+        home, trash = workspace / "home", workspace / "trash"
+        home.mkdir()
+        trash.mkdir()
+        env = {key: value for key, value in os.environ.items()
+               if not key.startswith("AGENT_GUARD_")}
+        env.update(HOME=str(home), KIMI_CODE_HOME=str(home / "kimi"),
+                   AGENT_GUARD_WORKSPACE=temporary, AGENT_GUARD_TRASH=str(trash))
+        session = "agent-guard-doctor-feedback-probe"
+        txid = "20000101-000000-00000000"
+        record = json.dumps({
+            "event": "enforce-proceed", "session": audit.correlation_id(session),
+            "compensations": [{"strategy": "relocate", "txid": txid,
+                               "status": "complete", "moved": 1, "skipped": 0}],
+        }) + "\n"
+        audit_path = trash / AUDIT_NAME
+        for label, active, expected in (
+                ("no records", False, 0), ("active Stop", True, 0),
+                ("synthetic recovery feedback", False, 2), ("repeat Stop", False, 0)):
+            if active:
+                audit_path.write_text(record, encoding="utf-8")
+            payload = json.dumps({"hook_event_name": "Stop", "cwd": temporary,
+                                  "session_id": session, "stop_hook_active": active})
+            try:
+                result = subprocess.run(
+                    [str(shell), str(bridge), str(python), "--stop-feedback"],
+                    input=payload, text=True, capture_output=True, cwd=temporary,
+                    env=env, timeout=15, errors="replace")
+            except (OSError, subprocess.TimeoutExpired):
+                return [f"{label}: Stop bridge could not finish"]
+            if result.returncode != expected:
+                return [f"{label}: expected exit {expected}, got {result.returncode}"]
+            if result.stdout:
+                return [f"{label}: Stop wrote unexpected stdout"]
+            if expected == 0 and result.stderr:
+                return [f"{label}: expected silent Stop"]
+            if expected == 2 and not all(marker in result.stderr for marker in (
+                    "[agent-guard] Recovery records", txid, "still use disk space",
+                    "GC preview:", "--execute --txid " + txid)):
+                return [f"{label}: expected transaction, retained-space and complete GC guidance"]
+        if audit_path.read_text(encoding="utf-8") != record:
+            return ["Stop probe changed its synthetic recovery audit"]
+    return []
+
+
 def _check_kimi_config(
         config_path: Path,
-) -> tuple[list[str], Optional[tuple[Path, Path, Path]], Optional[str]]:
+) -> tuple[list[str], Optional[tuple[Path, Path, Path]], Optional[str], Optional[dict]]:
     problems: list[str] = []
     problems.extend(_dialect_problems())
     try:
         import tomllib
     except ImportError:
-        return ["doctor kimi requires Python 3.11+ (the hook adapter does not)"], None, None
+        return ["doctor kimi requires Python 3.11+ (the hook adapter does not)"], None, None, None
 
     try:
         with config_path.open("rb") as config_file:
             config = tomllib.load(config_file)
     except OSError:
-        return problems + [f"cannot read Kimi config: {config_path}"], None, None
-    except tomllib.TOMLDecodeError:
-        return problems + [f"Kimi config is not valid TOML: {config_path}"], None, None
+        return problems + [f"cannot read Kimi config: {config_path}"], None, None, None
+    except (tomllib.TOMLDecodeError, UnicodeError):
+        return problems + [f"Kimi config is not valid TOML: {config_path}"], None, None, None
 
     hooks = config.get("hooks", [])
     if not isinstance(hooks, list):
-        return problems + ["Kimi config `hooks` must be an array"], None, None
+        return problems + ["Kimi config `hooks` must be an array"], None, None, config
     candidates = [hook for hook in hooks
                   if isinstance(hook, dict)
                   and hook.get("event") == "PreToolUse"
                   and any(marker in str(hook.get("command", ""))
                           for marker in ("hook_bridge.sh", "pre_tool_use.py"))]
     if not candidates:
-        return problems + ["no agent-guard PreToolUse hook found in Kimi config"], None, None
+        return problems + ["no agent-guard PreToolUse hook found in Kimi config"], None, None, config
     if len(candidates) != 1:
-        return problems + ["expected exactly one agent-guard PreToolUse hook"], None, None
+        return problems + ["expected exactly one agent-guard PreToolUse hook"], None, None, config
 
     hook = candidates[0]
     if hook.get("matcher") != "^Bash$":
@@ -382,7 +471,45 @@ def _check_kimi_config(
             "timeout": timeout,
             "dialect": dialect,
         })
-    return problems, bridge_command, fingerprint
+    return problems, bridge_command, fingerprint, config
+
+
+def _check_kimi_feedback(config: Optional[dict]) -> FeedbackDiagnosis:
+    if config is None or not isinstance(config.get("hooks", []), list):
+        return FeedbackDiagnosis(None, "UNVERIFIED", "NOT_RUN", [
+            "optional Stop could not be checked because the Kimi config is unreadable or invalid"])
+    candidates = [hook for hook in config.get("hooks", [])
+                  if isinstance(hook, dict) and (
+                      any(marker in str(hook.get("command", ""))
+                          for marker in ("stop_feedback.py", "--stop-feedback"))
+                      or hook.get("event") == "Stop"
+                      and "hook_bridge.sh" in str(hook.get("command", "")))]
+    if not candidates:
+        return FeedbackDiagnosis(False, "NOT_CONFIGURED", "NOT_RUN", [])
+    if len(candidates) != 1:
+        return FeedbackDiagnosis(True, "FAIL", "NOT_RUN", [
+            "expected exactly one agent-guard Stop hook"])
+    hook = candidates[0]
+    problems, command = _bridge_command(
+        hook.get("command"), KIMI_BRIDGE, stop_feedback=True)
+    if hook.get("event") != "Stop":
+        problems.append("recovery feedback hook event must be exactly Stop")
+    if "matcher" in hook and hook["matcher"] != "":
+        problems.append("Stop matcher must be absent or empty; Bash filters do not cover Stop")
+    timeout = hook.get("timeout", 30)
+    if type(timeout) is not int or not 1 <= timeout <= 600:
+        problems.append("Stop timeout must be an integer from 1 to 600 seconds")
+    if not KIMI_FEEDBACK.is_file():
+        problems.append("stop_feedback.py is missing from this installation")
+    fingerprint = None
+    if not problems:
+        assert command is not None
+        fingerprint = _fingerprint({
+            "event": "Stop", "command_tokens": [str(part) for part in command] + ["--stop-feedback"],
+            "matcher": hook.get("matcher", ""), "timeout": timeout,
+        })
+    return FeedbackDiagnosis(True, "FAIL" if problems else "PASS", "NOT_RUN",
+                             problems, command, fingerprint)
 
 
 def _check_claude_config(
@@ -484,7 +611,7 @@ def _load_baseline(path: Path, harness: str) -> tuple[Optional[dict], list[str]]
 
 
 def _write_baseline(path: Path, diagnosis: Diagnosis) -> Optional[str]:
-    if (diagnosis.drift_status != "CURRENT"
+    if (diagnosis.failed or diagnosis.drift_status != "CURRENT"
             or diagnosis.local_probe != "PASS"
             or not diagnosis.profile
             or not diagnosis.host_version
@@ -514,11 +641,22 @@ def _diagnose(
         harness: str, config_path: Path, run_probe: bool,
         check_drift: bool = False, host_executable: Optional[str] = None,
         baseline_path: Optional[Path] = None,
+        *, include_feedback: bool = True,
 ) -> Diagnosis:
-    problems, bridge_command, configuration_fingerprint = (
-        _check_kimi_config(config_path) if harness == "kimi"
-        else _check_claude_config(config_path)
-    )
+    feedback = None
+    if harness == "kimi":
+        problems, bridge_command, configuration_fingerprint, config = _check_kimi_config(config_path)
+        if include_feedback:
+            feedback = _check_kimi_feedback(config)
+            if feedback.configuration == "PASS" and configuration_fingerprint:
+                configuration_fingerprint = _fingerprint({
+                    "pre_tool_use": configuration_fingerprint, "feedback": feedback.fingerprint})
+            if feedback.configuration == "PASS" and run_probe:
+                assert feedback.command is not None
+                feedback.problems = _probe_feedback(*feedback.command)
+                feedback.local_probe = "FAIL" if feedback.problems else "PASS"
+    else:
+        problems, bridge_command, configuration_fingerprint = _check_claude_config(config_path)
     if problems:
         diagnosis = Diagnosis(
             harness, config_path, "FAIL", "NOT_RUN", problems,
@@ -534,6 +672,7 @@ def _diagnose(
             harness, config_path, "PASS",
             "FAIL" if probe_problems else "PASS", probe_problems,
             configuration_fingerprint=configuration_fingerprint)
+    diagnosis.feedback = feedback
 
     if not check_drift:
         return diagnosis
@@ -549,7 +688,8 @@ def _diagnose(
 
     diagnosis.profile = profile.profile_id
     try:
-        diagnosis.runtime_fingerprint = _runtime_fingerprint(harness, profile)
+        diagnosis.runtime_fingerprint = _runtime_fingerprint(
+            harness, profile, bool(feedback and feedback.configured))
     except OSError:
         drift_problems.append("runtime fingerprint could not be computed")
 
@@ -565,7 +705,7 @@ def _diagnose(
         drift_problems.extend(baseline_problems)
         baseline_invalid = baseline is None
 
-    if diagnosis.problems:
+    if diagnosis.failed:
         diagnosis.drift_status = "BROKEN"
     elif baseline_invalid:
         diagnosis.drift_status = "UNVERIFIED"
@@ -599,8 +739,8 @@ def _diagnose(
 
 
 def check_kimi(config_path: Path, run_probe: bool = False) -> list[str]:
-    """Compatibility wrapper for callers using the original Kimi checker."""
-    return _diagnose("kimi", config_path, run_probe).problems
+    """Compatibility wrapper retaining the original PreToolUse-only check."""
+    return _diagnose("kimi", config_path, run_probe, include_feedback=False).problems
 
 
 def check_claude(config_path: Path, run_probe: bool = False) -> list[str]:
@@ -682,7 +822,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     sentinel_result = None
     sentinel_report = None
     if args.live_sentinel:
-        if (diagnosis.configuration != "PASS"
+        if (diagnosis.failed or diagnosis.configuration != "PASS"
                 or diagnosis.local_probe != "PASS"):
             sentinel_report = {
                 "status": "INCONCLUSIVE", "alarm": "WARNING",
@@ -718,18 +858,25 @@ def main(argv: Optional[list[str]] = None) -> int:
         print(json.dumps(report, ensure_ascii=False))
         if sentinel_report is not None:
             return {"PASS": 0, "FAIL": 2}.get(sentinel_report["status"], 1)
-        return 1 if (diagnosis.problems or write_error or (
+        return 1 if (diagnosis.failed or write_error or (
             check_drift and diagnosis.drift_status != "CURRENT")) else 0
     if diagnosis.problems:
         for problem in diagnosis.problems:
             print(f"FAIL: {problem}", file=sys.stderr)
     else:
-        print(f"PASS: {args.harness} selected hook configuration shape checked ({config_path})")
+        scope = "PreToolUse" if args.harness == "kimi" else "selected hook"
+        print(f"PASS: {args.harness} {scope} configuration shape checked ({config_path})")
     if diagnosis.local_probe == "PASS":
         print("PASS: local Bash allow, malformed refusal, Core policy refusal, "
               "ASK mapping, and failed-interpreter probes")
     else:
         print(f"LOCAL_PROBE: {diagnosis.local_probe}")
+    if diagnosis.feedback is not None:
+        print(f"FEEDBACK_CONFIGURATION: {diagnosis.feedback.configuration} (optional Kimi Stop)")
+        print(f"FEEDBACK_LOCAL_PROBE: {diagnosis.feedback.local_probe}")
+        for problem in diagnosis.feedback.problems:
+            print(f"FEEDBACK_FAIL: {problem}", file=sys.stderr)
+        print("MODEL_DELIVERY: UNVERIFIED (local Stop checks do not prove model receipt)")
     print("HOST_INTERCEPTION: UNVERIFIED (the selected file and local bridge "
           "do not prove a live host loaded or enforced this hook)")
     if check_drift:
@@ -748,7 +895,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         if sentinel_report["status"] != "PASS":
             print("WARNING: live host protection was not verified", file=sys.stderr)
         return {"PASS": 0, "FAIL": 2}.get(sentinel_report["status"], 1)
-    return 1 if (diagnosis.problems or write_error or (
+    return 1 if (diagnosis.failed or write_error or (
         check_drift and diagnosis.drift_status != "CURRENT")) else 0
 
 

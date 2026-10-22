@@ -18,6 +18,17 @@ that reliability problem; it is not a sandbox or a live-interception proof.
 3. It fingerprints the local enforcement path (profile, bridge, adapter,
    shared guard entry point, and Core Python files).
 
+In the unpublished [0.2.6 preparation](../releases/release-notes-0.2.6.md), a
+configured optional Kimi Stop adds its normalized
+fields to the configuration fingerprint and `stop_feedback.py` to the runtime
+fingerprint. Adding, removing or changing it can therefore yield `DRIFTED`
+against an earlier baseline. Without agent-guard Stop, the original
+PreToolUse fingerprint remains unchanged. Unrelated Stop commands are ignored.
+
+The runtime fingerprint includes `package.json`, so a package version change
+also changes the fingerprint. Compare with the old baseline first; after an
+intentional update, review the change and use a new baseline path.
+
 This does not start a model or edit host configuration. The ordinary doctor
 does not execute the host at all; host version discovery is opt-in through
 `--check-drift`, `--baseline`, `--write-baseline`, or `--host-executable`.
@@ -30,6 +41,10 @@ python3 doctor.py kimi --probe --check-drift --json
 `--host-executable PATH` selects a non-default executable. It is also useful
 when a host is installed under a wrapper name. The selected executable is run
 only with the compatibility profile's version arguments.
+
+Automatic discovery uses the doctor's current PATH. An interactive shell or
+wrapper can select another installation. Check the user's actual launcher
+and use `--host-executable` for the intended binary when those paths differ.
 
 ## Status vocabulary
 
@@ -47,6 +62,12 @@ it suitable for a local preflight. `CURRENT` is deliberately weaker than
 `host_interception`: the latter remains `UNVERIFIED` because a static file,
 version command, and local adapter process cannot prove that a live host
 loaded or enforced the hook.
+
+A configured Kimi Stop that fails configuration or a requested local probe
+also makes drift `BROKEN`. Absent optional Stop is not a failure. Baseline
+creation requires those requested Stop probes to pass as well; it does not
+certify delivery. The separate `feedback.model_delivery` remains `UNVERIFIED`
+even if the root-agent Bash live sentinel below passes.
 
 ## Privacy-minimal baselines
 
@@ -78,6 +99,17 @@ same OS privileges.
 Profiles live beside their adapters as `compatibility.json`. They describe
 only the host-facing version command and the narrow contract already covered
 by that adapter. Core policy remains shared and is not copied into profiles.
+
+The unpublished 0.2.6 Kimi profile lists exact versions `0.42.0`, `2.1.1` and
+`2.3.0`. The [2.3.0 prompt/ACP root-Bash evidence](../reports/test-report-kimi-code-block.md#kimi-230-acceptance)
+does not extend the separately pinned Lab helper, subagent coverage or real-model
+claims. A valid 2.3.0 setup can now be `CURRENT` without a baseline; live
+interception and feedback delivery still retain their independent status.
+Updating the profile changes its runtime fingerprint, so an old baseline can
+report `DRIFTED`. Review that change before selecting a new private baseline;
+the update does not overwrite an existing one. Published 0.2.5 retains its
+earlier list, and unlisted versions remain `STALE`.
+
 Adding a profile for an unlisted host does not make it supported: the host
 still needs a blocking pre-tool event and the bounded acceptance evidence in
 the [capability matrix](harness-capabilities.md).

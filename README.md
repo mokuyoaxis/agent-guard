@@ -8,10 +8,20 @@
 
 **Make destructive agent actions reversible by default.** · [简体中文](README.zh-CN.md)
 
-Agent Guard is reliability infrastructure for coding agents. It provides
-recovery before supported destructive actions, checks text before disclosure,
-and gives users a Lab for testing observed agent and harness behaviour.
-The shared Python Core works through explicit CLIs and optional host adapters.
+Agent Guard preserves recovery data before supported destructive actions,
+checks text before sending it, and provides a Lab for testing agent and host
+behaviour. The shared Python Core can be called through command-line tools
+or host adapters.
+
+**AI agents setting up this project:** Before changing configuration or writing
+a bridge, read the [integration requirements](adapters/INTEGRATION.md), then
+the [setup workflow](docs/guides/getting-started.md#set-up-a-coding-agent) and
+the matching adapter guide. Check your actual host/version and its official
+hook documentation, verify the integration, and report the observed coverage.
+Installed Skills or copied configuration alone do not establish protection.
+
+We currently focus on **DSH and Kimi Code** integrations. For other hosts,
+ask the official coding agent to configure Agent Guard locally.
 
 | Capability | What it helps you do | Entry |
 |---|---|---|
@@ -91,10 +101,12 @@ native bridges and optional capture helpers have their own requirements.
 
 | Version | Status |
 |---|---|
-| [0.2.5](docs/releases/release-notes-0.2.5.md) | Stable release line; npm `latest`; availability in the versioned receipts below |
+| [0.2.6](docs/releases/release-notes-0.2.6.md) | Local maintenance preparation; unpublished; tag decision pending |
+| [0.2.5](docs/releases/release-notes-0.2.5.md) | Stable release; npm `latest`; release links below |
 | [0.2.4](docs/releases/release-notes-0.2.4.md) | Previous stable release |
 | [0.2.4-hotfix.1](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.4-hotfix.1) | Opt-in quarantine protection backport; npm `hotfix` |
 | [0.2.5-rc3](docs/releases/release-notes-0.2.5-rc3.md) | Published prerelease, including RC1/RC2 maintenance; npm `rc` |
+
 Publication is established by the exact
 [GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.5)
 and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.5).
@@ -126,6 +138,13 @@ Version 0.2.5 combines RC1–RC3 with clearer startup, command and storage
 feedback. A reviewed local checkout or supplied tarball is also usable. See
 [release notes](docs/releases/release-notes-0.2.5.md) and
 [setup and the agent setup prompt](docs/guides/getting-started.md).
+
+[0.2.6 preparation](docs/releases/release-notes-0.2.6.md) adds optional Kimi
+Stop recovery feedback, separate Stop doctor checks, DSH Lab preflight
+diagnostics and default deletion support for DSH `0.2.1-alpha.4`.
+It is not published; the tag decision is pending. Use a reviewed
+checkout or local package containing those files. Published 0.2.5 retains its
+recorded scope. See [unreleased maintenance](docs/releases/unreleased.md).
 
 ## Recover a supported deletion
 
@@ -206,15 +225,20 @@ Read the [Skill](skills/exfil-guard/SKILL.md),
 
 ## Connect your coding agent
 
-These are version-specific historical observations. They do not certify a
-new source candidate, every tool or every subagent path.
+Ask the host's official coding agent to configure Agent Guard for the installed
+version, following the [integration guide](adapters/INTEGRATION.md). Prefer a
+hook that can block a tool call before it runs. We maintain the DSH and Kimi
+Code integrations; other hosts use local bridges and configuration.
+
+The results below apply to the recorded source versions, host versions and
+tool paths. Other combinations need their own checks.
 
 | Host | Integration and evidence |
 |---|---|
-| Claude Code | Native Bash `PreToolUse`; sampled 2.1.270/2.1.273 scripted-host enforcement. [Setup](adapters/claude/README.md) |
-| Kimi Code | Native Bash `PreToolUse`; bounded 0.42.0 root/child and 2.1.1 root-Bash observations. ASK is denied; missing/timed-out hooks remain uncovered. [Setup](adapters/kimi-code/README.md) |
-| DSH | Reviewed 0.1.5-rc.1/0.2.0-rc.2 deletion paths; optional complete text-read protection is default off. Sampled PTC Bash refusal does not imply universal PTC mediation. [Setup](adapters/dsh/README.md) |
-| Codex / other hosts | Explicit Skill/CLI is usable. Native interception needs a verified blocking hook. [Adaptation guide](adapters/INTEGRATION.md) |
+| Claude Code | Retained reference; new version validation paused. Native Bash `PreToolUse`; sampled 2.1.270/2.1.273 scripted-host enforcement. [Setup](adapters/claude/README.md) |
+| Kimi Code | Native Bash `PreToolUse`; bounded 0.42.0 root/child and 2.1.1 root-Bash observations. This unpublished checkout adds 2.3.0 prompt/ACP root-Bash evidence with fixed responses. ASK is denied; missing/timed-out hooks remain uncovered. [Setup](adapters/kimi-code/README.md) |
+| DSH | Default deletion paths on 0.1.5-rc.1/0.2.0-rc.2; this unpublished checkout adds 0.2.1-alpha.4. Optional native read and Lab retain their two-version boundaries. [Compatibility](docs/design/dsh-compatibility.md) · [Setup](adapters/dsh/README.md) |
+| Codex / other hosts | Use the official coding agent for version-specific local hook setup; verify blocking before claiming native interception. Without a blocking hook, explicit Skill/CLI remains cooperative. [Adaptation guide](adapters/INTEGRATION.md) |
 
 Use the [full capability and evidence matrix](docs/guides/harness-capabilities.md)
 for precise versions, tests and gaps. `doctor.py kimi|claude --probe` checks a
