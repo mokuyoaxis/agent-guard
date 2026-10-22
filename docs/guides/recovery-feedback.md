@@ -4,8 +4,8 @@ The CLI/DSH feedback below is included in
 [0.2.5](../releases/release-notes-0.2.5.md).
 They do not change deletion policy, wildcard handling, retention thresholds,
 or the recovery format.
-The final Kimi section describes the unpublished
-[0.2.6 preparation](../releases/release-notes-0.2.6.md).
+The final Kimi section describes the additions in
+[0.2.6](../releases/release-notes-0.2.6.md).
 
 ## What the status establishes
 
@@ -108,7 +108,7 @@ The [2.3.0 observations](../reports/test-report-kimi-code-block.md#kimi-230-acce
 used fixed responses through the actual prompt CLI and ACP host, with no
 external model calls.
 
-The unpublished 0.2.6 source provides a separate, opt-in POSIX Stop hook. It supplies
+Version 0.2.6 provides a separate, opt-in POSIX Stop hook. It supplies
 actual transaction IDs, state/restore commands, retained-storage guidance and
 full GC commands, then asks for one extra response after the initial answer.
 The initial answer may already be inaccurate, and the model can still omit
@@ -119,7 +119,7 @@ total disk space. GC permanently removes recovery copies and remains an
 explicit operation. The Stop hook itself executes no restore or GC.
 Published 0.2.5 lacks the Stop helper. See [setup and limits](../../adapters/kimi-code/README.md#optional-recovery-feedback-unreleased-checkout-addition)
 and the [bounded real-host report](../reports/test-report-kimi-code-block.md).
-In the unpublished 0.2.6 source, the doctor separates PreToolUse from Stop
+In 0.2.6, the doctor separates PreToolUse from Stop
 configuration and local feedback probes. `--probe` uses isolated synthetic
 records and leaves existing recovery data alone. Stop's `model_delivery`
 remains `UNVERIFIED`; local PASS does not establish model receipt. See the

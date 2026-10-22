@@ -18,12 +18,13 @@ retains the earlier failures and correction history.
 
 ## Install
 
-The [0.2.5 release](../../docs/releases/release-notes-0.2.5.md) includes the
-startup/status diagnostics below without broadening admitted DSH versions or
-native-read coverage. Install the exact stable version:
+The [0.2.6 release](../../docs/releases/release-notes-0.2.6.md) retains the
+startup/status diagnostics below and adds DSH `0.2.1-alpha.4` for default
+deletion interception. Optional native read keeps its separate boundary.
+Install the exact stable version:
 
 ```bash
-dsh plugin --profile 'your-profile' add @mokuyoaxis/agent-guard@0.2.5
+dsh plugin --profile 'your-profile' add @mokuyoaxis/agent-guard@0.2.6
 ```
 
 Use an exact package version whose host contract matches your DSH installation.
@@ -34,20 +35,19 @@ text-read guard.
 As checked on 2026-10-19, the published opt-in versions are
 `@mokuyoaxis/agent-guard@0.2.4-hotfix.1` for the stable-line quarantine fix and
 `@mokuyoaxis/agent-guard@0.2.5-rc3` for the cumulative prerelease.
-Versioned [GitHub](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.5)
-and [npm](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.5)
-receipts establish 0.2.5 availability. A reviewed checkout or tarball is also
+Versioned [GitHub](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.6)
+and [npm](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.6)
+receipts establish 0.2.6 availability. A reviewed checkout or tarball is also
 usable as described in [getting started](../../docs/guides/getting-started.md).
 
-The local [0.2.6 preparation](../../docs/releases/release-notes-0.2.6.md) adds
-Lab version/config preflight diagnostics; it is unpublished and its tag is
-pending. This checkout also admits `0.2.1-alpha.4` for the default deletion
+Version [0.2.6](../../docs/releases/release-notes-0.2.6.md) adds
+Lab version/config preflight diagnostics and admits `0.2.1-alpha.4` for the default deletion
 adapter, alongside `0.1.5-rc.1` and `0.2.0-rc.2`. It retains the existing
 interception and recovery logic. Alpha.4 is not admitted for optional native
 read protection or Lab. See [DSH compatibility](../../docs/design/dsh-compatibility.md)
 for the exact declarations and [native validation](../../docs/reports/test-report-dsh-alpha4.md)
-for the evidence. Use a reviewed local package/checkout for these additions;
-published 0.2.5 does not acquire them. See the [Lab runner](harness/README.md)
+for the evidence. Upgrade an existing 0.2.5 installation to obtain these additions.
+See the [Lab runner](harness/README.md)
 for the separate preflight diagnostic fields.
 
 ## What gets registered

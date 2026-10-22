@@ -1,15 +1,14 @@
 # DSH compatibility
 
-The default deletion adapter in the unpublished 0.2.6 checkout admits three
+The default deletion adapter in Agent Guard 0.2.6 admits three
 exact DSH versions:
 
 - `0.1.5-rc.1`
 - `0.2.0-rc.2`
 - `0.2.1-alpha.4`
 
-Published 0.2.5 retains its two-version declaration. For alpha.4, use a reviewed
-checkout or local package containing the new declaration; installing 0.2.5
-does not acquire it. The package version and tag remain pending publication.
+Version 0.2.5 retains its two-version declaration. For alpha.4, upgrade to
+0.2.6 or use a reviewed checkout containing the new declaration.
 
 ## Separate feature boundaries
 

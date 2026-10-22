@@ -46,7 +46,7 @@ the shipped baseline overlay is always last.
 Use `--node-executable /absolute/path/to/node` to select the decoder runtime
 explicitly. This option does not change the runtime chosen by the DSH launcher.
 
-In the unpublished [0.2.6 preparation](../../../docs/releases/release-notes-0.2.6.md), version/config
+In [0.2.6](../../../docs/releases/release-notes-0.2.6.md), version/config
 process failures report `START_FAILED`, `TIMEOUT`, `OUTPUT_LIMIT`,
 `NONZERO_EXIT`, or `EMPTY_STDOUT`; an unreviewed version reports
 `UNSUPPORTED_VERSION`. The error includes the exit code (negative for a POSIX

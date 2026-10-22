@@ -87,21 +87,21 @@ Core 需要 Python 3.9+ 和 Git。示例采用 POSIX Shell；原生桥接和可�
 
 | 版本 | 状态 |
 |---|---|
-| [0.2.6](docs/releases/release-notes-0.2.6.md) | 本地维护版准备，尚未发布；tag 待定 |
-| [0.2.5](docs/releases/release-notes-0.2.5.md) | 正式版；npm `latest`；发布地址见下方 |
-| [0.2.4](docs/releases/release-notes-0.2.4.md) | 上一稳定版 |
+| [0.2.6](docs/releases/release-notes-0.2.6.md) | 正式版；npm `latest`；发布地址见下方 |
+| [0.2.5](docs/releases/release-notes-0.2.5.md) | 上一稳定版 |
+| [0.2.4](docs/releases/release-notes-0.2.4.md) | 更早稳定版 |
 | [0.2.4-hotfix.1](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.4-hotfix.1) | 显式选择的回收站保护回补；npm `hotfix` |
 | [0.2.5-rc3](docs/releases/release-notes-0.2.5-rc3.md) | 已发布预发布版，包含 RC1／RC2 维护；npm `rc` |
 
 实际发布状态以精确版本的
-[GitHub Release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.5)和
-[npm 版本页](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.5)为准，
+[GitHub Release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.6)和
+[npm 版本页](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.6)为准，
 checkout 或 manifest 本身不代表包已可安装。
 
 稳定包可安装到用户选定的长期目录：
 
 ```sh
-npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.5
+npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.6
 ```
 
 包根目录是
@@ -119,16 +119,11 @@ cd agent-guard
 若只需要稳定线的回收站保护修复，可显式选择 `@mokuyoaxis/agent-guard@0.2.4-hotfix.1`。
 这两个通道均不替换稳定版 `latest`。
 
-0.2.5 包含 RC1—RC3 的改动，并补充启动、命令判定和空间占用提示，
-也可使用已核查的 checkout 或提供的 tarball。
-范围见[发布说明](docs/releases/release-notes-0.2.5.md)，接入步骤与 Agent 提示词见
-[入门指南](docs/guides/getting-started.md)。
-
-[0.2.6 准备](docs/releases/release-notes-0.2.6.md)补充 Kimi 可选 Stop 恢复反馈、
-独立 Stop doctor 检查、DSH Lab 预检诊断，以及 DSH `0.2.1-alpha.4` 的默认删除适配。
-当前尚未发布，tag 待定。
-使用前确认 checkout／本地包包含对应文件；已发布 0.2.5 保持其原范围，
-详见[未发布维护](docs/releases/unreleased.md)。
+[0.2.6](docs/releases/release-notes-0.2.6.md) 在 0.2.5 的基础上补充 Kimi 可选 Stop
+恢复反馈、独立 Stop doctor 检查、DSH Lab 预检诊断、DSH `0.2.1-alpha.4` 默认删除适配，
+以及 Kimi `2.3.0` Bash profile。已有安装需要升级才能取得这些功能，Stop 还需显式配置。
+接入步骤与 Agent 提示词见[入门指南](docs/guides/getting-started.md)，
+功能边界见[维护说明](docs/releases/unreleased.md)。
 
 ## 恢复一次受支持的删除
 
@@ -205,8 +200,8 @@ python3 -c 'print("config: sk-proj-" + "AbCdEf0123456789GhIjKl")' |
 | 宿主 | 接入与证据 |
 |---|---|
 | Claude Code | 保留参考实现，暂缓新版本验收。Bash 原生 `PreToolUse`；2.1.270／2.1.273 的受限脚本宿主拦截记录。[接入](adapters/claude/README.md) |
-| Kimi Code | Bash 原生 `PreToolUse`；0.42.0 的有限主／子路径及 2.1.1 的根代理 Bash 记录。本地未发布 checkout 新增 2.3.0 prompt／ACP 根代理 Bash 固定响应证据。ASK 拒绝；缺失／超时 hook 不覆盖。[接入](adapters/kimi-code/README.md) |
-| DSH | 默认删除适配覆盖 0.1.5-rc.1／0.2.0-rc.2；本地未发布 checkout 增加 0.2.1-alpha.4。可选原生 read 与 Lab 保留各自的两版边界。[兼容范围](docs/design/dsh-compatibility.md) · [接入](adapters/dsh/README.md) |
+| Kimi Code | Bash 原生 `PreToolUse`；0.42.0 的有限主／子路径及 2.1.1 的根代理 Bash 记录。0.2.6 新增 2.3.0 prompt／ACP 根代理 Bash 固定响应证据。ASK 拒绝；缺失／超时 hook 不覆盖。[接入](adapters/kimi-code/README.md) |
+| DSH | 默认删除适配覆盖 0.1.5-rc.1／0.2.0-rc.2／0.2.1-alpha.4。可选原生 read 与 Lab 保留各自的两版边界。[兼容范围](docs/design/dsh-compatibility.md) · [接入](adapters/dsh/README.md) |
 | Codex／其他宿主 | 推荐官方 Agent 按当前版本完成本地 hook 接入，并验证确实阻止执行。没有阻塞 hook 时，Skill／CLI 仍属于协作式使用。[适配指南](adapters/INTEGRATION.md) |
 
 精确版本、试验与缺口统一见[完整能力矩阵](docs/guides/harness-capabilities.md)。

@@ -10,17 +10,18 @@ Agent Guard 提供恢复保护、外发检测和用户控制的行为验测。�
 
 ## Select the package root
 
-The stable release line is [0.2.5](../releases/release-notes-0.2.5.md), and the
+The stable release line is [0.2.6](../releases/release-notes-0.2.6.md), and the
 prerelease line remains [0.2.5-rc3](../releases/release-notes-0.2.5-rc3.md).
 The optional [0.2.4-hotfix.1](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.4-hotfix.1)
 backports quarantine protection onto the stable line.
-Version 0.2.5 combines RC1–RC3 and clearer status, command and storage feedback.
-Its [GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.5)
-and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.5)
+Version 0.2.6 adds Kimi recovery feedback and diagnostics to the 0.2.5 base,
+plus reviewed DSH alpha.4 and Kimi 2.3.0 Bash compatibility.
+Its [GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.6)
+and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.6)
 establish package availability. Use a user-selected stable prefix:
 
 ```sh
-npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.5
+npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.6
 ```
 
 The package root is
@@ -33,8 +34,7 @@ identify the published package. For the stable-line fix alone, select
 stable `latest`.
 
 For a reviewed local checkout or explicitly selected local tarball, use a
-separate prefix. The current [0.2.6 preparation](../releases/release-notes-0.2.6.md)
-is unpublished, with the tag decision pending; use the local artifact:
+separate prefix:
 
 ```sh
 npm install --offline --ignore-scripts --no-audit --no-fund --prefix /absolute/path/to/agent-guard-review /absolute/path/to/mokuyoaxis-agent-guard-0.2.6.tgz
@@ -46,20 +46,18 @@ Keep the selected package/checkout path consistent when configuring the host.
 Do not infer publication from a manifest/main commit or use an unscoped
 same-name package. A checkout's default branch can differ from a tagged stable release.
 
-The [unreleased 0.2.6 additions](../releases/unreleased.md) require files
-from the reviewed checkout or local package. In particular, published 0.2.5
-does not contain `adapters/kimi-code/stop_feedback.py`. Check the selected
-root before configuring the optional Stop hook. A local version or filename
-does not establish publication or the availability of these features in an
-existing installation. The stable registry install above remains 0.2.5.
+The [0.2.6 additions](../releases/unreleased.md) require an upgraded package
+or a checkout containing the corresponding files. In particular, 0.2.5 lacks
+`adapters/kimi-code/stop_feedback.py`. Check the selected root before configuring
+the optional Stop hook. Installing a new copy does not update another existing
+installation or its host configuration.
 
-The unpublished checkout also adds DSH `0.2.1-alpha.4` for the default deletion
-adapter. Published 0.2.5 retains its earlier host declaration; alpha.4 users
-need the reviewed checkout/local package. Optional native read and Lab keep
+Version 0.2.6 adds DSH `0.2.1-alpha.4` for the default deletion adapter.
+Version 0.2.5 retains its earlier host declaration. Optional native read and Lab keep
 their separate two-version scope. Check [DSH compatibility](../design/dsh-compatibility.md)
 before enabling a profile.
 
-The unpublished Kimi Bash profile also adds exact version `2.3.0`, based on
+The 0.2.6 Kimi Bash profile also adds exact version `2.3.0`, based on
 [prompt CLI and ACP trials](../reports/test-report-kimi-code-block.md#kimi-230-acceptance).
 Published 0.2.5 retains its earlier list. The Kimi Lab capture helper remains
 pinned to 2.1.1; updating the Bash profile does not update that separate path.
@@ -148,7 +146,7 @@ its result covers one sampled root-agent Bash call. See
 
 For Kimi's optional Stop feedback, choose whether the extra response is
 wanted, follow the [separate setup](../../adapters/kimi-code/README.md#optional-recovery-feedback-unreleased-checkout-addition),
-and start a new session. In the unpublished 0.2.6 preparation, the doctor reports Stop
+and start a new session. In 0.2.6, the doctor reports Stop
 configuration and local execution separately under `feedback`. An absent Stop
 is optional; a configured but invalid or failing Stop exits 1. `--probe` uses
 synthetic records in temporary storage. `feedback.model_delivery` remains

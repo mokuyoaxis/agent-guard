@@ -4,9 +4,10 @@ agent-guard's promise is recoverability. A promise is only as good as its
 stability over time - this page states exactly what may change and what
 may not, per release class.
 
-The stable release line is [0.2.5](../releases/release-notes-0.2.5.md), carrying
-the cumulative RC maintenance below. The opt-in prerelease remains
-[0.2.5-rc3](../releases/release-notes-0.2.5-rc3.md), 0.2.4 is the previous stable, and
+The stable release line is [0.2.6](../releases/release-notes-0.2.6.md), carrying
+the cumulative RC maintenance and the feedback/diagnostic additions below.
+The opt-in prerelease remains [0.2.5-rc3](../releases/release-notes-0.2.5-rc3.md),
+0.2.5 is the previous stable, and
 [0.2.4-hotfix.1](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.4-hotfix.1)
 is an opt-in quarantine protection backport. Versioned sections retain the
 origin and preparation labels of changes introduced by earlier releases.
@@ -21,9 +22,9 @@ is introduced by the research documentation.
 
 <a id="unreleased-feedback-and-diagnostic-maintenance"></a>
 
-### 0.2.6 feedback and diagnostic maintenance (unpublished preparation)
+### 0.2.6 feedback and diagnostic maintenance
 
-The [0.2.6 preparation](../releases/release-notes-0.2.6.md) adds an opt-in POSIX Kimi
+Release [0.2.6](../releases/release-notes-0.2.6.md) adds an opt-in POSIX Kimi
 Stop hook after the existing PreToolUse path. It may request an extra response
 after new compensation records. It does not change the earlier tool result,
 Core verdicts, recovery format or deletion rules; it stores separate local
@@ -66,7 +67,6 @@ The maintainer selected 0.2.6 for this bounded feedback/diagnostic maintenance;
 the additive surfaces below are carried as an explicit maintenance-version
 exception. This does not relax the general minor-release rules or authorize
 Core policy changes. These additions are absent from published 0.2.5.
-0.2.6 is not published; the tag decision is pending.
 
 ### 0.2.5 feedback maintenance
 
@@ -164,7 +164,7 @@ must accept the additional refusal reason and ignore unknown optional fields.
 | `.agent-guard/exfil-allow.toml` exemption file | minor | Read from the workspace root only; values exempted by `sha256:...`, never by value |
 | `doctor.py --check-drift` report and adapter `compatibility.json` profiles | minor | Additive local preflight. Without drift flags the doctor keeps its previous process-execution and exit behavior; `CURRENT` never promotes live interception above `UNVERIFIED` |
 | `doctor.py --live-sentinel` and hashed hook receipt | minor | Explicit, opt-in real-host/model probe only. Default doctor behavior is unchanged; raw command/model output is not retained, and incomplete evidence is `INCONCLUSIVE` rather than PASS |
-| Kimi doctor `feedback` object (unreleased) | additive diagnostic | Existing top-level fields retain PreToolUse scope; optional Stop has separate configuration/local results and always-unverified model delivery. Absent Stop passes; a configured Stop failure exits 1 and prevents baseline creation/live sentinel. Configured Stop fields/helper join drift fingerprints. `check_kimi()` retains its PreToolUse-only contract; Claude output is unchanged. |
+| Kimi doctor `feedback` object (0.2.6) | additive diagnostic | Existing top-level fields retain PreToolUse scope; optional Stop has separate configuration/local results and always-unverified model delivery. Absent Stop passes; a configured Stop failure exits 1 and prevents baseline creation/live sentinel. Configured Stop fields/helper join drift fingerprints. `check_kimi()` retains its PreToolUse-only contract; Claude output is unchanged. |
 | Cross-vocabulary mismatch floor (`0.2.3-rc1`) | minor safety fix | At a selected-dialect command boundary, a supported destructive shape that produced no operation becomes target-free `UNKNOWN` → `BLOCK_UNDETERMINABLE_EFFECT`; it never borrows a compensation plan from another grammar |
 
 ### 0.2.5-rc1 assessment contract clarification (source candidate)

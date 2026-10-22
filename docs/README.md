@@ -7,21 +7,20 @@ setup. The three main paths are [recovery protection](../skills/delete-guard/SKI
 [harness capability matrix](guides/harness-capabilities.md) for observed coverage
 and the [architecture](design/architecture.md) for the shared Core.
 
-Stable release line: [0.2.5](releases/release-notes-0.2.5.md), combining
-RC1–RC3 and clearer startup, command and storage feedback. The exact
-[GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.5)
-and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.5)
-establish publication and npm `latest` availability; 0.2.4 is the previous stable.
+Stable release line: [0.2.6](releases/release-notes-0.2.6.md), building on
+0.2.5 with Kimi feedback, diagnostics and reviewed host compatibility. The exact
+[GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.6)
+and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.6)
+establish publication and npm `latest` availability; 0.2.5 is the previous stable.
 The opt-in `rc` line remains [0.2.5-rc3](releases/release-notes-0.2.5-rc3.md), and `hotfix` is the
 opt-in [0.2.4-hotfix.1](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.4-hotfix.1)
 quarantine protection backport. The [getting-started guide](guides/getting-started.md)
 explains exact-version and local-package installation.
 
-[0.2.6 preparation](releases/release-notes-0.2.6.md) covers Kimi Stop feedback,
+[0.2.6](releases/release-notes-0.2.6.md) covers Kimi Stop feedback,
 its doctor checks, Kimi 2.3.0 root-Bash compatibility, DSH Lab preflight
-diagnostics and alpha.4 default deletion compatibility. This local version is
-unpublished, with the tag decision pending. The additions are absent from
-published 0.2.5; see [unreleased maintenance](releases/unreleased.md).
+diagnostics and alpha.4 default deletion compatibility. Existing 0.2.5 installations
+need an upgrade to acquire these additions; see [maintenance details](releases/unreleased.md).
 
 先看入门指南，再按恢复保护、外发检测、Lab 验测选择入口。测试报告按所测版本与配置保留；发布记录、
 历史设计和外部案例各自归档，不能据此扩展当前产品的承诺。
@@ -122,8 +121,8 @@ coverage rather than treating every historical result as current acceptance.
 
 | Document / 文档 | Scope / 范围 |
 |---|---|
-| [0.2.6 preparation](releases/release-notes-0.2.6.md) | 本地维护版范围、升级影响与证据；尚未发布，tag 待定 |
-| [Unreleased maintenance](releases/unreleased.md) | 0.2.6 准备中的 Kimi Stop／doctor／2.3.0、DSH 预检及版本声明边界 |
+| [0.2.6](releases/release-notes-0.2.6.md) | 正式版范围、升级影响与验收；Kimi 反馈／doctor、DSH 预检与版本扩展 |
+| [0.2.6 maintenance details](releases/unreleased.md) | 原未发布维护页，保留 0.2.6 功能说明与历史验收边界 |
 | [0.2.5](releases/release-notes-0.2.5.md) | 正式版范围；累计 RC 维护、明确反馈与升级影响 |
 | [0.2.4-hotfix.1](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.4-hotfix.1) | 已发布的稳定线回收站保护回补；不含完整 RC 累计内容 |
 | [0.2.5-rc3](releases/release-notes-0.2.5-rc3.md) | 已发布的研究／文档预发布版与零模型示例 |

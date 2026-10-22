@@ -17,7 +17,7 @@ exit-2 hook path on an OAuth official model and a second configured model
 route. Connection details and private route identifiers are omitted. See the
 [bounded report](../../docs/reports/test-report-kimi-code-block.md).
 
-The unpublished checkout adds exact **2.3.0** after eight prompt-CLI and eight
+Version 0.2.6 adds exact **2.3.0** after eight prompt-CLI and eight
 ACP root-Bash trials with fixed loopback responses, including BLOCK, ASK
 refusal, Python startup failure, recovery and Stop delivery. ACP hooks ran
 in the session workspace even when the server started elsewhere. There were
@@ -26,10 +26,11 @@ This does not extend subagent, other-tool or real-model claims; the separate
 [Lab helper](harness/README.md) remains pinned to 2.1.1. Published 0.2.5 keeps
 its earlier tested-version list.
 
-This README describes the unpublished [0.2.6 preparation](../../docs/releases/release-notes-0.2.6.md).
-The optional Stop helper, doctor checks and setup guidance are tracked in
-[unreleased maintenance](../../docs/releases/unreleased.md). The tag decision
-is pending; published 0.2.5 retains its recorded scope.
+This README describes [0.2.6](../../docs/releases/release-notes-0.2.6.md).
+The optional Stop helper, doctor checks and setup guidance ship in this version;
+see the [maintenance details](../../docs/releases/unreleased.md).
+Version 0.2.5 retains its recorded scope. Upgrade the selected installation
+before configuring Stop.
 
 For the separate honeytoken experiment, see the
 [guard-lab pair and local follow-up](../../docs/reports/test-report-kimi-guard-lab.md).
@@ -104,7 +105,7 @@ allowed. `blockDecision()` collects any hook result with `action === "block"`.
    even when a shorter configuration passes the doctor.
    The optional Kimi doctor uses Python 3.11+ for
    TOML parsing; the guard adapter itself continues to support Python 3.9+.
-   In the unpublished 0.2.6 preparation, a separate `feedback` result checks the optional
+   In 0.2.6, a separate `feedback` result checks the optional
    Stop hook. See the [Stop doctor checks](#stop-doctor-checks-unreleased).
    Add `--check-drift` to compare the installed Kimi Code version with the
    shipped profile and compute privacy-safe configuration/runtime
@@ -143,12 +144,14 @@ sets `ask_is_block=True` because this CLI cannot enforce a prompt:
 This table describes adapter output **when the adapter actually starts**.
 It does not describe a missing hook or a failed hook command.
 
-## Optional recovery feedback (unreleased checkout addition)
+<a id="optional-recovery-feedback-unreleased-checkout-addition"></a>
+
+## Optional recovery feedback
 
 The tested 0.42.0, 2.1.1 and 2.3.0 success-hook paths do not include the hook's
 recovery explanation in the next model request. A successful Bash result
 alone can therefore hide that the guard already moved files to quarantine.
-The 0.2.6 preparation adds a separate, opt-in **POSIX Stop hook**. It is not included
+Version 0.2.6 adds a separate, opt-in **POSIX Stop hook**. It is not included
 in the published 0.2.5 package. The existing PreToolUse installation keeps
 its current behavior until this additional hook is configured.
 
@@ -196,7 +199,9 @@ child sharing a session/workspace may have their records emitted by whichever
 Stop runs first. This does not guarantee a separate notice to every actor.
 The local doctor checks below do not establish delivery to a running model.
 
-### Stop doctor checks (unreleased)
+<a id="stop-doctor-checks-unreleased"></a>
+
+### Stop doctor checks
 
 Run `python3 doctor.py kimi --probe --json` from the checkout containing the
 Stop helper. Existing top-level `configuration` and `local_probe` fields
@@ -227,9 +232,8 @@ An absent optional Stop does not fail the doctor. A configured Stop that fails
 configuration or a requested local probe makes the CLI exit 1, even when
 PreToolUse passes. An unreadable config reports Stop as `UNVERIFIED`, rather
 than claiming it is disabled. Neither local success nor a passing Bash live
-sentinel changes `feedback.model_delivery`. These additions are absent from
-published 0.2.5; they belong to the unpublished
-[0.2.6 preparation](../../docs/releases/release-notes-0.2.6.md).
+sentinel changes `feedback.model_delivery`. These additions ship in
+[0.2.6](../../docs/releases/release-notes-0.2.6.md) and are absent from 0.2.5.
 
 ## Known limitations — read before claiming interception
 

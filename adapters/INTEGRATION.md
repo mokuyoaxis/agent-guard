@@ -77,7 +77,7 @@ exclude rule. Its exit 0 does not authorize a BLOCK or ASK decision. See the
 Verify recovery feedback separately from the allow/deny decision. A successful
 hook can authorize a tool while the host omits its explanation from the next
 model request. Kimi's [optional Stop feedback](kimi-code/README.md#optional-recovery-feedback-unreleased-checkout-addition)
-is part of the unpublished [0.2.6 preparation](../docs/releases/release-notes-0.2.6.md);
+ships in [0.2.6](../docs/releases/release-notes-0.2.6.md);
 it adds a response after
 the initial answer. A pre-tool doctor PASS does not verify that later delivery.
 
@@ -125,7 +125,7 @@ the setup.
 `doctor.py` currently supports only `kimi` and `claude`. Its configuration
 and local-probe PASS states do **not** prove a live host loaded or enforced a
 hook. Do not reuse those states as an unknown-host certification.
-The unpublished 0.2.6 Kimi doctor also reports optional Stop under `feedback`.
+The 0.2.6 Kimi doctor also reports optional Stop under `feedback`.
 Its configuration/local probe is separate from PreToolUse, and
 `model_delivery` remains `UNVERIFIED`. A missing Stop is optional; an invalid
 or locally failing configured Stop exits 1. The importable `check_kimi()`

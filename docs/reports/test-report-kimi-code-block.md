@@ -1,5 +1,9 @@
 # Kimi Code 0.42.0 / 2.1.1 / 2.3.0: bounded Bash enforcement tests
 
+The Stop helper, separate doctor checks and 2.3.0 Bash profile ship in
+[0.2.6](../releases/release-notes-0.2.6.md). Dated sections retain the source's
+publication state at the time of each trial; their evidence limits are unchanged.
+
 <a id="kimi-230-acceptance"></a>
 
 ## Kimi 2.3.0 follow-up (2026-10-22, unpublished checkout)

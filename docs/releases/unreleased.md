@@ -1,22 +1,21 @@
-# Unreleased maintenance / 未发布维护
+# Maintenance delivered in 0.2.6 / 0.2.6 维护说明
 
-Updated 2026-10-22. These additions are aligned for the local
-[0.2.6 preparation](release-notes-0.2.6.md); they have not been released.
-The local manifest is 0.2.6, with the tag decision pending.
-The [published 0.2.5 notes](release-notes-0.2.5.md) retain that release's scope.
-A local manifest or tarball does not establish publication or prove that an
-existing installation contains these additions.
+Updated 2026-10-22. The additions previously tracked here now ship in
+[0.2.6](release-notes-0.2.6.md). This path is retained for existing links and
+the preparation history below. The [0.2.5 notes](release-notes-0.2.5.md) retain
+that release's scope. Existing installations need an upgrade; optional Stop
+also needs explicit configuration and a new Kimi session.
 
 ## Availability
 
 | Addition | Availability and setup |
 |---|---|
-| Kimi recovery feedback | Requires a checkout or reviewed local package containing `adapters/kimi-code/stop_feedback.py`, plus an explicitly configured Stop hook. Published 0.2.5 lacks this helper. |
+| Kimi recovery feedback | Included in 0.2.6 as `adapters/kimi-code/stop_feedback.py`; requires an explicitly configured Stop hook. Version 0.2.5 lacks this helper. |
 | Kimi configuration guidance | The current example recommends PreToolUse 120 seconds and optional Stop 30 seconds; merge top-level skill directories separately from TOML hook tables. Existing installations can adjust their PreToolUse timeout independently of Stop. |
-| Kimi Stop doctor checks | Source under review; `doctor.py kimi --probe --json` reports optional Stop configuration/local execution in a separate `feedback` object. Published 0.2.5 lacks these checks. |
-| Kimi 2.3.0 Bash profile | This checkout/local package adds the exact version after prompt-CLI and ACP root-Bash trials. Published 0.2.5 keeps its earlier list; the separate Kimi Lab helper stays pinned to 2.1.1. |
-| DSH Lab preflight diagnostics | Source under review; published 0.2.5 retains the older generic error messages. This concerns the Lab controller's version/config checks, not the production deletion policy. |
-| DSH alpha.4 default deletion adapter | Requires this reviewed checkout/local package. Exact loader declarations include `0.2.1-alpha.4`; optional native read and Lab keep their two-version scope. Published 0.2.5 retains its earlier declaration. |
+| Kimi Stop doctor checks | Included in 0.2.6; `doctor.py kimi --probe --json` reports optional Stop configuration/local execution in a separate `feedback` object. Version 0.2.5 lacks these checks. |
+| Kimi 2.3.0 Bash profile | Added in 0.2.6 after prompt-CLI and ACP root-Bash trials. Version 0.2.5 keeps its earlier list; the separate Kimi Lab helper stays pinned to 2.1.1. |
+| DSH Lab preflight diagnostics | Included in 0.2.6; 0.2.5 retains the older generic error messages. This concerns the Lab controller's version/config checks, not the production deletion policy. |
+| DSH alpha.4 default deletion adapter | Added in 0.2.6. Exact loader declarations include `0.2.1-alpha.4`; optional native read and Lab keep their two-version scope. Version 0.2.5 retains its earlier declaration. |
 
 Use the [installation guide](../guides/getting-started.md) to keep the chosen
 checkout or local-package path consistent. Start a new Kimi session after
@@ -75,6 +74,11 @@ CLI failure still exits 1. See the [Lab runner guide](../../adapters/dsh/harness
 
 ## Validation and remaining uncertainty
 
+The [0.2.6 release notes](release-notes-0.2.6.md#validation-and-limits) record
+the implementation checkpoint's 13/13 CI result, including ten complete
+Python matrix jobs and both Node groups. The dated local checkpoints below
+remain historical records and do not replace that final implementation check.
+
 The later [DSH compatibility work](../design/dsh-compatibility.md) adds alpha.4
 to default deletion support. Real CLI Profile/Boot checks covered all three
 admitted hosts, with scripted root/child-agent, policy-forwarding and approval
@@ -88,7 +92,7 @@ no failures, errors or skips, in 1270.573 seconds with the original
 1800-second deadline and no retry. It used an internal unittest result
 collector for immediate failure/event logs, with the same discovery scope
 and sequential Node stages as `npm test`. The 195 public files stayed frozen.
-This preparation aligns only version metadata, the exact-version assertion
+That preparation aligned only version metadata, the exact-version assertion
 and documentation; it does not reclassify the older failures below as passes.
 
 The earlier DSH diagnostics checkpoint passed one complete `npm test` on 2026-10-21:
@@ -124,13 +128,13 @@ diagnostic checks made no external model requests.
 
 ## 中文摘要
 
-本页记录 0.2.6 本地准备中的维护：Kimi 可选 Stop 恢复反馈、120 秒外层超时接入说明，以及
+本页记录已纳入 0.2.6 的维护：Kimi 可选 Stop 恢复反馈、120 秒外层超时接入说明，以及
 DSH Lab 版本／配置预检的原因、退出码和计时诊断，及 Kimi Stop 的独立 doctor 检查。
 后续默认删除适配加入 DSH `0.2.1-alpha.4`，读取脱敏／Lab 不随之扩大。
 Kimi Bash profile 新增精确版本 2.3.0；CLI／ACP 各八项固定响应试次提供有限根代理证据，
 未调用外部模型，也未扩大 Kimi Lab 的 2.1.1 准入或子代理声明。
 Stop 未配置不报错；配置或本地探针失败退出 1，模型送达始终未验证。已发布 0.2.5 的范围保持原记录；
-使用新功能前应确认所选 checkout／本地包确实包含对应文件；尚未发布，tag 待定。
+已有安装需升级至 0.2.6，Stop 另需显式配置；原页面路径为已有链接保留。
 
 版本／文档对齐前，最终实现检查点的 974 项 Python 与两组 Node 已在同一冻结流程通过；
 此前 962 项检查点和历史失败分别保留，原失败原因仍未确定。

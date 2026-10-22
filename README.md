@@ -101,21 +101,21 @@ native bridges and optional capture helpers have their own requirements.
 
 | Version | Status |
 |---|---|
-| [0.2.6](docs/releases/release-notes-0.2.6.md) | Local maintenance preparation; unpublished; tag decision pending |
-| [0.2.5](docs/releases/release-notes-0.2.5.md) | Stable release; npm `latest`; release links below |
-| [0.2.4](docs/releases/release-notes-0.2.4.md) | Previous stable release |
+| [0.2.6](docs/releases/release-notes-0.2.6.md) | Stable release; npm `latest`; release links below |
+| [0.2.5](docs/releases/release-notes-0.2.5.md) | Previous stable release |
+| [0.2.4](docs/releases/release-notes-0.2.4.md) | Earlier stable release |
 | [0.2.4-hotfix.1](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.4-hotfix.1) | Opt-in quarantine protection backport; npm `hotfix` |
 | [0.2.5-rc3](docs/releases/release-notes-0.2.5-rc3.md) | Published prerelease, including RC1/RC2 maintenance; npm `rc` |
 
 Publication is established by the exact
-[GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.5)
-and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.5).
+[GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.6)
+and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.6).
 A checkout or manifest alone does not establish package availability.
 
 For the stable release, use a chosen, stable user-owned prefix:
 
 ```sh
-npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.5
+npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.6
 ```
 
 The package root is
@@ -134,17 +134,13 @@ identify that package. For only the stable-line quarantine protection fix,
 select `@mokuyoaxis/agent-guard@0.2.4-hotfix.1` explicitly. Neither channel
 replaces stable `latest`.
 
-Version 0.2.5 combines RC1–RC3 with clearer startup, command and storage
-feedback. A reviewed local checkout or supplied tarball is also usable. See
-[release notes](docs/releases/release-notes-0.2.5.md) and
-[setup and the agent setup prompt](docs/guides/getting-started.md).
-
-[0.2.6 preparation](docs/releases/release-notes-0.2.6.md) adds optional Kimi
-Stop recovery feedback, separate Stop doctor checks, DSH Lab preflight
-diagnostics and default deletion support for DSH `0.2.1-alpha.4`.
-It is not published; the tag decision is pending. Use a reviewed
-checkout or local package containing those files. Published 0.2.5 retains its
-recorded scope. See [unreleased maintenance](docs/releases/unreleased.md).
+Version [0.2.6](docs/releases/release-notes-0.2.6.md) builds on 0.2.5 with
+optional Kimi Stop recovery feedback, separate Stop doctor checks, DSH Lab
+preflight diagnostics, DSH `0.2.1-alpha.4` default deletion support and the
+Kimi `2.3.0` Bash profile. Existing installations need an upgrade to acquire
+these additions; Stop also needs explicit configuration. See
+[setup and the agent setup prompt](docs/guides/getting-started.md) and the
+[maintenance details](docs/releases/unreleased.md).
 
 ## Recover a supported deletion
 
@@ -236,8 +232,8 @@ tool paths. Other combinations need their own checks.
 | Host | Integration and evidence |
 |---|---|
 | Claude Code | Retained reference; new version validation paused. Native Bash `PreToolUse`; sampled 2.1.270/2.1.273 scripted-host enforcement. [Setup](adapters/claude/README.md) |
-| Kimi Code | Native Bash `PreToolUse`; bounded 0.42.0 root/child and 2.1.1 root-Bash observations. This unpublished checkout adds 2.3.0 prompt/ACP root-Bash evidence with fixed responses. ASK is denied; missing/timed-out hooks remain uncovered. [Setup](adapters/kimi-code/README.md) |
-| DSH | Default deletion paths on 0.1.5-rc.1/0.2.0-rc.2; this unpublished checkout adds 0.2.1-alpha.4. Optional native read and Lab retain their two-version boundaries. [Compatibility](docs/design/dsh-compatibility.md) · [Setup](adapters/dsh/README.md) |
+| Kimi Code | Native Bash `PreToolUse`; bounded 0.42.0 root/child and 2.1.1 root-Bash observations. Version 0.2.6 adds 2.3.0 prompt/ACP root-Bash evidence with fixed responses. ASK is denied; missing/timed-out hooks remain uncovered. [Setup](adapters/kimi-code/README.md) |
+| DSH | Default deletion paths on 0.1.5-rc.1/0.2.0-rc.2/0.2.1-alpha.4. Optional native read and Lab retain their two-version boundaries. [Compatibility](docs/design/dsh-compatibility.md) · [Setup](adapters/dsh/README.md) |
 | Codex / other hosts | Use the official coding agent for version-specific local hook setup; verify blocking before claiming native interception. Without a blocking hook, explicit Skill/CLI remains cooperative. [Adaptation guide](adapters/INTEGRATION.md) |
 
 Use the [full capability and evidence matrix](docs/guides/harness-capabilities.md)

@@ -18,7 +18,7 @@ that reliability problem; it is not a sandbox or a live-interception proof.
 3. It fingerprints the local enforcement path (profile, bridge, adapter,
    shared guard entry point, and Core Python files).
 
-In the unpublished [0.2.6 preparation](../releases/release-notes-0.2.6.md), a
+In [0.2.6](../releases/release-notes-0.2.6.md), a
 configured optional Kimi Stop adds its normalized
 fields to the configuration fingerprint and `stop_feedback.py` to the runtime
 fingerprint. Adding, removing or changing it can therefore yield `DRIFTED`
@@ -100,7 +100,7 @@ Profiles live beside their adapters as `compatibility.json`. They describe
 only the host-facing version command and the narrow contract already covered
 by that adapter. Core policy remains shared and is not copied into profiles.
 
-The unpublished 0.2.6 Kimi profile lists exact versions `0.42.0`, `2.1.1` and
+The 0.2.6 Kimi profile lists exact versions `0.42.0`, `2.1.1` and
 `2.3.0`. The [2.3.0 prompt/ACP root-Bash evidence](../reports/test-report-kimi-code-block.md#kimi-230-acceptance)
 does not extend the separately pinned Lab helper, subagent coverage or real-model
 claims. A valid 2.3.0 setup can now be `CURRENT` without a baseline; live

@@ -305,19 +305,20 @@ order of value:
 
 ## Delivery status and design directions
 
-The stable release line is 0.2.5. Previous stable 0.2.4, opt-in
+The stable release line is 0.2.6. Previous stable 0.2.5, opt-in
 0.2.4-hotfix.1 and prerelease 0.2.5-rc3 retain their separate artifacts.
 Version 0.2.5 retains RC recovery, shared audit,
 observer maintenance and [defensive research](../research/README.md), plus
 clearer local startup/status and retained-storage feedback. Private research
 methods do not add a general authorization service or production enforcement
 point. Deletion rules and execution routes retain their RC behavior.
-See [release notes](../releases/release-notes-0.2.5.md) and
+See [release notes](../releases/release-notes-0.2.6.md) and
 [compatibility](compatibility.md) for behaviour and validation boundaries.
-The unpublished [0.2.6 preparation](../releases/release-notes-0.2.6.md) adds
+Release [0.2.6](../releases/release-notes-0.2.6.md) adds
 optional Kimi Stop feedback, its doctor checks and Lab preflight diagnostics.
-Core policy is unchanged. The tag decision is pending; scope and delivery
-limits are tracked in [unreleased maintenance](../releases/unreleased.md).
+It also adds reviewed DSH alpha.4 default deletion and Kimi 2.3.0 Bash compatibility.
+Core policy is unchanged; scope and delivery limits are tracked in the
+[maintenance details](../releases/unreleased.md).
 
 The milestones below describe historical delivery and future design scope,
 not a committed schedule or a guarantee that new compensation types need no

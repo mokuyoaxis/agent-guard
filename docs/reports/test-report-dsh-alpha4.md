@@ -1,7 +1,8 @@
 # DSH alpha.4 default deletion adapter
 
 Tested 2026-10-22 on ARM64/PRoot Debian with Node v22.23.2 and Python 3.13.5.
-The selected Agent Guard checkout identifies as 0.2.6 and is unpublished.
+At validation, the selected Agent Guard checkout identified as 0.2.6 and was
+unpublished. The tested additions now ship in [0.2.6](../releases/release-notes-0.2.6.md).
 This report adds default deletion evidence for DSH `0.2.1-alpha.4`; the
 [compatibility page](../design/dsh-compatibility.md) states the separate
 optional-read and Lab boundaries.
