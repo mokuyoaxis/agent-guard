@@ -34,7 +34,13 @@ bypass. Therefore:
 | 5 | Symlink confusion (delete link vs target, trailing slash dereference) | Lexical boundary analysis; link relocation preserves the link; realpath recorded | Low |
 | 6 | TOCTOU between classification and execution | Checks and moves are not atomic. Native hooks run Core before handing control back to host execution; there is no promised maximum gap | Concurrent changes can invalidate facts or affect later execution. Atomic isolation remains unimplemented |
 | 7 | Destructive restore | Relocation destinations and sources are checked against the workspace and their quarantine transaction. IDs and directory locations are validated; leaf symlinks retain their semantics. Human `--force` preserves an occupant through a separate relocation transaction before replacement; failed preservation stops that item | Checks and moves are not atomic against concurrent changes. Cross-filesystem failures may leave a partial destination or backup; inspect the filesystem and reported transaction IDs. Preserved versions add storage use and follow existing explicit GC |
-| 8 | Quarantine bloat turns `.agent-trash` into a liability (exfil via packaging, disk exhaustion) | Existing `.gitignore` or `.git/info/exclude`; `status.py` exposes size; 30-day/5-GiB soft eligibility with explicit audited purge | A human or scheduler must execute purge; audit is retained |
+| 8 | Quarantine bloat turns `.agent-trash` into a liability (exfil via packaging, disk exhaustion) | Existing `.gitignore` or `.git/info/exclude`; size/status and explicit GC. The unreleased checkout adds cross-process capacity admission, persistent session budgets, rate/repeat limits and confirmed large batches | Logical admission is not an OS quota. Audit, directory metadata and unrelated writers can still grow storage; failures/restores do not refund session charges; GC stays explicit. Same-UID configuration/state/session changes remain possible |
+| 9 | Agent deletes configured evidence or resets its own deletion budget | Unreleased shared protection covers configured paths and ancestors before artifact/housekeeping exemptions; configuration and admission control files are protected. CLI budget reset requires terminal acknowledgement | Portable protection and TTY are not independent authority against same-UID processes; no authenticated human guarantee |
+
+The unreleased admission rules are described in the
+[deletion limits guide](../guides/deletion-limits.md), including measured
+three-run, package and real Kimi validation and its platform/tool limits.
+The published 0.2.6 baseline has only the existing soft retention/GC mechanism.
 
 ## guard-lab diagnostic boundary
 

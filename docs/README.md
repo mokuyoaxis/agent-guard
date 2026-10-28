@@ -45,6 +45,7 @@ ALLOW_NOOP 覆盖边界及准确 GC 用法；纳入 0.2.5。
 | [Getting started](guides/getting-started.md) | 安装路径、Agent 接入提示词与最短验证流程 |
 | [Status and cleanup feedback](guides/recovery-feedback.md) | Python／插件状态、ALLOW_NOOP、保留空间与手动 GC |
 | [Cleanup Copilot](guides/cleanup-plan.md) | 未发布源码功能：零写入计划、四类候选、大小与显式确认执行 |
+| [Deletion limits](guides/deletion-limits.md) | 未发布源码加固：隔离容量、会话预算、频率、保护路径与批量确认 |
 | [Harness capabilities](guides/harness-capabilities.md) | 当前接入范围、证据等级与未验证路径 |
 | [Host drift](guides/host-drift.md) | 宿主版本、配置与本地基线检查 |
 | [Trash locations](guides/trash-index.md) | 0.2.4 的只读位置查询、Agent／前端共享 JSON 契约 |

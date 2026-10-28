@@ -3,6 +3,7 @@
 
     status.py [--json] [--tail N]
     status.py --trash-index [--root PATH ...] [--trash PATH ...] [--json]
+    status.py --reset-delete-budget [--json]
 """
 from __future__ import annotations
 
@@ -15,7 +16,7 @@ import sys
 import _bootstrap  # noqa: F401
 
 from core import AUDIT_NAME, TRASH_DIRNAME
-from core import audit, classifier, policy, recovery
+from core import admission, audit, classifier, policy, recovery
 from core.messages import (
     HOST_STATUS_NOTICE, QUARANTINE_NOTICE, gc_guidance, print_gc_guidance)
 
@@ -24,6 +25,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--json", action="store_true", dest="as_json")
     ap.add_argument("--tail", type=int, default=10)
+    ap.add_argument("--reset-delete-budget", action="store_true",
+                    help="interactively reset this session's deletion budget; preserves recovery copies")
     ap.add_argument("--trash-index", action="store_true",
                     help="read-only quarantine locations for agents and future UI")
     ap.add_argument("--root", action="append", default=[],
@@ -35,6 +38,13 @@ def main() -> int:
     ap.add_argument("--max-entries", type=int, default=None,
                     help="index directory-entry budget (default 10000)")
     args = ap.parse_args()
+
+    if args.reset_delete_budget and args.trash_index:
+        ap.error("--reset-delete-budget cannot be combined with --trash-index")
+    if args.reset_delete_budget and not (sys.stdin.isatty() and sys.stderr.isatty()):
+        print("Deletion-budget reset requires interactive stdin and stderr; no state changed.",
+              file=sys.stderr)
+        return 2
 
     base = os.getcwd()
     if args.trash_index:
@@ -82,6 +92,8 @@ def main() -> int:
     trash_root = os.environ.get(
         "AGENT_GUARD_TRASH", os.path.join(workspace, TRASH_DIRNAME))
     engine = recovery.RecoveryEngine(workspace, trash_root)
+    if args.reset_delete_budget and not reset_delete_budget(workspace, trash_root, engine):
+        return 2
     state = policy.load_mode(trash_root)
     # Project display-only identity/time metadata, never authorization state.
     mode_metadata = audit.project({"ts": state["since"], "session": state["set_by"]})
@@ -104,6 +116,7 @@ def main() -> int:
         "mode_set_by": mode_metadata.get("session"),
         "trash_root": trash_root,
         "usage": usage,
+        "delete_admission": deletion_admission(workspace, trash_root),
         "retention": {
             "soft_days": plan["retention_days"],
             "soft_limit_bytes": plan["size_limit_bytes"],
@@ -133,6 +146,19 @@ def main() -> int:
           f"{usage['transactions']} transactions "
           f"({usage['restorable_transactions']} restorable)")
     print(f"snapshots : {stash_count} agent-guard stashes")
+    deletion = info["delete_admission"]
+    if deletion.get("status") == "BLOCKED":
+        print(f"deletion  : BLOCKED [{deletion['code']}] {deletion['reason']}")
+    else:
+        limits = deletion["limits"]
+        print(f"deletion  : admitted {deletion['used_bytes']}/{limits['session_max_bytes']} bytes, "
+              f"{deletion['used_entries']}/{limits['session_max_entries']} entries")
+        print(f"window    : {deletion['window_operations']}/{limits['rate_max_operations']} operations "
+              f"in {limits['rate_window_seconds']}s; "
+              f"same-target limit {limits['repeat_max_operations']}")
+        print(f"capacity  : admission limits {limits['quarantine_max_bytes']} bytes / "
+              f"{limits['quarantine_max_entries']} entries")
+        print(deletion["accounting"])
     ret = info["retention"]
     print(f"retention : soft {ret['soft_days']}d / "
           f"{ret['soft_limit_bytes'] // (1024**3)}GiB; "
@@ -149,6 +175,56 @@ def main() -> int:
               f" {record.get('code','')} {record.get('targets', record.get('txid',''))}"
               .rstrip())
     return 0
+
+
+def deletion_admission(workspace, trash_root):
+    """Expose unusable admission state without hiding recovery/GC guidance."""
+    try:
+        return admission.describe(workspace, trash_root)
+    except admission.AdmissionDenied as exc:
+        return {"status": "BLOCKED", "code": exc.code, "reason": exc.reason}
+
+
+def reset_delete_budget(workspace, trash_root, engine):
+    """Explicit operator reset; durable intent precedes the state mutation."""
+    if not (sys.stdin.isatty() and sys.stderr.isatty()):
+        print("Deletion-budget reset requires interactive stdin and stderr; no state changed.",
+              file=sys.stderr)
+        return False
+    current = deletion_admission(workspace, trash_root)
+    if current.get("status") == "BLOCKED":
+        print(f"[{current['code']}] {current['reason']}; no budget reset.", file=sys.stderr)
+        return False
+    print("Reset this session's admitted deletion bytes, entries and rate window.\n"
+          "Quarantine capacity, recovery files and recovery records are retained.\n"
+          f"Current admitted work: {current['used_bytes']} bytes / {current['used_entries']} entries.\n"
+          "Type RESET to continue: ", end="", file=sys.stderr, flush=True)
+    if sys.stdin.readline().rstrip("\r\n") != "RESET":
+        print("Cancelled; no state changed.", file=sys.stderr)
+        return False
+    audit_path = os.path.join(trash_root, AUDIT_NAME)
+    check_id = audit.new_txid()
+    try:
+        engine.ensure_layout()
+        audit.append({"event": "delete-budget-reset", "phase": "intent", "check_id": check_id},
+                     audit_path)
+    except OSError:
+        print("Budget reset blocked: its audit intent could not be persisted.", file=sys.stderr)
+        return False
+    try:
+        admission.reset_session(workspace, trash_root)
+    except admission.AdmissionDenied as exc:
+        print(f"[{exc.code}] {exc.reason}; budget reset did not complete.", file=sys.stderr)
+        return False
+    try:
+        audit.append({"event": "delete-budget-reset", "phase": "complete", "check_id": check_id},
+                     audit_path)
+    except OSError:
+        print("Session budget was reset, but its completion audit could not be persisted; inspect the intent.",
+              file=sys.stderr)
+        return False
+    print("Session deletion budget reset; recovery data retained.", file=sys.stderr)
+    return True
 
 
 def audit_tail(trash_root, n):

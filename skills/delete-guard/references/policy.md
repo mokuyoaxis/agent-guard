@@ -108,6 +108,8 @@ the published 0.2.4 artifact retains its original housekeeping order.
 | 2b | SHAPE F2: file-creation op (`touch/mkdir/cp/mv/install/ln/tee`, `>`/`>>`) precedes a target-dependent destructive op in the same line | `ASK` (`COMPOUND_CREATE_DELETE`) | single-execution authorization; force-push is refused separately. Hard reset in a compound line is effect-uncertain and BLOCKED before shape rules |
 | 2c | target *is* a filesystem root (`/`, `/home`, `/usr`, `/etc`, `/var`, `/tmp`, `/opt`, `/boot`, `$HOME`, ...) | `BLOCK_PROTECTED_ANCESTOR` | refuse. Matched exactly, so paths *under* these roots keep the ordinary codes; enforced by identity rather than workspace geometry, so it holds even when the workspace is `/` |
 | 5 | workspace root, `.git` metadata, quarantine root/control paths, or an in-workspace parent containing configured storage | `BLOCK_PROTECTED_PATH` | refuse before the housekeeping exemption; root manifest/audit/state, state temp and sessions are control paths |
+| 5a | unreleased: deletion configuration malformed/unreadable | `BLOCK_DELETE_CONFIG_INVALID` | refuse new deletion before artifact/housekeeping exemptions |
+| 5b | unreleased: `.agent-guard` or configured protection, including ancestor coverage | `BLOCK_DELETE_PROTECTED` | refuse; lexical and physical locations are protected |
 | 3 | explicit ordinary unprotected payload inside quarantine (`.agent-trash/`) | `ALLOW_TRASH_GC` | opaque globs BLOCK_WILDCARD; safe_delete may enumerate first, and an audited transaction purge uses gc.py --execute |
 | 4 | target outside workspace | `BLOCK_OUT_OF_WORKSPACE` | refuse |
 | 6 | any glob target | `BLOCK_WILDCARD` | refuse; use safe_delete which enumerates |
@@ -127,6 +129,45 @@ the published 0.2.4 artifact retains its original housekeeping order.
 
 Precedence inside rule groups: `outside-workspace` > `workspace-root` >
 `git-metadata`. RESTRICTED narrows before NORMAL relaxes.
+
+### Unreleased execution admission
+
+The static rule table is followed by shared execution admission on covered
+deletion paths. Missing `.agent-guard/delete-policy.json` uses defaults;
+configuration is not automatically written. Session identity is advisory;
+unnamed subprocesses share one stable bucket. `admission.json`, its temporary
+file and `admission.lock` are protected quarantine controls.
+
+| Code | Meaning and operator action |
+|---|---|
+| `BLOCK_DELETE_LIMIT` | Quarantine projection, cumulative session bytes/entries or bounded state inventory is full; inspect status and recovery copies. No automatic purge or permanent-delete fallback |
+| `BLOCK_DELETE_RATE` | Rolling-window operation limit reached; wait for the window after inspecting the caller |
+| `BLOCK_DELETE_REPEAT` | Same normalized target set repeatedly admitted within the window; investigate a delete/recreate loop |
+| `BLOCK_DELETE_BATCH_CONFIRM` | Batch exceeds the threshold or its approval is stale/consumed; review and confirm Cleanup instead of host ASK |
+| `BLOCK_DELETE_STATE_INVALID` | State, cross-process lock, inventory or persistence cannot be used safely; stop and diagnose |
+
+Admission charges before mutation under a shared process lock. Failures and
+restores do not refund session bytes/entries; short-window events expire.
+Force-restore occupant preservation requires admission; normal restore and
+explicit transaction GC remain available without a fresh deletion debit.
+Existing unprotected quarantine payload housekeeping also bypasses session,
+rate and batch debits; configuration/control-path protection still applies.
+Compound ASK returns before automated admission; Git SNAPSHOT uses separate
+Git storage. Neither path is newly budgeted by this addition.
+Hook admission cannot prove the later host-side deletion succeeded.
+
+The defaults are 5 GiB/100000 quarantine entries, 1 GiB/10000 admitted session
+entries, 60 operations per 60 seconds, 5 repetitions of a target set, and
+batch review above 256 MiB or 1000 entries. Byte accounting includes directory
+metadata and conservatively counts hardlinks per entry, not physical blocks.
+Cleanup confirmation grants ten-minute, session/config/path/metadata-bound
+approval consumed once per path; all other limits still apply. Interactive
+`status.py --reset-delete-budget` plus `RESET` resets only the current bucket
+and its approvals, not capacity. See the complete
+[configuration and accounting guide](../../../docs/guides/deletion-limits.md).
+These additions are absent from published 0.2.6. The guide records three
+1090-case Python/two-Node-group passes, the offline package and real Kimi
+scenarios, with their local platform and host/tool limits.
 
 ## Verdict actions
 
@@ -162,13 +203,21 @@ Default artifact patterns: `node_modules dist build out target __pycache__
 .cache coverage .next .nuxt .venv venv .pytest_cache .mypy_cache .tox
 .turbo .parcel-cache *.pyc *.pyo *.egg-info`
 
+The unreleased deletion configuration is the separate optional
+`.agent-guard/delete-policy.json`; see [deletion limits](../../../docs/guides/deletion-limits.md).
+`AGENT_GUARD_SESSION` also selects its persistent admission budget. Internal
+Cleanup approval handoff is operation-bound, not a general configuration or
+authority bypass.
+
 ## Files
 
 ```
 .agent-trash/
 ├── state.json        # authorization mode (portable fallback)
 ├── manifest.jsonl    # tx-start / relocate-intent / relocate / snapshot / restore
-└── audit.jsonl       # decisions, compensation intents, and outcomes
+├── audit.jsonl       # decisions, compensation intents, and outcomes
+├── admission.json   # unreleased: session admission counters and approvals
+└── admission.lock   # unreleased: cross-process admission lock
 ```
 
 The guard accepts an existing `.gitignore` rule or writes a workspace-local

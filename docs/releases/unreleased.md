@@ -1,5 +1,44 @@
 # Unreleased changes and 0.2.6 maintenance history
 
+## Deletion admission hardening (unreleased)
+
+The current checkout adds quarantine capacity admission, persistent session
+byte/entry budgets, short-window rate and repeated-target-set limits, and
+shared protected paths in optional `.agent-guard/delete-policy.json`.
+Cross-process locking covers measurement, durable admission debit and the
+guarded mutation. Failures and restores do not refund session budget; unnamed
+CLI processes share a default bucket. Configuration/state failures block new
+admission instead of silently disabling limits.
+
+Large batches require Cleanup's existing terminal review, followed by a
+ten-minute approval bound to paths, metadata, configuration and session and
+consumed once per selected path. Covered automated large-delete checks BLOCK with
+Cleanup guidance; no new host approval/resume protocol is added. Approval
+does not bypass capacity, budgets or protection. Status adds explicit
+terminal-confirmed reset of the current budget only.
+Existing compound-command ASK and Git snapshots remain outside the new
+budget; normal restore, explicit GC and unprotected quarantine housekeeping
+remain exempt. Configuration/control-path protection still applies.
+
+Accounting uses logical `lstat` sizes including directory metadata and
+conservative per-entry hardlink counts, not physical disk quotas. Audits,
+metadata and unrelated writers can still grow storage. GC remains explicit;
+capacity refusal never downgrades to permanent deletion. See
+[defaults, reason codes and recovery](../guides/deletion-limits.md).
+
+The 2026-10-28 frozen public runtime passed three independent full runs,
+each with 1090 Python cases and both Node groups: 1061.017, 1025.315 and
+1042.145 seconds, with no failures, errors, skips, timeouts or automatic retries.
+The existing diagnostic collector retained `npm test` scope/deadlines without
+invoking npm itself. An offline 149-file package and three real Kimi 2.3.0
+root-Bash cases passed; nine configured-route model requests returned HTTP 200.
+See the guide for POSIX-only validation, gateway identity and host/tool limits.
+The earlier unexplained npm timeout did not recur; its history is retained.
+The Cleanup-only results below predate these changes. Version metadata
+remains 0.2.6 without claiming these
+changes shipped in that release; no new release version is selected, and
+the separate 0.3.0 plan remains paused.
+
 ## Cleanup Copilot (unreleased)
 
 The current checkout adds a metadata-only cleanup plan and an explicitly
@@ -9,9 +48,10 @@ projected deletion/quarantine effects. Execution still uses safe_delete;
 ordinary quarantined files retain disk usage. The default plan writes no
 workspace or guard metadata. See [usage and limits](../guides/cleanup-plan.md).
 
-This addition is separate from published 0.2.6. No feature release version
-has been selected, and no native host tool or new deletion policy is added.
-The unchanged runtime passed a continuous local ARM64/PRoot POSIX rerun:
+This initial addition is separate from published 0.2.6. No feature release
+version has been selected, and it added no native host tool or deletion-policy
+change. Subsequent admission hardening is described above. At the Cleanup-only
+checkpoint, the runtime passed a continuous local ARM64/PRoot POSIX rerun:
 1012 Python cases and both Node groups in 979.997 seconds, with no failures,
 errors, skips or retries. This used the existing diagnostic result collector
 with the same test scope and deadlines as `npm test`. The earlier literal

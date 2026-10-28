@@ -24,7 +24,7 @@ import sys
 import _bootstrap  # noqa: F401
 
 from core import AUDIT_NAME, TRASH_DIRNAME, audit
-from core import classifier, policy, recovery
+from core import admission, classifier, policy, recovery
 from core.messages import QUARANTINE_NOTICE, gc_guidance, print_gc_guidance
 
 
@@ -89,6 +89,16 @@ def print_result(result, as_json):
     if "storage_notice" in result:
         print(result["storage_notice"])
         print_gc_guidance(result["gc"])
+
+
+def admission_refused(exc, result, record, specs, as_json):
+    result["verdict"] = {"decision": "BLOCK", "code": exc.code,
+                         "explanation": policy.EXPLANATIONS[exc.code],
+                         "reasons": [exc.reason]}
+    result["outcome"], result["exit"] = "BLOCKED: " + exc.reason, 2
+    record(safe_delete_audit_event("decision", "BLOCK", exc.code, len(specs)))
+    print_result(result, as_json)
+    return 2
 
 
 def main() -> int:
@@ -216,7 +226,12 @@ def main() -> int:
     elif args.dry_run:
         result["outcome"] = f"would {verdict.decision.lower()} ({verdict.code})"
     elif verdict.code == policy.CODE_ALLOW_REGENERABLE:
-        deleted = [delete_directly(s) for s in specs]
+        try:
+            with admission.admit(workspace, trash_root, [s.resolved for s in specs],
+                                 quarantine=False):
+                deleted = [delete_directly(s) for s in specs]
+        except admission.AdmissionDenied as exc:
+            return admission_refused(exc, result, record, specs, args.as_json)
         result["outcome"] = "deleted directly (provably regenerable)"
         result["deleted"] = deleted
     elif verdict.code == policy.CODE_ALLOW_TRASH_GC:
@@ -224,8 +239,11 @@ def main() -> int:
         result["outcome"] = "deleted directly (quarantine housekeeping)"
         result["deleted"] = deleted
     else:  # RELOCATE_*
-        report = engine.relocate(specs, meta={
-            "tool": "safe_delete", "code": verdict.code})
+        try:
+            report = engine.relocate(specs, meta={
+                "tool": "safe_delete", "code": verdict.code})
+        except admission.AdmissionDenied as exc:
+            return admission_refused(exc, result, record, specs, args.as_json)
         relocation_report = report
         result["txid"] = report["txid"]
         result["moved"] = report["moved"]

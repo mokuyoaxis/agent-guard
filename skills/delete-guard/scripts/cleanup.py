@@ -20,7 +20,7 @@ import subprocess
 
 import _bootstrap  # noqa: F401
 
-from core import classifier
+from core import classifier, recovery
 from core.cleanup import DEFAULT_MAX_DEPTH, DEFAULT_MAX_ENTRIES, plan_cleanup, select_entries
 from core.messages import print_gc_guidance
 
@@ -66,6 +66,11 @@ def execute_selection(plan, selected, *, runner=None):
     reports = []
     env = dict(os.environ, AGENT_GUARD_WORKSPACE=plan["workspace"],
                AGENT_GUARD_TRASH=plan["trash_root"], PYTHONDONTWRITEBYTECODE="1")
+    from core.admission import approve_cleanup
+    recovery.RecoveryEngine(plan["workspace"], plan["trash_root"]).ensure_layout()
+    env["AGENT_GUARD_CLEANUP_APPROVAL"] = approve_cleanup(
+        plan["workspace"], plan["trash_root"],
+        [os.path.join(plan["workspace"], entry["path"]) for entry in selected], plan["plan_id"])
     script = str(Path(__file__).resolve().with_name("safe_delete.py"))
     for entry in selected:
         # One explicit target per invocation preserves the per-row policy

@@ -30,7 +30,7 @@ import time
 import _bootstrap  # noqa: F401
 
 from core import AUDIT_NAME, TRASH_DIRNAME
-from core import audit, classifier, dialects, policy, recovery
+from core import admission, audit, classifier, dialects, policy, recovery
 from core.messages import QUARANTINE_NOTICE, gc_guidance, print_gc_guidance
 
 
@@ -267,8 +267,32 @@ def main() -> int:
             record({"event": "enforce-intent", "code": top.code,
                     "command": _REDACTED_COMMAND,
                     "guard_latency_ms": latency_ms}, required=True)
-        for spec, verdict in zip(specs, verdicts):
-            if spec.kind == classifier.KIND_FS_DELETE and \
+        enumerated_clean = {}
+        batch_paths = []
+        for index, (spec, verdict) in enumerate(zip(specs, verdicts)):
+            if verdict.code == policy.CODE_RELOCATE_VIA_CLEAN_ENUMERATE:
+                paths, err = engine.enumerate_git_clean(
+                    base, getattr(spec, "extra_flags", []), getattr(spec, "targets", []))
+                if err:
+                    raise EnumerationUnavailable("git clean enumeration failed")
+                enumerated_clean[index] = paths
+                batch_paths.extend(target.resolved for target in classifier.classify_paths(
+                    paths, base, workspace, trash_root) if target.resolved)
+            elif verdict.code in (policy.CODE_ALLOW_REGENERABLE, policy.CODE_RELOCATE_PATHS,
+                                  policy.CODE_RELOCATE_TREE, policy.CODE_RELOCATE_NARROW):
+                batch_paths.extend(target.resolved for target in classifier.classify_paths(
+                    spec.targets, base, workspace, trash_root) if target.resolved)
+        if batch_paths:
+            admission.check_batch(workspace, batch_paths)
+        for index, (spec, verdict) in enumerate(zip(specs, verdicts)):
+            if verdict.code == policy.CODE_ALLOW_REGENERABLE:
+                targets = classifier.classify_paths(spec.targets, base, workspace, trash_root)
+                # The host performs the physical deletion later. Charge the
+                # authorization here; no success or atomic execution claim.
+                with admission.admit(workspace, trash_root,
+                                     [target.resolved for target in targets], quarantine=False):
+                    pass
+            elif spec.kind == classifier.KIND_FS_DELETE and \
                     verdict.decision == policy.DECISION_RELOCATE:
                 target_specs = classifier.classify_paths(
                     spec.targets, base, workspace, trash_root)
@@ -294,12 +318,7 @@ def main() -> int:
                     raise RuntimeError(
                         "relocation did not cover every requested target")
             elif verdict.code == policy.CODE_RELOCATE_VIA_CLEAN_ENUMERATE:
-                flags = getattr(spec, "extra_flags", [])
-                paths, err = engine.enumerate_git_clean(
-                    base, flags, getattr(spec, "targets", []))
-                if err:
-                    raise EnumerationUnavailable(
-                        f"git clean enumeration failed: {err}")
+                paths = enumerated_clean[index]
                 target_specs = classifier.classify_paths(
                     paths, base, workspace, trash_root)
                 txid = audit.new_txid()
@@ -339,6 +358,17 @@ def main() -> int:
                         (snap.get("error") or "unknown snapshot failure"))
                 compensation.update({"status": "complete",
                                      "sha": snap["sha"]})
+    except admission.AdmissionDenied as exc:
+        out["decision"], out["code"] = "BLOCK", exc.code
+        out["explanation"], out["reasons"] = policy.EXPLANATIONS[exc.code], [exc.reason]
+        # Refusal happened before the rejected transaction's first move.
+        # Earlier completed compensations, if any, remain recoverable.
+        completed = [item for item in compensations if item.get("status") != "started"]
+        if completed:
+            out["compensations"] = completed
+        record({"event": "enforce-block", "code": exc.code,
+                "command": _REDACTED_COMMAND})
+        return finish(2)
     except DurableAuditUnavailable:
         return block_for_audit("durable execution audit intent unavailable",
                                compensations)

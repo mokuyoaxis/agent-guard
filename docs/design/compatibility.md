@@ -20,15 +20,52 @@ is introduced by the research documentation.
 
 ## The adapter contract (frozen surface)
 
+### Deletion admission limits (unreleased checkout addition)
+
+The current checkout adds shared deletion configuration, persistent
+per-session admission budgets, rate/repeat limits and quarantine capacity
+checks. `.agent-guard/delete-policy.json` is optional; invalid configuration
+or state fails closed. Configuration paths and the new quarantine
+`admission.json`, temporary state and `admission.lock` are protected. Existing
+recovery manifests and transaction strategies are retained without migration.
+
+New reason codes are `BLOCK_DELETE_CONFIG_INVALID`, `BLOCK_DELETE_PROTECTED`,
+`BLOCK_DELETE_LIMIT`, `BLOCK_DELETE_RATE`, `BLOCK_DELETE_REPEAT`,
+`BLOCK_DELETE_BATCH_CONFIRM` and `BLOCK_DELETE_STATE_INVALID`. Decision classes
+and `check.py` exit codes retain their contracts. Limits are applied at
+execution admission; an earlier advisory assessment is not a capacity grant.
+Covered automatic compensation/artifact paths can newly BLOCK when a
+configured limit is reached. Under
+the versioning promises below, these are minor safety changes, not additions
+claimed for published 0.2.6; no feature release version is selected and 0.3.0
+remains paused.
+
+Cleanup retains plan schema version 1 and terminal-confirmed execution, then
+issues metadata/session/configuration-bound, ten-minute approval for each
+selected path once. Covered automatic large-delete checks BLOCK with Cleanup guidance;
+there is no new host ASK/resume protocol. `status.py --reset-delete-budget`
+adds explicit interactive reset of the current bucket, not capacity or GC.
+Existing compound-command ASK and Git SNAPSHOT paths remain outside the new
+budget. Normal restore, explicit GC and unprotected quarantine payload
+housekeeping remain exempt; configuration/control-path protection still applies.
+Same-UID state remains advisory; accounting is logical admitted work, not an
+OS quota. New Core bytes change doctor fingerprints. The 2026-10-28 public
+runtime passed three independent 1090-case Python plus two-Node-group runs,
+an offline 149-file package check and three real Kimi 2.3.0 root-Bash scenarios.
+These local POSIX results do not establish new platform or tool coverage;
+previous Cleanup and release evidence keeps its original scope. See
+[defaults, accounting and recovery](../guides/deletion-limits.md).
+
 ### Cleanup Copilot (unreleased checkout addition)
 
 The checkout adds `core.cleanup` and `agent-guard-cleanup` with read-only
 planning, categorized candidates and explicit terminal-confirmed selection.
 Execution delegates to the existing safe_delete CLI one concrete target at a
 time. Plan JSON has its own `schema_version: 1`; it is not a new Decision
-Protocol surface. Existing command parsing, verdicts, recovery formats, GC
-and native adapter tools retain their contracts. No production dependency
-or configuration migration is introduced. This feature is absent from the
+Protocol surface. The initial Cleanup-only checkpoint retained existing
+deletion policy; the subsequent admission changes are described above.
+Recovery formats, explicit GC and native adapter tools retain their contracts.
+No production dependency or configuration migration is introduced. This feature is absent from the
 published 0.2.6 package; its release version remains undecided.
 
 The new Core module and package metadata change doctor runtime fingerprints.

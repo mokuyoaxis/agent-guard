@@ -3,7 +3,8 @@
 This is an **unreleased checkout addition**, separate from the published
 0.2.6 package. Run the Python script from this checkout; a local package
 built from these sources also exposes `agent-guard-cleanup`. No release
-version has been selected for this feature.
+version has been selected for this feature. The subsequent unreleased
+[deletion admission rules](deletion-limits.md) also apply when executing it.
 
 Cleanup Copilot scans workspace metadata and proposes concrete cleanup
 targets. The default command writes no files, audit records, quarantine
@@ -23,7 +24,7 @@ python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/cleanup.py --j
 `--root /absolute/path/to/workspace` explicitly chooses the workspace
 boundary. Otherwise the command uses the existing workspace discovery and
 `AGENT_GUARD_WORKSPACE` setting. Existing trash, session mode and artifact
-settings are respected. Git supplies ignore/tracking facts; without usable
+settings and shared deletion configuration are respected. Git supplies ignore/tracking facts; without usable
 Git facts no target is proposed as regenerable.
 
 | Category | Evidence | Default handling |
@@ -41,7 +42,9 @@ python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/cleanup.py \
   --discard old-output --protect backups --protect evidence
 ```
 
-These flags are invocation options, not persisted cleanup rules. Discard
+These flags are invocation options, not persisted cleanup rules. Shared
+`.agent-guard/delete-policy.json` protection is also applied, and its directory
+is always protected. Discard
 declarations must exist and stay within the workspace; the workspace root
 cannot be declared discarded. Protection overrides discard declarations and
 artifact names. Protected descendants prevent selection of their ancestor;
@@ -84,11 +87,22 @@ native host tool or host approval integration is supplied.
 
 After confirmation, the command rescans and checks the plan again before
 the first mutation. The ID covers workspace, options, metadata/membership,
-policy projections, mode and artifact settings. Changed plans require fresh
-review. It is not a content hash or an atomic filesystem snapshot; concurrent
+policy projections, mode, artifact settings and deletion configuration.
+Changed plans require fresh review. It is not a content hash or an atomic filesystem snapshot; concurrent
 changes during execution retain the existing Core's TOCTOU limits. Terminal
 acknowledgement is a workflow check, not proof of human identity against a
 same-UID process. See the [threat model](../design/threat-model.md).
+
+The subsequent deletion hardening creates a ten-minute approval only after
+this confirmation and rescan. It binds exact selected paths and their measured
+metadata to the current session and deletion configuration; each path is
+consumed once before execution. Changed, expired or replayed approval fails.
+Approval satisfies the batch-review gate but does not bypass capacity,
+session budget, rate/repeat rules or protected paths. Ordinary large deletes
+through `check --enforce` or `safe_delete` BLOCK with Cleanup guidance rather
+than entering a new host ASK flow. This gate covers automated deletion paths;
+existing compound ASK, Git snapshots and quarantine housekeeping retain their
+separate rules. See [deletion limits](deletion-limits.md).
 
 Execution invokes existing `safe_delete` once per concrete target:
 
@@ -115,6 +129,11 @@ and directory links are not traversed. Protected subtree sizes are unknown.
 Hardlinks shared across categories may appear in both category totals.
 These values do not predict freed blocks, sparse-file allocation or storage
 released by quarantine. Errors retain partial observations.
+
+Execution admission measures directory metadata too and conservatively counts
+hardlinks per filesystem entry. Its budget/capacity figures can therefore be
+larger than these displayed plan sizes. A selectable plan is not a reservation
+of capacity or session budget.
 
 The default budget is 10,000 entries and depth 32 below the workspace.
 `--max-entries` must be positive; `--max-depth` accepts 1–128. A reached limit,
@@ -157,7 +176,25 @@ before writing a new baseline at a new path.
 
 ## Validation scope
 
-On 2026-10-28, the unchanged public runtime passed one continuous full-suite
+On 2026-10-28, the subsequent shared configuration, admission limits and
+operation-bound approvals passed three independent full runs on one frozen
+public runtime: 1090 Python cases and both Node groups per run, in 1061.017,
+1025.315 and 1042.145 seconds. There were no failures, errors, skips, timeouts
+or automatic retries, and frozen source bytes remained unchanged. The
+existing diagnostic collector preserved `npm test` scope and deadlines;
+the npm command itself was not invoked.
+
+The 149-file offline package passed installed CLI, real terminal confirmation,
+mixed physical deletion/quarantine/restore, budget/reset, loop, capacity,
+protection and compound-batch checks. Three real Kimi Code 2.3.0 root-Bash
+scenarios passed: recoverable deletion, same-session budget refusal and
+configured protection. Nine configured-route requests returned HTTP 200;
+the loopback gateway's server-side model identity was not independently
+authenticated. See [deletion limits](deletion-limits.md) for scope and exceptions.
+Acceptance receipts were then updated in documentation without changing runtime
+or tests. The following results retain the earlier Cleanup-only checkpoint.
+
+On 2026-10-28, the Cleanup-only public runtime passed one continuous full-suite
 run: 1012 Python cases and both Node groups in 979.997 seconds, within the
 original 1800-second budget. There were no failures, errors, skips or
 retries. The local environment was ARM64/PRoot POSIX with Python 3.13.5
@@ -175,7 +212,8 @@ An offline package installation verified 146 file contents, all 11 CLI
 entry points, actual pseudo-terminal confirmation, physical artifact
 removal, ordinary-file quarantine/restore and noninteractive refusal.
 Planning also passed a write audit; cancelled/stale plans and protected
-symlink paths have regression coverage. No external model calls were made.
+symlink paths have regression coverage. That earlier Cleanup-only checkpoint
+made no external model calls.
 
 Workspace-alias checks ran locally. Native macOS, native Windows, shared
 Android storage and new host approval integrations were not exercised.

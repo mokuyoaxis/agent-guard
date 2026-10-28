@@ -59,6 +59,7 @@ from typing import Any, Dict, List, Optional
 
 from . import STATE_NAME, TRASH_DIRNAME
 from . import redaction
+from . import delete_config
 from .redaction import get_channel
 from .classifier import (
     KIND_FS_DELETE,
@@ -105,6 +106,13 @@ CODE_BLOCK_FORCE_PUSH = "BLOCK_FORCE_PUSH"
 CODE_BLOCK_DIALECT_UNKNOWN = "BLOCK_DIALECT_UNKNOWN"        # config
 CODE_BLOCK_DIALECT_INVALID = "BLOCK_DIALECT_INVALID"        # config
 CODE_BLOCK_RELOCATE_FAILED_STORAGE = "RELOCATE_FAILED_STORAGE"
+CODE_BLOCK_DELETE_CONFIG_INVALID = "BLOCK_DELETE_CONFIG_INVALID"
+CODE_BLOCK_DELETE_PROTECTED = "BLOCK_DELETE_PROTECTED"
+CODE_BLOCK_DELETE_LIMIT = "BLOCK_DELETE_LIMIT"
+CODE_BLOCK_DELETE_RATE = "BLOCK_DELETE_RATE"
+CODE_BLOCK_DELETE_REPEAT = "BLOCK_DELETE_REPEAT"
+CODE_BLOCK_DELETE_BATCH_CONFIRM = "BLOCK_DELETE_BATCH_CONFIRM"
+CODE_BLOCK_DELETE_STATE_INVALID = "BLOCK_DELETE_STATE_INVALID"
 # exfil-guard (span decisions). Rule ids (`secret/*`, `path/*`) are payload,
 # never verdict codes; these codes name the *disposition*, not the pattern.
 CODE_SANITIZE_SECRET_REDACT = "SANITIZE_SECRET_REDACT"
@@ -122,6 +130,13 @@ CODE_BLOCK_GIT_RESET_COLLISION = "BLOCK_GIT_RESET_COLLISION"
 
 # Human-facing one-liners: why the guard cannot just do it (or did do it).
 EXPLANATIONS: Dict[str, str] = {
+    CODE_BLOCK_DELETE_CONFIG_INVALID: "Deletion configuration is invalid or unreadable; repair it before deleting.",
+    CODE_BLOCK_DELETE_PROTECTED: "Target overlaps deletion configuration or a configured protected path; deletion is refused.",
+    CODE_BLOCK_DELETE_LIMIT: "Deletion would exceed the quarantine capacity or session budget; targets were not admitted.",
+    CODE_BLOCK_DELETE_RATE: "This session reached its deletion rate limit; wait for the configured window before retrying.",
+    CODE_BLOCK_DELETE_REPEAT: "Repeated deletion of the same target reached the configured limit; inspect the loop before retrying.",
+    CODE_BLOCK_DELETE_BATCH_CONFIRM: "This batch requires a reviewed Cleanup Copilot plan and explicit confirmation.",
+    CODE_BLOCK_DELETE_STATE_INVALID: "Deletion budget state is invalid or unavailable; no new deletion was admitted.",
     CODE_ALLOW_NOOP: "No recovery action is needed for the recognized operations. "
                      "Unrecognized command effects have not been checked.",
     CODE_ALLOW_REGENERABLE: "All targets are git-ignored and match known "
@@ -509,19 +524,32 @@ def decide_path_batch(specs: List[PathSpec], ctx: PolicyContext,
                        [f"protected: {s.protected} ({s.raw})"
                         for s in protected_other[:5]])
 
+    # Preserve the existing outer-boundary reason, including parents of the
+    # workspace. Explicit external quarantine housekeeping remains allowed.
+    protected_outside = [s for s in specs if s.protected == "outside-workspace"]
+    if protected_outside and not all(s.inside_trash for s in specs):
+        return Verdict(DECISION_BLOCK, CODE_BLOCK_OUT_OF_WORKSPACE,
+                       [f"outside workspace boundary: {s.raw}"
+                        for s in protected_outside[:5]])
+
+    try:
+        deletion_config = delete_config.load_config(ctx.workspace)
+        protection = delete_config.protected_reason(
+            [s.resolved for s in specs if s.resolved], ctx.workspace,
+            deletion_config)
+    except delete_config.DeleteConfigError as exc:
+        return Verdict(DECISION_BLOCK, CODE_BLOCK_DELETE_CONFIG_INVALID,
+                       [str(exc)])
+    if protection:
+        return Verdict(DECISION_BLOCK, CODE_BLOCK_DELETE_PROTECTED,
+                       [protection])
+
     if specs and all(s.inside_trash for s in specs):
         if any(s.wildcard for s in specs):
             return Verdict(DECISION_BLOCK, CODE_BLOCK_WILDCARD,
                            ["quarantine globs may include protected evidence; "
                             "enumerate explicitly with safe_delete"])
         return Verdict(DECISION_ALLOW, CODE_ALLOW_TRASH_GC)
-
-    protected_outside = [s for s in specs
-                         if s.protected == "outside-workspace"]
-    if protected_outside:
-        return Verdict(DECISION_BLOCK, CODE_BLOCK_OUT_OF_WORKSPACE,
-                       [f"outside workspace boundary: {s.raw}"
-                        for s in protected_outside[:5]])
 
     wild = [s for s in specs if s.wildcard]
     if wild:

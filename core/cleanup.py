@@ -14,10 +14,11 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from . import TRASH_DIRNAME, classifier, policy
+from .delete_config import CONFIG_DIRECTORY, fingerprint, load_config
 
 
 CATEGORIES = ("regenerable", "discarded", "uncertain", "protected")
-PROTECTED_NAMES = frozenset({".git", ".internal", TRASH_DIRNAME})
+PROTECTED_NAMES = frozenset({".git", ".internal", TRASH_DIRNAME, CONFIG_DIRECTORY})
 DEFAULT_MAX_ENTRIES = 10_000
 DEFAULT_MAX_DEPTH = 32
 
@@ -99,7 +100,9 @@ def plan_cleanup(
     root = os.path.realpath(os.path.abspath(os.fspath(workspace)))
     if not os.path.isdir(root) or classifier.protected_ancestor_root(root):
         raise ValueError("provide an existing workspace below a filesystem root")
+    delete_config = load_config(root)
     discard = _declared_paths(discard, root, must_exist=True)
+    protect = list(protect) + delete_config.protected_paths
     protect = sorted(set(_declared_paths(protect, root, must_exist=False)) | PROTECTED_NAMES)
     # A declared path may cross a directory alias. Protect both spellings:
     # deleting a physical ancestor must not cover the declared evidence.
@@ -268,7 +271,8 @@ def plan_cleanup(
         "size_notice": "Logical bytes, hardlinks counted once per category; protected subtrees omitted. Quarantine retains storage; bytes are not a freed-space estimate.",
     }
     result["plan_id"] = _digest({"plan": result, "tree": tree.fingerprint,
-                                 "config": vars(ctx.config)})
+                                 "config": vars(ctx.config),
+                                 "deletion_config": fingerprint(delete_config)})
     return result
 
 

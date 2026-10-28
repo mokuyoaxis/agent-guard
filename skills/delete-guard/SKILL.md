@@ -69,6 +69,33 @@ ordinary files retain recovery copies and disk usage. This CLI adds no
 native host tool or human-identity guarantee. See the
 [workflow, effects and limits](../../docs/guides/cleanup-plan.md).
 
+## Deletion admission (unreleased checkout addition)
+
+Covered deletion paths now share persistent session byte/entry budgets,
+short-window rate/repeated-target-set limits and quarantine capacity admission.
+The optional workspace `.agent-guard/delete-policy.json` configures limits
+and protected paths; its directory and admission control files are protected.
+Protection wins over artifact and housekeeping exemptions. Missing configuration
+uses defaults; malformed configuration or state blocks new admission.
+
+Unnamed CLI processes share a stable budget. Failed admitted operations and
+restores do not refund it. A limit refusal is not permission to change session
+identity, remove state, disguise the delete or purge recovery copies. Inspect
+status and explain the reason. Large batches require the reviewed Cleanup
+workflow; covered automated checks BLOCK rather than creating a new host ASK flow.
+Cleanup's ten-minute, one-use-per-path approval still obeys budgets, capacity
+and protection. No limit automatically triggers permanent deletion or GC.
+Existing compound ASK and Git snapshot paths are outside this new budget;
+normal restore, explicit GC and unprotected quarantine housekeeping retain
+their exemptions. Configuration/control-path protection still applies.
+
+After investigation, an operator can explicitly reset the current bucket with
+`status.py --reset-delete-budget`, an interactive terminal and `RESET`.
+Do not supply this acknowledgement on the user's behalf. Reset does not free
+storage or change limits; normal restore and explicit GC remain separate.
+Portable state and TTY remain advisory against same-UID processes. See
+[defaults, accounting and limits](../../docs/guides/deletion-limits.md).
+
 ## If you run `rm` / destructive git anyway
 
 A harness adapter may intercept the command before execution. Verdicts you
@@ -84,6 +111,10 @@ can receive:
 | `BLOCK_OUT_OF_WORKSPACE` / `BLOCK_PROTECTED_PATH` / `BLOCK_PROTECTED_ANCESTOR` | outside boundary, workspace root, `.git`, or a filesystem root (`/`, `/home`, `/usr`, `$HOME`) | do not retry; this is a hard boundary. Ask the human if it is truly needed |
 | `BLOCK_RESTRICTED_MODE` | session is downgraded | only explicit single-file deletes are permitted; ask the human for anything more |
 | `BLOCK_FORCE_PUSH` | remote history destruction | do not retry; escalate to the human |
+| `BLOCK_DELETE_CONFIG_INVALID` / `BLOCK_DELETE_STATE_INVALID` | invalid configuration, state or admission machinery | stop and report; do not remove state to bypass the refusal |
+| `BLOCK_DELETE_PROTECTED` | configured protection or deletion configuration overlap | preserve the target and its protected descendants |
+| `BLOCK_DELETE_LIMIT` / `BLOCK_DELETE_RATE` / `BLOCK_DELETE_REPEAT` | capacity, cumulative budget or short-window limit | inspect status/loop; wait only when the reported window can expire |
+| `BLOCK_DELETE_BATCH_CONFIRM` | large operation or stale/consumed Cleanup approval | propose and review a fresh Cleanup plan |
 
 Shape rules on compound commands: a single line that `cd`s anywhere before a
 destructive op (F1), or that creates files (`touch/mkdir/cp/mv/tee`,

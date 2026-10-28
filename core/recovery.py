@@ -31,6 +31,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from . import MANIFEST_NAME, TRASH_DIRNAME
 from .audit import new_txid, utc_now_iso
 from .classifier import PathSpec, _physical, _physical_keep_final, inside_path
+from . import admission
 
 # Soft retention policy (docs/references: GC). Thresholds only MARK entries
 # GC_ELIGIBLE; actual purging is an explicit maintenance action - a system
@@ -220,6 +221,15 @@ class RecoveryEngine:
 
     def relocate(self, specs: List[PathSpec], txid: Optional[str] = None,
                  meta: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Admit one relocation batch before starting its recovery journal."""
+        self.ensure_layout()
+        paths = [spec.resolved for spec in specs
+                 if spec.resolved and not spec.wildcard and not spec.indeterminable]
+        with admission.admit(self.workspace, self.trash_root, paths):
+            return self._relocate_admitted(specs, txid=txid, meta=meta)
+
+    def _relocate_admitted(self, specs: List[PathSpec], txid: Optional[str] = None,
+                          meta: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Move every concrete target into trash/<txid>/<workspace-relative>.
 
         Layout arithmetic uses PHYSICAL spellings on BOTH sides: the

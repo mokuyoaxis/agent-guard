@@ -262,7 +262,8 @@ def _quarantine_control_path(absolute: str, physical: str,
                 (trash_physical, _physical_keep_final(trash_root)))):
         return True
     controls = {MANIFEST_NAME, AUDIT_NAME, STATE_NAME, STATE_NAME + ".tmp",
-                "sessions"}
+                "sessions", "admission.json", "admission.json.tmp",
+                "admission.lock"}
     for candidate in (physical, _physical_keep_final(absolute)):
         if inside_path(candidate, trash_physical):
             relative = os.path.relpath(candidate, trash_physical)

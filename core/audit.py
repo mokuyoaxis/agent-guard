@@ -66,7 +66,7 @@ def _enums():
         "event": frozenset({
             "check", "ask", "decision", "advisory", "intent", "outcome",
             "enforce-block", "enforce-intent", "enforce-error", "enforce-proceed",
-            "restore", "gc-intent", "gc",
+            "restore", "gc-intent", "gc", "delete-budget-reset",
         }) | {"exfil-" + decision.lower() for decision in decisions},
         "decision": decisions, "action": decisions | {"PURGED"},
         "code": frozenset(policy.EXPLANATIONS),
