@@ -4,7 +4,7 @@
 [![npm 稳定版](https://img.shields.io/npm/v/%40mokuyoaxis%2Fagent-guard.svg)](https://www.npmjs.com/package/@mokuyoaxis/agent-guard)
 [![License](https://img.shields.io/github/license/mokuyoaxis/agent-guard)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![0.2.5](https://img.shields.io/badge/release-0.2.5-5B6B7A)](docs/releases/release-notes-0.2.5.md)
+[![0.2.6](https://img.shields.io/badge/release-0.2.6-5B6B7A)](docs/releases/release-notes-0.2.6.md)
 
 **让 AI Agent 的破坏性操作默认可逆。** · [English](README.md)
 
@@ -230,7 +230,7 @@ Git／会话／缓存证据恢复项目，区分原文、重建与确认缺失�
 | [威胁模型](docs/design/threat-model.md) | 信任假设与尚未解决的边界 |
 | [兼容契约](docs/design/compatibility.md) | 接口与发布约定 |
 | [蓝队研究](docs/research/README.md) | 防守方法、去敏结果与零模型起点 |
-| [0.2.5 说明](docs/releases/release-notes-0.2.5.md) | 发布范围、升级影响与验证边界 |
+| [0.2.6 说明](docs/releases/release-notes-0.2.6.md) | 发布范围、升级影响与验证边界 |
 
 ## 参与贡献
 

@@ -4,7 +4,7 @@
 [![npm stable](https://img.shields.io/npm/v/%40mokuyoaxis%2Fagent-guard.svg)](https://www.npmjs.com/package/@mokuyoaxis/agent-guard)
 [![License](https://img.shields.io/github/license/mokuyoaxis/agent-guard)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![0.2.5](https://img.shields.io/badge/release-0.2.5-5B6B7A)](docs/releases/release-notes-0.2.5.md)
+[![0.2.6](https://img.shields.io/badge/release-0.2.6-5B6B7A)](docs/releases/release-notes-0.2.6.md)
 
 **Make destructive agent actions reversible by default.** · [简体中文](README.zh-CN.md)
 
@@ -264,7 +264,7 @@ reconstruction and known gaps. It cannot recreate bytes that no source kept.
 | [Threat model](docs/design/threat-model.md) | Trust assumptions and unresolved boundaries |
 | [Compatibility](docs/design/compatibility.md) | Interface and release contracts |
 | [Blue-team research](docs/research/README.md) | Defensive methods, sanitized results and a zero-model starting point |
-| [0.2.5 notes](docs/releases/release-notes-0.2.5.md) | Release scope, upgrade impact and validation boundaries |
+| [0.2.6 notes](docs/releases/release-notes-0.2.6.md) | Release scope, upgrade impact and validation boundaries |
 
 ## Contributing
 
