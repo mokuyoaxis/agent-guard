@@ -1,4 +1,27 @@
-# Maintenance delivered in 0.2.6 / 0.2.6 维护说明
+# Unreleased changes and 0.2.6 maintenance history
+
+## Cleanup Copilot (unreleased)
+
+The current checkout adds a metadata-only cleanup plan and an explicitly
+confirmed CLI execution workflow. It reports regenerable, caller-declared
+discarded, uncertain and protected targets with logical sizes, reasons and
+projected deletion/quarantine effects. Execution still uses safe_delete;
+ordinary quarantined files retain disk usage. The default plan writes no
+workspace or guard metadata. See [usage and limits](../guides/cleanup-plan.md).
+
+This addition is separate from published 0.2.6. No feature release version
+has been selected, and no native host tool or new deletion policy is added.
+The unchanged runtime passed a continuous local ARM64/PRoot POSIX rerun:
+1012 Python cases and both Node groups in 979.997 seconds, with no failures,
+errors, skips or retries. This used the existing diagnostic result collector
+with the same test scope and deadlines as `npm test`. The earlier literal
+npm command's timeout remains recorded and unexplained; it did not recur
+in this rerun. Focused cleanup/manifest checks and an offline package also passed,
+including terminal confirmation, physical deletion and quarantine/restore.
+See the guide's [validation scope](../guides/cleanup-plan.md#validation-scope)
+for the local platform and host limits.
+
+## Maintenance delivered in 0.2.6 / 0.2.6 维护说明
 
 Updated 2026-10-22. The additions previously tracked here now ship in
 [0.2.6](release-notes-0.2.6.md). This path is retained for existing links and

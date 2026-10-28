@@ -24,6 +24,7 @@ Agent Guard 在受支持的删除、覆盖操作前保留恢复数据，检查�
 | 能力 | 能帮助你做什么 | 入口 |
 |---|---|---|
 | **恢复保护** | 删除前迁移有价值的文件；受支持的 Git 覆盖前快照 tracked 状态；查询和恢复事务 | [delete-guard](skills/delete-guard/SKILL.md) |
+| **清理提议（未发布源码）** | 扫描候选、分类、大小与实际执行方式；显式选择并确认后交给 safe_delete | [Cleanup Copilot](docs/guides/cleanup-plan.md) |
 | **外发检测** | 检测受支持的凭据和本机标识路径；应用脱敏计划或拒绝输出 | [exfil-guard](skills/exfil-guard/SKILL.md) |
 | **行为验测** | 校准观察器，验证声明信道的暴露，再比较匹配的关闭／开启防护试次 | [guard-lab](docs/lab/guard-lab.md) |
 

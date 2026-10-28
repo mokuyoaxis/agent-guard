@@ -51,6 +51,17 @@ class PackageManifestTests(unittest.TestCase):
         self.assertIn("{kimi,claude}", completed.stdout)
         self.assertIn("Local agent-guard installation checks", completed.stdout)
 
+    def test_cleanup_bin_exposes_plan_and_explicit_execution(self):
+        self.assertEqual(self.manifest["bin"]["agent-guard-cleanup"],
+                         "./skills/delete-guard/scripts/cleanup.py")
+        completed = subprocess.run(
+            [sys.executable, str(ROOT / self.manifest["bin"]["agent-guard-cleanup"]), "--help"],
+            cwd=ROOT, text=True, capture_output=True, check=False)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn("--plan-id", completed.stdout)
+        self.assertIn("--execute", completed.stdout)
+        self.assertIn("--select", completed.stdout)
+
     def test_guard_lab_bin_exposes_only_the_user_controller(self):
         self.assertEqual(
             self.manifest["bin"]["agent-guard-lab"], "./guard_lab.py")

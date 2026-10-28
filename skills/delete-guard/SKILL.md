@@ -47,6 +47,28 @@ Globs passed to `safe_delete` are expanded explicitly before anything moves.
 That is why `safe_delete '*.log'` works while `rm *.log` is blocked: the
 guard refuses opaque target sets, not cleanup work.
 
+## Cleanup proposals (unreleased checkout addition)
+
+When asked to investigate workspace cleanup, start with a read-only plan:
+
+```bash
+python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/cleanup.py --json
+```
+
+The planner separates regenerable, explicitly discarded, uncertain and
+protected entries, with sizes, reasons and projected effects. Declare known
+discarded paths with `--discard PATH` and evidence/backup roots with
+`--protect PATH`. Age, ignore status and untracked status alone do not prove
+discardability. `.internal`, Git metadata and recovery boundaries are pruned.
+
+Only propose the plan by default. Execution requires `--execute`, the
+reviewed `--plan-id`, exact `--select PATH` entries and a human's terminal
+acknowledgement. Do not answer that prompt on the user's behalf. The tool
+rechecks the plan after confirmation and delegates to existing safe_delete;
+ordinary files retain recovery copies and disk usage. This CLI adds no
+native host tool or human-identity guarantee. See the
+[workflow, effects and limits](../../docs/guides/cleanup-plan.md).
+
 ## If you run `rm` / destructive git anyway
 
 A harness adapter may intercept the command before execution. Verdicts you

@@ -25,6 +25,7 @@
     "agent-guard-lab": "./guard_lab.py",
     "agent-guard-check": "./skills/delete-guard/scripts/check.py",
     "agent-guard-safe-delete": "./skills/delete-guard/scripts/safe_delete.py",
+    "agent-guard-cleanup": "./skills/delete-guard/scripts/cleanup.py",
     "agent-guard-restore": "./skills/delete-guard/scripts/restore.py",
     "agent-guard-status": "./skills/delete-guard/scripts/status.py",
     "agent-guard-exfil-check": "./skills/exfil-guard/scripts/check_span.py",

@@ -26,6 +26,7 @@ ask the official coding agent to configure Agent Guard locally.
 | Capability | What it helps you do | Entry |
 |---|---|---|
 | **Recovery protection** | Relocate valuable files before deletion; snapshot tracked state before supported Git overwrites; inspect and restore transactions | [delete-guard](skills/delete-guard/SKILL.md) |
+| **Cleanup proposals (unreleased checkout)** | Review classified workspace candidates, sizes and effects; explicitly confirm selected targets before safe_delete | [Cleanup Copilot](docs/guides/cleanup-plan.md) |
 | **Disclosure checks** | Detect supported credentials and host-identifying paths; apply a redaction plan or withhold a payload | [exfil-guard](skills/exfil-guard/SKILL.md) |
 | **Behaviour experiments** | Calibrate an observer, test a declared exposure channel, then compare matched guard-off/on trials | [guard-lab](docs/lab/guard-lab.md) |
 

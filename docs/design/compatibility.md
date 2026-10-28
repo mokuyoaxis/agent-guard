@@ -20,6 +20,22 @@ is introduced by the research documentation.
 
 ## The adapter contract (frozen surface)
 
+### Cleanup Copilot (unreleased checkout addition)
+
+The checkout adds `core.cleanup` and `agent-guard-cleanup` with read-only
+planning, categorized candidates and explicit terminal-confirmed selection.
+Execution delegates to the existing safe_delete CLI one concrete target at a
+time. Plan JSON has its own `schema_version: 1`; it is not a new Decision
+Protocol surface. Existing command parsing, verdicts, recovery formats, GC
+and native adapter tools retain their contracts. No production dependency
+or configuration migration is introduced. This feature is absent from the
+published 0.2.6 package; its release version remains undecided.
+
+The new Core module and package metadata change doctor runtime fingerprints.
+An old baseline can become `DRIFTED`; it is not automatically replaced.
+See [the CLI contract](../guides/cleanup-plan.md) for confirmation, partial
+execution, output privacy, scan limits and the existing concurrency boundary.
+
 <a id="unreleased-feedback-and-diagnostic-maintenance"></a>
 
 ### 0.2.6 feedback and diagnostic maintenance
