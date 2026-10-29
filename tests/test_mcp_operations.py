@@ -17,6 +17,9 @@ from tests.helpers import RepoFixture, git_available
 class McpOperations(RepoFixture):
     def setUp(self):
         super().setUp()
+        # macOS temporary paths can use /var as an alias of /private/var.
+        # MCP binds the physical workspace, so compare against that identity.
+        self.root = str(Path(self.root).resolve())
         self.operations = Operations(self.root)
 
     def configure(self, **values):
@@ -157,6 +160,29 @@ class McpOperations(RepoFixture):
         self.assertEqual(repeated.call("status", {})["result"]["delete_admission"]["used_entries"], 1)
         self.assertEqual(self.operations.call("status", {})["result"]["delete_admission"]["used_entries"], 0)
         self.assertEqual(repeated.call("safe_delete", {"paths": ["second"]})["exit_code"], 2)
+
+    def test_symlinked_workspace_shares_binding_and_persistent_budget(self):
+        self.configure(session_max_entries=1)
+        self.write("first", "first")
+        self.write("second", "second")
+        with tempfile.TemporaryDirectory(prefix="agent-guard-mcp-alias-") as parent:
+            alias = Path(parent, "workspace")
+            alias.symlink_to(self.root, target_is_directory=True)
+            linked = Operations(alias)
+            self.assertEqual(linked.workspace, self.root)
+            self.assertEqual(linked.trash_root, self.operations.trash_root)
+            self.assertEqual(linked._env["AGENT_GUARD_WORKSPACE"], self.root)
+            self.assertEqual(linked._env["AGENT_GUARD_TRASH"], self.operations.trash_root)
+            deleted = linked.call("safe_delete", {"paths": ["first"]})
+            self.assertTrue(deleted["ok"], deleted)
+            physical = Operations(self.root)
+            denied = physical.call("safe_delete", {"paths": ["second"]})
+            self.assertEqual(denied["result"]["verdict"]["code"], "BLOCK_DELETE_LIMIT")
+            self.assertEqual(Path(self.root, "second").read_text(), "second")
+            restored = physical.call("restore", {"txid": deleted["result"]["txid"]})
+            self.assertTrue(restored["ok"], restored)
+            self.assertEqual(Path(self.root, "first").read_text(), "first")
+            self.assertEqual(linked.call("status", {})["result"]["delete_admission"]["used_entries"], 1)
 
     def test_restore_conflict_does_not_overwrite_occupant(self):
         self.write("valuable", "original")
