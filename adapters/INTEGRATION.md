@@ -63,6 +63,12 @@ or a public report. If the host contract or version is unclear, mark it
 - **No verified blocking event:** use the [Skills](../skills) and explicit
   CLI cooperatively. Say `Skill/CLI only`; do not claim native interception.
   A hook limited to some tools does not cover other tools or hidden uploads.
+- **Client supports MCP:** the [local MCP adapter](../docs/guides/mcp.md), introduced in 0.2.7,
+  exposes explicit safe_delete, ordinary restore, transaction/status queries
+  and GC preview. Configure its optional SDK and fixed workspace separately.
+  Say `MCP tools only` unless a separate blocking hook has been verified;
+  registering tools does not intercept shell, script or editor operations.
+  This path adds no force restore, GC execution or model-approved budget reset.
 
 Core `ASK` must reach a real human-approval path or become a refusal for that
 call. It must never silently become allow. Treat malformed payloads and

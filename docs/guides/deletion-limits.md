@@ -1,7 +1,10 @@
 # Deletion limits / 删除准入与预算
 
-This is an **unreleased checkout addition**, absent from published 0.2.6.
-No feature version has been selected; the 0.3.0 plan remains paused.
+These limits are introduced in **0.2.7** and are absent from 0.2.6. The
+separate 0.3.0 plan remains paused. Versioned validation and exact-version
+availability checks are tracked in the [0.2.7 notes](../releases/release-notes-0.2.7.md);
+the following results retain their earlier deletion-hardening checkpoint,
+which used 0.2.6 package metadata rather than the final 0.2.7 artifact.
 On 2026-10-28, the same frozen public runtime passed three independent full
 runs: each contained 1090 Python cases and both Node groups, taking 1061.017,
 1025.315 and 1042.145 seconds. No failures, errors, skips, timeouts or automatic

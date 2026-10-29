@@ -4,13 +4,21 @@ agent-guard's promise is recoverability. A promise is only as good as its
 stability over time - this page states exactly what may change and what
 may not, per release class.
 
-The stable release line is [0.2.6](../releases/release-notes-0.2.6.md), carrying
-the cumulative RC maintenance and the feedback/diagnostic additions below.
-The opt-in prerelease remains [0.2.5-rc3](../releases/release-notes-0.2.5-rc3.md),
-0.2.5 is the previous stable, and
+This contract covers [0.2.7](../releases/release-notes-0.2.7.md). Use its exact
+GitHub release and npm version links to confirm availability; a version in
+source or a local tarball does not establish publication.
+Earlier release [0.2.6](../releases/release-notes-0.2.6.md) carries cumulative
+RC maintenance and the feedback/diagnostic additions below. The opt-in
+prerelease [0.2.5-rc3](../releases/release-notes-0.2.5-rc3.md), earlier stable
+0.2.5 and the
 [0.2.4-hotfix.1](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.4-hotfix.1)
-is an opt-in quarantine protection backport. Versioned sections retain the
-origin and preparation labels of changes introduced by earlier releases.
+quarantine protection backport retain their separate artifacts. Versioned
+sections retain the origin and preparation labels of changes introduced by
+earlier releases.
+
+The maintainer selected **0.2.7** for Cleanup Copilot, deletion admission and
+optional MCP tools. The bounded versioning decision is recorded below; the
+separate 0.3.0 plan remains paused.
 
 RC3 publishes defensive research and an example around the existing four
 zero-model controls. Experimental disclosure labels and private delegation
@@ -20,7 +28,51 @@ is introduced by the research documentation.
 
 ## The adapter contract (frozen surface)
 
-### Deletion admission limits (unreleased checkout addition)
+<a id="local-mcp-tools-027-candidate"></a>
+
+### Local MCP tools (0.2.7)
+
+The checkout adds an optional local stdio MCP server with five explicit tools:
+safe_delete, ordinary restore, transactions, status and GC-plan preview.
+It invokes existing CLI operations without a shell, preserves policy/audit/
+recovery semantics and binds workspace/session identity at trusted startup.
+Tool calls cannot select a new workspace, session, environment or quarantine.
+`--session` selects both saved CLI authorization mode and deletion budget;
+omission uses legacy CLI state and the shared default bucket. Reusing saved
+state requires matching workspace, quarantine and session. Native host-session
+restrictions/in-memory veto are not inherited without a trusted bridge.
+Quarantine deletion, force restore, GC execution, budget reset and Cleanup
+approval are not exposed. Existing CLI interfaces remain available separately.
+
+The optional `mcp==2.3.0` Python SDK and its transitive dependencies install
+into a separate environment; Core/CLI still has no third-party Python
+requirement. This interface is included in 0.2.7 and is absent from published
+0.2.6. It does not resume 0.3.0. It is a cooperative tool interface, not expanded
+native interception. Existing host-version evidence and doctor scope do not
+automatically cover MCP. On the 2026-10-28 frozen candidate, the first local
+full run completed 1123 Python cases with one existing observer-startup error
+and did not run Node; its cause remains undetermined. The second full run
+passed 1123 Python cases and both Node groups in 1143.435 seconds, with no
+failures, errors, skips or timeouts. Neither invoked npm directly or changed
+the runtime/tests. A 154-file offline installation and three real Kimi 2.3.0
+native-MCP trials passed; Claude/Cursor/Codex setup examples remain docs-only.
+Without the optional SDK, seven protocol tests skip. The added SDK-backed
+Python 3.10/3.13 CI job had no remote execution at the 2026-10-29 local
+preparation checkpoint. See
+[setup, full failure history and platform/tool limits](../guides/mcp.md).
+Those measurements predate the 0.2.7 version/document alignment and are not
+acceptance of the final versioned artifact. The subsequent 219-file 0.2.7
+candidate passed 1129 Python cases and both Node groups in 1194.265 seconds,
+with no failures, errors, skips, timeouts or automatic retries. Its 155-file
+offline package passed 12 CLI entry-point and installed MCP checks, including
+`serverInfo.version == 0.2.7`. Local release-gate checks passed; that local
+preparation checkpoint did not include final-commit remote CI or publication.
+No additional real-model trial was run. See
+the [versioned validation record](../releases/release-notes-0.2.7.md#validation-status).
+
+<a id="deletion-admission-limits-027-candidate"></a>
+
+### Deletion admission limits (0.2.7)
 
 The current checkout adds shared deletion configuration, persistent
 per-session admission budgets, rate/repeat limits and quarantine capacity
@@ -35,10 +87,11 @@ New reason codes are `BLOCK_DELETE_CONFIG_INVALID`, `BLOCK_DELETE_PROTECTED`,
 and `check.py` exit codes retain their contracts. Limits are applied at
 execution admission; an earlier advisory assessment is not a capacity grant.
 Covered automatic compensation/artifact paths can newly BLOCK when a
-configured limit is reached. Under
-the versioning promises below, these are minor safety changes, not additions
-claimed for published 0.2.6; no feature release version is selected and 0.3.0
-remains paused.
+configured limit is reached. The general versioning promises below classify
+these as minor safety changes. The maintainer selected 0.2.7 for these bounded
+additions as an explicit exception recorded below, not as a change shipped
+in 0.2.6 or a general permission to change policy in patch releases. The
+separate 0.3.0 plan remains paused.
 
 Cleanup retains plan schema version 1 and terminal-confirmed execution, then
 issues metadata/session/configuration-bound, ten-minute approval for each
@@ -56,7 +109,9 @@ These local POSIX results do not establish new platform or tool coverage;
 previous Cleanup and release evidence keeps its original scope. See
 [defaults, accounting and recovery](../guides/deletion-limits.md).
 
-### Cleanup Copilot (unreleased checkout addition)
+<a id="cleanup-copilot-027-candidate"></a>
+
+### Cleanup Copilot (0.2.7)
 
 The checkout adds `core.cleanup` and `agent-guard-cleanup` with read-only
 planning, categorized candidates and explicit terminal-confirmed selection.
@@ -65,8 +120,8 @@ time. Plan JSON has its own `schema_version: 1`; it is not a new Decision
 Protocol surface. The initial Cleanup-only checkpoint retained existing
 deletion policy; the subsequent admission changes are described above.
 Recovery formats, explicit GC and native adapter tools retain their contracts.
-No production dependency or configuration migration is introduced. This feature is absent from the
-published 0.2.6 package; its release version remains undecided.
+Cleanup itself adds no third-party Core dependency or configuration migration.
+This feature is included in 0.2.7 and is absent from the published 0.2.6 package.
 
 The new Core module and package metadata change doctor runtime fingerprints.
 An old baseline can become `DRIFTED`; it is not automatically replaced.
@@ -177,6 +232,68 @@ While the major version is `0`:
 | Manifest record loses/repurposes a field | major + MIGRATION.md |
 | check.py CLI flags removed or re-semanticized | major + MIGRATION.md |
 | Default policy verdict changes for an existing shape | minor + entry in docs/history/friction.md |
+
+<a id="027-candidate-bounded-maintainer-selected-exception"></a>
+
+### 0.2.7: bounded maintainer-selected exception
+
+The maintainer explicitly selected 0.2.7 for the completed Cleanup Copilot,
+deletion-admission hardening and optional local MCP adapter. This version
+is a bounded exception to the general minor-release rules above; the older
+0.2.4, 0.2.5 and 0.2.6 exceptions do not automatically authorize it. It does
+not relax those rules for other patch releases or resume the 0.3.0 plan.
+
+The upgrade-visible changes are explicit:
+
+- Covered automated deletion/compensation paths now enforce persistent
+  session byte/entry budgets, rate/repeated-target-set limits and quarantine
+  admission capacity. Regenerable direct deletion also consumes applicable
+  budgets. Failed admitted operations and restores do not refund them.
+- Ordinary large batches now BLOCK with Cleanup guidance before covered
+  compensation; reviewed terminal-confirmed Cleanup provides a ten-minute,
+  per-path approval for that gate only. It cannot bypass other limits.
+- Optional deletion configuration and configured protected paths precede
+  artifact/housekeeping exemptions. Invalid configuration or unavailable
+  admission state refuses new covered deletion instead of silently disabling
+  the checks. The configuration directory and admission controls are protected.
+- Seven additive reason codes are introduced: `BLOCK_DELETE_CONFIG_INVALID`,
+  `BLOCK_DELETE_PROTECTED`, `BLOCK_DELETE_LIMIT`, `BLOCK_DELETE_RATE`,
+  `BLOCK_DELETE_REPEAT`, `BLOCK_DELETE_BATCH_CONFIRM` and
+  `BLOCK_DELETE_STATE_INVALID`. Existing code names, decision classes,
+  check exit codes, recovery manifests and transaction strategies retain
+  their meanings.
+- Cleanup adds explicit plan/selection/terminal confirmation; optional MCP
+  adds a separate stdio tool interface and SDK environment, not automatic
+  interception or a new host ASK/resume protocol.
+
+Default limits are a 5-GiB/100000-entry quarantine admission ceiling,
+1-GiB/10000-entry cumulative session budget, 60 operations per 60 seconds,
+five admissions of the same target set per window, and batch review above
+256 MiB or 1000 filesystem entries. These are logical admission figures,
+including directory metadata and conservative hardlink counting, not an OS
+disk quota. See the [limit guide](../guides/deletion-limits.md) for fixed
+inventory bounds and configuration semantics.
+
+Normal restore, explicit GC and unprotected quarantine payload housekeeping
+retain their exemptions; existing compound ASK and Git SNAPSHOT paths are
+outside the new budget. Capacity pressure never authorizes automatic GC or
+a permanent-delete fallback. Operators should inspect status and the stated
+reason, review a fresh Cleanup plan for a batch refusal, or explicitly reset
+the current budget with an interactive `RESET` only after investigating the
+caller. Protection/configuration failures require preserving evidence and
+correcting the actual issue, not removing state or changing identity.
+
+The changed existing shapes are recorded in
+[F32](../history/friction.md#f32-deletion-admission),
+[F33](../history/friction.md#f33-batch-confirmation) and
+[F34](../history/friction.md#f34-deletion-protection).
+The [0.2.7 version notes](../releases/release-notes-0.2.7.md) describe scope
+and upgrade impact, including the passing local 1129-case/two-Node-group and
+155-file versioned-package checks. The 2026-10-29 local preparation checkpoint
+did not include remote CI or publication; the earlier 1090/1123-case and
+real-Kimi evidence keeps its original scope.
+No legal hold, directory retention or deletion-certificate capability is
+introduced by this version.
 
 ### 0.2.4 maintenance patch exception
 
@@ -410,7 +527,8 @@ projection is described above; it does not rewrite manifests or old log bytes.
 
 A changed default verdict for an existing shape is a **minor** release and
 requires an entry in [friction.md](../history/friction.md) - never a silent behaviour
-shift. The bounded 0.2.4 and 0.2.5-rc1 exceptions are recorded above. Additive reason codes
+shift. The bounded 0.2.4, 0.2.5-rc1 and 0.2.7 exceptions
+are recorded above. Additive reason codes
 are listed above; this table is for shapes
 whose *existing* verdict moved.
 
@@ -423,6 +541,9 @@ whose *existing* verdict moved.
 | `git reset --hard [ref]` with untracked/ignored or quarantine collisions | Tracked-only `SNAPSHOT` could proceed | `BLOCK` / `BLOCK_GIT_RESET_COLLISION` | Stash does not preserve the colliding content (0.2.4 maintenance exception, F24) |
 | Hard reset with uncertain preflight or unsupported compound/wrapper context | Could proceed or ask despite incomplete coverage | `BLOCK_UNDETERMINABLE_EFFECT` before compensation | Snapshot and preflight must describe the actual Git context (F24) |
 | Quarantine root/control paths, protected metadata inside trash, or an in-workspace storage parent | Could be allowed as housekeeping or regenerable content | `BLOCK_PROTECTED_PATH` | Recovery/state evidence protection precedes housekeeping (introduced in 0.2.5-rc1, F26) |
+| Covered deletion/compensation after session, rate, repeated-target-set or quarantine admission limits are reached | Could continue through existing relocation or artifact policy | `BLOCK_DELETE_LIMIT`, `BLOCK_DELETE_RATE` or `BLOCK_DELETE_REPEAT` | Persistent admission suppresses repeated deletion and storage growth (0.2.7 exception, F32) |
+| Covered automated request above the batch threshold, or changed/expired Cleanup approval | Could compensate or directly delete under existing policy | `BLOCK_DELETE_BATCH_CONFIRM` | Review a fresh plan and confirm selected paths through Cleanup; approval lifts only this gate (F33) |
+| Configured protected paths/configuration directory, malformed deletion policy or unusable admission state | Could follow ordinary artifact/relocation policy without these checks | `BLOCK_DELETE_PROTECTED`, `BLOCK_DELETE_CONFIG_INVALID` or `BLOCK_DELETE_STATE_INVALID` | Protection and usable admission evidence precede covered execution; no silent bypass (F34) |
 
 Unchanged on purpose: a genuine compensation fault (`git stash create`
 failing, a relocation that does not cover every target, an audit intent

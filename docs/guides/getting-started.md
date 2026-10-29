@@ -10,18 +10,23 @@ Agent Guard 提供恢复保护、外发检测和用户控制的行为验测。�
 
 ## Select the package root
 
-The stable release line is [0.2.6](../releases/release-notes-0.2.6.md), and the
-prerelease line remains [0.2.5-rc3](../releases/release-notes-0.2.5-rc3.md).
+This guide covers [0.2.7](../releases/release-notes-0.2.7.md), with Cleanup
+plans, deletion admission limits and optional local MCP tools. Confirm the
+exact [GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.7)
+and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.7)
+are available before installing from the registry. A checkout or manifest
+does not establish publication or the current npm `latest` channel.
+
+The earlier published [0.2.6](../releases/release-notes-0.2.6.md) includes Kimi
+recovery feedback, diagnostics and reviewed DSH alpha.4/Kimi 2.3.0 Bash compatibility.
+The prerelease line remains [0.2.5-rc3](../releases/release-notes-0.2.5-rc3.md).
 The optional [0.2.4-hotfix.1](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.4-hotfix.1)
 backports quarantine protection onto the stable line.
-Version 0.2.6 adds Kimi recovery feedback and diagnostics to the 0.2.5 base,
-plus reviewed DSH alpha.4 and Kimi 2.3.0 Bash compatibility.
-Its [GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.6)
-and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.6)
-establish package availability. Use a user-selected stable prefix:
+
+Once the exact version is available, use a user-selected stable prefix:
 
 ```sh
-npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.6
+npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.7
 ```
 
 The package root is
@@ -33,11 +38,11 @@ identify the published package. For the stable-line fix alone, select
 `@mokuyoaxis/agent-guard@0.2.4-hotfix.1`. These opt-in channels do not move
 stable `latest`.
 
-For a reviewed local checkout or explicitly selected local tarball, use a
-separate prefix:
+If that version is unavailable, use a reviewed source checkout or a checked
+local tarball. Install the tarball into a separate prefix:
 
 ```sh
-npm install --offline --ignore-scripts --no-audit --no-fund --prefix /absolute/path/to/agent-guard-review /absolute/path/to/mokuyoaxis-agent-guard-0.2.6.tgz
+npm install --offline --ignore-scripts --legacy-peer-deps --no-audit --no-fund --prefix /absolute/path/to/agent-guard-review /absolute/path/to/mokuyoaxis-agent-guard-0.2.7.tgz
 ```
 
 The review package root is
@@ -46,7 +51,12 @@ Keep the selected package/checkout path consistent when configuring the host.
 Do not infer publication from a manifest/main commit or use an unscoped
 same-name package. A checkout's default branch can differ from a tagged stable release.
 
-The [0.2.6 additions](../releases/unreleased.md) require an upgraded package
+The [0.2.7 changes](../releases/release-notes-0.2.7.md#upgrade-and-operator-notes)
+add execution-time limits that can refuse previously successful deletions.
+Review the [default budgets and operator recovery](deletion-limits.md) before
+upgrading; normal restore remains available without a new deletion debit.
+
+The [0.2.6 additions](../releases/release-notes-0.2.6.md) require an upgraded package
 or a checkout containing the corresponding files. In particular, 0.2.5 lacks
 `adapters/kimi-code/stop_feedback.py`. Check the selected root before configuring
 the optional Stop hook. Installing a new copy does not update another existing
@@ -66,6 +76,9 @@ Core needs Python 3.9+ and Git, with no third-party Python packages. POSIX
 examples/bridges require a POSIX shell. The optional pinned DSH read path uses
 Node 22; Kimi TOML helpers need Python 3.11+. Windows Core evidence does not
 establish Windows-native hook bridge or full-suite portability.
+The optional [MCP adapter](mcp.md) requires Python 3.10+ and its separately
+installed pinned SDK; npm does not install it. MCP exposes explicit tools
+and does not intercept operations that bypass them.
 
 ## Set up a coding agent
 

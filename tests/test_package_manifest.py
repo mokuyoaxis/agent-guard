@@ -17,7 +17,7 @@ class PackageManifestTests(unittest.TestCase):
 
     def test_scoped_public_candidate_identity(self):
         self.assertEqual(self.manifest["name"], "@mokuyoaxis/agent-guard")
-        self.assertEqual(self.manifest["version"], "0.2.6")
+        self.assertEqual(self.manifest["version"], "0.2.7")
         self.assertNotIn("private", self.manifest)
         self.assertEqual(
             self.manifest.get("publishConfig"), {"access": "public"})
@@ -75,6 +75,16 @@ class PackageManifestTests(unittest.TestCase):
             completed.stdout,
         )
         self.assertNotIn("_observe", completed.stdout)
+
+    def test_optional_mcp_bin_help_does_not_require_sdk(self):
+        self.assertEqual(self.manifest["bin"]["agent-guard-mcp"], "./adapters/mcp/server.py")
+        completed = subprocess.run(
+            [sys.executable, "-B", "-S", str(ROOT / "adapters/mcp/server.py"), "--help"],
+            capture_output=True, text=True, timeout=15)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn("--workspace", completed.stdout)
+        self.assertNotIn("--transport", completed.stdout)
+        self.assertEqual((ROOT / "adapters/mcp/requirements.txt").read_text().splitlines()[-1], "mcp==2.3.0")
 
     def test_dsh_bundle_uses_the_scoped_package_name(self):
         dsh = self.manifest["dsh"]

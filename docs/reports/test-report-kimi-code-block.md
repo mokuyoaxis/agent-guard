@@ -287,7 +287,7 @@ old direct-Python hook-startup failure demonstrates a concrete fail-open
 boundary; the later bridge trial shows only a bounded mitigation.
 The fixtures and traces were preserved for review. Adapter-level regressions
 for both inert command shapes live in
-[`tests/test_kimi_adapter.py`](../../tests/test_kimi_adapter.py).
+[`tests/test_kimi_adapter.py`](https://github.com/mokuyoaxis/agent-guard/blob/75b51b888279583541792e00b14a4ceaf2a59fba/tests/test_kimi_adapter.py).
 
 After the live trials, the Kimi adapter was tightened to reject malformed
 `PreToolUse` JSON and missing required Bash fields. Unit tests verify this

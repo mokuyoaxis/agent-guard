@@ -1,0 +1,3 @@
+# Optional MCP adapter only; the existing Core and CLIs use the standard library.
+# Official modelcontextprotocol/python-sdk, MIT license. No CLI extras required.
+mcp==2.3.0

@@ -1,6 +1,6 @@
 {
   "name": "@mokuyoaxis/agent-guard",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "Harness-neutral reliability infrastructure for AI coding agents: recoverable destructive actions, disclosure checks, controlled synthetic behaviour experiments, and a shared Core with optional native adapters.",
   "type": "module",
   "engines": {
@@ -26,6 +26,7 @@
     "agent-guard-check": "./skills/delete-guard/scripts/check.py",
     "agent-guard-safe-delete": "./skills/delete-guard/scripts/safe_delete.py",
     "agent-guard-cleanup": "./skills/delete-guard/scripts/cleanup.py",
+    "agent-guard-mcp": "./adapters/mcp/server.py",
     "agent-guard-restore": "./skills/delete-guard/scripts/restore.py",
     "agent-guard-status": "./skills/delete-guard/scripts/status.py",
     "agent-guard-exfil-check": "./skills/exfil-guard/scripts/check_span.py",

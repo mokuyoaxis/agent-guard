@@ -95,6 +95,35 @@ jobs:
           npm whoami --registry=https://registry.npmjs.org >/dev/null
           echo "npm credential accepted"
 
+      - name: Install optional MCP SDK for release validation
+        run: python -m pip install -r adapters/mcp/requirements.txt
+
+      - name: Require MCP protocol coverage
+        run: |
+          python - <<'PY'
+          import importlib.metadata
+          from pathlib import Path
+          import unittest
+
+          requirement = next(line.strip() for line in
+                             Path("adapters/mcp/requirements.txt").read_text().splitlines()
+                             if line.strip() and not line.lstrip().startswith("#"))
+          package, expected_version = requirement.split("==")
+          if importlib.metadata.version(package) != expected_version:
+              raise RuntimeError("Release MCP SDK does not match the pinned requirement")
+
+          from mcp.server import Server
+          from tests.test_mcp_protocol import McpProtocolTests, SDK_AVAILABLE
+
+          methods = unittest.defaultTestLoader.getTestCaseNames(McpProtocolTests)
+          if (not SDK_AVAILABLE or not methods
+                  or getattr(McpProtocolTests, "__unittest_skip__", False)
+                  or any(getattr(getattr(McpProtocolTests, name), "__unittest_skip__", False)
+                         for name in methods)):
+              raise RuntimeError("Release requires every MCP protocol test to be enabled")
+          print("Pinned MCP SDK imports successfully; protocol tests are enabled")
+          PY
+
       - name: Run release tests
         run: npm test
 

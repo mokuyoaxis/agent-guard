@@ -7,20 +7,21 @@ setup. The three main paths are [recovery protection](../skills/delete-guard/SKI
 [harness capability matrix](guides/harness-capabilities.md) for observed coverage
 and the [architecture](design/architecture.md) for the shared Core.
 
-Stable release line: [0.2.6](releases/release-notes-0.2.6.md), building on
-0.2.5 with Kimi feedback, diagnostics and reviewed host compatibility. The exact
-[GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.6)
-and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.6)
-establish publication and npm `latest` availability; 0.2.5 is the previous stable.
+This documentation covers [0.2.7](releases/release-notes-0.2.7.md): Cleanup
+plans, deletion admission and optional local MCP tools. Before installing,
+check the exact [GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.7)
+and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.7)
+for availability. A checkout or manifest does not establish publication or
+the current npm `latest` channel.
 The opt-in `rc` line remains [0.2.5-rc3](releases/release-notes-0.2.5-rc3.md), and `hotfix` is the
 opt-in [0.2.4-hotfix.1](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.4-hotfix.1)
 quarantine protection backport. The [getting-started guide](guides/getting-started.md)
 explains exact-version and local-package installation.
 
-[0.2.6](releases/release-notes-0.2.6.md) covers Kimi Stop feedback,
+The earlier published [0.2.6](releases/release-notes-0.2.6.md) covers Kimi Stop feedback,
 its doctor checks, Kimi 2.3.0 root-Bash compatibility, DSH Lab preflight
 diagnostics and alpha.4 default deletion compatibility. Existing 0.2.5 installations
-need an upgrade to acquire these additions; see [maintenance details](releases/unreleased.md).
+need an upgrade to acquire those additions; see its [version notes](releases/release-notes-0.2.6.md).
 
 先看入门指南，再按恢复保护、外发检测、Lab 验测选择入口。测试报告按所测版本与配置保留；发布记录、
 历史设计和外部案例各自归档，不能据此扩展当前产品的承诺。
@@ -44,8 +45,9 @@ ALLOW_NOOP 覆盖边界及准确 GC 用法；纳入 0.2.5。
 |---|---|
 | [Getting started](guides/getting-started.md) | 安装路径、Agent 接入提示词与最短验证流程 |
 | [Status and cleanup feedback](guides/recovery-feedback.md) | Python／插件状态、ALLOW_NOOP、保留空间与手动 GC |
-| [Cleanup Copilot](guides/cleanup-plan.md) | 未发布源码功能：零写入计划、四类候选、大小与显式确认执行 |
-| [Deletion limits](guides/deletion-limits.md) | 未发布源码加固：隔离容量、会话预算、频率、保护路径与批量确认 |
+| [Cleanup Copilot](guides/cleanup-plan.md) | 0.2.7：零写入计划、四类候选、大小与显式确认执行 |
+| [Deletion limits](guides/deletion-limits.md) | 0.2.7：隔离容量、会话预算、频率、保护路径与批量确认 |
+| [Local MCP tools](guides/mcp.md) | 0.2.7本地stdio：安全删除、普通恢复、事务／状态和GC预览；不替代hook |
 | [Harness capabilities](guides/harness-capabilities.md) | 当前接入范围、证据等级与未验证路径 |
 | [Host drift](guides/host-drift.md) | 宿主版本、配置与本地基线检查 |
 | [Trash locations](guides/trash-index.md) | 0.2.4 的只读位置查询、Agent／前端共享 JSON 契约 |
@@ -123,8 +125,9 @@ coverage rather than treating every historical result as current acceptance.
 
 | Document / 文档 | Scope / 范围 |
 |---|---|
+| [0.2.7](releases/release-notes-0.2.7.md) | Cleanup、删除准入与MCP的版本范围、升级影响和准备阶段验证 |
 | [0.2.6](releases/release-notes-0.2.6.md) | 正式版范围、升级影响与验收；Kimi 反馈／doctor、DSH 预检与版本扩展 |
-| [0.2.6 maintenance details](releases/unreleased.md) | 原未发布维护页，保留 0.2.6 功能说明与历史验收边界 |
+| [Changes and maintenance details](releases/unreleased.md) | 0.2.7增量及0.2.6维护历史，保留原验收边界 |
 | [0.2.5](releases/release-notes-0.2.5.md) | 正式版范围；累计 RC 维护、明确反馈与升级影响 |
 | [0.2.4-hotfix.1](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.4-hotfix.1) | 已发布的稳定线回收站保护回补；不含完整 RC 累计内容 |
 | [0.2.5-rc3](releases/release-notes-0.2.5-rc3.md) | 已发布的研究／文档预发布版与零模型示例 |
@@ -146,7 +149,7 @@ Current behavior is defined by the Core, Skills and current guides.
 
 | Document / 文档 | Scope / 范围 |
 |---|---|
-| [Friction log](history/friction.md) | F1–F20 实现发现与修复经验 |
+| [Friction log](history/friction.md) | F1–F34 实现发现与修复经验 |
 | [Unguarded deletion note](history/development-note-unguarded-deletion.md) | 去标识化事故探索与恢复方向 |
 | [Secret Guard analysis](history/secret-guard-analysis.md) | 实现前的需求分析 |
 | [Secret Guard design](history/secret-guard-design.md) | 早期设计候选与原范围 |

@@ -2,7 +2,8 @@
 #
 # The full suite remains on Linux/macOS. The Windows job pins the Core shapes
 # that need real ntpath/filesystem behavior without pretending that every
-# POSIX fixture or harness is portable. Zero third-party dependencies.
+# POSIX fixture or harness is portable. Core tests need no third-party dependencies;
+# the separate optional MCP job installs its explicitly pinned SDK.
 
 name: CI
 
@@ -73,6 +74,22 @@ jobs:
           python-version: "3.11"
       - name: Import and initialize adapter with mocked host services
         run: npm run test:dsh
+
+  mcp-adapter:
+    name: Optional MCP / Py${{ matrix.python-version }}
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install optional official SDK
+        run: python -m pip install -r adapters/mcp/requirements.txt
+      - name: Real stdio, workspace, budget and recovery contracts (no model)
+        run: python -m unittest -v tests.test_mcp_operations tests.test_mcp_protocol tests.test_package_manifest
 
   dsh-native-lab:
     name: DSH native Lab capture / Node22

@@ -97,7 +97,7 @@ The pinned `read` tool's presentation metadata contains the returned lines.
 Replacing only `content` therefore leaves a second copy of read text in the
 private session/UI data.
 
-The [native probe](../../tests/probes/dsh_result_hook.mjs) instantiates the real
+The [native probe](https://github.com/mokuyoaxis/agent-guard/blob/e73101666288735880d4ff70bb0a20a025d426b0/tests/probes/dsh_result_hook.mjs) instantiates the real
 Cordis, SystemPrompt and ToolRuntime services, registers synthetic tools and
 tests their results without a model, shell, session or network request:
 

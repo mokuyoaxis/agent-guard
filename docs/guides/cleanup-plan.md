@@ -1,10 +1,12 @@
 # Cleanup Copilot / 工作区清理计划
 
-This is an **unreleased checkout addition**, separate from the published
-0.2.6 package. Run the Python script from this checkout; a local package
-built from these sources also exposes `agent-guard-cleanup`. No release
-version has been selected for this feature. The subsequent unreleased
+Cleanup Copilot is introduced in **0.2.7** and is absent from 0.2.6. Run the
+Python script from the selected package or reviewed checkout; the package
+also exposes `agent-guard-cleanup`. The shared
 [deletion admission rules](deletion-limits.md) also apply when executing it.
+See the [0.2.7 notes](../releases/release-notes-0.2.7.md) for upgrade effects,
+versioned validation and exact-version availability checks. Source/package
+metadata alone does not establish publication.
 
 Cleanup Copilot scans workspace metadata and proposes concrete cleanup
 targets. The default command writes no files, audit records, quarantine
@@ -168,13 +170,17 @@ before writing a new baseline at a new path.
 
 ## 中文摘要
 
-这是尚未发布的源码功能。默认扫描只输出计划，不修改工作区；“明确废弃”仅来自
+本功能自 0.2.7 加入。默认扫描只输出计划，不修改工作区；“明确废弃”仅来自
 调用者显式声明，旧文件／未跟踪文件不会自动变为垃圾。执行必须提供计划 ID、选定
 具体条目并由操作者在终端确认，确认后复查，再逐项走现有 safe_delete。普通文件
 隔离后仍占空间，可再生产物符合现有规则时直接物理删除。保护项、不完整或过期的
 计划不能执行；不提供自动清理或新的宿主原生工具。
 
 ## Validation scope
+
+The following historical checkpoints used 0.2.6 package metadata. They do not
+certify the versioned 0.2.7 artifact; its separate validation is tracked
+in the [0.2.7 notes](../releases/release-notes-0.2.7.md).
 
 On 2026-10-28, the subsequent shared configuration, admission limits and
 operation-bound approvals passed three independent full runs on one frozen

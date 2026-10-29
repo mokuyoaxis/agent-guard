@@ -4,7 +4,7 @@
 [![npm stable](https://img.shields.io/npm/v/%40mokuyoaxis%2Fagent-guard.svg)](https://www.npmjs.com/package/@mokuyoaxis/agent-guard)
 [![License](https://img.shields.io/github/license/mokuyoaxis/agent-guard)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![0.2.6](https://img.shields.io/badge/release-0.2.6-5B6B7A)](docs/releases/release-notes-0.2.6.md)
+[![0.2.7](https://img.shields.io/badge/version-0.2.7-5B6B7A)](docs/releases/release-notes-0.2.7.md)
 
 **Make destructive agent actions reversible by default.** · [简体中文](README.zh-CN.md)
 
@@ -23,15 +23,23 @@ Installed Skills or copied configuration alone do not establish protection.
 We currently focus on **DSH and Kimi Code** integrations. For other hosts,
 ask the official coding agent to configure Agent Guard locally.
 
+This documentation covers [0.2.7](docs/releases/release-notes-0.2.7.md), adding
+Cleanup plans, deletion admission limits and optional local MCP tools.
+Check the exact-version release channels below before installing.
+
 | Capability | What it helps you do | Entry |
 |---|---|---|
 | **Recovery protection** | Relocate valuable files before deletion; snapshot tracked state before supported Git overwrites; inspect and restore transactions | [delete-guard](skills/delete-guard/SKILL.md) |
-| **Cleanup proposals (unreleased checkout)** | Review classified workspace candidates, sizes and effects; explicitly confirm selected targets before safe_delete | [Cleanup Copilot](docs/guides/cleanup-plan.md) |
+| **Cleanup proposals (0.2.7)** | Review classified workspace candidates, sizes and effects; explicitly confirm selected targets before safe_delete | [Cleanup Copilot](docs/guides/cleanup-plan.md) |
+| **Deletion limits (0.2.7)** | Inspect shared protected paths, persistent budgets, rate/repeat limits and large-batch confirmation | [Limits and recovery](docs/guides/deletion-limits.md) |
+| **Local MCP tools (0.2.7)** | Call safe_delete, ordinary restore, transaction/status queries and GC preview from a supporting client | [MCP setup](docs/guides/mcp.md) |
 | **Disclosure checks** | Detect supported credentials and host-identifying paths; apply a redaction plan or withhold a payload | [exfil-guard](skills/exfil-guard/SKILL.md) |
 | **Behaviour experiments** | Calibrate an observer, test a declared exposure channel, then compare matched guard-off/on trials | [guard-lab](docs/lab/guard-lab.md) |
 
 A Skill supplies instructions; it does not intercept tool calls. Automatic
 protection depends on an active, compatible host hook and its covered tools.
+The optional local MCP adapter provides explicit tools and does not intercept
+actions that bypass them; its SDK installation is separate from the Core.
 Agent Guard is not an OS sandbox against a malicious process with equal
 privileges. The [capability matrix](docs/guides/harness-capabilities.md)
 states the observed coverage and gaps.
@@ -99,24 +107,33 @@ This example calls no model; its summary describes instrument calibration.
 
 Python 3.9+ and Git are required for the Core. The examples use a POSIX shell;
 native bridges and optional capture helpers have their own requirements.
+The optional MCP adapter requires Python 3.10+ and a separately installed
+[pinned SDK](docs/guides/mcp.md).
 
 | Version | Status |
 |---|---|
-| [0.2.6](docs/releases/release-notes-0.2.6.md) | Stable release; npm `latest`; release links below |
-| [0.2.5](docs/releases/release-notes-0.2.5.md) | Previous stable release |
+| [0.2.7](docs/releases/release-notes-0.2.7.md) | Version documented here; verify exact-version availability below |
+| [0.2.6](docs/releases/release-notes-0.2.6.md) | Earlier published release with Kimi feedback and host compatibility updates |
+| [0.2.5](docs/releases/release-notes-0.2.5.md) | Earlier stable release |
 | [0.2.4](docs/releases/release-notes-0.2.4.md) | Earlier stable release |
 | [0.2.4-hotfix.1](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.4-hotfix.1) | Opt-in quarantine protection backport; npm `hotfix` |
 | [0.2.5-rc3](docs/releases/release-notes-0.2.5-rc3.md) | Published prerelease, including RC1/RC2 maintenance; npm `rc` |
 
-Publication is established by the exact
-[GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.6)
-and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.6).
+Before installing 0.2.7, confirm availability through its exact
+[GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.7)
+and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.7).
 A checkout or manifest alone does not establish package availability.
 
-For the stable release, use a chosen, stable user-owned prefix:
+If that version is unavailable, use reviewed source or a locally built
+tarball following the [version notes](docs/releases/release-notes-0.2.7.md).
+Versioned tests and package checks are recorded separately from the historical
+0.2.6-metadata source results. Existing successful deletes can newly be
+refused by the [admission limits](docs/guides/deletion-limits.md).
+
+Once the exact version is available, install to a chosen, stable user-owned prefix:
 
 ```sh
-npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.6
+npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.7
 ```
 
 The package root is
@@ -141,7 +158,7 @@ preflight diagnostics, DSH `0.2.1-alpha.4` default deletion support and the
 Kimi `2.3.0` Bash profile. Existing installations need an upgrade to acquire
 these additions; Stop also needs explicit configuration. See
 [setup and the agent setup prompt](docs/guides/getting-started.md) and the
-[maintenance details](docs/releases/unreleased.md).
+[0.2.6 version details](docs/releases/release-notes-0.2.6.md).
 
 ## Recover a supported deletion
 
@@ -265,7 +282,7 @@ reconstruction and known gaps. It cannot recreate bytes that no source kept.
 | [Threat model](docs/design/threat-model.md) | Trust assumptions and unresolved boundaries |
 | [Compatibility](docs/design/compatibility.md) | Interface and release contracts |
 | [Blue-team research](docs/research/README.md) | Defensive methods, sanitized results and a zero-model starting point |
-| [0.2.6 notes](docs/releases/release-notes-0.2.6.md) | Release scope, upgrade impact and validation boundaries |
+| [0.2.7 notes](docs/releases/release-notes-0.2.7.md) | Version scope, upgrade impact and validation boundaries |
 
 ## Contributing
 

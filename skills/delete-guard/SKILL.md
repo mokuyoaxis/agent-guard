@@ -10,6 +10,10 @@ description: >-
 
 # delete-guard
 
+Version **0.2.7** adds the Cleanup proposals and deletion admission described
+below; 0.2.6 lacks these additions. See the
+[0.2.7 scope, upgrade impact and exact-version availability checks](../../docs/releases/release-notes-0.2.7.md).
+
 You operate inside a workspace where irreversible destruction is not a
 default capability. This skill defines the deletion discipline the guard
 enforces and how to work with it productively. The four pillars:
@@ -47,7 +51,9 @@ Globs passed to `safe_delete` are expanded explicitly before anything moves.
 That is why `safe_delete '*.log'` works while `rm *.log` is blocked: the
 guard refuses opaque target sets, not cleanup work.
 
-## Cleanup proposals (unreleased checkout addition)
+<a id="cleanup-proposals-027-candidate"></a>
+
+## Cleanup proposals (0.2.7)
 
 When asked to investigate workspace cleanup, start with a read-only plan:
 
@@ -69,7 +75,9 @@ ordinary files retain recovery copies and disk usage. This CLI adds no
 native host tool or human-identity guarantee. See the
 [workflow, effects and limits](../../docs/guides/cleanup-plan.md).
 
-## Deletion admission (unreleased checkout addition)
+<a id="deletion-admission-027-candidate"></a>
+
+## Deletion admission (0.2.7)
 
 Covered deletion paths now share persistent session byte/entry budgets,
 short-window rate/repeated-target-set limits and quarantine capacity admission.
@@ -77,6 +85,13 @@ The optional workspace `.agent-guard/delete-policy.json` configures limits
 and protected paths; its directory and admission control files are protected.
 Protection wins over artifact and housekeeping exemptions. Missing configuration
 uses defaults; malformed configuration or state blocks new admission.
+
+Defaults are 5 GiB/100000 entries for quarantine admission, 1 GiB/10000
+entries per persistent session, 60 operations per 60 seconds, five repeated
+admissions of one target set per window, and batch review above 256 MiB or
+1000 entries. Counts include filesystem entries and logical metadata; these
+limits are not an OS storage quota. Updating the package does not silently
+reset existing counters or replace a drifted doctor baseline.
 
 Unnamed CLI processes share a stable budget. Failed admitted operations and
 restores do not refund it. A limit refusal is not permission to change session
@@ -248,7 +263,7 @@ space and remain subject to its existing explicit GC policy.
 See `references/policy.md` for the complete rule table, verdict codes, and
 manifest format.
 
-The candidate's restore audit records counts and transaction associations rather
+Restore audit records counts and transaction associations rather
 than duplicate paths/error text. CLI results and recovery manifests still
 contain the exact data needed to inspect and restore; a failed CLI result
 must still be checked against the filesystem and preservation attempts.

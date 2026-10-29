@@ -6,8 +6,11 @@ native Windows harness execution remains unverified. POSIX hook bridges have
 their own platform requirements. See the
 [compatibility contract](../../../docs/design/compatibility.md).
 
-This reference covers 0.2.5, retaining RC1–RC3
-maintenance and shared audit metadata projection. The original published
+This reference covers **0.2.7**, retaining the
+0.2.6/0.2.5 and RC1–RC3 maintenance and shared audit metadata projection.
+The admission additions are absent from 0.2.6; see the
+[0.2.7 notes](../../../docs/releases/release-notes-0.2.7.md) for scope and
+exact-version availability checks. The original published
 0.2.4 baseline lacks the RC's control-path, GC and audit-writer maintenance;
 the opt-in 0.2.4-hotfix.1 backports only control-path protection.
 
@@ -108,8 +111,8 @@ the published 0.2.4 artifact retains its original housekeeping order.
 | 2b | SHAPE F2: file-creation op (`touch/mkdir/cp/mv/install/ln/tee`, `>`/`>>`) precedes a target-dependent destructive op in the same line | `ASK` (`COMPOUND_CREATE_DELETE`) | single-execution authorization; force-push is refused separately. Hard reset in a compound line is effect-uncertain and BLOCKED before shape rules |
 | 2c | target *is* a filesystem root (`/`, `/home`, `/usr`, `/etc`, `/var`, `/tmp`, `/opt`, `/boot`, `$HOME`, ...) | `BLOCK_PROTECTED_ANCESTOR` | refuse. Matched exactly, so paths *under* these roots keep the ordinary codes; enforced by identity rather than workspace geometry, so it holds even when the workspace is `/` |
 | 5 | workspace root, `.git` metadata, quarantine root/control paths, or an in-workspace parent containing configured storage | `BLOCK_PROTECTED_PATH` | refuse before the housekeeping exemption; root manifest/audit/state, state temp and sessions are control paths |
-| 5a | unreleased: deletion configuration malformed/unreadable | `BLOCK_DELETE_CONFIG_INVALID` | refuse new deletion before artifact/housekeeping exemptions |
-| 5b | unreleased: `.agent-guard` or configured protection, including ancestor coverage | `BLOCK_DELETE_PROTECTED` | refuse; lexical and physical locations are protected |
+| 5a | Since 0.2.7: deletion configuration malformed/unreadable | `BLOCK_DELETE_CONFIG_INVALID` | refuse new deletion before artifact/housekeeping exemptions |
+| 5b | Since 0.2.7: `.agent-guard` or configured protection, including ancestor coverage | `BLOCK_DELETE_PROTECTED` | refuse; lexical and physical locations are protected |
 | 3 | explicit ordinary unprotected payload inside quarantine (`.agent-trash/`) | `ALLOW_TRASH_GC` | opaque globs BLOCK_WILDCARD; safe_delete may enumerate first, and an audited transaction purge uses gc.py --execute |
 | 4 | target outside workspace | `BLOCK_OUT_OF_WORKSPACE` | refuse |
 | 6 | any glob target | `BLOCK_WILDCARD` | refuse; use safe_delete which enumerates |
@@ -130,7 +133,10 @@ the published 0.2.4 artifact retains its original housekeeping order.
 Precedence inside rule groups: `outside-workspace` > `workspace-root` >
 `git-metadata`. RESTRICTED narrows before NORMAL relaxes.
 
-### Unreleased execution admission
+<a id="unreleased-execution-admission"></a>
+<a id="027-candidate-execution-admission"></a>
+
+### 0.2.7 execution admission
 
 The static rule table is followed by shared execution admission on covered
 deletion paths. Missing `.agent-guard/delete-policy.json` uses defaults;
@@ -167,7 +173,15 @@ and its approvals, not capacity. See the complete
 [configuration and accounting guide](../../../docs/guides/deletion-limits.md).
 These additions are absent from published 0.2.6. The guide records three
 1090-case Python/two-Node-group passes, the offline package and real Kimi
-scenarios, with their local platform and host/tool limits.
+scenarios, with their local platform and host/tool limits. Those measurements
+predate the versioned 0.2.7 preparation checkpoint. Subsequent local validation passed
+1129 Python cases, both Node groups and a 155-file offline package with
+actual installed MCP checks; no new real-model trial was run. See the
+[versioned validation record](../../../docs/releases/release-notes-0.2.7.md#validation-status).
+That 2026-10-29 local checkpoint did not include remote CI or publication.
+The maintainer's bounded 0.2.7 versioning decision and changed existing shapes
+are recorded in the [compatibility contract](../../../docs/design/compatibility.md#027-candidate-bounded-maintainer-selected-exception)
+and [F32–F34](../../../docs/history/friction.md#f32-deletion-admission).
 
 ## Verdict actions
 
@@ -203,7 +217,7 @@ Default artifact patterns: `node_modules dist build out target __pycache__
 .cache coverage .next .nuxt .venv venv .pytest_cache .mypy_cache .tox
 .turbo .parcel-cache *.pyc *.pyo *.egg-info`
 
-The unreleased deletion configuration is the separate optional
+The deletion configuration introduced in 0.2.7 is the separate optional
 `.agent-guard/delete-policy.json`; see [deletion limits](../../../docs/guides/deletion-limits.md).
 `AGENT_GUARD_SESSION` also selects its persistent admission budget. Internal
 Cleanup approval handoff is operation-bound, not a general configuration or
@@ -216,8 +230,8 @@ authority bypass.
 ├── state.json        # authorization mode (portable fallback)
 ├── manifest.jsonl    # tx-start / relocate-intent / relocate / snapshot / restore
 ├── audit.jsonl       # decisions, compensation intents, and outcomes
-├── admission.json   # unreleased: session admission counters and approvals
-└── admission.lock   # unreleased: cross-process admission lock
+├── admission.json    # since 0.2.7: session admission counters and approvals
+└── admission.lock    # since 0.2.7: cross-process admission lock
 ```
 
 The guard accepts an existing `.gitignore` rule or writes a workspace-local

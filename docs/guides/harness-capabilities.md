@@ -1,17 +1,18 @@
 # Harness capability and evidence matrix
 
-Stable release line: [0.2.6](../releases/release-notes-0.2.6.md).
-It retains RC1–RC3 and 0.2.5 feedback, with the additions described below.
+This matrix accompanies [0.2.7](../releases/release-notes-0.2.7.md).
+Confirm availability through the exact GitHub release and npm version links
+in those notes; a source version does not establish publication.
 Published prerelease, checked on 2026-10-19:
 [0.2.5-rc3](../releases/release-notes-0.2.5-rc3.md).
 Rows below retain their tested source/host versions and do not automatically
 certify a later release. Local regression or package checks are separate from
 new native-host/model evidence.
 
-[0.2.6](../releases/release-notes-0.2.6.md) adds optional Kimi Stop
+Earlier release [0.2.6](../releases/release-notes-0.2.6.md) adds optional Kimi Stop
 feedback, separate doctor checks, DSH Lab diagnostics, alpha.4 default
 deletion compatibility and Kimi 2.3.0 root-Bash compatibility. These additions
-are absent from 0.2.5. See [maintenance details](../releases/unreleased.md).
+are absent from 0.2.5. See its [version notes](../releases/release-notes-0.2.6.md).
 
 The new [research notes](../research/README.md) describe bounded private
 experiments; their disclosure/delegation methods do not change the supported
@@ -85,6 +86,20 @@ The default adapters address destructive **shell** calls. Exfil-guard also has
 a CLI/cooperative path and the narrowly scoped, opt-in DSH text-read prototype
 above. This table does not imply universal interception of model context,
 uploads, or every output channel.
+
+## Local MCP tools introduced in 0.2.7
+
+The optional [local stdio MCP adapter](mcp.md) provides explicit safe_delete,
+ordinary restore, transaction/status queries and GC preview under one
+startup-bound workspace/session. It does not intercept shell, script or
+editor operations that bypass those tools. Its Python 3.10+ SDK environment
+is separate from the standard-library Core/CLI requirements.
+
+The guide records the 0.2.7 installed-package/protocol checks and the earlier
+bounded Kimi Code 2.3.0 root-agent native-MCP trials with their original
+checkpoint and gateway limits. These observations do not expand the native
+hook rows above or establish live Claude/Cursor/Codex, subagent or additional
+platform coverage. Client setup examples remain documentation guidance.
 
 ## Acceptance for each native adapter
 

@@ -9,7 +9,7 @@ F21–F23 changes subsequently shipped in 0.2.3; F24–F25 shipped in 0.2.4.
 F26–F31 subsequently shipped in 0.2.5-rc1. RC2 adds shared audit metadata and
 observer startup maintenance; publication is checked by its versioned receipts.
 Current scope is in the
-[candidate notes](../releases/release-notes-0.2.5.md); historical failures and
+[0.2.7 notes](../releases/release-notes-0.2.7.md); historical failures and
 test counts below are not rewritten by a later success.
 
 ## Current feedback maintenance · status, explanations and retained storage
@@ -567,3 +567,101 @@ Exact CLI/recovery paths and error diagnostics remain available, with the
 same mutation-intent durability and assessment/outcome failure behavior.
 Historical records, automatic session identity and other audit/output
 writers remain outside this change.
+
+<a id="f32-deletion-admission"></a>
+
+## F32 · Repeated admitted deletions could keep growing recovery storage
+
+The existing recovery path preserved valuable content but had no persistent
+session byte/entry budget, rolling operation rate or same-target-set limit.
+A caller could repeatedly delete/recreate content or launch fresh CLI
+processes while adding more recovery copies. The soft 30-day/5-GiB GC plan
+did not bound new admission and never purged automatically.
+
+**0.2.7 change:** covered relocations, Git-clean compensation and
+force-restore occupant preservation now check quarantine admission capacity.
+Regenerable direct deletion also consumes applicable session/rate/repeat
+budgets. Accounting is persisted before the guarded operation under a
+cross-process lock; admitted failures and subsequent restores do not refund
+it. Unnamed CLI processes share a stable bucket instead of receiving a fresh
+budget on every invocation.
+
+Defaults are 5 GiB/100000 quarantine entries, 1 GiB/10000 admitted session
+entries, 60 operations per 60 seconds and five admissions of the same
+normalized target set per window. `BLOCK_DELETE_LIMIT`, `BLOCK_DELETE_RATE`
+and `BLOCK_DELETE_REPEAT` are upgrade-visible refusals. Inspect `status` and
+the caller; rate/repeat windows can expire, while cumulative budgets require
+explicit operator review and interactive `RESET` or a deliberate policy
+adjustment. Do not switch session identity or remove state to bypass them.
+
+Capacity pressure never triggers automatic GC or a fallback to permanent
+deletion. Normal restore, explicit transaction GC and unprotected quarantine
+payload housekeeping remain available without a new deletion debit. Existing
+compound ASK and Git snapshots remain outside these counters. Logical
+accounting and same-UID state are accident suppression, not an OS disk quota
+or a complete anomaly detector. See [deletion limits](../guides/deletion-limits.md)
+for metadata/hardlink accounting and fixed inventory bounds.
+
+<a id="f33-batch-confirmation"></a>
+
+## F33 · Large automated deletion batches had no separate review gate
+
+A supported automated command could compensate many concrete targets under
+the existing deletion policy without an additional batch-size review. Looking
+at each segment separately also let one shell request contain several
+individually small deletions whose combined target set was large.
+
+**0.2.7 change:** the enforced checker combines covered rm/artifact
+and enumerated Git-clean targets before its first compensation. Operations
+above 256 MiB or 1000 filesystem entries return
+`BLOCK_DELETE_BATCH_CONFIRM`, directing the operator to the reviewed Cleanup
+plan. The default plan only proposes candidates; execution requires exact
+selection and terminal `EXECUTE`, followed by rescan and per-target
+safe_delete calls.
+
+Cleanup creates a ten-minute approval bound to the session, effective
+configuration, exact paths and measured metadata. Each path is consumed once;
+stale, changed, expired or replayed approval is refused. This lifts only the
+batch gate, not protection, session/rate/repeat or quarantine capacity.
+There is no new native host ASK/resume protocol; existing compound ASK and
+Git SNAPSHOT behavior remains separate. The optional MCP adapter does not
+expose approval creation or provide a `confirm=true` shortcut. See the
+[Cleanup workflow](../guides/cleanup-plan.md).
+
+<a id="f34-deletion-protection"></a>
+
+## F34 · Configured evidence and admission controls needed shared protection
+
+Existing hard-coded workspace/Git/recovery boundaries did not express
+additional project evidence roots or a shared protected-path list. Artifact
+classification and housekeeping could not rely on such a declaration, and
+new budget/configuration state needed protection from covered deletion.
+
+**0.2.7 change:** the optional workspace
+`.agent-guard/delete-policy.json` supplies literal protected paths and limits.
+Protection covers lexical/physical locations, descendants and ancestor
+deletion, before artifact or payload-housekeeping exemptions. The configuration
+directory, `admission.json`, temporary state and `admission.lock` are protected.
+Missing configuration uses documented defaults without creating the file;
+malformed, unreadable or unsupported configuration returns
+`BLOCK_DELETE_CONFIG_INVALID`. Overlap returns `BLOCK_DELETE_PROTECTED`;
+unusable admission inventory, lock or state returns
+`BLOCK_DELETE_STATE_INVALID` instead of silently disabling admission.
+
+Fix the reported configuration/storage issue or preserve the protected
+evidence; do not remove controls to make deletion proceed. This is cooperative
+path protection, not legal hold, minimum directory retention or immutable
+storage. Same-UID processes and unobserved writes/deletion channels remain
+outside its authority. Existing recovery format and explicit GC semantics
+are retained.
+
+The maintainer selected version 0.2.7 for these F32–F34
+changes as a bounded maintenance-version exception, recorded in
+[compatibility](../design/compatibility.md#027-candidate-bounded-maintainer-selected-exception).
+This does not relax the general minor-release promise for other patches.
+The pre-alignment 1090/1123-case runs and sampled Kimi results keep their
+original scope. At the 2026-10-29 versioned preparation checkpoint, 1129
+Python cases and both Node groups passed in 1194.265 seconds, and the
+155-file offline package passed installed MCP checks. That local checkpoint
+did not include remote CI or publication, and made no new real-model requests.
+See the [versioned validation record](../releases/release-notes-0.2.7.md#validation-status).

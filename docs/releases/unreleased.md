@@ -1,6 +1,72 @@
-# Unreleased changes and 0.2.6 maintenance history
+# 0.2.7 changes and 0.2.6 maintenance history
 
-## Deletion admission hardening (unreleased)
+<a id="unreleased-changes-and-026-maintenance-history"></a>
+<a id="027-candidate-changes-and-026-maintenance-history"></a>
+
+The maintainer selected **0.2.7** for Cleanup Copilot, deletion admission and
+optional local MCP tools. Check its exact GitHub release and npm version
+through the [version notes](release-notes-0.2.7.md) before installing; a source
+version alone does not establish publication. This path is retained for
+existing links. At the **2026-10-29 local preparation checkpoint**, versioned
+validation passed:
+1129 Python cases and both Node groups in 1194.265 seconds, with no failures,
+errors, skips, timeouts or automatic retries, plus a 155-file offline package
+and installed MCP identity/operation checks. The diagnostic collector kept
+`npm test` scope/deadlines without invoking npm. Release SDK-gate fault checks
+also passed; that checkpoint did not include final-commit remote CI or
+publication. These results are separate from the historical checkpoints below; this preparation
+made no new real-model requests. See
+[version scope, upgrade effects and validation](release-notes-0.2.7.md).
+The separate 0.3.0 plan remains paused.
+
+<a id="local-mcp-tools-unreleased"></a>
+<a id="local-mcp-tools-027-candidate"></a>
+
+## Local MCP tools (0.2.7)
+
+The checkout adds an optional local stdio server for explicit safe_delete,
+ordinary restore, transaction/status queries and GC-plan preview. Workspace
+and stable session identity are set at startup; tools cannot override them,
+the environment or quarantine. Operations use the existing CLI without a
+shell and retain deletion protection, budget, audit and recovery semantics.
+Session selection chooses saved CLI authorization mode as well as budget;
+without it, legacy CLI state and the shared default bucket apply. Reusing
+state requires matching workspace/quarantine/session. Native host-session
+restrictions or in-memory veto require trusted bridging and are not inherited
+merely by registering this server.
+No force restore, GC execution, budget reset or Cleanup approval is exposed;
+safe-delete quarantine targets are also refused. The existing GC CLI remains
+separate; preview-only MCP does not add a terminal requirement to that CLI.
+
+The official MIT-licensed `mcp==2.3.0` SDK is an optional separate-environment
+dependency, not a new Core/CLI requirement or automatic npm installation.
+MCP tools do not replace native hooks or cover shell/script/editor actions
+that bypass them. For the 2026-10-28 frozen candidate, the first full local
+run finished 1123 Python cases with one observer READY-startup error in
+1156.312 seconds; Node did not run. The original error remains unresolved.
+The same case passed separate SDK/system-Python checks, and a second complete
+run passed all 1123 Python cases and both Node groups in 1143.435 seconds,
+without failures, errors, skips, timeouts, runtime changes or automatic retries.
+The diagnostic collector preserved `npm test` scope/deadlines; npm itself was
+not invoked. Default Core testing without the optional SDK skips seven
+protocol cases; the two recorded full runs included it. An independent
+SDK CI job is configured; the local preparation checkpoint included no
+remote execution of that job.
+
+The 154-file offline install/12 CLI checks and three real Kimi 2.3.0 native-MCP
+trials passed: ordinary delete/restore, same-session budget and configured
+protection. The model made 16 MCP calls across 19 real configured-route HTTP
+200 requests, without Bash, fixed replies or route changes. Its gateway's
+server-side model identity was not independently verified. Local evidence
+covers ARM64/PRoot Python 3.13.5; there are no new Windows/macOS/shared-storage
+or live Claude/Cursor/Codex tests. Their setup examples remain documentation
+guidance. See [installation, failure history and limits](../guides/mcp.md).
+Published 0.2.6 and its old evidence remain unchanged; 0.3.0 is still paused.
+
+<a id="deletion-admission-hardening-unreleased"></a>
+<a id="deletion-admission-hardening-027-candidate"></a>
+
+## Deletion admission hardening (0.2.7)
 
 The current checkout adds quarantine capacity admission, persistent session
 byte/entry budgets, short-window rate and repeated-target-set limits, and
@@ -34,12 +100,15 @@ invoking npm itself. An offline 149-file package and three real Kimi 2.3.0
 root-Bash cases passed; nine configured-route model requests returned HTTP 200.
 See the guide for POSIX-only validation, gateway identity and host/tool limits.
 The earlier unexplained npm timeout did not recur; its history is retained.
-The Cleanup-only results below predate these changes. Version metadata
-remains 0.2.6 without claiming these
-changes shipped in that release; no new release version is selected, and
-the separate 0.3.0 plan remains paused.
+The Cleanup-only results below predate these changes. Those earlier checks
+used 0.2.6 package metadata without claiming the additions shipped in that
+release. Subsequent versioned 0.2.7 tests and package checks passed as recorded
+above; the separate 0.3.0 plan remains paused.
 
-## Cleanup Copilot (unreleased)
+<a id="cleanup-copilot-unreleased"></a>
+<a id="cleanup-copilot-027-candidate"></a>
+
+## Cleanup Copilot (0.2.7)
 
 The current checkout adds a metadata-only cleanup plan and an explicitly
 confirmed CLI execution workflow. It reports regenerable, caller-declared
@@ -48,9 +117,9 @@ projected deletion/quarantine effects. Execution still uses safe_delete;
 ordinary quarantined files retain disk usage. The default plan writes no
 workspace or guard metadata. See [usage and limits](../guides/cleanup-plan.md).
 
-This initial addition is separate from published 0.2.6. No feature release
-version has been selected, and it added no native host tool or deletion-policy
-change. Subsequent admission hardening is described above. At the Cleanup-only
+This initial addition is separate from published 0.2.6 and is included in
+version 0.2.7. At its initial checkpoint it added no native host tool or
+deletion-policy change. Subsequent admission hardening is described above. At the Cleanup-only
 checkpoint, the runtime passed a continuous local ARM64/PRoot POSIX rerun:
 1012 Python cases and both Node groups in 979.997 seconds, with no failures,
 errors, skips or retries. This used the existing diagnostic result collector
@@ -189,16 +258,18 @@ commands; restoration and repeat-Stop checks passed. This does not establish
 all-model, subagent, background or long-running behavior. The new DSH
 diagnostic checks made no external model requests.
 
-## 中文摘要
+<a id="中文摘要"></a>
 
-本页记录已纳入 0.2.6 的维护：Kimi 可选 Stop 恢复反馈、120 秒外层超时接入说明，以及
+## 0.2.6 中文摘要
+
+以下为 0.2.6 历史维护摘要：Kimi 可选 Stop 恢复反馈、120 秒外层超时接入说明，以及
 DSH Lab 版本／配置预检的原因、退出码和计时诊断，及 Kimi Stop 的独立 doctor 检查。
 后续默认删除适配加入 DSH `0.2.1-alpha.4`，读取脱敏／Lab 不随之扩大。
 Kimi Bash profile 新增精确版本 2.3.0；CLI／ACP 各八项固定响应试次提供有限根代理证据，
 未调用外部模型，也未扩大 Kimi Lab 的 2.1.1 准入或子代理声明。
 Stop 未配置不报错；配置或本地探针失败退出 1，模型送达始终未验证。已发布 0.2.5 的范围保持原记录；
-已有安装需升级至 0.2.6，Stop 另需显式配置；原页面路径为已有链接保留。
+这些功能自 0.2.6 起提供，Stop 另需显式配置；原页面路径为已有链接保留。
 
 版本／文档对齐前，最终实现检查点的 974 项 Python 与两组 Node 已在同一冻结流程通过；
 此前 962 项检查点和历史失败分别保留，原失败原因仍未确定。
-删除策略、rm 通配符规则、恢复格式和手动 GC 保持原样。
+上述 0.2.6 维护未改变删除策略、rm 通配符规则、恢复格式或手动 GC。

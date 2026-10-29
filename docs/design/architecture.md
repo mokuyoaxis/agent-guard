@@ -305,19 +305,26 @@ order of value:
 
 ## Delivery status and design directions
 
-The stable release line is 0.2.6. Previous stable 0.2.5, opt-in
-0.2.4-hotfix.1 and prerelease 0.2.5-rc3 retain their separate artifacts.
+This document covers version [0.2.7](../releases/release-notes-0.2.7.md), which
+adds reviewed Cleanup plans, shared deletion admission and optional local
+MCP tools. Confirm availability through the exact GitHub release and npm
+version links in those notes; a source version does not establish publication.
+Earlier stable 0.2.6/0.2.5, opt-in 0.2.4-hotfix.1 and prerelease 0.2.5-rc3
+retain their separate artifacts and evidence.
 Version 0.2.5 retains RC recovery, shared audit,
 observer maintenance and [defensive research](../research/README.md), plus
 clearer local startup/status and retained-storage feedback. Private research
 methods do not add a general authorization service or production enforcement
-point. Deletion rules and execution routes retain their RC behavior.
-See [release notes](../releases/release-notes-0.2.6.md) and
+point. Those historical versions retain their RC deletion rules and execution routes.
+See [release notes](../releases/release-notes-0.2.7.md) and
 [compatibility](compatibility.md) for behaviour and validation boundaries.
 Release [0.2.6](../releases/release-notes-0.2.6.md) adds
 optional Kimi Stop feedback, its doctor checks and Lab preflight diagnostics.
 It also adds reviewed DSH alpha.4 default deletion and Kimi 2.3.0 Bash compatibility.
-Core policy is unchanged; scope and delivery limits are tracked in the
+That 0.2.6 maintenance did not change Core policy. Version 0.2.7 adds the
+bounded deletion-admission rules and upgrade-visible refusals recorded in
+the [compatibility contract](compatibility.md#027-bounded-maintainer-selected-exception).
+Historical scope and delivery limits remain in the
 [maintenance details](../releases/unreleased.md).
 
 The milestones below describe historical delivery and future design scope,

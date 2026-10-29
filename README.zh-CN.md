@@ -4,7 +4,7 @@
 [![npm 稳定版](https://img.shields.io/npm/v/%40mokuyoaxis%2Fagent-guard.svg)](https://www.npmjs.com/package/@mokuyoaxis/agent-guard)
 [![License](https://img.shields.io/github/license/mokuyoaxis/agent-guard)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![0.2.6](https://img.shields.io/badge/release-0.2.6-5B6B7A)](docs/releases/release-notes-0.2.6.md)
+[![0.2.7](https://img.shields.io/badge/version-0.2.7-5B6B7A)](docs/releases/release-notes-0.2.7.md)
 
 **让 AI Agent 的破坏性操作默认可逆。** · [English](README.md)
 
@@ -21,16 +21,23 @@ Agent Guard 在受支持的删除、覆盖操作前保留恢复数据，检查�
 目前主要维护 **DSH 和 Kimi Code** 的接入。其他宿主建议交给对应的官方
 编码 Agent 在本地配置。
 
+本文档覆盖 [0.2.7](docs/releases/release-notes-0.2.7.md)，新增 Cleanup 计划、
+删除准入限制与可选本地 MCP 工具。安装前请通过下方精确版本渠道确认可用性。
+
 | 能力 | 能帮助你做什么 | 入口 |
 |---|---|---|
 | **恢复保护** | 删除前迁移有价值的文件；受支持的 Git 覆盖前快照 tracked 状态；查询和恢复事务 | [delete-guard](skills/delete-guard/SKILL.md) |
-| **清理提议（未发布源码）** | 扫描候选、分类、大小与实际执行方式；显式选择并确认后交给 safe_delete | [Cleanup Copilot](docs/guides/cleanup-plan.md) |
+| **清理提议（0.2.7）** | 扫描候选、分类、大小与实际执行方式；显式选择并确认后交给 safe_delete | [Cleanup Copilot](docs/guides/cleanup-plan.md) |
+| **删除限制（0.2.7）** | 查询共享保护路径、持久预算、速率／重复限制与大批量确认 | [限制与恢复](docs/guides/deletion-limits.md) |
+| **本地 MCP 工具（0.2.7）** | 在支持的客户端中调用 safe_delete、普通恢复、事务／状态查询和 GC 预览 | [MCP 接入](docs/guides/mcp.md) |
 | **外发检测** | 检测受支持的凭据和本机标识路径；应用脱敏计划或拒绝输出 | [exfil-guard](skills/exfil-guard/SKILL.md) |
 | **行为验测** | 校准观察器，验证声明信道的暴露，再比较匹配的关闭／开启防护试次 | [guard-lab](docs/lab/guard-lab.md) |
 
 Skill 提供操作纪律，不会自行拦截工具调用。自动保护依赖宿主实际加载了
 兼容 hook，且调用位于其覆盖范围内。Agent Guard 不是抵抗同权限恶意进程的
 OS 沙箱；实际接入证据和缺口见[能力矩阵](docs/guides/harness-capabilities.md)。
+可选本地 MCP 适配器提供显式工具，不会拦截绕过它的操作；其 SDK 单独安装，
+不改变 Core 的运行依赖。
 
 <a id="guard-lab-合成蜜罐"></a>
 
@@ -85,24 +92,30 @@ python3 docs/lab/examples/blue-team-calibration.py --output-dir "$blue_run/contr
 
 Core 需要 Python 3.9+ 和 Git。示例采用 POSIX Shell；原生桥接和可选采集
 工具另有运行要求。
+可选 MCP 适配器需要 Python 3.10+，并单独安装[固定版本 SDK](docs/guides/mcp.md)。
 
 | 版本 | 状态 |
 |---|---|
-| [0.2.6](docs/releases/release-notes-0.2.6.md) | 正式版；npm `latest`；发布地址见下方 |
-| [0.2.5](docs/releases/release-notes-0.2.5.md) | 上一稳定版 |
+| [0.2.7](docs/releases/release-notes-0.2.7.md) | 本文档对应版本；精确版本的可用性见下方渠道 |
+| [0.2.6](docs/releases/release-notes-0.2.6.md) | 历史已发布版本，包含 Kimi 反馈与宿主兼容性更新 |
+| [0.2.5](docs/releases/release-notes-0.2.5.md) | 更早稳定版 |
 | [0.2.4](docs/releases/release-notes-0.2.4.md) | 更早稳定版 |
 | [0.2.4-hotfix.1](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.4-hotfix.1) | 显式选择的回收站保护回补；npm `hotfix` |
 | [0.2.5-rc3](docs/releases/release-notes-0.2.5-rc3.md) | 已发布预发布版，包含 RC1／RC2 维护；npm `rc` |
 
-实际发布状态以精确版本的
-[GitHub Release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.6)和
-[npm 版本页](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.6)为准，
+安装 0.2.7 前，请通过精确版本的
+[GitHub Release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.7)和
+[npm 版本页](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.7)确认可用性，
 checkout 或 manifest 本身不代表包已可安装。
 
-稳定包可安装到用户选定的长期目录：
+若该版本尚不可用，请按[版本说明](docs/releases/release-notes-0.2.7.md)使用经复核的
+源码或本地构建 tarball。版本化测试和包核验已单独记录，不能沿用旧 0.2.6 元数据
+候选的通过结论。此前可执行的删除可能被新的[准入限制](docs/guides/deletion-limits.md)拒绝。
+
+确认精确版本可用后，可安装到用户选定的长期目录：
 
 ```sh
-npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.6
+npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.7
 ```
 
 包根目录是
@@ -124,7 +137,7 @@ cd agent-guard
 恢复反馈、独立 Stop doctor 检查、DSH Lab 预检诊断、DSH `0.2.1-alpha.4` 默认删除适配，
 以及 Kimi `2.3.0` Bash profile。已有安装需要升级才能取得这些功能，Stop 还需显式配置。
 接入步骤与 Agent 提示词见[入门指南](docs/guides/getting-started.md)，
-功能边界见[维护说明](docs/releases/unreleased.md)。
+历史功能边界见[0.2.6 说明](docs/releases/release-notes-0.2.6.md)。
 
 ## 恢复一次受支持的删除
 
@@ -231,7 +244,7 @@ Git／会话／缓存证据恢复项目，区分原文、重建与确认缺失�
 | [威胁模型](docs/design/threat-model.md) | 信任假设与尚未解决的边界 |
 | [兼容契约](docs/design/compatibility.md) | 接口与发布约定 |
 | [蓝队研究](docs/research/README.md) | 防守方法、去敏结果与零模型起点 |
-| [0.2.6 说明](docs/releases/release-notes-0.2.6.md) | 发布范围、升级影响与验证边界 |
+| [0.2.7 说明](docs/releases/release-notes-0.2.7.md) | 版本范围、升级影响与验证边界 |
 
 ## 参与贡献
 

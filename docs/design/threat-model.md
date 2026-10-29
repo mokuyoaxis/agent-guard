@@ -17,6 +17,12 @@ bypass. Therefore:
 - You must NOT claim: sandboxing, containment of malicious agents,
   prevention of determined bypass.
 
+Version **0.2.7** adds the bounded deletion-admission and optional MCP surfaces
+below. Confirm package availability through the exact GitHub release and npm
+version links in the [version notes](../releases/release-notes-0.2.7.md).
+This version does not add legal hold,
+directory retention or deletion certificates, or resume the 0.3.0 plan.
+
 ## Assets
 
 1. User data inside the workspace (tracked, untracked, ignored).
@@ -34,13 +40,53 @@ bypass. Therefore:
 | 5 | Symlink confusion (delete link vs target, trailing slash dereference) | Lexical boundary analysis; link relocation preserves the link; realpath recorded | Low |
 | 6 | TOCTOU between classification and execution | Checks and moves are not atomic. Native hooks run Core before handing control back to host execution; there is no promised maximum gap | Concurrent changes can invalidate facts or affect later execution. Atomic isolation remains unimplemented |
 | 7 | Destructive restore | Relocation destinations and sources are checked against the workspace and their quarantine transaction. IDs and directory locations are validated; leaf symlinks retain their semantics. Human `--force` preserves an occupant through a separate relocation transaction before replacement; failed preservation stops that item | Checks and moves are not atomic against concurrent changes. Cross-filesystem failures may leave a partial destination or backup; inspect the filesystem and reported transaction IDs. Preserved versions add storage use and follow existing explicit GC |
-| 8 | Quarantine bloat turns `.agent-trash` into a liability (exfil via packaging, disk exhaustion) | Existing `.gitignore` or `.git/info/exclude`; size/status and explicit GC. The unreleased checkout adds cross-process capacity admission, persistent session budgets, rate/repeat limits and confirmed large batches | Logical admission is not an OS quota. Audit, directory metadata and unrelated writers can still grow storage; failures/restores do not refund session charges; GC stays explicit. Same-UID configuration/state/session changes remain possible |
-| 9 | Agent deletes configured evidence or resets its own deletion budget | Unreleased shared protection covers configured paths and ancestors before artifact/housekeeping exemptions; configuration and admission control files are protected. CLI budget reset requires terminal acknowledgement | Portable protection and TTY are not independent authority against same-UID processes; no authenticated human guarantee |
+| 8 | Quarantine bloat turns `.agent-trash` into a liability (exfil via packaging, disk exhaustion) | Existing `.gitignore` or `.git/info/exclude`; size/status and explicit GC. Version 0.2.7 adds cross-process capacity admission, persistent session budgets, rate/repeat limits and confirmed large batches | Logical admission is not an OS quota. Audit, directory metadata and unrelated writers can still grow storage; failures/restores do not refund session charges; GC stays explicit. Same-UID configuration/state/session changes remain possible |
+| 9 | Agent deletes configured evidence or resets its own deletion budget | Shared protection in 0.2.7 covers configured paths and ancestors before artifact/housekeeping exemptions; configuration and admission control files are protected. CLI budget reset requires terminal acknowledgement | Portable protection and TTY are not independent authority against same-UID processes; no authenticated human guarantee |
 
-The unreleased admission rules are described in the
+The 0.2.7 admission rules are described in the
 [deletion limits guide](../guides/deletion-limits.md), including measured
 three-run, package and real Kimi validation and its platform/tool limits.
 The published 0.2.6 baseline has only the existing soft retention/GC mechanism.
+
+## Optional local MCP boundary
+
+The 0.2.7 [MCP adapter](../guides/mcp.md) offers explicit tools under one
+startup-bound workspace and stable budget identity. It reuses the CLI policy,
+audit and recovery paths; tool arguments cannot change the binding or enable
+force restore, GC execution, budget reset or Cleanup approval. Safe-delete
+quarantine targets are refused to keep that API from becoming a permanent-GC
+shortcut. Tool annotations and client approval settings are hints, not server
+authorization or authenticated human identity.
+Startup session selection controls both existing CLI authorization mode and
+deletion budget; omission uses legacy CLI state and the shared default bucket.
+Saved restrictions are reused only with the same workspace, quarantine and
+session. The caller's native-session restrictions or in-memory veto are not
+automatically transferred; those require trusted host-side bridging.
+
+This service does not intercept shell/script/editor operations that bypass
+its tools. Same-UID processes can still edit state or launch another service.
+Client cancellation, disconnects and timeouts do not prove rollback or lack
+of mutation; inspect recovery transactions before retrying. Results may
+contain local paths and metadata and are not a general disclosure-sanitization
+channel. The optional SDK adds its own dependency surface; a local stdio
+server exposes no network listener.
+
+The local 2026-10-28 candidate's first full run had one unresolved observer
+READY-startup error; the second passed 1123 Python cases and both Node groups
+without failures, errors, skips or timeouts. A 154-file offline installation
+and three real Kimi 2.3.0 root-MCP trials passed. These observations do not
+establish a timeout fix, remote-CI success, native Windows/macOS/shared-storage
+compatibility or live Claude/Cursor/Codex support. See the guide for the full
+failure history, optional-SDK test skips and measured scope; older hook and
+release evidence remains separate.
+Those are pre-version-alignment observations. The subsequent 0.2.7 candidate
+passed 1129 Python cases and both Node groups without failures, errors, skips
+or timeouts; its 155-file offline package passed installed MCP checks with
+matching 0.2.7 service identity. See the
+[versioned validation record](../releases/release-notes-0.2.7.md#validation-status).
+This is local protocol/package evidence, with no new real-model trial or
+expanded host/platform coverage. The 2026-10-29 local preparation checkpoint
+did not include remote CI or publication.
 
 ## guard-lab diagnostic boundary
 
