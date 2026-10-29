@@ -16,7 +16,11 @@ from tests.helpers import RepoFixture, git_available
 @unittest.skipUnless(git_available(), "git required")
 class McpOperations(RepoFixture):
     def setUp(self):
-        super().setUp()
+        # Keep fixture commits from launching detached Git maintenance.
+        with mock.patch.dict(os.environ, {"GIT_CONFIG_COUNT": "1",
+                                          "GIT_CONFIG_KEY_0": "maintenance.auto",
+                                          "GIT_CONFIG_VALUE_0": "false"}):
+            super().setUp()
         # macOS temporary paths can use /var as an alias of /private/var.
         # MCP binds the physical workspace, so compare against that identity.
         self.root = str(Path(self.root).resolve())
@@ -42,7 +46,13 @@ class McpOperations(RepoFixture):
         self.assertEqual(listing["result"]["transactions"], [])
         self.assertEqual(plan["result"]["mode"], "plan")
         self.assertEqual(plan["result"]["eligible"], [])
-        self.assertEqual(self.files(), before)
+        after = self.files()
+        self.assertEqual(after, before, {
+            "added": sorted(after.keys() - before.keys()),
+            "removed": sorted(before.keys() - after.keys()),
+            "changed": sorted(name for name in before.keys() & after.keys()
+                              if before[name] != after[name]),
+        })
 
     def test_ordinary_delete_returns_actual_recovery_evidence_and_restores(self):
         self.write("valuable", "original bytes")
