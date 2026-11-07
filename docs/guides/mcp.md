@@ -9,6 +9,12 @@ first full run. They do not certify the new versioned artifact. See the
 exact-version availability checks.
 Configuration examples are not host acceptance.
 
+The **0.2.8 development checkout** adds [local MCP diagnosis](#diagnose-a-local-service-028-development)
+and protocol-interruption validation. It is not published; see the
+[0.2.8 scope and validation status](../releases/release-notes-0.2.8.md).
+The later [Codex 0.165.0 acceptance](#codex-01650-with-published-027) below used
+the published 0.2.7 package and is separate from both development checkpoints.
+
 MCP gives a supporting coding-agent client an explicit way to use the existing
 safe deletion and recovery operations. It does **not** intercept shell `rm`,
 scripts, editor deletion or tools that bypass this server. Keep a compatible
@@ -74,6 +80,89 @@ restrictions or in-memory veto. A host that keeps authoritative restrictions
 in memory needs a trusted bridge to enforce them for MCP calls; registering
 this server alone does not provide that bridge. Existing
 [limits](deletion-limits.md) and the CLI's mode semantics still apply.
+
+## Diagnose a local service (0.2.8 development)
+
+From the 0.2.8 checkout or a package built from it, run:
+
+```sh
+python3 -B /absolute/path/to/agent-guard/doctor.py mcp \
+  --python /absolute/path/to/agent-guard-mcp-venv/bin/python \
+  --workspace /absolute/path/to/your-project --json
+```
+
+The installed CLI entry is `agent-guard-doctor mcp` with the same options.
+`--python` defaults to the interpreter running the doctor; select the separate
+SDK environment explicitly when the Core interpreter has no MCP SDK.
+`--workspace` is required and must already exist. `--server` optionally selects
+another reviewed `server.py`; otherwise the doctor uses its own package's
+adapter. The doctor starts this script with the selected Python, so both are
+trusted executable inputs. It uses no shell and does not discover or rewrite
+client configuration. `--timeout` bounds the diagnostic checks in seconds
+(default 30; accepted range 5–120). Closing the service process can add up to
+three seconds of process waits and one second of reader-thread waiting beyond that deadline.
+
+The checks cover:
+
+1. The selected interpreter, pinned SDK metadata and actual SDK imports.
+2. A classic `2025-06-18` stdio handshake, the `agent-guard` service identity
+   and a service version matching the doctor's package version.
+3. The five expected tools and read-only annotations for the query tools.
+4. Successful `status`, `transactions` and `gc_plan` calls, including the
+   requested workspace and its local quarantine binding reported by `status`.
+
+No model, deletion, restore, GC execution or dependency installation is part
+of this diagnosis. It does not create host configuration or approve a budget
+reset. A normal service leaves workspace file names and content unchanged
+under these read-only calls; this is not a system-call-level zero-write proof
+for an arbitrary selected script.
+
+The independent JSON report has `schema_version: 1`, `harness: "mcp"`,
+`status`, `stage`, `code`, `message`, `guidance` and `checks`. It contains
+fixed diagnostic findings rather than raw service stderr, transaction data,
+audit text, authentication or configuration contents. Exit code `0` means
+the checks passed, `1` means a diagnosis failed, and `2` is a CLI usage error.
+These diagnostic codes are separate from the Decision Protocol reason codes.
+`diagnostic_stderr_bytes` reports only the captured stderr byte count; raw
+stderr is not returned. After a successful status query, `deletion_admission`
+is `BLOCKED` or `READABLE`. `READABLE` records that admission information was
+inspected; it is not permission for a future deletion.
+
+Use the returned stage and guidance to fix a missing interpreter/SDK, a
+startup or protocol failure, a version mismatch, an incorrect workspace
+binding or a query failure. A successful `status` can still report blocked
+deletion admission; the text renderer highlights `BLOCKED`, and diagnosis does
+not authorize deleting through that block.
+
+`host_connection`, `model_delivery` and `host_interception` stay `UNVERIFIED`.
+A PASS proves the selected service command answered these direct checks.
+Inspect the actual client's connection and use a bounded host acceptance
+trial to establish that a particular host and model used it. The doctor does
+not extend Kimi/Claude hook diagnosis or automatically prove shell protection.
+
+## After a lost response or interrupted connection
+
+A client deadline, cancellation or process exit can occur after a mutation
+has committed but before its response arrives. It does not roll the files or
+budget back. Stop automatic mutation retries, reconnect to the same reviewed
+workspace/quarantine/session identity, then inspect `status` and `transactions`.
+Check the source and recovery payload before restoring the actual returned or
+listed transaction. Ordinary restoration still refuses an existing occupant
+and does not refund the deletion budget.
+
+If evidence is incomplete or an operation may still be running, preserve it
+and resolve the process/transaction state before another mutation. An absent
+response or one empty query is not proof that nothing changed. Changing
+session identity, removing admission state or manufacturing confirmation is
+not recovery.
+
+The 0.2.8 interruption checks target four response-loss windows: a client
+deadline, a cancellation notification, stdin EOF and service termination.
+Their controlled barrier is after real safe_delete has committed and before
+the response is sent. They validate recoverability and persistent accounting
+at that boundary, not arbitrary interruption within every multi-file operation
+or atomic rollback. Final candidate results are recorded in the
+[0.2.8 validation status](../releases/release-notes-0.2.8.md#validation-status).
 
 ## Tools and limits
 
@@ -198,7 +287,8 @@ called the tool or that all filesystem actions are covered. See the
 [official OpenAI MCP documentation](https://learn.chatgpt.com/docs/extend/mcp?site_variant=chatgpt).
 
 These source-based examples were checked against official documentation on
-2026-10-28. They are not claims that all three clients were exercised locally.
+2026-10-28. Claude Code and Cursor remain configuration examples; the later
+Codex acceptance below covers one exact version and selected MCP scenarios.
 Client schemas, approvals and connection behavior can change; verify the
 installed version rather than copying another client's configuration shape.
 
@@ -217,6 +307,36 @@ installed version rather than copying another client's configuration shape.
    real-model trial are different evidence levels.
 
 ## Recorded validation and remaining limits
+
+### Codex 0.165.0 with published 0.2.7
+
+On 2026-10-29, **Codex CLI 0.165.0** on local ARM64/PRoot exercised the
+published **agent-guard 0.2.7** package through Codex's actual MCP client.
+Three controlled native-client groups, without model turns, covered five-tool
+discovery, queries, deletion/restoration, quarantine/outside-target refusal,
+protection and batch gates, and budget persistence across a fresh Codex
+process. Read-only queries preserved the workspace file inventory and content
+hashes.
+
+Three separate real-model tasks using the configured `gpt-6.1-sol / max`
+completed 16 MCP calls: ordinary delete/restore, same-session budget refusal
+and protected-path refusal. Model call arguments and structured results
+matched the recorded stdio requests and responses. Restored files matched
+their original bytes; rejected files remained intact; restoration did not
+refund the admitted budget. The model used only the MCP tools, and GC was
+preview-only. There were no trial timeouts or harness-level automatic retries.
+The client model label was observed; backend model identity was not
+independently authenticated, and no upstream HTTP-request count is claimed.
+
+Four native-client recorder exit-metadata files were incomplete. The captured
+tool exchanges supported the reported behavior, and the recorded process IDs
+were absent at the final check; the missing lifecycle metadata was not
+reconstructed. This limitation is separate from the three completed model
+tasks. These results apply to that published 0.2.7 artifact, exact Codex
+version and cooperative MCP path, not the developing 0.2.8 artifact, native
+shell/editor interception, arbitrary subagents or all Codex releases.
+
+### Earlier preparation and Kimi checkpoints
 
 The 219-file, versioned **0.2.7 preparation checkpoint** passed local validation on
 2026-10-29: 1129 Python cases and both Node groups in 1194.265 seconds, with
@@ -252,10 +372,15 @@ diagnostic unittest result collector with the same scope as `npm test`, then
 the Node commands when Python passed; the npm command itself was not invoked.
 
 Without the optional SDK or an explicitly configured MCP test interpreter,
-the default Core suite skips seven real-stdio protocol cases. The two full
-runs above included that SDK and skipped none. A separate CI job now declares
-SDK-backed MCP checks for Python 3.10/3.13; it has not been run remotely in
-this work, and no remote-CI success is claimed.
+the original Core checkpoint skipped seven real-stdio protocol cases. The two
+full runs above included that SDK and skipped none. At that local checkpoint,
+the separate SDK-backed Python 3.10/3.13 CI job had not been run remotely.
+Subsequent 0.2.7 release validation for `7431da1` passed its
+[15-job CI](https://github.com/mokuyoaxis/agent-guard/actions/runs/40835352396)
+and [release workflow](https://github.com/mokuyoaxis/agent-guard/actions/runs/40842400686),
+including 1130 Python cases and both Node groups with no release-test skips.
+Those workflows predate the 0.2.8 doctor/interruption additions and do not
+certify the new checks.
 
 The 154-file offline package matched the frozen source and installed locally.
 All 12 CLI help checks, adapter import, installed stdio handshake and five-tool
@@ -281,10 +406,10 @@ configuration/auth fingerprints and frozen candidate bytes remained equal.
 The existing loopback gateway's actual server-side model identity was not
 independently authenticated.
 
-These results do not add native-hook, subagent, Claude/Cursor/Codex or other
-tool coverage. Those three clients' examples were checked against official
-documentation, not exercised as live clients here. Native Windows, macOS and
-Android shared storage have no new validation. The first full-run error and
+These earlier Kimi results do not add native-hook, subagent, Claude/Cursor/Codex
+or other tool coverage; the Codex result is recorded separately above. Claude
+Code and Cursor remain documented examples. Native Windows, macOS and Android
+shared storage have no new local host validation. The first full-run error and
 the earlier unexplained project test timeouts remain recorded as unresolved;
 the current successful full run is not evidence of a general timeout fix.
 

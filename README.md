@@ -4,14 +4,15 @@
 [![npm stable](https://img.shields.io/npm/v/%40mokuyoaxis%2Fagent-guard.svg)](https://www.npmjs.com/package/@mokuyoaxis/agent-guard)
 [![License](https://img.shields.io/github/license/mokuyoaxis/agent-guard)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![0.2.7](https://img.shields.io/badge/version-0.2.7-5B6B7A)](docs/releases/release-notes-0.2.7.md)
+[![0.2.8 development](https://img.shields.io/badge/development-0.2.8-5B6B7A)](docs/releases/release-notes-0.2.8.md)
 
-**Make destructive agent actions reversible by default.** · [简体中文](README.zh-CN.md)
+**Disclosure checks · Recoverable deletion · Agent experiments** · [简体中文](README.zh-CN.md)
 
-Agent Guard preserves recovery data before supported destructive actions,
-checks text before sending it, and provides a Lab for testing agent and host
-behaviour. The shared Python Core can be called through command-line tools
-or host adapters.
+Agent Guard has three main capabilities: **Exfil-guard** checks text before
+sending it, **Delete-guard** preserves recovery data before supported destructive
+actions, and **Guard-lab** tests agent and host behaviour through controlled
+experiments. A shared Python Core supports the command-line tools and optional
+host adapters.
 
 **AI agents setting up this project:** Before changing configuration or writing
 a bridge, read the [integration requirements](adapters/INTEGRATION.md), then
@@ -23,18 +24,22 @@ Installed Skills or copied configuration alone do not establish protection.
 We currently focus on **DSH and Kimi Code** integrations. For other hosts,
 ask the official coding agent to configure Agent Guard locally.
 
-This documentation covers [0.2.7](docs/releases/release-notes-0.2.7.md), adding
-Cleanup plans, deletion admission limits and optional local MCP tools.
-Check the exact-version release channels below before installing.
+This checkout is preparing **[0.2.8](docs/releases/release-notes-0.2.8.md)** for
+MCP connection diagnosis and recovery validation. It is not a published
+release. The published [0.2.7](docs/releases/release-notes-0.2.7.md) introduced
+Cleanup plans, deletion admission limits and optional local MCP tools;
+the stable installation example below still selects that exact version.
 
-| Capability | What it helps you do | Entry |
+| Main capability | Included functions | Guides |
 |---|---|---|
-| **Recovery protection** | Relocate valuable files before deletion; snapshot tracked state before supported Git overwrites; inspect and restore transactions | [delete-guard](skills/delete-guard/SKILL.md) |
-| **Cleanup proposals (0.2.7)** | Review classified workspace candidates, sizes and effects; explicitly confirm selected targets before safe_delete | [Cleanup Copilot](docs/guides/cleanup-plan.md) |
-| **Deletion limits (0.2.7)** | Inspect shared protected paths, persistent budgets, rate/repeat limits and large-batch confirmation | [Limits and recovery](docs/guides/deletion-limits.md) |
-| **Local MCP tools (0.2.7)** | Call safe_delete, ordinary restore, transaction/status queries and GC preview from a supporting client | [MCP setup](docs/guides/mcp.md) |
-| **Disclosure checks** | Detect supported credentials and host-identifying paths; apply a redaction plan or withhold a payload | [exfil-guard](skills/exfil-guard/SKILL.md) |
-| **Behaviour experiments** | Calibrate an observer, test a declared exposure channel, then compare matched guard-off/on trials | [guard-lab](docs/lab/guard-lab.md) |
+| **Exfil-guard** | Check supported credentials and identifying paths; plan and apply redaction; inspect JSON/dotenv structure without displaying scalar values | [Skill and CLI](skills/exfil-guard/SKILL.md) · [Rules](skills/exfil-guard/references/rules.md) · [Safe config view](skills/exfil-guard/SKILL.md#safe-config-view) |
+| **Delete-guard** | Recoverable deletion and supported Git snapshots; Cleanup Copilot; persistent budgets, rate/repeat limits, protected paths and batch confirmation; transaction restore and manual GC; optional local MCP tools and connection diagnosis | [Skill and CLI](skills/delete-guard/SKILL.md) · [Cleanup Copilot](docs/guides/cleanup-plan.md) · [Deletion limits](docs/guides/deletion-limits.md) · [Recovery and GC](docs/guides/recovery-feedback.md) · [MCP tools](docs/guides/mcp.md) · [MCP doctor (0.2.8 development)](docs/guides/mcp.md#diagnose-a-local-service-028-development) |
+| **Guard-lab** | Four zero-model calibration controls; synthetic markers and declared-channel observation; evidence and observer-health checks; matched guard-off/on comparisons after an effective baseline | [Lab workflow](docs/lab/guard-lab.md) · [Four-control example](docs/lab/blue-team-calibration.md) · [Evidence levels](docs/lab/guard-lab.md#evidence-levels) |
+
+Cleanup Copilot, deletion limits and the current MCP tools/doctor belong to
+**Delete-guard**. Core and adapters provide shared infrastructure;
+[recovery-audit](skills/recovery-audit/SKILL.md) supplies an auxiliary workflow
+for reconstructing a workspace and auditing recovery after an incident.
 
 A Skill supplies instructions; it does not intercept tool calls. Automatic
 protection depends on an active, compatible host hook and its covered tools.
@@ -112,7 +117,8 @@ The optional MCP adapter requires Python 3.10+ and a separately installed
 
 | Version | Status |
 |---|---|
-| [0.2.7](docs/releases/release-notes-0.2.7.md) | Version documented here; verify exact-version availability below |
+| [0.2.8](docs/releases/release-notes-0.2.8.md) | Development checkout; not published; validation is recorded separately |
+| [0.2.7](docs/releases/release-notes-0.2.7.md) | Published baseline; verify exact-version availability below |
 | [0.2.6](docs/releases/release-notes-0.2.6.md) | Earlier published release with Kimi feedback and host compatibility updates |
 | [0.2.5](docs/releases/release-notes-0.2.5.md) | Earlier stable release |
 | [0.2.4](docs/releases/release-notes-0.2.4.md) | Earlier stable release |
@@ -252,7 +258,8 @@ tool paths. Other combinations need their own checks.
 | Claude Code | Retained reference; new version validation paused. Native Bash `PreToolUse`; sampled 2.1.270/2.1.273 scripted-host enforcement. [Setup](adapters/claude/README.md) |
 | Kimi Code | Native Bash `PreToolUse`; bounded 0.42.0 root/child and 2.1.1 root-Bash observations. Version 0.2.6 adds 2.3.0 prompt/ACP root-Bash evidence with fixed responses. ASK is denied; missing/timed-out hooks remain uncovered. [Setup](adapters/kimi-code/README.md) |
 | DSH | Default deletion paths on 0.1.5-rc.1/0.2.0-rc.2/0.2.1-alpha.4. Optional native read and Lab retain their two-version boundaries. [Compatibility](docs/design/dsh-compatibility.md) · [Setup](adapters/dsh/README.md) |
-| Codex / other hosts | Use the official coding agent for version-specific local hook setup; verify blocking before claiming native interception. Without a blocking hook, explicit Skill/CLI remains cooperative. [Adaptation guide](adapters/INTEGRATION.md) |
+| Codex | Codex 0.165.0 exercised published 0.2.7 through actual-client and real-model MCP trials. This covers explicit tools; native Shell/editor interception needs separate verification. [MCP evidence and limits](docs/guides/mcp.md#codex-01650-with-published-027) |
+| Other hosts | Use the official coding agent for version-specific local setup; verify blocking before claiming native interception. Explicit Skill/CLI/MCP use remains cooperative without a blocking hook. [Adaptation guide](adapters/INTEGRATION.md) |
 
 Use the [full capability and evidence matrix](docs/guides/harness-capabilities.md)
 for precise versions, tests and gaps. `doctor.py kimi|claude --probe` checks a

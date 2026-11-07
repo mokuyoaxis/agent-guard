@@ -114,13 +114,18 @@ jobs:
 
           from mcp.server import Server
           from tests.test_mcp_protocol import McpProtocolTests, SDK_AVAILABLE
+          from tests.test_mcp_doctor import McpDoctorProtocolTests, SDK_AVAILABLE as DOCTOR_SDK_AVAILABLE
+          from tests.test_mcp_interruption import McpInterruptionTests, SDK_AVAILABLE as INTERRUPTION_SDK_AVAILABLE
 
-          methods = unittest.defaultTestLoader.getTestCaseNames(McpProtocolTests)
-          if (not SDK_AVAILABLE or not methods
-                  or getattr(McpProtocolTests, "__unittest_skip__", False)
-                  or any(getattr(getattr(McpProtocolTests, name), "__unittest_skip__", False)
-                         for name in methods)):
-              raise RuntimeError("Release requires every MCP protocol test to be enabled")
+          for suite, available in ((McpProtocolTests, SDK_AVAILABLE),
+                                   (McpDoctorProtocolTests, DOCTOR_SDK_AVAILABLE),
+                                   (McpInterruptionTests, INTERRUPTION_SDK_AVAILABLE)):
+              methods = unittest.defaultTestLoader.getTestCaseNames(suite)
+              if (not available or not methods
+                      or getattr(suite, "__unittest_skip__", False)
+                      or any(getattr(getattr(suite, name), "__unittest_skip__", False)
+                             for name in methods)):
+                  raise RuntimeError("Release requires every MCP protocol test to be enabled")
           print("Pinned MCP SDK imports successfully; protocol tests are enabled")
           PY
 

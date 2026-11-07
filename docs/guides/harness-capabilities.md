@@ -97,9 +97,19 @@ is separate from the standard-library Core/CLI requirements.
 
 The guide records the 0.2.7 installed-package/protocol checks and the earlier
 bounded Kimi Code 2.3.0 root-agent native-MCP trials with their original
-checkpoint and gateway limits. These observations do not expand the native
-hook rows above or establish live Claude/Cursor/Codex, subagent or additional
-platform coverage. Client setup examples remain documentation guidance.
+checkpoint and gateway limits. A separate
+[Codex 0.165.0 acceptance](mcp.md#codex-01650-with-published-027) used published
+0.2.7: three actual-client groups and three real-model tasks, with 16 model MCP
+calls. Its recorded results and incomplete native-client exit metadata retain
+their stated limits. These cooperative MCP observations do not expand the
+native-hook rows above or establish live Claude/Cursor, arbitrary subagent,
+other-version or additional-platform coverage. Untested client setup examples
+remain documentation guidance.
+
+The [MCP doctor in the unpublished 0.2.8 checkout](mcp.md#diagnose-a-local-service-028-development)
+checks a selected service through handshake and read-only calls. Its PASS
+does not establish host connection, model use or native interception; those
+remain separate evidence levels.
 
 ## Acceptance for each native adapter
 

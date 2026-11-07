@@ -1,7 +1,45 @@
-# 0.2.7 changes and 0.2.6 maintenance history
+# 0.2.8 development and earlier maintenance history
 
 <a id="unreleased-changes-and-026-maintenance-history"></a>
 <a id="027-candidate-changes-and-026-maintenance-history"></a>
+
+## MCP diagnosis and reliability maintenance (0.2.8 development)
+
+The maintainer selected **0.2.8** for an explicit `doctor.py mcp` path,
+real-protocol response-loss checks and documentation. This checkout has passed
+local validation and is not published. Stable installation examples continue to
+select 0.2.7; do not infer registry or release availability from package metadata.
+
+The doctor checks a selected Python/optional SDK, service handshake and
+version, the five-tool set, workspace binding and read-only queries. It does
+not call a model, change host configuration or delete/restore files. Its
+version-1 diagnosis and exit codes are separate from the existing
+Kimi/Claude doctor and Decision Protocol surfaces. A direct-service PASS keeps
+host connection, model delivery and interception `UNVERIFIED`.
+
+The interruption work covers client deadline, cancellation, stdin EOF and
+service termination after a real deletion has committed but before a reply.
+Checks examine transaction recoverability and persistent budget, without
+assuming that losing a response rolled back the operation. This does not
+prove arbitrary multi-file interruption atomicity. A separate full rerun passed
+1152 Python cases and both Node groups with no failures/errors/skips; local
+157-file package checks passed. The earlier full-run initialization timeout
+and its unresolved cause remain recorded in the
+[0.2.8 notes](release-notes-0.2.8.md#validation-status).
+
+The five tools, default deletion policy, recovery format and budget semantics
+retain their contracts. The SDK stays separately optional; the separate
+0.3.0 and commercial plans remain paused. See the
+[MCP diagnosis and interruption guide](../guides/mcp.md#diagnose-a-local-service-028-development)
+and this release's [bounded compatibility decision](../design/compatibility.md#028-diagnosis-maintenance-decision).
+
+The guide also records later Codex 0.165.0 acceptance of the published 0.2.7
+package: three native-client groups and three real-model tasks with 16 MCP
+calls. That exact-version cooperative-MCP evidence is not 0.2.8 acceptance or
+native-shell interception evidence. Earlier checkpoints below keep their
+original versions, results and failure history.
+
+## 0.2.7 changes and 0.2.6 maintenance history
 
 The maintainer selected **0.2.7** for Cleanup Copilot, deletion admission and
 optional local MCP tools. Check its exact GitHub release and npm version

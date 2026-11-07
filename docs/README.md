@@ -1,14 +1,25 @@
 # Documentation / 文档导航
 
 Start with [getting started](guides/getting-started.md) for installation and
-setup. The three main paths are [recovery protection](../skills/delete-guard/SKILL.md),
-[disclosure checks](../skills/exfil-guard/SKILL.md), and
-[behaviour experiments](lab/guard-lab.md). Use the
+setup. The three main capabilities are **Exfil-guard**, **Delete-guard** and
+**Guard-lab**. Use the
 [harness capability matrix](guides/harness-capabilities.md) for observed coverage
 and the [architecture](design/architecture.md) for the shared Core.
 
-This documentation covers [0.2.7](releases/release-notes-0.2.7.md): Cleanup
-plans, deletion admission and optional local MCP tools. Before installing,
+| Main capability / 主要功能 | Included functions and guides / 下属功能与指南 |
+|---|---|
+| **Exfil-guard** | [Text checks and redaction](../skills/exfil-guard/SKILL.md) · [Safe config view](../skills/exfil-guard/SKILL.md#safe-config-view) |
+| **Delete-guard** | [Recoverable deletion](../skills/delete-guard/SKILL.md) · [Cleanup Copilot](guides/cleanup-plan.md) · [Deletion limits](guides/deletion-limits.md) · [Recovery and GC](guides/recovery-feedback.md) · [MCP tools](guides/mcp.md) · [MCP doctor (0.2.8 development)](guides/mcp.md#diagnose-a-local-service-028-development) |
+| **Guard-lab** | [Controlled experiments and evidence](lab/guard-lab.md) · [Four zero-model controls](lab/blue-team-calibration.md) · [Defensive research](research/README.md) |
+
+Cleanup Copilot, deletion admission and the current MCP tools/doctor are
+Delete-guard functions. [Recovery-audit](../skills/recovery-audit/SKILL.md)
+is an auxiliary incident-recovery workflow.
+
+This checkout is preparing [0.2.8](releases/release-notes-0.2.8.md), an unpublished
+MCP diagnosis and recovery-validation update. The published baseline is
+[0.2.7](releases/release-notes-0.2.7.md): Cleanup plans, deletion admission and
+optional local MCP tools. Before installing that version,
 check the exact [GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.7)
 and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.7)
 for availability. A checkout or manifest does not establish publication or
@@ -23,7 +34,8 @@ its doctor checks, Kimi 2.3.0 root-Bash compatibility, DSH Lab preflight
 diagnostics and alpha.4 default deletion compatibility. Existing 0.2.5 installations
 need an upgrade to acquire those additions; see its [version notes](releases/release-notes-0.2.6.md).
 
-先看入门指南，再按恢复保护、外发检测、Lab 验测选择入口。测试报告按所测版本与配置保留；发布记录、
+先看入门指南，再按 Exfil-guard、Delete-guard、Guard-lab 三大功能选择入口。
+Cleanup、删除限制与当前 MCP 工具／doctor 归入 Delete-guard。测试报告按所测版本与配置保留；发布记录、
 历史设计和外部案例各自归档，不能据此扩展当前产品的承诺。
 
 | Category / 分类 | Contents / 内容 |
@@ -45,9 +57,10 @@ ALLOW_NOOP 覆盖边界及准确 GC 用法；纳入 0.2.5。
 |---|---|
 | [Getting started](guides/getting-started.md) | 安装路径、Agent 接入提示词与最短验证流程 |
 | [Status and cleanup feedback](guides/recovery-feedback.md) | Python／插件状态、ALLOW_NOOP、保留空间与手动 GC |
-| [Cleanup Copilot](guides/cleanup-plan.md) | 0.2.7：零写入计划、四类候选、大小与显式确认执行 |
-| [Deletion limits](guides/deletion-limits.md) | 0.2.7：隔离容量、会话预算、频率、保护路径与批量确认 |
-| [Local MCP tools](guides/mcp.md) | 0.2.7本地stdio：安全删除、普通恢复、事务／状态和GC预览；不替代hook |
+| [Cleanup Copilot](guides/cleanup-plan.md) | Delete-guard，0.2.7：零写入计划、四类候选、大小与显式确认执行 |
+| [Deletion limits](guides/deletion-limits.md) | Delete-guard，0.2.7：隔离容量、会话预算、频率、保护路径与批量确认 |
+| [Local MCP tools](guides/mcp.md) | Delete-guard，0.2.7：本地 stdio 安全删除、普通恢复、事务／状态和 GC 预览；不替代 hook |
+| [MCP diagnosis](guides/mcp.md#diagnose-a-local-service-028-development) | Delete-guard，0.2.8 开发中：选定本地服务的依赖、握手、工作区绑定与只读调用检查 |
 | [Harness capabilities](guides/harness-capabilities.md) | 当前接入范围、证据等级与未验证路径 |
 | [Host drift](guides/host-drift.md) | 宿主版本、配置与本地基线检查 |
 | [Trash locations](guides/trash-index.md) | 0.2.4 的只读位置查询、Agent／前端共享 JSON 契约 |
@@ -55,7 +68,9 @@ ALLOW_NOOP 覆盖边界及准确 GC 用法；纳入 0.2.5。
 | [Publishing from ephemeral environments](guides/publishing-from-ephemeral-environments.md) | 临时环境中的 GitHub 发布操作参考 |
 
 Adapter setup remains in [adapters/](../adapters/INTEGRATION.md). Skill contracts
-remain in [skills/](../skills/delete-guard/SKILL.md).
+are documented separately for [Exfil-guard](../skills/exfil-guard/SKILL.md) and
+[Delete-guard](../skills/delete-guard/SKILL.md); the [Guard-lab guide](lab/guard-lab.md)
+describes the user-controlled experiment CLI.
 
 We currently focus on DSH and Kimi Code. Claude Code's adapter and past
 reports remain available; testing new Claude versions is paused. For other
@@ -125,9 +140,10 @@ coverage rather than treating every historical result as current acceptance.
 
 | Document / 文档 | Scope / 范围 |
 |---|---|
+| [0.2.8 development](releases/release-notes-0.2.8.md) | 未发布：MCP接入诊断、真实协议中断验证和文书范围 |
 | [0.2.7](releases/release-notes-0.2.7.md) | Cleanup、删除准入与MCP的版本范围、升级影响和准备阶段验证 |
 | [0.2.6](releases/release-notes-0.2.6.md) | 正式版范围、升级影响与验收；Kimi 反馈／doctor、DSH 预检与版本扩展 |
-| [Changes and maintenance details](releases/unreleased.md) | 0.2.7增量及0.2.6维护历史，保留原验收边界 |
+| [Changes and maintenance details](releases/unreleased.md) | 0.2.8开发增量、0.2.7范围及0.2.6维护历史，保留原验收边界 |
 | [0.2.5](releases/release-notes-0.2.5.md) | 正式版范围；累计 RC 维护、明确反馈与升级影响 |
 | [0.2.4-hotfix.1](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.4-hotfix.1) | 已发布的稳定线回收站保护回补；不含完整 RC 累计内容 |
 | [0.2.5-rc3](releases/release-notes-0.2.5-rc3.md) | 已发布的研究／文档预发布版与零模型示例 |

@@ -89,7 +89,7 @@ jobs:
       - name: Install optional official SDK
         run: python -m pip install -r adapters/mcp/requirements.txt
       - name: Real stdio, workspace, budget and recovery contracts (no model)
-        run: python -m unittest -v tests.test_mcp_operations tests.test_mcp_protocol tests.test_package_manifest
+        run: python -m unittest -v tests.test_mcp_operations tests.test_mcp_protocol tests.test_mcp_doctor tests.test_mcp_interruption tests.test_package_manifest
 
   dsh-native-lab:
     name: DSH native Lab capture / Node22

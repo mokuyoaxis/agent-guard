@@ -17,6 +17,8 @@ import sys
 import tempfile
 from typing import Any, Optional
 
+sys.dont_write_bytecode = True
+
 from core.dialects import resolve_dialect
 
 
@@ -747,7 +749,7 @@ def check_claude(config_path: Path, run_probe: bool = False) -> list[str]:
     return _diagnose("claude", config_path, run_probe).problems
 
 
-def main(argv: Optional[list[str]] = None) -> int:
+def main(argv: Optional[list[str]] = None, *, _include_mcp=True) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     subcommands = parser.add_subparsers(dest="harness", required=True)
     kimi = subcommands.add_parser("kimi", help="check the local Kimi hook")
@@ -756,6 +758,15 @@ def main(argv: Optional[list[str]] = None) -> int:
     claude = subcommands.add_parser("claude", help="check a selected Claude settings file")
     claude.add_argument(
         "--config", help="Claude settings.json (defaults to .claude/settings.json in cwd)")
+    if _include_mcp:
+        mcp = subcommands.add_parser("mcp", help="diagnose an explicit local MCP server (no model call)")
+        mcp.add_argument("--python", default=sys.executable,
+                         help="Python in the optional MCP SDK environment (default: current interpreter)")
+        mcp.add_argument("--workspace", required=True, help="existing workspace bound to the server")
+        mcp.add_argument("--server", help="trusted server.py path (default: this package's MCP server)")
+        mcp.add_argument("--timeout", type=int, default=30, metavar="SECONDS",
+                         help="total diagnosis deadline, 5..120 seconds (default: 30)")
+        mcp.add_argument("--json", action="store_true", help="print the independent MCP diagnosis report")
     for command in (kimi, claude):
         command.add_argument(
             "--probe", action="store_true",
@@ -791,6 +802,19 @@ def main(argv: Optional[list[str]] = None) -> int:
             help="live sentinel timeout, 15..600 seconds (default: 180)",
         )
     args = parser.parse_args(argv)
+    if args.harness == "mcp":
+        if not args.python or "\0" in args.python:
+            parser.error("--python must name a nonempty interpreter")
+        if not 5 <= args.timeout <= 120:
+            parser.error("--timeout must be from 5 to 120 seconds")
+        from adapters.mcp.doctor import diagnose, render
+
+        report = diagnose(args.python, args.workspace, server=args.server, timeout=args.timeout)
+        if args.json:
+            print(json.dumps(report, ensure_ascii=False))
+        else:
+            print(render(report), end="")
+        return 0 if report["status"] == "PASS" else 1
     if args.write_baseline is not None and not args.probe:
         parser.error("--write-baseline requires --probe")
     if args.live_sentinel and args.write_baseline is not None:

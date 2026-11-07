@@ -332,7 +332,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     arguments = list(sys.argv[1:] if argv is None else argv)
     if "--live-sentinel" not in arguments:
         arguments.append("--live-sentinel")
-    return doctor_main(arguments)
+    return doctor_main(arguments, _include_mcp=False)
 
 
 if __name__ == "__main__":

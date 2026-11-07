@@ -4,13 +4,13 @@
 [![npm 稳定版](https://img.shields.io/npm/v/%40mokuyoaxis%2Fagent-guard.svg)](https://www.npmjs.com/package/@mokuyoaxis/agent-guard)
 [![License](https://img.shields.io/github/license/mokuyoaxis/agent-guard)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![0.2.7](https://img.shields.io/badge/version-0.2.7-5B6B7A)](docs/releases/release-notes-0.2.7.md)
+[![0.2.8 开发中](https://img.shields.io/badge/development-0.2.8-5B6B7A)](docs/releases/release-notes-0.2.8.md)
 
-**让 AI Agent 的破坏性操作默认可逆。** · [English](README.md)
+**外发检查 · 可恢复删除 · Agent 验测** · [English](README.md)
 
-Agent Guard 在受支持的删除、覆盖操作前保留恢复数据，检查待外发文本中的
-敏感信息，并提供 Lab 来测试 Agent 和宿主的实际行为。共享 Python Core
-可通过命令行工具或宿主适配器调用。
+Agent Guard 提供三大功能：**Exfil-guard** 检查待外发文本，**Delete-guard**
+在受支持的破坏性操作前保留恢复数据，**Guard-lab** 通过受控实验测试 Agent
+和宿主的实际行为。共享 Python Core 支撑命令行工具与可选宿主适配器。
 
 **负责接入本项目的 AI agent：** 修改配置或编写桥接前，必须先读取
 [适配要求](adapters/INTEGRATION.md)，再阅读
@@ -21,17 +21,20 @@ Agent Guard 在受支持的删除、覆盖操作前保留恢复数据，检查�
 目前主要维护 **DSH 和 Kimi Code** 的接入。其他宿主建议交给对应的官方
 编码 Agent 在本地配置。
 
-本文档覆盖 [0.2.7](docs/releases/release-notes-0.2.7.md)，新增 Cleanup 计划、
-删除准入限制与可选本地 MCP 工具。安装前请通过下方精确版本渠道确认可用性。
+当前 checkout 正在准备 **[0.2.8](docs/releases/release-notes-0.2.8.md)**，范围为
+MCP 接入诊断与恢复验证，尚未发布。已发布的
+[0.2.7](docs/releases/release-notes-0.2.7.md)引入 Cleanup 计划、删除准入限制与
+可选本地 MCP 工具；下方稳定安装示例仍指定该精确版本。
 
-| 能力 | 能帮助你做什么 | 入口 |
+| 主要功能 | 下属功能 | 对应链接 |
 |---|---|---|
-| **恢复保护** | 删除前迁移有价值的文件；受支持的 Git 覆盖前快照 tracked 状态；查询和恢复事务 | [delete-guard](skills/delete-guard/SKILL.md) |
-| **清理提议（0.2.7）** | 扫描候选、分类、大小与实际执行方式；显式选择并确认后交给 safe_delete | [Cleanup Copilot](docs/guides/cleanup-plan.md) |
-| **删除限制（0.2.7）** | 查询共享保护路径、持久预算、速率／重复限制与大批量确认 | [限制与恢复](docs/guides/deletion-limits.md) |
-| **本地 MCP 工具（0.2.7）** | 在支持的客户端中调用 safe_delete、普通恢复、事务／状态查询和 GC 预览 | [MCP 接入](docs/guides/mcp.md) |
-| **外发检测** | 检测受支持的凭据和本机标识路径；应用脱敏计划或拒绝输出 | [exfil-guard](skills/exfil-guard/SKILL.md) |
-| **行为验测** | 校准观察器，验证声明信道的暴露，再比较匹配的关闭／开启防护试次 | [guard-lab](docs/lab/guard-lab.md) |
+| **Exfil-guard** | 受支持的凭据与标识路径检测；脱敏计划与执行；不展示标量值的 JSON／dotenv 配置结构视图 | [Skill 与 CLI](skills/exfil-guard/SKILL.md) · [检测规则](skills/exfil-guard/references/rules.md) · [安全配置视图](skills/exfil-guard/SKILL.md#safe-config-view) |
+| **Delete-guard** | 可恢复删除与受支持的 Git 快照；Cleanup Copilot；持久预算、速率／重复限制、保护路径与批量确认；事务恢复与手动 GC；可选本地 MCP 工具及接入诊断 | [Skill 与 CLI](skills/delete-guard/SKILL.md) · [Cleanup Copilot](docs/guides/cleanup-plan.md) · [删除限制](docs/guides/deletion-limits.md) · [恢复与 GC](docs/guides/recovery-feedback.md) · [MCP 工具](docs/guides/mcp.md) · [MCP doctor（0.2.8 开发中）](docs/guides/mcp.md#diagnose-a-local-service-028-development) |
+| **Guard-lab** | 四项零模型校准对照；合成标记与声明信道观察；证据和观察器健康检查；有效基线成立后的关闭／开启防护配对比较 | [Lab 流程](docs/lab/guard-lab.md) · [四控制示例](docs/lab/blue-team-calibration.md) · [证据等级](docs/lab/guard-lab.md#evidence-levels) |
+
+Cleanup Copilot、删除限制以及当前 MCP 工具／doctor 均归属 **Delete-guard**。
+Core 与适配器提供共享基础设施；[recovery-audit](skills/recovery-audit/SKILL.md)
+提供事故后的工作区重建与恢复审计辅助流程。
 
 Skill 提供操作纪律，不会自行拦截工具调用。自动保护依赖宿主实际加载了
 兼容 hook，且调用位于其覆盖范围内。Agent Guard 不是抵抗同权限恶意进程的
@@ -96,7 +99,8 @@ Core 需要 Python 3.9+ 和 Git。示例采用 POSIX Shell；原生桥接和可�
 
 | 版本 | 状态 |
 |---|---|
-| [0.2.7](docs/releases/release-notes-0.2.7.md) | 本文档对应版本；精确版本的可用性见下方渠道 |
+| [0.2.8](docs/releases/release-notes-0.2.8.md) | 开发中的 checkout，尚未发布；验证单独记账 |
+| [0.2.7](docs/releases/release-notes-0.2.7.md) | 已发布基线；精确版本的可用性见下方渠道 |
 | [0.2.6](docs/releases/release-notes-0.2.6.md) | 历史已发布版本，包含 Kimi 反馈与宿主兼容性更新 |
 | [0.2.5](docs/releases/release-notes-0.2.5.md) | 更早稳定版 |
 | [0.2.4](docs/releases/release-notes-0.2.4.md) | 更早稳定版 |
@@ -216,7 +220,8 @@ python3 -c 'print("config: sk-proj-" + "AbCdEf0123456789GhIjKl")' |
 | Claude Code | 保留参考实现，暂缓新版本验收。Bash 原生 `PreToolUse`；2.1.270／2.1.273 的受限脚本宿主拦截记录。[接入](adapters/claude/README.md) |
 | Kimi Code | Bash 原生 `PreToolUse`；0.42.0 的有限主／子路径及 2.1.1 的根代理 Bash 记录。0.2.6 新增 2.3.0 prompt／ACP 根代理 Bash 固定响应证据。ASK 拒绝；缺失／超时 hook 不覆盖。[接入](adapters/kimi-code/README.md) |
 | DSH | 默认删除适配覆盖 0.1.5-rc.1／0.2.0-rc.2／0.2.1-alpha.4。可选原生 read 与 Lab 保留各自的两版边界。[兼容范围](docs/design/dsh-compatibility.md) · [接入](adapters/dsh/README.md) |
-| Codex／其他宿主 | 推荐官方 Agent 按当前版本完成本地 hook 接入，并验证确实阻止执行。没有阻塞 hook 时，Skill／CLI 仍属于协作式使用。[适配指南](adapters/INTEGRATION.md) |
+| Codex | Codex 0.165.0 已通过已发布 0.2.7 的实际客户端与真实模型 MCP 试次。证据覆盖显式工具；原生 Shell／编辑器拦截仍需单独验证。[MCP 证据与限制](docs/guides/mcp.md#codex-01650-with-published-027) |
+| 其他宿主 | 推荐官方 Agent 按当前版本完成本地接入，并验证确实阻止执行后再声明原生拦截。没有阻塞 hook 时，Skill／CLI／MCP 仍属于协作式使用。[适配指南](adapters/INTEGRATION.md) |
 
 精确版本、试验与缺口统一见[完整能力矩阵](docs/guides/harness-capabilities.md)。
 `doctor.py kimi|claude --probe` 只检查选定配置和本地适配路径；PASS 不证明

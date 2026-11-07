@@ -2,19 +2,32 @@
 
 ## Positioning
 
-agent-guard is **Agent Reliability Infrastructure**: it lowers the
-probability that an autonomous agent causes irreversible loss through a
-misjudged deletion, a mis-expanded command, or mistaken context - and it
-leaves a recovery path and an evidence trail when anything destructive does
-happen. It is explicitly *not* a sandbox or security boundary (see
-`threat-model.md`).
+agent-guard is **Agent Reliability Infrastructure** with three main
+capabilities: Exfil-guard checks text for disclosure risks, Delete-guard
+preserves recovery paths for supported destructive operations, and Guard-lab
+provides controlled experiments with bounded evidence. The
+[threat model](threat-model.md) describes the trust and coverage limits.
 
-The shared Core, Decision Protocol, and Skills are the product boundary.
-Harness adapters are replaceable translations onto host-native hooks; DSH,
-Claude Code, Codex, or any future host is a compatibility target rather than
-the identity of the project.
+The shared Core, Decision Protocol, Skills and Lab CLI define these workflows.
+Adapters connect them to host-native hooks or explicit tools. DSH, Claude
+Code, Codex and other hosts have separate compatibility and coverage evidence;
+see the [capability matrix](../guides/harness-capabilities.md).
 
-## The four pillars and where they live
+## Three functional areas
+
+| Main capability | Functions and implementation | Contract and guides |
+|---|---|---|
+| **Exfil-guard** | Text detection/redaction in `core/redaction.py`, disclosure decisions in `core/policy.py`, and safe config views in `core/safe_view.py` | [Exfil-guard Skill](../../skills/exfil-guard/SKILL.md) |
+| **Delete-guard** | Classification, authorization, recovery and audit; Cleanup Copilot delegates execution to `safe_delete`; deletion admission applies shared limits; the current MCP adapter exposes deletion/recovery tools and its doctor checks them through read-only queries | [Delete-guard Skill](../../skills/delete-guard/SKILL.md) · [Cleanup](../guides/cleanup-plan.md) · [Limits](../guides/deletion-limits.md) · [MCP](../guides/mcp.md) |
+| **Guard-lab** | `guard_lab.py` and `core/lab.py` provide a user-controlled diagnostic plane: calibration, declared-channel observation and matched comparisons | [Lab workflow and evidence](../lab/guard-lab.md) |
+
+Core and adapters provide shared infrastructure. The
+[recovery-audit Skill](../../skills/recovery-audit/SKILL.md) supplies an auxiliary
+workflow for reconstructing workspaces and auditing incident recovery.
+
+<a id="the-four-pillars-and-where-they-live"></a>
+
+## Delete-guard's four pillars
 
 | Pillar | Question it answers | Component |
 |---|---|---|
@@ -305,9 +318,15 @@ order of value:
 
 ## Delivery status and design directions
 
-This document covers version [0.2.7](../releases/release-notes-0.2.7.md), which
-adds reviewed Cleanup plans, shared deletion admission and optional local
-MCP tools. Confirm availability through the exact GitHub release and npm
+This checkout adds [0.2.8 development](../releases/release-notes-0.2.8.md)
+MCP connection diagnosis and protocol-interruption validation. It remains
+unpublished; the existing five tools, deletion policy and recovery format
+retain their contracts. Direct-service diagnosis, actual-host connection,
+model use and native interception have separate evidence requirements.
+
+Version [0.2.7](../releases/release-notes-0.2.7.md) introduced reviewed Cleanup
+plans, shared deletion admission and optional local MCP tools. Confirm
+availability through the exact GitHub release and npm
 version links in those notes; a source version does not establish publication.
 Earlier stable 0.2.6/0.2.5, opt-in 0.2.4-hotfix.1 and prerelease 0.2.5-rc3
 retain their separate artifacts and evidence.

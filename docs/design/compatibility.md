@@ -4,9 +4,11 @@ agent-guard's promise is recoverability. A promise is only as good as its
 stability over time - this page states exactly what may change and what
 may not, per release class.
 
-This contract covers [0.2.7](../releases/release-notes-0.2.7.md). Use its exact
-GitHub release and npm version links to confirm availability; a version in
-source or a local tarball does not establish publication.
+This checkout adds the unpublished
+[0.2.8 diagnosis update](../releases/release-notes-0.2.8.md) to the published
+[0.2.7](../releases/release-notes-0.2.7.md) baseline. Use exact GitHub release
+and npm version links to confirm availability; a version in source or a local
+tarball does not establish publication.
 Earlier release [0.2.6](../releases/release-notes-0.2.6.md) carries cumulative
 RC maintenance and the feedback/diagnostic additions below. The opt-in
 prerelease [0.2.5-rc3](../releases/release-notes-0.2.5-rc3.md), earlier stable
@@ -19,6 +21,9 @@ earlier releases.
 The maintainer selected **0.2.7** for Cleanup Copilot, deletion admission and
 optional MCP tools. The bounded versioning decision is recorded below; the
 separate 0.3.0 plan remains paused.
+The later **0.2.8** selection is independently scoped to MCP diagnosis and
+reliability maintenance, as recorded below; earlier exceptions do not grant
+permission to change unrelated policy under a patch number.
 
 RC3 publishes defensive research and an example around the existing four
 zero-model controls. Experimental disclosure labels and private delegation
@@ -27,6 +32,37 @@ No production dependency, policy verdict or storage/configuration migration
 is introduced by the research documentation.
 
 ## The adapter contract (frozen surface)
+
+### MCP doctor (0.2.8 development)
+
+`doctor.py mcp` is an explicit local diagnosis path. It accepts the selected
+Python interpreter, existing workspace, optional reviewed server script and
+a diagnostic timeout; it does not parse or rewrite host configuration. It
+checks the optional pinned SDK and its imports, service handshake/name/version,
+the five-tool set and query annotations, workspace/quarantine binding and
+successful status/transactions/gc_plan calls. The selected service version
+must match the doctor's package version. It does not call a model or execute
+deletion, restore, GC or budget-reset tools.
+
+Its independent `schema_version: 1` report uses fixed `status`, `stage`, `code`,
+`message`, `guidance` and `checks` fields rather than raw child stderr,
+configuration contents or recovery/audit records. It keeps `host_connection`,
+`model_delivery` and `host_interception` at `UNVERIFIED`: direct service
+diagnosis cannot certify another client's loading or behavior. Exit `0` means
+PASS, `1` means diagnostic failure and `2` remains argument-usage failure.
+Diagnostic codes belong to this report, not the Decision Protocol reason-code
+namespace. Existing Kimi/Claude doctor interfaces retain their semantics.
+`diagnostic_stderr_bytes` is a count, not raw stderr. A successful status check
+also records `deletion_admission` as `BLOCKED` or `READABLE`; the latter means
+the information was inspected, not that deletion is authorized. A connection
+PASS can coexist with blocked admission, which the text renderer highlights.
+The 5–120 second diagnostic deadline defaults to 30 seconds; service-process
+shutdown can add up to three seconds of process waits and one second of reader-thread waiting.
+
+The SDK remains separately optional, including when invoking Core/CLI or
+doctor help. Changing package/helper bytes can change existing doctor runtime
+fingerprints and produce `DRIFTED`; an old baseline is not automatically
+replaced. See [options, result scope and recovery after a lost response](../guides/mcp.md#diagnose-a-local-service-028-development).
 
 <a id="local-mcp-tools-027-candidate"></a>
 
@@ -55,7 +91,9 @@ and did not run Node; its cause remains undetermined. The second full run
 passed 1123 Python cases and both Node groups in 1143.435 seconds, with no
 failures, errors, skips or timeouts. Neither invoked npm directly or changed
 the runtime/tests. A 154-file offline installation and three real Kimi 2.3.0
-native-MCP trials passed; Claude/Cursor/Codex setup examples remain docs-only.
+native-MCP trials passed; at that checkpoint Claude/Cursor/Codex setup examples
+were docs-only. Later Codex 0.165.0 acceptance of the published 0.2.7 package
+is recorded separately in the [MCP guide](../guides/mcp.md#codex-01650-with-published-027).
 Without the optional SDK, seven protocol tests skip. The added SDK-backed
 Python 3.10/3.13 CI job had no remote execution at the 2026-10-29 local
 preparation checkpoint. See
@@ -232,6 +270,31 @@ While the major version is `0`:
 | Manifest record loses/repurposes a field | major + MIGRATION.md |
 | check.py CLI flags removed or re-semanticized | major + MIGRATION.md |
 | Default policy verdict changes for an existing shape | minor + entry in docs/history/friction.md |
+
+<a id="028-diagnosis-maintenance-decision"></a>
+
+### 0.2.8: bounded diagnosis maintenance decision
+
+The maintainer selected **0.2.8** for the explicit MCP doctor path, real
+protocol-interruption checks and their documentation. Earlier doctor drift
+and live-sentinel additions were classified as minor below. The new optional
+diagnostic surface is carried as this version's bounded maintenance decision;
+the 0.2.7 exception is not inherited and the general release-class promises
+remain in force.
+
+The independent MCP doctor parameters, version-1 diagnosis report and exit
+codes are the upgrade-visible additions. Package/helper changes may affect
+existing doctor fingerprints. The five MCP tools and their arguments,
+Decision classes/reasons, default deletion policy, persistent accounting,
+recovery manifests, ordinary restore and preview-only MCP GC retain their
+contracts. No configuration/storage migration or default SDK installation is
+introduced. The diagnosis checks a selected service; it adds no native host
+interception or client configuration management. The 0.3.0 and commercial
+plans are not resumed.
+
+This is an unpublished source update. Final candidate, installed-package and
+workflow results must be reported separately in the
+[0.2.8 notes](../releases/release-notes-0.2.8.md#validation-status).
 
 <a id="027-candidate-bounded-maintainer-selected-exception"></a>
 

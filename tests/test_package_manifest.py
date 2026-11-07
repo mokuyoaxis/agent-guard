@@ -17,7 +17,7 @@ class PackageManifestTests(unittest.TestCase):
 
     def test_scoped_public_candidate_identity(self):
         self.assertEqual(self.manifest["name"], "@mokuyoaxis/agent-guard")
-        self.assertEqual(self.manifest["version"], "0.2.7")
+        self.assertEqual(self.manifest["version"], "0.2.8")
         self.assertNotIn("private", self.manifest)
         self.assertEqual(
             self.manifest.get("publishConfig"), {"access": "public"})
@@ -50,6 +50,13 @@ class PackageManifestTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertIn("{kimi,claude}", completed.stdout)
         self.assertIn("Local agent-guard installation checks", completed.stdout)
+
+    def test_live_sentinel_does_not_expose_the_read_only_mcp_doctor(self):
+        completed = subprocess.run(
+            [sys.executable, "-B", str(ROOT / "live_sentinel.py"), "mcp"],
+            cwd=ROOT, capture_output=True, text=True, timeout=15)
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn("invalid choice", completed.stderr)
 
     def test_cleanup_bin_exposes_plan_and_explicit_execution(self):
         self.assertEqual(self.manifest["bin"]["agent-guard-cleanup"],
