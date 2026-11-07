@@ -4,7 +4,7 @@
 [![npm stable](https://img.shields.io/npm/v/%40mokuyoaxis%2Fagent-guard.svg)](https://www.npmjs.com/package/@mokuyoaxis/agent-guard)
 [![License](https://img.shields.io/github/license/mokuyoaxis/agent-guard)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![0.2.8 development](https://img.shields.io/badge/development-0.2.8-5B6B7A)](docs/releases/release-notes-0.2.8.md)
+[![0.2.8](https://img.shields.io/badge/release-0.2.8-5B6B7A)](docs/releases/release-notes-0.2.8.md)
 
 **Disclosure checks · Recoverable deletion · Agent experiments** · [简体中文](README.zh-CN.md)
 
@@ -24,16 +24,16 @@ Installed Skills or copied configuration alone do not establish protection.
 We currently focus on **DSH and Kimi Code** integrations. For other hosts,
 ask the official coding agent to configure Agent Guard locally.
 
-This checkout is preparing **[0.2.8](docs/releases/release-notes-0.2.8.md)** for
-MCP connection diagnosis and recovery validation. It is not a published
-release. The published [0.2.7](docs/releases/release-notes-0.2.7.md) introduced
-Cleanup plans, deletion admission limits and optional local MCP tools;
-the stable installation example below still selects that exact version.
+Version **[0.2.8](docs/releases/release-notes-0.2.8.md)** adds MCP connection
+diagnosis and recovery validation to the Cleanup plans, deletion admission
+limits and optional local MCP tools introduced in
+[0.2.7](docs/releases/release-notes-0.2.7.md). Before installing, verify the exact
+GitHub release and npm version through the links below.
 
 | Main capability | Included functions | Guides |
 |---|---|---|
 | **Exfil-guard** | Check supported credentials and identifying paths; plan and apply redaction; inspect JSON/dotenv structure without displaying scalar values | [Skill and CLI](skills/exfil-guard/SKILL.md) · [Rules](skills/exfil-guard/references/rules.md) · [Safe config view](skills/exfil-guard/SKILL.md#safe-config-view) |
-| **Delete-guard** | Recoverable deletion and supported Git snapshots; Cleanup Copilot; persistent budgets, rate/repeat limits, protected paths and batch confirmation; transaction restore and manual GC; optional local MCP tools and connection diagnosis | [Skill and CLI](skills/delete-guard/SKILL.md) · [Cleanup Copilot](docs/guides/cleanup-plan.md) · [Deletion limits](docs/guides/deletion-limits.md) · [Recovery and GC](docs/guides/recovery-feedback.md) · [MCP tools](docs/guides/mcp.md) · [MCP doctor (0.2.8 development)](docs/guides/mcp.md#diagnose-a-local-service-028-development) |
+| **Delete-guard** | Recoverable deletion and supported Git snapshots; Cleanup Copilot; persistent budgets, rate/repeat limits, protected paths and batch confirmation; transaction restore and manual GC; optional local MCP tools and connection diagnosis | [Skill and CLI](skills/delete-guard/SKILL.md) · [Cleanup Copilot](docs/guides/cleanup-plan.md) · [Deletion limits](docs/guides/deletion-limits.md) · [Recovery and GC](docs/guides/recovery-feedback.md) · [MCP tools](docs/guides/mcp.md) · [MCP doctor (0.2.8)](docs/guides/mcp.md#diagnose-a-local-service-028) |
 | **Guard-lab** | Four zero-model calibration controls; synthetic markers and declared-channel observation; evidence and observer-health checks; matched guard-off/on comparisons after an effective baseline | [Lab workflow](docs/lab/guard-lab.md) · [Four-control example](docs/lab/blue-team-calibration.md) · [Evidence levels](docs/lab/guard-lab.md#evidence-levels) |
 
 Cleanup Copilot, deletion limits and the current MCP tools/doctor belong to
@@ -117,29 +117,29 @@ The optional MCP adapter requires Python 3.10+ and a separately installed
 
 | Version | Status |
 |---|---|
-| [0.2.8](docs/releases/release-notes-0.2.8.md) | Development checkout; not published; validation is recorded separately |
-| [0.2.7](docs/releases/release-notes-0.2.7.md) | Published baseline; verify exact-version availability below |
+| [0.2.8](docs/releases/release-notes-0.2.8.md) | Current release line; verify exact-version availability below |
+| [0.2.7](docs/releases/release-notes-0.2.7.md) | Earlier release with Cleanup, deletion limits and local MCP tools |
 | [0.2.6](docs/releases/release-notes-0.2.6.md) | Earlier published release with Kimi feedback and host compatibility updates |
 | [0.2.5](docs/releases/release-notes-0.2.5.md) | Earlier stable release |
 | [0.2.4](docs/releases/release-notes-0.2.4.md) | Earlier stable release |
 | [0.2.4-hotfix.1](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.4-hotfix.1) | Opt-in quarantine protection backport; npm `hotfix` |
 | [0.2.5-rc3](docs/releases/release-notes-0.2.5-rc3.md) | Published prerelease, including RC1/RC2 maintenance; npm `rc` |
 
-Before installing 0.2.7, confirm availability through its exact
-[GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.7)
-and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.7).
+Before installing 0.2.8, confirm availability through its exact
+[GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.8)
+and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.8).
 A checkout or manifest alone does not establish package availability.
 
 If that version is unavailable, use reviewed source or a locally built
-tarball following the [version notes](docs/releases/release-notes-0.2.7.md).
-Versioned tests and package checks are recorded separately from the historical
-0.2.6-metadata source results. Existing successful deletes can newly be
-refused by the [admission limits](docs/guides/deletion-limits.md).
+tarball following the [version notes](docs/releases/release-notes-0.2.8.md).
+Versioned tests and package checks retain their original checkpoints.
+The [admission limits](docs/guides/deletion-limits.md) introduced in 0.2.7 can
+refuse previously successful deletions and remain in effect in 0.2.8.
 
 Once the exact version is available, install to a chosen, stable user-owned prefix:
 
 ```sh
-npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.7
+npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.8
 ```
 
 The package root is
@@ -289,7 +289,7 @@ reconstruction and known gaps. It cannot recreate bytes that no source kept.
 | [Threat model](docs/design/threat-model.md) | Trust assumptions and unresolved boundaries |
 | [Compatibility](docs/design/compatibility.md) | Interface and release contracts |
 | [Blue-team research](docs/research/README.md) | Defensive methods, sanitized results and a zero-model starting point |
-| [0.2.7 notes](docs/releases/release-notes-0.2.7.md) | Version scope, upgrade impact and validation boundaries |
+| [0.2.8 notes](docs/releases/release-notes-0.2.8.md) | Version scope, upgrade impact and validation boundaries |
 
 ## Contributing
 

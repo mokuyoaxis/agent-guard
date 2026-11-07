@@ -1,6 +1,6 @@
 # Harness capability and evidence matrix
 
-This matrix accompanies [0.2.7](../releases/release-notes-0.2.7.md).
+This matrix accompanies [0.2.8](../releases/release-notes-0.2.8.md).
 Confirm availability through the exact GitHub release and npm version links
 in those notes; a source version does not establish publication.
 Published prerelease, checked on 2026-10-19:
@@ -106,7 +106,7 @@ native-hook rows above or establish live Claude/Cursor, arbitrary subagent,
 other-version or additional-platform coverage. Untested client setup examples
 remain documentation guidance.
 
-The [MCP doctor in the unpublished 0.2.8 checkout](mcp.md#diagnose-a-local-service-028-development)
+The [MCP doctor introduced in 0.2.8](mcp.md#diagnose-a-local-service-028)
 checks a selected service through handshake and read-only calls. Its PASS
 does not establish host connection, model use or native interception; those
 remain separate evidence levels.

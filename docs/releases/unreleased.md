@@ -1,14 +1,19 @@
-# 0.2.8 development and earlier maintenance history
+# 0.2.8 and earlier maintenance history
+
+<a id="028-development-and-earlier-maintenance-history"></a>
 
 <a id="unreleased-changes-and-026-maintenance-history"></a>
 <a id="027-candidate-changes-and-026-maintenance-history"></a>
 
-## MCP diagnosis and reliability maintenance (0.2.8 development)
+<a id="mcp-diagnosis-and-reliability-maintenance-028-development"></a>
+
+## MCP diagnosis and reliability maintenance (0.2.8)
 
 The maintainer selected **0.2.8** for an explicit `doctor.py mcp` path,
-real-protocol response-loss checks and documentation. This checkout has passed
-local validation and is not published. Stable installation examples continue to
-select 0.2.7; do not infer registry or release availability from package metadata.
+real-protocol response-loss checks and documentation. Stable installation
+examples select this exact version; confirm its GitHub release and npm
+availability through the [version notes](release-notes-0.2.8.md). The local
+validation and remote CI checkpoints are recorded separately.
 
 The doctor checks a selected Python/optional SDK, service handshake and
 version, the five-tool set, workspace binding and read-only queries. It does
@@ -30,7 +35,7 @@ and its unresolved cause remain recorded in the
 The five tools, default deletion policy, recovery format and budget semantics
 retain their contracts. The SDK stays separately optional; the separate
 0.3.0 and commercial plans remain paused. See the
-[MCP diagnosis and interruption guide](../guides/mcp.md#diagnose-a-local-service-028-development)
+[MCP diagnosis and interruption guide](../guides/mcp.md#diagnose-a-local-service-028)
 and this release's [bounded compatibility decision](../design/compatibility.md#028-diagnosis-maintenance-decision).
 
 The guide also records later Codex 0.165.0 acceptance of the published 0.2.7

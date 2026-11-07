@@ -9,8 +9,8 @@ first full run. They do not certify the new versioned artifact. See the
 exact-version availability checks.
 Configuration examples are not host acceptance.
 
-The **0.2.8 development checkout** adds [local MCP diagnosis](#diagnose-a-local-service-028-development)
-and protocol-interruption validation. It is not published; see the
+Version **0.2.8** adds [local MCP diagnosis](#diagnose-a-local-service-028)
+and protocol-interruption validation; see the
 [0.2.8 scope and validation status](../releases/release-notes-0.2.8.md).
 The later [Codex 0.165.0 acceptance](#codex-01650-with-published-027) below used
 the published 0.2.7 package and is separate from both development checkpoints.
@@ -81,9 +81,11 @@ in memory needs a trusted bridge to enforce them for MCP calls; registering
 this server alone does not provide that bridge. Existing
 [limits](deletion-limits.md) and the CLI's mode semantics still apply.
 
-## Diagnose a local service (0.2.8 development)
+<a id="diagnose-a-local-service-028-development"></a>
 
-From the 0.2.8 checkout or a package built from it, run:
+## Diagnose a local service (0.2.8)
+
+From a 0.2.8 installation or checkout, run:
 
 ```sh
 python3 -B /absolute/path/to/agent-guard/doctor.py mcp \
@@ -333,7 +335,7 @@ tool exchanges supported the reported behavior, and the recorded process IDs
 were absent at the final check; the missing lifecycle metadata was not
 reconstructed. This limitation is separate from the three completed model
 tasks. These results apply to that published 0.2.7 artifact, exact Codex
-version and cooperative MCP path, not the developing 0.2.8 artifact, native
+version and cooperative MCP path, not the 0.2.8 artifact, native
 shell/editor interception, arbitrary subagents or all Codex releases.
 
 ### Earlier preparation and Kimi checkpoints

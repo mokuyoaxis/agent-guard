@@ -1,12 +1,16 @@
-# 0.2.8 development — MCP diagnosis and recovery validation
+# 0.2.8 — MCP diagnosis and recovery validation
 
-**Status: unpublished development checkout.** The maintainer selected 0.2.8
-for MCP connection diagnosis, real protocol-interruption checks and their
-documentation. Implementation and local full-regression validation are complete;
-there is no 0.2.8 release or registry-availability claim. The published
-[0.2.7](release-notes-0.2.7.md) remains the installation example.
+Version 0.2.8 adds MCP connection diagnosis, real protocol-interruption
+checks and documentation to the
+[0.2.7](https://github.com/mokuyoaxis/agent-guard/blob/0.2.8/docs/releases/release-notes-0.2.7.md)
+baseline. Use the exact
+[GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.8)
+and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.8)
+to verify availability before installing; a source version or local tarball
+alone does not establish publication. The separate `rc` and `hotfix` channels
+retain their versions.
 
-本版已完成 MCP 接入诊断和本地恢复验证，尚未发布。已有 0.2.7 的测试、宿主实测
+本版提供 MCP 接入诊断与恢复验证。安装前核实精确版本的发行与包页面。已有 0.2.7 的测试、宿主实测
 和发布记录保留各自版本边界，不能直接作为 0.2.8 候选的通过证据。
 
 ## Version scope
@@ -49,7 +53,7 @@ A PASS covers direct checks of the selected service. `host_connection`,
 `model_delivery` and `host_interception` stay `UNVERIFIED`; actual host loading
 and model use require separate acceptance. No model, deletion, restore, GC
 execution, policy modification or budget reset is performed by the doctor.
-See the [MCP guide](../guides/mcp.md#diagnose-a-local-service-028-development).
+See the [MCP guide](https://github.com/mokuyoaxis/agent-guard/blob/0.2.8/docs/guides/mcp.md#diagnose-a-local-service-028).
 
 ### Recovery after response loss
 
@@ -63,7 +67,7 @@ multi-file interruption or atomic rollback.
 After an uncertain mutation, inspect status, transactions and the source/
 recovery copy before another mutation. Reconnect with the same trusted
 workspace/quarantine/session identity. Restoration does not refund the
-deletion budget. See [interrupted-connection recovery](../guides/mcp.md#after-a-lost-response-or-interrupted-connection).
+deletion budget. See [interrupted-connection recovery](https://github.com/mokuyoaxis/agent-guard/blob/0.2.8/docs/guides/mcp.md#after-a-lost-response-or-interrupted-connection).
 
 ### Documentation and existing Codex evidence
 
@@ -73,7 +77,7 @@ Codex CLI 0.165.0 acceptance of the published **0.2.7** package: three
 native-client groups and three real-model tasks, totaling 16 model MCP calls.
 That exact-version result covers the cooperative MCP path, not native Shell/
 editor interception or the 0.2.8 candidate. Original failures and evidence
-limitations remain in the [recorded validation](../guides/mcp.md#recorded-validation-and-remaining-limits).
+limitations remain in the [recorded validation](https://github.com/mokuyoaxis/agent-guard/blob/0.2.8/docs/guides/mcp.md#recorded-validation-and-remaining-limits).
 
 ## Compatibility and upgrade notes
 
@@ -82,7 +86,7 @@ Earlier doctor drift/live-sentinel additions were classified as minor. This
 release's independent diagnostic surface is explicitly recorded as a
 maintenance-version decision; the 0.2.7 exception is not inherited and does
 not permit unrelated policy changes. See the
-[compatibility decision](../design/compatibility.md#028-diagnosis-maintenance-decision).
+[compatibility decision](https://github.com/mokuyoaxis/agent-guard/blob/0.2.8/docs/design/compatibility.md#028-diagnosis-maintenance-decision).
 
 The five MCP tools and their arguments, Decision classes/reasons, default
 deletion rules, recovery manifests, persistent budget and preview-only MCP
@@ -98,6 +102,20 @@ explicit upgrade to gain the new doctor path. Same-UID, concurrency and
 uncovered-tool boundaries retain their existing scope. Configuration
 diagnosis prototypes, new deletion permissions, automatic GC, 0.3.0 work
 and commercial capabilities are outside this release.
+
+## Install or evaluate version 0.2.8
+
+After confirming availability on both publication pages above, install into
+a chosen stable prefix:
+
+```sh
+npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.8
+```
+
+For source review or before registry availability, use reviewed source or a
+verified local tarball in a separate prefix. The optional MCP SDK is still
+installed separately; npm does not install it or configure host clients.
+Existing installations require an explicit upgrade.
 
 ## Validation status
 
@@ -138,8 +156,17 @@ Package checks compare runtime and test bytes with the frozen full-test
 candidate and account for documentation-only updates separately. They include
 offline packing/installation, member hashes, the installed doctor and actual
 MCP recovery. Optional-SDK skips are not protocol acceptance; SDK-backed release
-checks must exercise the real protocol cases. No remote CI, publication or
-new real-model trial has been performed for 0.2.8.
+checks must exercise the real protocol cases.
+
+The implementation commit `1323ca5` subsequently passed
+[CI 42353094903](https://github.com/mokuyoaxis/agent-guard/actions/runs/42353094903)
+on 2026-11-07: all 15 jobs succeeded, including the Linux/macOS Python
+3.9–3.13 matrices, Windows Core, DSH checks and both SDK-backed MCP jobs.
+This checkpoint precedes the documentation-only publication alignment;
+the release commit requires its own CI and the tag's Release workflow.
+Actual CI/release runs and package availability remain separately verifiable;
+these local and implementation-CI records do not certify a later artifact.
+No new real-model trial was performed for 0.2.8.
 
 The preceding 0.2.7 artifact and Codex/Kimi records retain their original
 versions and scope. They are not substituted for this candidate's results.

@@ -4,8 +4,8 @@ agent-guard's promise is recoverability. A promise is only as good as its
 stability over time - this page states exactly what may change and what
 may not, per release class.
 
-This checkout adds the unpublished
-[0.2.8 diagnosis update](../releases/release-notes-0.2.8.md) to the published
+Version [0.2.8](../releases/release-notes-0.2.8.md) adds diagnosis and
+reliability maintenance to the published
 [0.2.7](../releases/release-notes-0.2.7.md) baseline. Use exact GitHub release
 and npm version links to confirm availability; a version in source or a local
 tarball does not establish publication.
@@ -33,7 +33,9 @@ is introduced by the research documentation.
 
 ## The adapter contract (frozen surface)
 
-### MCP doctor (0.2.8 development)
+<a id="mcp-doctor-028-development"></a>
+
+### MCP doctor (0.2.8)
 
 `doctor.py mcp` is an explicit local diagnosis path. It accepts the selected
 Python interpreter, existing workspace, optional reviewed server script and
@@ -62,7 +64,7 @@ shutdown can add up to three seconds of process waits and one second of reader-t
 The SDK remains separately optional, including when invoking Core/CLI or
 doctor help. Changing package/helper bytes can change existing doctor runtime
 fingerprints and produce `DRIFTED`; an old baseline is not automatically
-replaced. See [options, result scope and recovery after a lost response](../guides/mcp.md#diagnose-a-local-service-028-development).
+replaced. See [options, result scope and recovery after a lost response](../guides/mcp.md#diagnose-a-local-service-028).
 
 <a id="local-mcp-tools-027-candidate"></a>
 
@@ -292,8 +294,8 @@ introduced. The diagnosis checks a selected service; it adds no native host
 interception or client configuration management. The 0.3.0 and commercial
 plans are not resumed.
 
-This is an unpublished source update. Final candidate, installed-package and
-workflow results must be reported separately in the
+Source validation, installed-package and workflow results retain their
+separate checkpoints in the
 [0.2.8 notes](../releases/release-notes-0.2.8.md#validation-status).
 
 <a id="027-candidate-bounded-maintainer-selected-exception"></a>

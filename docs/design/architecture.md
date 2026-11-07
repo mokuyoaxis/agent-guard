@@ -318,9 +318,9 @@ order of value:
 
 ## Delivery status and design directions
 
-This checkout adds [0.2.8 development](../releases/release-notes-0.2.8.md)
-MCP connection diagnosis and protocol-interruption validation. It remains
-unpublished; the existing five tools, deletion policy and recovery format
+Version [0.2.8](../releases/release-notes-0.2.8.md) adds MCP connection
+diagnosis and protocol-interruption validation. The existing five tools,
+deletion policy and recovery format
 retain their contracts. Direct-service diagnosis, actual-host connection,
 model use and native interception have separate evidence requirements.
 
