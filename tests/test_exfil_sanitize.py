@@ -8,6 +8,7 @@ import base64
 import io
 import json
 import os
+import stat
 import subprocess
 import sys
 import tempfile
@@ -18,6 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core import policy, redaction
 from core.redaction import get_channel, scan_text
+from tests.helpers import RepoFixture, git_available
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCRIPTS = os.path.join(ROOT, "skills", "exfil-guard", "scripts")
@@ -691,6 +693,116 @@ class SourceDumpDiscipline(unittest.TestCase):
                     "BLOCK_SECRET_SOURCE_DUMP")
 
 
+def repository_corpus_blockers(root):
+    """Scan current regular UTF-8 files named by this root's Git index.
+
+    This is a versioned-corpus noise regression, not a workspace-wide safety
+    scan. Newly staged paths count; untracked experiments do not. Git and
+    read errors must not turn a failed observation into an empty corpus.
+    """
+    git = ["git", "-C", root]
+    top = subprocess.check_output(git + ["rev-parse", "--show-toplevel"],
+                                  text=True, stderr=subprocess.PIPE).rstrip("\n")
+    if os.path.realpath(top) != os.path.realpath(root):
+        raise ValueError("normal corpus requires its own repository root")
+    indexed = subprocess.check_output(git + ["ls-files", "--cached", "--full-name", "-z"],
+                                      stderr=subprocess.PIPE)
+    paths = sorted({os.fsdecode(path) for path in indexed.split(b"\0") if path})
+    if not paths:
+        raise ValueError("normal corpus requires a nonempty Git index")
+    blockers = []
+    for relative in paths:
+        path = os.path.join(root, relative)
+        try:
+            info = os.lstat(path)
+        except FileNotFoundError:
+            continue  # A tracked deletion has no current working-tree text.
+        if not stat.S_ISREG(info.st_mode):
+            continue  # Do not follow links or traverse submodule directories.
+        try:
+            with open(path, encoding="utf-8") as handle:
+                text = handle.read()
+        except UnicodeDecodeError:
+            continue  # Binary assets are outside this text-corpus regression.
+        scan = scan_text(text, "file-write", root, path=path)
+        if not scan.scanned:
+            blockers.append((relative, "unscannable"))
+            continue
+        for verdict in policy.decide_spans(scan.spans, channel=get_channel("file-write")):
+            if verdict.decision == policy.DECISION_BLOCK:
+                blockers.append((relative, verdict.code))
+    return blockers
+
+
+@unittest.skipUnless(git_available(), "Git required for versioned corpus tests")
+class RepositoryCorpus(RepoFixture):
+    def setUp(self):
+        with patch.dict(os.environ, {"GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "maintenance.auto",
+                                     "GIT_CONFIG_VALUE_0": "false"}):
+            super().setUp()
+
+    def stage(self, relative):
+        subprocess.run(["git", "-C", self.root, "add", "--", relative], check=True, capture_output=True)
+
+    def test_tracked_modification_uses_working_tree_not_index_bytes(self):
+        self.write("src/main.py", "cat " + ".env\n")
+        self.assertEqual(repository_corpus_blockers(self.root), [("src/main.py", "BLOCK_SECRET_SOURCE_DUMP")])
+
+    def test_new_staged_path_preserves_spaces_tabs_and_newlines(self):
+        relative = "new file\twith\nnewline.txt"
+        self.write(relative, "cat " + ".env\n")
+        self.stage(relative)
+        self.assertEqual(repository_corpus_blockers(self.root), [(relative, "BLOCK_SECRET_SOURCE_DUMP")])
+
+    def test_untracked_example_still_blocks_when_directly_scanned(self):
+        path = self.write("experiments/example.txt", "cat " + ".env\n")
+        self.assertEqual(repository_corpus_blockers(self.root), [])
+        with open(path) as handle:
+            scanned = scan_text(handle.read(), "file-write", self.root, path=path)
+        verdicts = policy.decide_spans(scanned.spans, channel=get_channel("file-write"))
+        self.assertTrue(any(v.decision == policy.DECISION_BLOCK and v.code == "BLOCK_SECRET_SOURCE_DUMP"
+                            for v in verdicts))
+
+    def test_staged_experiment_is_not_exempt_by_directory_name(self):
+        relative = "experiments/example.txt"
+        self.write(relative, "cat " + ".env\n")
+        self.assertEqual(repository_corpus_blockers(self.root), [])
+        self.stage(relative)
+        self.assertEqual(repository_corpus_blockers(self.root), [(relative, "BLOCK_SECRET_SOURCE_DUMP")])
+
+    def test_git_failure_is_not_a_successful_empty_corpus(self):
+        with patch("subprocess.check_output", side_effect=subprocess.CalledProcessError(1, ["git"])):
+            with self.assertRaises(subprocess.CalledProcessError):
+                repository_corpus_blockers(self.root)
+
+    def test_read_failure_is_not_silently_ignored(self):
+        original = open
+        def denied(path, *args, **kwargs):
+            if os.fspath(path) == os.path.join(self.root, "src/main.py"):
+                raise PermissionError("synthetic unreadable tracked file")
+            return original(path, *args, **kwargs)
+        with patch("builtins.open", side_effect=denied):
+            with self.assertRaises(PermissionError):
+                repository_corpus_blockers(self.root)
+
+    def test_subdirectory_cannot_borrow_parent_repository_index(self):
+        with self.assertRaises(ValueError):
+            repository_corpus_blockers(os.path.join(self.root, "src"))
+
+    def test_binary_and_link_targets_are_not_read_as_corpus_text(self):
+        binary = os.path.join(self.root, "binary.bin")
+        with open(binary, "wb") as handle:
+            handle.write(b"\xff\xfe")
+        self.stage("binary.bin")
+        with tempfile.TemporaryDirectory() as external:
+            target = os.path.join(external, "example")
+            with open(target, "w") as handle:
+                handle.write("cat " + ".env\n")
+            os.symlink(target, os.path.join(self.root, "link"))
+            self.stage("link")
+            self.assertEqual(repository_corpus_blockers(self.root), [])
+
+
 class ExemptionFile(unittest.TestCase):
     """Design 5.2: repo-local exemptions, value-exemptions by hash only."""
 
@@ -744,30 +856,8 @@ sha256 = sha256:aaaa
         self.assertFalse(parsed.active)
 
     def test_repository_own_corpus_has_zero_blocks(self):
-        """Design 5.6: the noise budget, measured rather than asserted."""
-        from core.redaction import get_channel
-        from core import policy
-        blockers = []
-        for base, dirs, files in os.walk(ROOT):
-            dirs[:] = [d for d in dirs
-                       if d not in {".git", ".internal", "__pycache__",
-                                    "node_modules", ".agent-trash"}]
-            for name in files:
-                path = os.path.join(base, name)
-                try:
-                    with open(path, encoding="utf-8") as fh:
-                        text = fh.read()
-                except (OSError, UnicodeDecodeError):
-                    continue
-                scan = scan_text(text, "file-write", ROOT, path=path)
-                if not scan.scanned:
-                    blockers.append((path, "unscannable"))
-                    continue
-                for verdict in policy.decide_spans(
-                        scan.spans, channel=get_channel("file-write")):
-                    if verdict.decision == policy.DECISION_BLOCK:
-                        blockers.append((os.path.relpath(path, ROOT),
-                                         verdict.code))
+        """Design 5.6: zero BLOCKs in the versioned working-tree corpus."""
+        blockers = repository_corpus_blockers(ROOT)
         self.assertEqual(blockers, [], f"noise budget exceeded: {blockers}")
 
 

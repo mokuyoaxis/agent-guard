@@ -15,6 +15,11 @@ and protocol-interruption validation; see the
 The later [Codex 0.165.0 acceptance](#codex-01650-with-published-027) below used
 the published 0.2.7 package and is separate from both development checkpoints.
 
+Version **0.2.9** adds `cleanup_discover` and `cleanup_measure`.
+Version 0.2.8 retains the original five tools. The new read-only workflow
+and its separate partial-result contract are described
+[below](#cleanup-observations-029).
+
 MCP gives a supporting coding-agent client an explicit way to use the existing
 safe deletion and recovery operations. It does **not** intercept shell `rm`,
 scripts, editor deletion or tools that bypass this server. Keep a compatible
@@ -85,7 +90,7 @@ this server alone does not provide that bridge. Existing
 
 ## Diagnose a local service (0.2.8)
 
-From a 0.2.8 installation or checkout, run:
+From a 0.2.8 or later installation or checkout, run:
 
 ```sh
 python3 -B /absolute/path/to/agent-guard/doctor.py mcp \
@@ -109,7 +114,10 @@ The checks cover:
 1. The selected interpreter, pinned SDK metadata and actual SDK imports.
 2. A classic `2025-06-18` stdio handshake, the `agent-guard` service identity
    and a service version matching the doctor's package version.
-3. The five expected tools and read-only annotations for the query tools.
+3. The expected tools and query annotations for this installation: five in
+   0.2.8, seven in 0.2.9. Use doctor and server
+   from the same installation; matching package version text alone does not
+   establish an identical tool set.
 4. Successful `status`, `transactions` and `gc_plan` calls, including the
    requested workspace and its local quarantine binding reported by `status`.
 
@@ -175,6 +183,8 @@ or atomic rollback. Final candidate results are recorded in the
 | `transactions` | none | List the selected workspace's recovery transactions |
 | `status` | optional integer `tail` (0–100, default 10) | Inspect recovery state, limits and recent audit information |
 | `gc_plan` | none | Preview the existing transaction GC plan; never execute it |
+| `cleanup_discover` (0.2.9) | optional literal directory `scopes`, `max_entries` (1–10000), `max_depth` (1–4) | Bounded read-only overview; no executable plan |
+| `cleanup_measure` (0.2.9) | required directory `scopes`, optional `max_entries` (1–20000), `max_depth` (1–32) | Read-only metadata measurement; protected whole sizes stay unknown |
 
 Paths are literal names, relative to the fixed workspace or absolute; the
 Core still refuses outside targets. Glob characters name actual files rather
@@ -220,6 +230,50 @@ reported transaction IDs and `transactions`/`status`; do not assume failure or
 cancellation means nothing moved. Do not automatically retry a mutating call
 after a client timeout or disconnection. The existing recovery, concurrency
 and same-UID boundaries remain; this server is not an OS sandbox.
+
+<a id="cleanup-observations-unreleased"></a>
+
+## Cleanup observations (0.2.9)
+
+First call `cleanup_discover` with `{}`. Its compact `overview` accompanies
+the complete observed `groups`, `review_branches` and `coverage.unexpanded`
+lists. Choose exact directory scopes for a follow-up discovery or measurement:
+
+```json
+{"name":"cleanup_discover","arguments":{"scopes":[".work"]}}
+```
+
+```json
+{"name":"cleanup_measure","arguments":{"scopes":["build",".pytest_cache"]}}
+```
+
+Scopes accept at most 64 strings, stay below the same workspace, and cannot
+overlap, cross protection or contain directory links. Omitting discovery
+scopes starts at the root; measurement requires a nonempty selection. No
+workspace, environment, approval, plan ID or execution override is accepted.
+The limits are shared across all scopes in one call. A follow-up scope starts
+a fresh observation rather than completing or authorizing an old one.
+
+Both tools are read-only and preserve source files, audit and recovery state.
+They do not call advisory safe_delete, which can write normal guard metadata.
+Their results use the independent observation schemas described in the
+[Cleanup guide](cleanup-plan.md#directory-overview-and-measurement-unreleased).
+Runtime and managed-cache labels are hints; all groups remain nonselectable.
+Do not treat a Core policy projection or successful inspection as approval.
+
+A valid partial observation returns `ok: true`, `partial: true` and is not an
+MCP `isError`. The original CLI exit code remains present, including exit 1
+for a limited frontier or incomplete observed subset. `partial` also remains
+true when measurement exit 0 has a protected unknown whole size. Inspect the
+underlying coverage, issues, protected roots and completeness fields; `ok`
+means the tool returned usable observations, not that the workspace is fully
+scanned or a target may be deleted. Invalid options, unavailable subprocesses
+and protocol failures remain errors. These semantics do not change the
+original five tools' error or mutation contracts.
+
+The doctor verifies the two new tool annotations but continues to invoke
+only `status`, `transactions` and `gc_plan`; diagnosis does not silently start
+directory discovery or measurement.
 
 ## Configure a client
 
@@ -296,8 +350,10 @@ installed version rather than copying another client's configuration shape.
 
 ## Verify and report
 
-1. Confirm the interpreter starts the server and the client discovers the five
-   tools. Check stderr when a dependency or executable cannot be found.
+1. Confirm the interpreter starts the server and the client discovers the
+   tools for that installation: five in 0.2.8, seven in 0.2.9.
+   Check stderr when a dependency or executable cannot
+   be found, and reconnect after changing the selected installation.
 2. Call `status`, `transactions` and `gc_plan` in a disposable project; confirm
    preview leaves recovery payloads intact.
 3. Create a small synthetic valuable file, call `safe_delete`, verify a real
@@ -307,6 +363,14 @@ installed version rather than copying another client's configuration shape.
 5. Report the client/version, platform, workspace binding, tool calls, actual
    results and unverified paths. A raw protocol test, a real client call and a
    real-model trial are different evidence levels.
+
+For the 0.2.9 observation tools, separately call `cleanup_discover`
+and `cleanup_measure` on explicit synthetic directory scopes. Check that
+source files and recovery state stay unchanged, unknown sizes remain null,
+and a limited result can have `ok: true, partial: true` without execution
+permission. A successful query or the old five-tool acceptance records do
+not establish that the new tools reached a model; see the
+[current source validation](../releases/unreleased.md#current-validation-checkpoint).
 
 ## Recorded validation and remaining limits
 
@@ -335,7 +399,7 @@ tool exchanges supported the reported behavior, and the recorded process IDs
 were absent at the final check; the missing lifecycle metadata was not
 reconstructed. This limitation is separate from the three completed model
 tasks. These results apply to that published 0.2.7 artifact, exact Codex
-version and cooperative MCP path, not the 0.2.8 artifact, native
+version and cooperative MCP path, not later artifacts, native
 shell/editor interception, arbitrary subagents or all Codex releases.
 
 ### Earlier preparation and Kimi checkpoints

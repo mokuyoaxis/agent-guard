@@ -1,6 +1,6 @@
 {
   "name": "@mokuyoaxis/agent-guard",
-  "version": "0.2.8",
+  "version": "0.2.9",
   "description": "Harness-neutral reliability infrastructure for AI coding agents: recoverable destructive actions, disclosure checks, controlled synthetic behaviour experiments, and a shared Core with optional native adapters.",
   "type": "module",
   "engines": {

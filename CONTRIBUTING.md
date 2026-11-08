@@ -53,6 +53,13 @@ unverified, and whether the result is a local Core/CLI check, a mock-host check,
 or real-host evidence. A passing mock must not be described as universal host
 enforcement.
 
+The corpus noise regression scans Git-index paths using the current regular
+UTF-8 working-tree files. Tracked modifications and newly staged paths count;
+untracked private experiments are outside this versioned normal corpus.
+Stage intended new files before using this check as a pre-commit gate. Git or
+read errors fail explicitly. This metric does not certify the whole workspace;
+Exfil rules remain active for direct scans of untracked and adversarial files.
+
 Review, merge, tagging, GitHub Release, and npm publication are separate
 maintainer decisions. Acceptance of a contribution does not promise a specific
 release date.
@@ -110,6 +117,12 @@ inconclusive trials. See the [research index](docs/research/README.md).
 
 PR 描述请写明改了什么、验证了什么、哪些路径仍未验证，以及证据属于本地
 Core/CLI、模拟宿主还是真实宿主。模拟测试通过不能写成所有宿主都已强制拦截。
+
+正常语料噪声回归以 Git 索引路径为范围，读取当前工作树中的普通 UTF-8 文件。
+已跟踪修改和新增已暂存文件均纳入；未跟踪的私有对抗实验不属于该版本化正常
+语料。新增文件应在明确准备纳入版本管理后暂存，再使用本项提交前检查；Git 或
+读取失败会显式报错。本指标不认证整个工作区，直接扫描未跟踪或对抗文件时
+Exfil 规则仍然生效。
 
 审阅、合并、标签、GitHub Release 与 npm 发布是维护者分别作出的决定；贡献被
 接受不代表承诺在某个版本或日期发布。

@@ -1,4 +1,144 @@
-# 0.2.8 and earlier maintenance history
+# Unreleased changes and maintenance history
+
+<a id="current-unreleased-scope"></a>
+
+## Current scope: 0.2.9
+
+The maintainer selected **0.2.9** for the changes below. Confirm exact-version
+availability through the [release notes](release-notes-0.2.9.md) before installation.
+Cleanup Copilot and its observation tools remain part of **Delete-guard**.
+The separate disclosure-authorization roadmap and commercial work stay paused.
+
+| Area | Change | Entry |
+|---|---|---|
+| Directory inventory | Bounded overview, explicit-scope discovery and metadata measurement | [CLI workflow](../guides/cleanup-plan.md#directory-overview-and-measurement-unreleased) |
+| MCP observations | `cleanup_discover` and `cleanup_measure`; partial data is distinct from a failed call | [Tool contract](../guides/mcp.md#cleanup-observations-unreleased) |
+| Planning performance | Reuse ordinary-file metadata and batch Git facts within one plan | [Planner boundaries](../guides/cleanup-plan.md#review-a-plan) |
+| Corpus regression | Define the normal text corpus by Git-index paths and current working-tree contents | [Contributor workflow](../../CONTRIBUTING.md) |
+
+The default executable-plan workflow, original five MCP operations, deletion
+policy, budgets and recovery formats retain their contracts. Overview and
+measurement never grant execution permission. Use doctor and server from the
+same installation; published 0.2.8 has five tools, this checkout has seven.
+See the [latest local validation](#current-validation-checkpoint) before
+interpreting historical counts or host evidence.
+
+<a id="cleanup-directory-observations-and-mcp-unreleased"></a>
+
+## Cleanup directory observations and MCP (0.2.9)
+
+Version 0.2.9 adds shared-Core directory discovery and selected-scope
+measurement, exposed by `agent-guard-cleanup --discover|--measure` and the
+MCP tools `cleanup_discover` / `cleanup_measure`. These additions are absent
+from published 0.2.8. They remain under
+Delete-guard's Cleanup Copilot, with no new production dependency or storage
+migration.
+
+Discovery groups runtime/cache hints, prioritizes cache/artifact path hints
+within fixed limits, and records unexpanded areas. Explicit scopes continue
+discovery under the same workspace. Measurement omits protected subtrees and
+keeps unknown whole sizes distinct from observed bytes. All observations
+remain nonselectable and produce no executable plan ID or approval; the
+existing default plan and confirmed safe_delete workflow remain separate.
+
+The MCP adapter returns valid partial observations with `ok: true` and
+`partial: true`, preserving the CLI exit code and completeness details. The
+original five tools retain their contracts. The source doctor expects seven
+tools but still invokes only the original three read-only state queries.
+Use doctor and server from the same installation.
+
+See [CLI workflow and result fields](../guides/cleanup-plan.md#directory-overview-and-measurement-unreleased)
+and [MCP partial-result semantics](../guides/mcp.md#cleanup-observations-unreleased).
+
+<a id="cleanup-planning-performance-unreleased"></a>
+
+## Cleanup planning performance (0.2.9)
+
+Version 0.2.9 reduces repeated ordinary-file path and metadata checks
+and reuses batched Git facts when projecting candidate verdicts. Shared
+decision rules retain their live execution entrypoint; deleting files still
+checks current Git and protection settings. Scan limits, categories, plan
+fingerprints, confirmation and deletion budgets keep their contracts.
+
+This performance change is not part of the published 0.2.8 package. On its
+own it changes no recognition rules or MCP tools; the separate observation
+addition above supplies directory groups and read-only MCP entrypoints.
+Neither coordinates application locks. See the [cleanup guide](../guides/cleanup-plan.md)
+for planning and managed-cache boundaries. The earlier validation records
+below retain their original versions and results.
+
+<a id="repository-corpus-noise-regression-unreleased"></a>
+
+## Repository corpus noise regression (0.2.9)
+
+The repository's normal-corpus test now reads current regular UTF-8 files
+named by its own Git index. Tracked modifications and newly staged files are
+included; untracked private adversarial experiments are outside this metric.
+Git failures, a borrowed parent index and unreadable tracked files are not
+silently accepted. Binary files and link targets are outside the text corpus.
+
+This corrects the test's collection boundary without changing Exfil rules,
+exemptions or private examples. Regressions check that unsafe tracked and new
+staged content still fails, untracked examples still BLOCK when scanned
+directly, and staging an example brings it into the corpus gate. New files
+must be staged intentionally before this versioned-corpus pre-commit check;
+it is not a whole-workspace safety scan. See the
+[current validation](#current-validation-checkpoint); earlier failed
+checkpoints remain recorded below.
+
+## Current validation checkpoint
+
+The versioned 0.2.9 public candidate passed the literal `npm test`: 1197
+Python cases and both Node groups, with no failures, errors or skips.
+All 16 real MCP protocol/doctor/interruption cases executed with the existing
+pinned SDK. The candidate's 227 public source files stayed unchanged during
+the run. This is local candidate validation; remote CI and publication are
+separate checks, available through the [0.2.9 notes](release-notes-0.2.9.md).
+
+Before the version alignment, local `npm test` passed all 1504 Python cases (1197 in public
+test modules and 307 existing private development cases) and both Node
+groups, with the existing optional MCP SDK enabled. There were no failures,
+errors, skips or automatic retries; the 214 frozen code/configuration inputs
+remained unchanged. Eight new collection-boundary controls and direct scans
+of the original eleven private samples confirm that the detector still BLOCKs
+those samples. Exfil rules and the allowfile were not changed.
+
+These are local working-tree results, not acceptance of the versioned
+release or fresh remote CI. The source suite includes private development
+cases absent from a public checkout; public-module and private counts are
+listed separately. The subsequent Markdown consolidation changed no
+production code or tests and did not repeat model trials. Versioned release
+checks are recorded separately in the [0.2.9 notes](release-notes-0.2.9.md#validation).
+
+Local checks include actual stdio discovery/measurement against a real
+project and one bounded real Kimi Code inventory task in a synthetic
+workspace (four model requests, three native MCP calls). The latter completed
+scoped discovery and measurement, preserved unknown UV whole size and mixed
+data uncertainty, and left fixture files unchanged. This is one host/task
+sample, not general reliability, application-cache deletion safety or shell
+interception evidence.
+
+The overview remains bounded and may leave an incomplete frontier. Finding
+registered roots does not establish a complete workspace scan. The model
+trial's source/task boundaries remain separate from native shell interception
+and application-cache deletion safety.
+
+### Earlier source checkpoints
+
+At the earlier pre-corpus-fix checkpoint, the full local `npm test` run
+completed 1496 Python cases (1189 in public test modules and 307 existing
+private development cases), with one corpus
+gate failure caused by existing private experiment files. The saved
+pre-change view reproduced the same eleven hits; the then-current public-only
+view passed that single gate. The two Node commands were then run separately
+and passed. That original npm run remains recorded as failed; the public-only
+gate check is not a second full-suite PASS. No Exfil exemption, production rule or
+private fixture was changed to suppress it. The final 25 directory-group
+controls and actual MCP/host checks passed; the earlier targeted run's
+runpy-bootstrap fixture failure was corrected with its log retained.
+
+These earlier results retain their failures and scope. They are not the
+latest candidate's outcome; the successful follow-up run is recorded above.
 
 <a id="028-development-and-earlier-maintenance-history"></a>
 

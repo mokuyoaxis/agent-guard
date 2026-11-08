@@ -10,11 +10,11 @@ Agent Guard 提供恢复保护、外发检测和用户控制的行为验测。�
 
 ## Select the package root
 
-This guide covers [0.2.8](../releases/release-notes-0.2.8.md), with MCP
-connection diagnosis and recovery validation, plus the Cleanup plans,
-deletion admission limits and optional tools introduced in 0.2.7. Confirm the
-exact [GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.8)
-and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.8)
+This guide covers [0.2.9](../releases/release-notes-0.2.9.md), with read-only
+Cleanup inventory and measurement, faster plan scans, MCP connection
+diagnosis and the existing deletion/recovery tools. Confirm the
+exact [GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.9)
+and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.9)
 are available before installing from the registry. A checkout or manifest
 does not establish publication or the current npm `latest` channel.
 
@@ -27,7 +27,7 @@ backports quarantine protection onto the stable line.
 Once the exact version is available, use a user-selected stable prefix:
 
 ```sh
-npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.8
+npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.9
 ```
 
 The package root is
@@ -43,7 +43,7 @@ If that version is unavailable, use a reviewed source checkout or a checked
 local tarball. Install the tarball into a separate prefix:
 
 ```sh
-npm install --offline --ignore-scripts --legacy-peer-deps --no-audit --no-fund --prefix /absolute/path/to/agent-guard-review /absolute/path/to/mokuyoaxis-agent-guard-0.2.8.tgz
+npm install --offline --ignore-scripts --legacy-peer-deps --no-audit --no-fund --prefix /absolute/path/to/agent-guard-review /absolute/path/to/mokuyoaxis-agent-guard-0.2.9.tgz
 ```
 
 The review package root is

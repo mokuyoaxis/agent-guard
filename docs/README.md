@@ -16,12 +16,13 @@ Cleanup Copilot, deletion admission and the current MCP tools/doctor are
 Delete-guard functions. [Recovery-audit](../skills/recovery-audit/SKILL.md)
 is an auxiliary incident-recovery workflow.
 
-Version [0.2.8](releases/release-notes-0.2.8.md) adds MCP diagnosis and
-recovery validation to the [0.2.7](releases/release-notes-0.2.7.md) baseline
-of Cleanup plans, deletion admission and optional local MCP tools.
-Before installing 0.2.8,
-check the exact [GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.8)
-and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.8)
+Version [0.2.9](releases/release-notes-0.2.9.md) adds read-only Cleanup
+inventory and selected-scope measurement through CLI and MCP, faster plan
+scans and a repository-corpus test fix. The earlier
+[0.2.8](releases/release-notes-0.2.8.md) adds MCP diagnosis and recovery validation.
+Before installing 0.2.9,
+check the exact [GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.9)
+and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.9)
 for availability. A checkout or manifest does not establish publication or
 the current npm `latest` channel.
 The opt-in `rc` line remains [0.2.5-rc3](releases/release-notes-0.2.5-rc3.md), and `hotfix` is the
@@ -37,6 +38,11 @@ need an upgrade to acquire those additions; see its [version notes](releases/rel
 先看入门指南，再按 Exfil-guard、Delete-guard、Guard-lab 三大功能选择入口。
 Cleanup、删除限制与当前 MCP 工具／doctor 归入 Delete-guard。测试报告按所测版本与配置保留；发布记录、
 历史设计和外部案例各自归档，不能据此扩展当前产品的承诺。
+
+0.2.9 新增[目录概况与计量](guides/cleanup-plan.md#directory-overview-and-measurement-029)
+及两个[只读 MCP 工具](guides/mcp.md#cleanup-observations-unreleased)，仍归属 Cleanup Copilot；
+0.2.8 不含这些新增能力。[变更摘要](releases/unreleased.md#current-unreleased-scope)
+汇总当前范围与验证，历史失败和各版发行记录在其后保留。
 
 | Category / 分类 | Contents / 内容 |
 |---|---|
@@ -58,8 +64,10 @@ ALLOW_NOOP 覆盖边界及准确 GC 用法；纳入 0.2.5。
 | [Getting started](guides/getting-started.md) | 安装路径、Agent 接入提示词与最短验证流程 |
 | [Status and cleanup feedback](guides/recovery-feedback.md) | Python／插件状态、ALLOW_NOOP、保留空间与手动 GC |
 | [Cleanup Copilot](guides/cleanup-plan.md) | Delete-guard，0.2.7：零写入计划、四类候选、大小与显式确认执行 |
+| [Directory overview and measurement](guides/cleanup-plan.md#directory-overview-and-measurement-029) | Delete-guard，0.2.9：先概况、再按范围发现／计量；没有执行许可 |
 | [Deletion limits](guides/deletion-limits.md) | Delete-guard，0.2.7：隔离容量、会话预算、频率、保护路径与批量确认 |
 | [Local MCP tools](guides/mcp.md) | Delete-guard，0.2.7：本地 stdio 安全删除、普通恢复、事务／状态和 GC 预览；不替代 hook |
+| [Read-only cleanup MCP](guides/mcp.md#cleanup-observations-029) | Delete-guard，0.2.9：cleanup_discover／cleanup_measure、固定工作区与部分观察状态 |
 | [MCP diagnosis](guides/mcp.md#diagnose-a-local-service-028) | Delete-guard，0.2.8：选定本地服务的依赖、握手、工作区绑定与只读调用检查 |
 | [Harness capabilities](guides/harness-capabilities.md) | 当前接入范围、证据等级与未验证路径 |
 | [Host drift](guides/host-drift.md) | 宿主版本、配置与本地基线检查 |
@@ -140,10 +148,11 @@ coverage rather than treating every historical result as current acceptance.
 
 | Document / 文档 | Scope / 范围 |
 |---|---|
+| [0.2.9](releases/release-notes-0.2.9.md) | 目录概况／计量、两只读 MCP 工具、扫描提速与语料门修复 |
 | [0.2.8](releases/release-notes-0.2.8.md) | MCP 接入诊断、真实协议中断验证、安装与验收边界 |
 | [0.2.7](releases/release-notes-0.2.7.md) | Cleanup、删除准入与MCP的版本范围、升级影响和准备阶段验证 |
 | [0.2.6](releases/release-notes-0.2.6.md) | 正式版范围、升级影响与验收；Kimi 反馈／doctor、DSH 预检与版本扩展 |
-| [Changes and maintenance details](releases/unreleased.md) | 0.2.8 维护、0.2.7 范围及 0.2.6 历史，保留原验收边界 |
+| [Changes and maintenance details](releases/unreleased.md) | 0.2.9 范围与本地验证；其后保留0.2.8、0.2.7及更早维护历史 |
 | [0.2.5](releases/release-notes-0.2.5.md) | 正式版范围；累计 RC 维护、明确反馈与升级影响 |
 | [0.2.4-hotfix.1](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.4-hotfix.1) | 已发布的稳定线回收站保护回补；不含完整 RC 累计内容 |
 | [0.2.5-rc3](releases/release-notes-0.2.5-rc3.md) | 已发布的研究／文档预发布版与零模型示例 |

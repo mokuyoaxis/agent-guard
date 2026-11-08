@@ -22,11 +22,32 @@ import _bootstrap  # noqa: F401
 
 from core import classifier, recovery
 from core.cleanup import DEFAULT_MAX_DEPTH, DEFAULT_MAX_ENTRIES, plan_cleanup, select_entries
+from core.cleanup_groups import discover_groups, measure_groups
 from core.messages import print_gc_guidance
 
 
 LABELS = {"regenerable": "可再生 / regenerable", "discarded": "明确废弃 / discarded",
           "uncertain": "不确定 / uncertain", "protected": "受保护 / protected"}
+
+
+def print_groups(result):
+    print("Read-only observation; no execution permission. Workspace: "
+          + json.dumps(result["workspace"], ensure_ascii=True))
+    if "overview" in result:
+        for row in result["overview"]:
+            print(row["kind"] + ": " + str(row.get("groups", row.get("branches")))
+                  + " groups; size unknown")
+        coverage = result["coverage"]
+        print("Frontier complete: " + str(coverage["frontier_complete"])
+              + "; workspace scan complete: False; unexpanded: " + str(len(coverage["unexpanded"])))
+        print("Use --json for groups, scopes, issues and unexpanded paths; "
+              "continue discovery with explicit --scope PATH.")
+    else:
+        for row in result["scopes"]:
+            size = str(row["size_bytes"]) + " B" if row["size_complete"] else (
+                "whole size unknown; observed " + str(row["observed_bytes"]) + " B")
+            print(json.dumps(row["path"], ensure_ascii=True) + ": " + size)
+    print(result["notice"])
 
 
 def print_plan(plan, *, stream=None, selected=None):
@@ -106,8 +127,13 @@ def main(argv=None):
                         help="explicitly declare a path/subtree discarded; repeatable")
     parser.add_argument("--protect", action="append", default=[], metavar="PATH",
                         help="protect an additional path/subtree; repeatable")
-    parser.add_argument("--max-entries", type=int, default=DEFAULT_MAX_ENTRIES)
-    parser.add_argument("--max-depth", type=int, default=DEFAULT_MAX_DEPTH)
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument("--discover", action="store_true", help="read-only directory overview; no executable plan")
+    modes.add_argument("--measure", action="store_true", help="read-only metadata sizes for explicit directory scopes")
+    parser.add_argument("--scope", action="append", default=[], metavar="PATH",
+                        help="directory below the fixed root; repeatable, for --discover or --measure")
+    parser.add_argument("--max-entries", type=int, help="entry budget; defaults: plan/discover 10000, measure 20000")
+    parser.add_argument("--max-depth", type=int, help="depth budget; defaults: plan 32, discover 4, measure 32")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--plan-id", help="exact ID from the plan being reviewed")
@@ -115,13 +141,32 @@ def main(argv=None):
                         help="select an exact selectable plan entry; repeatable")
     args = parser.parse_args(argv)
     try:
+        observing = args.discover or args.measure
+        if observing and (args.execute or args.plan_id or args.select or args.discard or args.protect):
+            raise ValueError("read-only discovery/measurement cannot accept plan declarations or execution arguments")
+        if args.scope and not observing:
+            raise ValueError("--scope requires --discover or --measure; it does not narrow an executable plan")
+        if observing:
+            root = args.root or classifier.discover_workspace(os.getcwd())
+            limits = {name: value for name, value in (("max_entries", args.max_entries), ("max_depth", args.max_depth))
+                      if value is not None}
+            result = (discover_groups(root, args.scope, **limits) if args.discover
+                      else measure_groups(root, args.scope, **limits))
+            if args.json:
+                print(json.dumps(result, ensure_ascii=True, indent=2))
+            else:
+                print_groups(result)
+            complete = (result["coverage"]["frontier_complete"] if args.discover
+                        else all(row["observed_subset_complete"] for row in result["scopes"]))
+            return 0 if complete else 1
         if not args.execute and (args.select or args.plan_id):
             raise ValueError("--select and --plan-id require --execute")
         if args.execute and not args.plan_id:
             raise ValueError("--execute requires the reviewed --plan-id")
         root = args.root or classifier.discover_workspace(os.getcwd())
         options = dict(discard=args.discard, protect=args.protect,
-                       max_entries=args.max_entries, max_depth=args.max_depth)
+                       max_entries=DEFAULT_MAX_ENTRIES if args.max_entries is None else args.max_entries,
+                       max_depth=DEFAULT_MAX_DEPTH if args.max_depth is None else args.max_depth)
         plan = plan_cleanup(root, **options)
         if not args.execute:
             if args.json:

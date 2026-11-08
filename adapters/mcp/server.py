@@ -22,6 +22,9 @@ INSTRUCTIONS = (
     "or retry an uncertain mutation automatically. Large batches and operator-only actions "
     "remain in the existing CLI workflow. GC here is preview only. These tools do not "
     "intercept other shell or editor operations."
+    " Use cleanup_discover for a bounded directory overview and cleanup_measure for explicit scopes. "
+    "Their observations never grant execution permission. A successful call with partial=true "
+    "still has incomplete coverage or unknown whole sizes; inspect those fields and use exact scopes."
 )
 
 TOOL_DEFINITIONS = {
@@ -48,6 +51,20 @@ TOOL_DEFINITIONS = {
     "gc_plan": {
         "description": "Preview existing quarantine transaction GC eligibility and retained space. This tool never executes GC or deletes recovery copies. Execution remains an explicit operator CLI action.",
         "properties": {}, "required": [], "read_only": True, "destructive": False,
+    },
+    "cleanup_discover": {
+        "description": "Read-only bounded directory overview in the fixed workspace. Optional scopes continue discovery below exact directories. Runtime/cache ownership labels are hints, not proof of obsolescence. Sizes remain unknown; inspect coverage/unexpanded and partial even when ok=true. No executable plan or deletion permission.",
+        "properties": {"scopes": {"type": "array", "items": {"type": "string", "minLength": 1}, "maxItems": 64},
+                       "max_entries": {"type": "integer", "minimum": 1, "maximum": 10000, "default": 10000},
+                       "max_depth": {"type": "integer", "minimum": 1, "maximum": 4, "default": 4}},
+        "required": [], "read_only": True, "destructive": False,
+    },
+    "cleanup_measure": {
+        "description": "Read-only metadata measurement of explicit non-overlapping directory scopes below the same workspace. Does not follow links or traverse protected subtrees. size_bytes=null means unknown, not zero; observed_bytes excludes protected data. Core projection is not approval. No plan_id, deletion, restore or GC execution.",
+        "properties": {"scopes": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1, "maxItems": 64},
+                       "max_entries": {"type": "integer", "minimum": 1, "maximum": 20000, "default": 20000},
+                       "max_depth": {"type": "integer", "minimum": 1, "maximum": 32, "default": 32}},
+        "required": ["scopes"], "read_only": True, "destructive": False,
     },
 }
 

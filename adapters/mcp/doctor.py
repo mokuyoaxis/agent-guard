@@ -22,8 +22,9 @@ ROOT = Path(__file__).resolve().parents[2]
 SERVER = ROOT / "adapters/mcp/server.py"
 SDK_VERSION = "2.3.0"
 PROTOCOL_VERSION = "2025-06-18"
-TOOLS = frozenset(("safe_delete", "restore", "transactions", "status", "gc_plan"))
+TOOLS = frozenset(("safe_delete", "restore", "transactions", "status", "gc_plan", "cleanup_discover", "cleanup_measure"))
 READ_ONLY = ("status", "transactions", "gc_plan")
+READ_ONLY_TOOLS = frozenset(READ_ONLY) | {"cleanup_discover", "cleanup_measure"}
 MAX_MESSAGE_BYTES = 2 * 1024 * 1024
 
 PROBLEMS = {
@@ -51,7 +52,7 @@ PROBLEMS = {
                             "Use the reviewed agent-guard stdio service; stdout must contain protocol messages only."),
     "MCP_DOCTOR_IDENTITY": ("The service identity or version does not match this installation.",
                             "Select a server script from the same agent-guard version as this doctor."),
-    "MCP_DOCTOR_TOOLS": ("The service tool set or read-only annotations do not match the five-tool contract.",
+    "MCP_DOCTOR_TOOLS": ("The service tool set or read-only annotations do not match this installation's contract.",
                          "Check the selected service version and tool definitions."),
     "MCP_DOCTOR_QUERY": ("A read-only tool returned an unsuccessful or invalid result.",
                          "Inspect the failed tool and local recovery state before any mutation."),
@@ -278,7 +279,7 @@ def diagnose(python, workspace, *, server=None, timeout=30):
             for tool in tools:
                 annotations = tool.get("annotations")
                 if (not isinstance(annotations, dict) or
-                        annotations.get("readOnlyHint") is not (tool["name"] in READ_ONLY)):
+                        annotations.get("readOnlyHint") is not (tool["name"] in READ_ONLY_TOOLS)):
                     raise _Failure("MCP_DOCTOR_TOOLS")
             report["tools"] = sorted(TOOLS)
             report["checks"].append({"stage": stage, "status": "PASS"})

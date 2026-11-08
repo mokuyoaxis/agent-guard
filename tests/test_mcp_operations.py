@@ -69,6 +69,64 @@ class McpOperations(RepoFixture):
         listing = self.operations.call("transactions", {})
         self.assertEqual(listing["result"]["transactions"][0]["state"], "RESTORED")
 
+    def test_cleanup_observations_are_read_only_and_keep_workspace(self):
+        self.write('.gitignore', 'build/\n.work/\n')
+        self.write('build/out', 'generated')
+        self.write('.work/cache/uv/CACHEDIR.TAG', 'Signature: 8a477f597d28d172789f06886806bc55')
+        self.write('.work/cache/uv/.git', '')
+        before = self.files()
+        discovery = self.operations.call('cleanup_discover', {})
+        self.assertTrue(discovery['ok'], discovery)
+        self.assertEqual(discovery['result']['workspace'], self.root)
+        measured = self.operations.call('cleanup_measure', {'scopes': ['build', '.work/cache/uv']})
+        self.assertTrue(measured['ok'], measured)
+        self.assertTrue(measured['partial'])
+        self.assertEqual(measured['exit_code'], 0)
+        self.assertFalse(measured['result']['execution_supported'])
+        self.assertTrue(all(not row['selectable'] for row in measured['result']['scopes']))
+        self.assertEqual(before, self.files())
+
+    def test_partial_cleanup_observation_is_successful_data_without_retry(self):
+        self.write('area/one', 'one')
+        self.write('area/two', 'two')
+        for name, args in [('cleanup_discover', {'scopes': ['area'], 'max_entries': 1}),
+                           ('cleanup_measure', {'scopes': ['area'], 'max_entries': 1})]:
+            with self.subTest(name=name):
+                result = self.operations.call(name, args)
+                self.assertTrue(result['ok'], result)
+                self.assertTrue(result['partial'])
+                self.assertEqual(result['exit_code'], 1)
+                self.assertFalse(result['result']['execution_supported'])
+        self.assertFalse(Path(self.root, '.agent-trash').exists())
+
+    def test_cleanup_literal_option_scope_and_scope_refusals(self):
+        self.write('--execute/file', 'literal')
+        result = self.operations.call('cleanup_measure', {'scopes': ['--execute']})
+        self.assertTrue(result['ok'], result)
+        self.assertEqual(result['result']['scopes'][0]['path'], '--execute')
+        self.write('area/file', 'keep')
+        Path(self.root, 'alias').symlink_to('area', target_is_directory=True)
+        for scopes in [['.'], ['../outside'], ['.git'], ['alias'], ['area', 'area']]:
+            with self.subTest(scopes=scopes):
+                result = self.operations.call('cleanup_discover', {'scopes': scopes})
+                self.assertFalse(result['ok'], result)
+                self.assertEqual(result['exit_code'], 2)
+        self.assertEqual(Path(self.root, '--execute/file').read_text(), 'literal')
+
+    def test_cleanup_invalid_arguments_never_start_cli(self):
+        cases = [('cleanup_measure', {}), ('cleanup_measure', {'scopes': []}),
+                 ('cleanup_discover', {'scopes': '.'}), ('cleanup_discover', {'scopes': ['x\0y']}),
+                 ('cleanup_discover', {'scopes': ['x'] * 65}), ('cleanup_measure', {'scopes': ['x'], 'execute': True}),
+                 ('cleanup_discover', {'workspace': '/'}), ('cleanup_discover', {'max_depth': True}),
+                 ('cleanup_discover', {'max_depth': 5}), ('cleanup_discover', {'max_entries': 10001}),
+                 ('cleanup_measure', {'scopes': ['x'], 'max_entries': 20001}),
+                 ('cleanup_measure', {'scopes': ['x'], 'max_depth': 33})]
+        with mock.patch('adapters.mcp.operations.subprocess.run') as run:
+            for name, args in cases:
+                with self.subTest(name=name, args=args), self.assertRaises(InvalidArguments):
+                    self.operations.call(name, args)
+            run.assert_not_called()
+
     def test_literal_glob_characters_and_shell_metacharacters_keep_existing_core_refusal(self):
         literal = "-old[1]*?`$(never);.txt"
         neighbor = "-old1AB`$(never);.txt"

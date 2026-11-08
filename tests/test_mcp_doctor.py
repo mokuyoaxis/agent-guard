@@ -121,7 +121,7 @@ class McpDoctorBoundaryTests(unittest.TestCase):
             version = VERSION
             workspace = sys.argv[-1]
             requests = pathlib.Path(REQUESTS)
-            names = ["safe_delete", "restore", "transactions", "status", "gc_plan"]
+            names = ["safe_delete", "restore", "transactions", "status", "gc_plan", "cleanup_discover", "cleanup_measure"]
             for line in sys.stdin:
                 request = json.loads(line)
                 with requests.open("a") as stream:
@@ -151,7 +151,7 @@ class McpDoctorBoundaryTests(unittest.TestCase):
                         result["protocolVersion"] = "PRIVATE-MARKER-protocol"
                 elif method == "tools/list":
                     result = {"tools": [{"name": name, "annotations": {
-                        "readOnlyHint": name in ("status", "transactions", "gc_plan")}}
+                        "readOnlyHint": name in ("status", "transactions", "gc_plan", "cleanup_discover", "cleanup_measure")}}
                         for name in names]}
                     if mode == "tools":
                         result["tools"][0]["name"] = "PRIVATE-MARKER-tool"
@@ -242,7 +242,7 @@ class McpDoctorProtocolTests(unittest.TestCase):
         return {str(path.relative_to(self.workspace)): hashlib.sha256(path.read_bytes()).hexdigest()
                 for path in self.workspace.rglob("*") if path.is_file()}
 
-    def test_real_service_binding_five_tools_and_read_only_queries(self):
+    def test_real_service_binding_tools_and_read_only_queries(self):
         before = self.inventory()
         result = mcp_doctor.diagnose(MCP_PYTHON, self.workspace)
         self.assertEqual(result["status"], "PASS", result)

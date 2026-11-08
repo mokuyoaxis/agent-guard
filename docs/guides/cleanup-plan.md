@@ -14,6 +14,82 @@ layout or Git exclude rules. It also suppresses project bytecode creation.
 Planning does not call `safe_delete --dry-run`, whose metadata side effects
 remain documented in the [policy reference](../../skills/delete-guard/references/policy.md#assessment-and-dry-run-side-effects).
 
+<a id="directory-overview-and-measurement-unreleased"></a>
+
+## Directory overview and measurement (0.2.9)
+
+These modes are introduced in **0.2.9**, not included in the published 0.2.8
+package. They share the stdlib-only Core with two new
+[read-only MCP tools](mcp.md#cleanup-observations-029). The existing
+default plan and explicit execution workflow below keep their interfaces.
+This addition remains part of Delete-guard's Cleanup Copilot.
+
+Start with a bounded overview, then inspect a specific unexpanded directory
+or measure explicit scopes, always keeping the original workspace root:
+
+```sh
+python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/cleanup.py \
+  --root /absolute/path/to/project --discover --json
+python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/cleanup.py \
+  --root /absolute/path/to/project --discover --scope .work --json
+python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/cleanup.py \
+  --root /absolute/path/to/project --measure --scope build --scope .pytest_cache --json
+```
+
+Scopes are literal, non-overlapping directories below that fixed root;
+directory-link components, protected scopes, outside paths and the workspace
+root itself are refused. Without scopes, discovery starts at the root.
+Measurement requires scopes. Quote spaces; use `--scope=-name` for a leading
+dash. A scoped discovery starts a new bounded observation rather than a
+cursor or a claim that previous results now cover the entire workspace.
+
+| Mode | Default limits | Output |
+|---|---|---|
+| `--discover` | Depth 4 per selected root, 10000 entries total, 256 expanded directories, 512 entries per directory | Compact overview; JSON includes all observed groups, review branches and unexpanded paths; all sizes unknown |
+| `--measure` | Depth 32 per scope, 20000 entries shared across scopes | Logical file/link sizes with inode deduplication, protected roots, issues and completeness per scope |
+
+`--max-entries` and `--max-depth` override their mode's positive limits in the
+CLI. The MCP tools only allow lowering the stated defaults. These new modes
+have been exercised on Linux ARM64/PRoot; their no-follow cache-marker opening
+uses POSIX facilities and has no Windows acceptance evidence.
+
+Discovery recognizes protected boundaries before runtime markers, cache
+markers and known artifact patterns. A regular `pyvenv.cfg` takes precedence
+over `CACHEDIR.TAG`; it identifies an environment hint, not an unused runtime.
+A valid cache signature and the name `uv` provide an ownership hint only.
+Managed caches stay grouped without suggesting their internal build fragments.
+Cache/artifact path hints affect queue order, not permission or proof of
+obsolescence. No age or filename heuristic declares content discarded.
+
+JSON uses independent `cleanup_group_discovery/v1` and
+`cleanup_group_measurement/v1` schemas with an `observation_id`, **no
+executable `plan_id`**. Every observation has `execution_supported: false`
+and every group has `selectable: false`. Discovery's `frontier_complete`
+only describes its bounded frontier; `workspace_scan_complete` stays false.
+Inspect `coverage.unexpanded`, limits and issues before choosing a scope.
+
+Measurement never follows links. Protected subtrees and external/protected
+link boundaries are omitted; `size_bytes: null` means unknown, not zero.
+`observed_bytes` counts the observed subset and does not predict freed disk
+space. `observed_subset_complete` may be true while `size_complete` and
+`interior_checked` are false because protection prevents a whole-size claim.
+The metadata digest is not a content hash or atomic snapshot. Scans read
+metadata and at most 43 bytes per examined cache tag, plus existing Guard
+configuration and Git facts; they do not parse database or cache payloads.
+
+For complete ordinary artifact scopes, `core_policy` may show a shared Core
+projection. Approval remains `NOT_GRANTED`, budget `NOT_CHECKED`, and the
+projection does not grant execution. Application-managed caches remain
+subject to their own consistency and locking protocol.
+
+Exit 0 means the requested frontier or observed measurement subset completed;
+1 retains partial observations after limits, I/O errors or observed source
+changes; 2 means invalid options or refusal. A protected unknown whole size
+can therefore coexist with measurement exit 0. None authorizes deletion.
+`--scope` requires these new modes; they reject `--discard`, `--protect`,
+`--execute`, `--plan-id` and `--select`. To delete, produce a separate reviewed
+plan using the existing workflow; an observation cannot be promoted into one.
+
 ## Review a plan
 
 From the intended workspace, run:
@@ -62,6 +138,17 @@ physical location was not declared makes the plan incomplete with
 Unknown subtrees collapse into review rows unless generated, discarded or
 protected descendants need to be shown. Candidate directories and their
 children are not offered as overlapping selections.
+
+The planner reuses ordinary-file metadata and its batched Git facts within
+one scan. Directory and link boundaries still receive full checks. This does
+not make a partial scan complete or change the scan limits. Execution still
+rescans the plan and reads current policy and Git facts.
+
+A regenerable classification does not verify an application's cache protocol.
+For example, [uv documents its cache consistency and locking requirements](https://docs.astral.sh/uv/concepts/cache/#cache-safety)
+and warns against directly changing cache contents. Review such managed
+caches separately; the planner does not coordinate their application locks
+or automatically invoke native cache-cleaning commands.
 
 ## Confirm and execute
 
@@ -125,6 +212,10 @@ retrying. No automatic purge or rollback runs.
 
 ## Sizes, limits and output
 
+This section describes plan JSON and the confirmation workflow. The
+[read-only observation modes](#directory-overview-and-measurement-unreleased)
+have their own schemas and limits.
+
 Sizes are logical file bytes, with hardlinks counted once per entry and per
 category summary. Directory metadata is omitted; links use their own size
 and directory links are not traversed. Protected subtree sizes are unknown.
@@ -169,6 +260,12 @@ fingerprints, so older baselines can become `DRIFTED`; review and validate
 before writing a new baseline at a new path.
 
 ## 中文摘要
+
+0.2.9 新增 `--discover` 目录概况、`--measure --scope PATH` 指定范围计量，
+并提供对应的 `cleanup_discover`／`cleanup_measure` MCP 工具；已发布 0.2.8
+不含这些能力。按范围继续发现仍保持原工作区，未展开部分和大小未知必须保留。
+这些观察不生成可执行计划或删除许可，MCP 的 `ok: true, partial: true` 也不代表
+完整扫描。执行仍需另外生成并审阅下面的既有计划。
 
 本功能自 0.2.7 加入。默认扫描只输出计划，不修改工作区；“明确废弃”仅来自
 调用者显式声明，旧文件／未跟踪文件不会自动变为垃圾。执行必须提供计划 ID、选定

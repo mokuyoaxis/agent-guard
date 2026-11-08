@@ -4,7 +4,7 @@
 [![npm 稳定版](https://img.shields.io/npm/v/%40mokuyoaxis%2Fagent-guard.svg)](https://www.npmjs.com/package/@mokuyoaxis/agent-guard)
 [![License](https://img.shields.io/github/license/mokuyoaxis/agent-guard)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![0.2.8](https://img.shields.io/badge/release-0.2.8-5B6B7A)](docs/releases/release-notes-0.2.8.md)
+[![0.2.9](https://img.shields.io/badge/release-0.2.9-5B6B7A)](docs/releases/release-notes-0.2.9.md)
 
 **外发检查 · 可恢复删除 · Agent 验测** · [English](README.md)
 
@@ -21,15 +21,16 @@ Agent Guard 提供三大功能：**Exfil-guard** 检查待外发文本，**Delet
 目前主要维护 **DSH 和 Kimi Code** 的接入。其他宿主建议交给对应的官方
 编码 Agent 在本地配置。
 
-本版 **[0.2.8](docs/releases/release-notes-0.2.8.md)** 提供 MCP 接入诊断与恢复验证，
-在 [0.2.7](docs/releases/release-notes-0.2.7.md) 已有的 Cleanup 计划、删除准入限制与
-可选本地 MCP 工具基础上完善。安装前，请通过下方链接核实精确版本的
-GitHub Release 与 npm 包是否可用。
+本版 **[0.2.9](docs/releases/release-notes-0.2.9.md)** 改善清理前的盘点体验：先看目录概况，
+再计量指定范围，Cleanup Copilot 和 MCP 都可使用；既有计划扫描也减少了重复的
+文件属性检查和 Git 查询。这些观察不授予删除许可，执行仍需另外生成计划、审阅并确认。
+使用方式见[目录概况与计量](docs/guides/cleanup-plan.md#directory-overview-and-measurement-029)。
+安装前，请通过下方链接核实精确版本的 GitHub Release 与 npm 包是否可用。
 
 | 主要功能 | 下属功能 | 对应链接 |
 |---|---|---|
 | **Exfil-guard** | 受支持的凭据与标识路径检测；脱敏计划与执行；不展示标量值的 JSON／dotenv 配置结构视图 | [Skill 与 CLI](skills/exfil-guard/SKILL.md) · [检测规则](skills/exfil-guard/references/rules.md) · [安全配置视图](skills/exfil-guard/SKILL.md#safe-config-view) |
-| **Delete-guard** | 可恢复删除与受支持的 Git 快照；Cleanup Copilot；持久预算、速率／重复限制、保护路径与批量确认；事务恢复与手动 GC；可选本地 MCP 工具及接入诊断 | [Skill 与 CLI](skills/delete-guard/SKILL.md) · [Cleanup Copilot](docs/guides/cleanup-plan.md) · [删除限制](docs/guides/deletion-limits.md) · [恢复与 GC](docs/guides/recovery-feedback.md) · [MCP 工具](docs/guides/mcp.md) · [MCP doctor（0.2.8）](docs/guides/mcp.md#diagnose-a-local-service-028) |
+| **Delete-guard** | 可恢复删除与受支持的 Git 快照；Cleanup Copilot 计划、目录概况与计量；持久预算、速率／重复限制、保护路径与批量确认；事务恢复与手动 GC；可选本地 MCP 工具及接入诊断 | [Skill 与 CLI](skills/delete-guard/SKILL.md) · [Cleanup Copilot](docs/guides/cleanup-plan.md) · [删除限制](docs/guides/deletion-limits.md) · [恢复与 GC](docs/guides/recovery-feedback.md) · [MCP 工具](docs/guides/mcp.md) · [MCP doctor](docs/guides/mcp.md#diagnose-a-local-service-028) |
 | **Guard-lab** | 四项零模型校准对照；合成标记与声明信道观察；证据和观察器健康检查；有效基线成立后的关闭／开启防护配对比较 | [Lab 流程](docs/lab/guard-lab.md) · [四控制示例](docs/lab/blue-team-calibration.md) · [证据等级](docs/lab/guard-lab.md#evidence-levels) |
 
 Cleanup Copilot、删除限制以及当前 MCP 工具／doctor 均归属 **Delete-guard**。
@@ -99,7 +100,8 @@ Core 需要 Python 3.9+ 和 Git。示例采用 POSIX Shell；原生桥接和可�
 
 | 版本 | 状态 |
 |---|---|
-| [0.2.8](docs/releases/release-notes-0.2.8.md) | 本版；安装前核实下方精确版本渠道 |
+| [0.2.9](docs/releases/release-notes-0.2.9.md) | 本版；安装前核实下方精确版本渠道 |
+| [0.2.8](docs/releases/release-notes-0.2.8.md) | 较早版本：MCP 接入诊断与恢复验证 |
 | [0.2.7](docs/releases/release-notes-0.2.7.md) | 历史版本，包含 Cleanup、删除限制与本地 MCP 工具 |
 | [0.2.6](docs/releases/release-notes-0.2.6.md) | 历史已发布版本，包含 Kimi 反馈与宿主兼容性更新 |
 | [0.2.5](docs/releases/release-notes-0.2.5.md) | 更早稳定版 |
@@ -107,20 +109,20 @@ Core 需要 Python 3.9+ 和 Git。示例采用 POSIX Shell；原生桥接和可�
 | [0.2.4-hotfix.1](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.4-hotfix.1) | 显式选择的回收站保护回补；npm `hotfix` |
 | [0.2.5-rc3](docs/releases/release-notes-0.2.5-rc3.md) | 已发布预发布版，包含 RC1／RC2 维护；npm `rc` |
 
-安装 0.2.8 前，请通过精确版本的
-[GitHub Release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.8)和
-[npm 版本页](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.8)确认可用性，
+安装 0.2.9 前，请通过精确版本的
+[GitHub Release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.9)和
+[npm 版本页](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.9)确认可用性，
 checkout 或 manifest 本身不代表包已可安装。
 
-若该版本尚不可用，请按[版本说明](docs/releases/release-notes-0.2.8.md)使用经复核的
+若该版本尚不可用，请按[版本说明](docs/releases/release-notes-0.2.9.md)使用经复核的
 源码或本地构建 tarball。版本化测试和包核验保留各自检查点。
 自 0.2.7 引入的[准入限制](docs/guides/deletion-limits.md)可能拒绝此前可执行的删除，
-这些限制在 0.2.8 中继续生效。
+这些限制在 0.2.9 中继续生效。
 
 确认精确版本可用后，可安装到用户选定的长期目录：
 
 ```sh
-npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.8
+npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.9
 ```
 
 包根目录是
@@ -250,7 +252,7 @@ Git／会话／缓存证据恢复项目，区分原文、重建与确认缺失�
 | [威胁模型](docs/design/threat-model.md) | 信任假设与尚未解决的边界 |
 | [兼容契约](docs/design/compatibility.md) | 接口与发布约定 |
 | [蓝队研究](docs/research/README.md) | 防守方法、去敏结果与零模型起点 |
-| [0.2.8 说明](docs/releases/release-notes-0.2.8.md) | 版本范围、升级影响与验证边界 |
+| [0.2.9 说明](docs/releases/release-notes-0.2.9.md) | 清理盘点、扫描提速与升级说明 |
 
 ## 参与贡献
 

@@ -17,7 +17,8 @@ import threading
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS = ROOT / "skills" / "delete-guard" / "scripts"
-TOOLS = frozenset(("safe_delete", "restore", "transactions", "status", "gc_plan"))
+GROUP_TOOLS = frozenset(("cleanup_discover", "cleanup_measure"))
+TOOLS = frozenset(("safe_delete", "restore", "transactions", "status", "gc_plan")) | GROUP_TOOLS
 MAX_PATHS = 1000
 TXID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*\Z")
 
@@ -76,7 +77,9 @@ class Operations:
         if not isinstance(arguments, dict):
             raise InvalidArguments("tool arguments must be an object")
         allowed = {"safe_delete": {"paths", "dry_run"}, "restore": {"txid"},
-                   "status": {"tail"}, "transactions": set(), "gc_plan": set()}[name]
+                   "status": {"tail"}, "transactions": set(), "gc_plan": set(),
+                   "cleanup_discover": {"scopes", "max_entries", "max_depth"},
+                   "cleanup_measure": {"scopes", "max_entries", "max_depth"}}[name]
         if set(arguments) - allowed:
             raise InvalidArguments("unsupported tool argument")
         result = dict(arguments)
@@ -102,6 +105,19 @@ class Operations:
             if type(result.get("tail", 10)) is not int or not 0 <= result.get("tail", 10) <= 100:
                 raise InvalidArguments("tail must be an integer between 0 and 100")
             result["tail"] = result.get("tail", 10)
+        elif name in GROUP_TOOLS:
+            scopes = result.get("scopes", [])
+            if (not isinstance(scopes, list) or len(scopes) > 64
+                    or (name == "cleanup_measure" and not scopes)
+                    or any(not isinstance(path, str) or not path or "\0" in path for path in scopes)):
+                raise InvalidArguments("scopes must be at most 64 nonempty literal directory paths; measure requires scopes")
+            result["scopes"] = scopes
+            for field, maximum in (("max_entries", 10000 if name == "cleanup_discover" else 20000),
+                                   ("max_depth", 4 if name == "cleanup_discover" else 32)):
+                value = result.get(field, maximum)
+                if type(value) is not int or not 1 <= value <= maximum:
+                    raise InvalidArguments(field + " must be an integer between 1 and " + str(maximum))
+                result[field] = value
         return result
 
     def _quarantine_overlap(self, paths):
@@ -136,8 +152,14 @@ class Operations:
             command = ["restore.py", "list", "--json"]
         elif name == "status":
             command = ["status.py", "--json", "--tail", str(args["tail"])]
-        else:
+        elif name == "gc_plan":
             command = ["gc.py", "--json"]
+        else:
+            command = ["cleanup.py", "--json", "--discover" if name == "cleanup_discover" else "--measure",
+                       "--max-entries", str(args["max_entries"]), "--max-depth", str(args["max_depth"])]
+            # Equals syntax keeps even an option-looking literal inside its
+            # value, without changing the server's fixed workspace binding.
+            command += ["--scope=" + scope for scope in args["scopes"]]
 
         # Serialize calls in this server, without changing process cwd or
         # environment. Other participating processes share Core admission.
@@ -168,6 +190,14 @@ class Operations:
             return self._failure(name, "MCP_CLI_PROTOCOL_ERROR",
                                  "CLI did not return a JSON object; inspect recovery state before retrying",
                                  exit_code=child.returncode, may_have_changed=mutating)
+        if name in GROUP_TOOLS and child.returncode in (0, 1):
+            expected = "cleanup_group_discovery/v1" if name == "cleanup_discover" else "cleanup_group_measurement/v1"
+            if result.get("schema") != expected:
+                return self._failure(name, "MCP_CLI_PROTOCOL_ERROR", "Unexpected cleanup observation schema",
+                                     exit_code=child.returncode)
+            partial = (not result["coverage"]["frontier_complete"] if name == "cleanup_discover"
+                       else any(not row["size_complete"] for row in result["scopes"]))
+            return {"tool": name, "ok": True, "partial": partial, "exit_code": child.returncode, "result": result}
         # Preserve all existing CLI evidence, including txids/moved paths on
         # partial failures. A nonzero exit never means 'nothing changed'.
         return {"tool": name, "ok": child.returncode == 0,

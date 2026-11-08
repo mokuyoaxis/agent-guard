@@ -69,6 +69,10 @@ or a public report. If the host contract or version is unclear, mark it
   Say `MCP tools only` unless a separate blocking hook has been verified;
   registering tools does not intercept shell, script or editor operations.
   This path adds no force restore, GC execution or model-approved budget reset.
+  Version 0.2.9 also offers read-only `cleanup_discover` and
+  `cleanup_measure`; published 0.2.8 does not include them. Inspect their
+  coverage/size fields and `partial` status rather than treating a successful
+  observation as a complete scan or deletion approval.
 
 Core `ASK` must reach a real human-approval path or become a refusal for that
 call. It must never silently become allow. Treat malformed payloads and
@@ -128,9 +132,11 @@ host process. Repeating local probes cannot turn `host_interception` or
 work and remaining checks so the next session can continue without repeating
 the setup.
 
-`doctor.py` currently supports only `kimi` and `claude`. Its configuration
-and local-probe PASS states do **not** prove a live host loaded or enforced a
-hook. Do not reuse those states as an unknown-host certification.
+The hook-specific `doctor.py kimi|claude` configuration and local-probe PASS
+states do **not** prove a live host loaded or enforced a hook. The separate
+`doctor.py mcp` checks a selected local service's handshake, tool set and
+read-only state queries; see the [MCP guide](../docs/guides/mcp.md#diagnose-a-local-service-028).
+Do not reuse either kind of PASS as an unknown-host certification.
 The 0.2.6 Kimi doctor also reports optional Stop under `feedback`.
 Its configuration/local probe is separate from PreToolUse, and
 `model_delivery` remains `UNVERIFIED`. A missing Stop is optional; an invalid

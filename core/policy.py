@@ -473,6 +473,11 @@ def regenerable(specs: List[PathSpec], ctx: PolicyContext) -> bool:
     and the decision table are untouched. ``spec.resolved`` is still handed
     to git unchanged.
     """
+    return _regenerable(specs, ctx, is_git_ignored)
+
+
+def _regenerable(specs, ctx, git_ignored):
+    """Shared rule; the planner supplies only its scan-local Git facts."""
     if not ctx.config.allow_regenerable:
         return False
     for spec in specs:
@@ -482,7 +487,7 @@ def regenerable(specs: List[PathSpec], ctx: PolicyContext) -> bool:
                               _physical(ctx.workspace))
         if not _matches_artifact(rel, ctx.config.artifact_patterns):
             return False
-        if not is_git_ignored(ctx.workspace, spec.resolved):
+        if not git_ignored(ctx.workspace, spec.resolved):
             return False
     return True
 
@@ -500,6 +505,18 @@ def _block_undeterminable_effect(spec: OpSpec) -> Verdict:
 def decide_path_batch(specs: List[PathSpec], ctx: PolicyContext,
                       recursive: bool) -> Verdict:
     """One batch of concrete deletion targets through the rule table."""
+    return _decide_path_batch(specs, ctx, recursive,
+                              config_loader=delete_config.load_config,
+                              regenerable_check=regenerable)
+
+
+def _decide_path_batch(specs, ctx, recursive, *, config_loader,
+                       regenerable_check):
+    """Same decision table for live execution and scan-local projection.
+
+    Actual deletion always enters decide_path_batch and reads fresh facts.
+    Planning may reuse facts within its single reviewed metadata snapshot.
+    """
     reasons: List[str] = []
 
     errored = [s for s in specs if s.error or s.indeterminable]
@@ -533,7 +550,7 @@ def decide_path_batch(specs: List[PathSpec], ctx: PolicyContext,
                         for s in protected_outside[:5]])
 
     try:
-        deletion_config = delete_config.load_config(ctx.workspace)
+        deletion_config = config_loader(ctx.workspace)
         protection = delete_config.protected_reason(
             [s.resolved for s in specs if s.resolved], ctx.workspace,
             deletion_config)
@@ -569,7 +586,7 @@ def decide_path_batch(specs: List[PathSpec], ctx: PolicyContext,
                        ["restricted mode permits only explicit single-file "
                         "deletes inside the workspace"])
 
-    if recursive and regenerable(specs, ctx):
+    if recursive and regenerable_check(specs, ctx):
         return Verdict(DECISION_ALLOW, CODE_ALLOW_REGENERABLE,
                        ["all targets are git-ignored and match known "
                         "artifact patterns"])

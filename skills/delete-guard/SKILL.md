@@ -51,11 +51,37 @@ Globs passed to `safe_delete` are expanded explicitly before anything moves.
 That is why `safe_delete '*.log'` works while `rm *.log` is blocked: the
 guard refuses opaque target sets, not cleanup work.
 
+<a id="read-only-cleanup-inventory-unreleased-checkout"></a>
+
+## Read-only cleanup inventory (0.2.9)
+
+From a 0.2.9 installation or checkout, start a cleanup
+investigation with a bounded directory overview:
+
+```bash
+python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/cleanup.py --discover --json
+python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/cleanup.py --measure --scope build --json
+```
+
+Keep the same workspace root when selecting scopes. Use
+`--discover --scope PATH` to inspect an unexpanded directory. Environment and managed-cache
+labels are hints; all groups remain nonselectable. Unknown whole sizes stay
+null, and a complete observed subset is not a complete workspace scan.
+The corresponding MCP tools are `cleanup_discover` and `cleanup_measure`;
+`ok: true, partial: true` is usable partial data, never execution permission.
+
+These modes are absent from published 0.2.8. For that package, use its
+existing plan workflow below. With the new modes, produce a separate reviewed
+plan before any execution; `observation_id` cannot replace `plan_id`. Review
+application-managed cache consistency separately. See
+[observation limits](../../docs/guides/cleanup-plan.md#directory-overview-and-measurement-unreleased)
+and [MCP semantics](../../docs/guides/mcp.md#cleanup-observations-unreleased).
+
 <a id="cleanup-proposals-027-candidate"></a>
 
 ## Cleanup proposals (0.2.7)
 
-When asked to investigate workspace cleanup, start with a read-only plan:
+To propose concrete executable candidates, produce a separate read-only plan:
 
 ```bash
 python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/cleanup.py --json

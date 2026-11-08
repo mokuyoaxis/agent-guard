@@ -1,6 +1,6 @@
 # Harness capability and evidence matrix
 
-This matrix accompanies [0.2.8](../releases/release-notes-0.2.8.md).
+This matrix accompanies [0.2.9](../releases/release-notes-0.2.9.md).
 Confirm availability through the exact GitHub release and npm version links
 in those notes; a source version does not establish publication.
 Published prerelease, checked on 2026-10-19:
@@ -110,6 +110,13 @@ The [MCP doctor introduced in 0.2.8](mcp.md#diagnose-a-local-service-028)
 checks a selected service through handshake and read-only calls. Its PASS
 does not establish host connection, model use or native interception; those
 remain separate evidence levels.
+
+Version 0.2.9 adds the read-only `cleanup_discover` and `cleanup_measure`
+tools. Local source checks include real-project stdio observations and one
+bounded Kimi Code inventory task in a synthetic workspace (three MCP calls).
+That task covers the new observation path, not a fresh cross-host acceptance
+of the published package or native interception. See the
+[0.2.9 validation](../releases/release-notes-0.2.9.md#validation).
 
 ## Acceptance for each native adapter
 

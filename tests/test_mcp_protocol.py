@@ -130,12 +130,12 @@ class McpProtocolTests(unittest.TestCase):
                          json.loads((ROOT / "package.json").read_text())["version"])
         tools = connection.request("tools/list", {})["result"]["tools"]
         self.assertEqual({row["name"] for row in tools},
-                         {"safe_delete", "restore", "transactions", "status", "gc_plan"})
+                         {"safe_delete", "restore", "transactions", "status", "gc_plan", "cleanup_discover", "cleanup_measure"})
         for tool in tools:
             self.assertFalse(tool["inputSchema"]["additionalProperties"])
             self.assertFalse(tool["annotations"]["openWorldHint"])
             self.assertEqual(tool["annotations"]["readOnlyHint"],
-                             tool["name"] in ("status", "transactions", "gc_plan"))
+                             tool["name"] in ("status", "transactions", "gc_plan", "cleanup_discover", "cleanup_measure"))
         self.assertTrue(next(row for row in tools if row["name"] == "safe_delete")["annotations"]["destructiveHint"])
 
     def test_read_only_tools_do_not_initialize_workspace_state(self):
@@ -162,6 +162,30 @@ class McpProtocolTests(unittest.TestCase):
         self.assertTrue(restored["ok"], restored)
         self.assertEqual(path.read_bytes(), original)
         self.assertEqual(self.content(connection.call("transactions"))["result"]["transactions"][0]["state"], "RESTORED")
+
+    def test_cleanup_discovery_measurement_and_partial_results_over_stdio(self):
+        area = self.workspace / 'area'
+        area.mkdir()
+        (area / 'one').write_text('one')
+        (area / 'two').write_text('two')
+        before = {str(p): (p.stat().st_size, p.stat().st_mtime_ns)
+                  for p in self.workspace.rglob('*') if p.is_file()}
+        connection = self.start()
+        first = self.content(connection.call('cleanup_discover', scopes=['area'], max_entries=1))
+        self.assertTrue(first['ok'], first)
+        self.assertTrue(first['partial'])
+        self.assertEqual(first['exit_code'], 1)
+        measured = self.content(connection.call('cleanup_measure', scopes=['area']))
+        self.assertTrue(measured['ok'], measured)
+        self.assertFalse(measured['partial'])
+        self.assertEqual(measured['result']['workspace'], str(self.workspace.resolve()))
+        self.assertEqual(measured['result']['scopes'][0]['size_bytes'], 6)
+        refused = connection.call('cleanup_measure', scopes=['area'], execute=True)
+        self.assertTrue('error' in refused or refused['result'].get('isError'), refused)
+        after = {str(p): (p.stat().st_size, p.stat().st_mtime_ns)
+                 for p in self.workspace.rglob('*') if p.is_file()}
+        self.assertEqual(before, after)
+        self.assertFalse((self.workspace / '.agent-trash').exists())
 
     def test_budget_survives_reconnect_and_restore_does_not_refund(self):
         self.config(session_max_entries=1)

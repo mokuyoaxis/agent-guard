@@ -18,7 +18,7 @@ see the [capability matrix](../guides/harness-capabilities.md).
 | Main capability | Functions and implementation | Contract and guides |
 |---|---|---|
 | **Exfil-guard** | Text detection/redaction in `core/redaction.py`, disclosure decisions in `core/policy.py`, and safe config views in `core/safe_view.py` | [Exfil-guard Skill](../../skills/exfil-guard/SKILL.md) |
-| **Delete-guard** | Classification, authorization, recovery and audit; Cleanup Copilot delegates execution to `safe_delete`; deletion admission applies shared limits; the current MCP adapter exposes deletion/recovery tools and its doctor checks them through read-only queries | [Delete-guard Skill](../../skills/delete-guard/SKILL.md) · [Cleanup](../guides/cleanup-plan.md) · [Limits](../guides/deletion-limits.md) · [MCP](../guides/mcp.md) |
+| **Delete-guard** | Classification, authorization, recovery and audit; Cleanup Copilot includes read-only inventory/measurement and delegates reviewed execution to `safe_delete`; MCP exposes explicit tools while its doctor performs read-only state queries | [Delete-guard Skill](../../skills/delete-guard/SKILL.md) · [Cleanup](../guides/cleanup-plan.md) · [Limits](../guides/deletion-limits.md) · [MCP](../guides/mcp.md) |
 | **Guard-lab** | `guard_lab.py` and `core/lab.py` provide a user-controlled diagnostic plane: calibration, declared-channel observation and matched comparisons | [Lab workflow and evidence](../lab/guard-lab.md) |
 
 Core and adapters provide shared infrastructure. The
@@ -291,6 +291,30 @@ FORBIDDEN (BLOCK, never askable).
    feed a Lab observation into Core policy or claim to ban model calls. A real
    block would require a host hook or request gateway that owns the call.
 
+<a id="read-only-cleanup-observations-unreleased"></a>
+
+## Read-only cleanup observations (0.2.9)
+
+`core/cleanup_groups.py` supplies bounded directory-group discovery and
+explicit-scope measurement to the Cleanup CLI. The MCP adapter delegates its
+two new read-only tools to that same CLI, keeping one implementation and a
+fixed original workspace. This addition starts in 0.2.9 and is absent from 0.2.8.
+
+Discovery reads a shallow frontier, recognizes environments before cache
+markers, and groups application-managed caches without expanding them.
+Path hints prioritize work within the existing budget; incomplete frontiers
+and unknown sizes stay explicit. A follow-up scope is a new bounded
+observation, not a whole-workspace completion claim. Measurement streams
+metadata into a digest and per-scope/global inode maps, omits protected
+subtrees, and never follows links. Observed subset completeness is separate
+from whole-size completeness.
+
+Independent observation schemas and IDs cannot be used as executable Cleanup
+plans. All rows remain nonselectable. A shared Core projection for complete
+ordinary artifacts does not check admission or grant approval. The existing
+plan confirmation and safe_delete pipeline remains responsible for mutation.
+See [result and limit contracts](../guides/cleanup-plan.md#directory-overview-and-measurement-unreleased).
+
 ## Read-only quarantine queries
 
 core/trash_index.py exposes list_trash_locations for CLI, agent and future
@@ -317,6 +341,12 @@ order of value:
    causes friction; prompting without interception is advisory only.
 
 ## Delivery status and design directions
+
+Version [0.2.9](../releases/release-notes-0.2.9.md) adds read-only directory
+observations and two MCP tools, speeds up existing planning, and corrects
+the normal-corpus test boundary. The original five operations and mutation
+contracts remain in place. The version decision is recorded in
+[compatibility](compatibility.md#029-cleanup-maintenance-decision).
 
 Version [0.2.8](../releases/release-notes-0.2.8.md) adds MCP connection
 diagnosis and protocol-interruption validation. The existing five tools,

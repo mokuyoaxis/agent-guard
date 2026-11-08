@@ -4,6 +4,8 @@ agent-guard's promise is recoverability. A promise is only as good as its
 stability over time - this page states exactly what may change and what
 may not, per release class.
 
+Version [0.2.9](../releases/release-notes-0.2.9.md) adds read-only Cleanup
+inventory and measurement, faster planning and a repository-corpus test fix.
 Version [0.2.8](../releases/release-notes-0.2.8.md) adds diagnosis and
 reliability maintenance to the published
 [0.2.7](../releases/release-notes-0.2.7.md) baseline. Use exact GitHub release
@@ -24,12 +26,38 @@ separate 0.3.0 plan remains paused.
 The later **0.2.8** selection is independently scoped to MCP diagnosis and
 reliability maintenance, as recorded below; earlier exceptions do not grant
 permission to change unrelated policy under a patch number.
+The **0.2.9** selection has its own bounded decision for the Cleanup
+observation interfaces and accompanying performance/test maintenance below.
 
 RC3 publishes defensive research and an example around the existing four
 zero-model controls. Experimental disclosure labels and private delegation
 methods are not additions to the Decision Protocol or native-hook contract.
 No production dependency, policy verdict or storage/configuration migration
 is introduced by the research documentation.
+
+<a id="unreleased-cleanup-observation-additions"></a>
+
+## Cleanup observation additions (0.2.9)
+
+Version 0.2.9 adds independent read-only discovery/measurement schemas,
+CLI modes and MCP tools. They are absent from published 0.2.8 and cannot
+produce an executable plan or approval. Its MCP server advertises seven
+tools; its doctor verifies that set and invokes only the original three
+state queries. Published 0.2.8 retains its five-tool contract. Use doctor and
+server from the same installation; identical version text in a working
+checkout does not establish identical bytes or tools.
+
+Existing default Cleanup plans, execution confirmation, original five MCP
+tools, deletion policy and recovery formats retain their interfaces. No
+dependency, configuration or storage migration is introduced.
+See [new observation semantics](../guides/mcp.md#cleanup-observations-029).
+The versioned checkpoints below describe their original release scope.
+
+The new CLI modes, independent observation JSON and two MCP tools are
+additive public interfaces, even though they grant no deletion permission.
+The maintainer selected 0.2.9 through the new bounded decision below;
+earlier patch-version exceptions do not authorize it. The paused 0.3.0
+research roadmap is a separate scope decision and is not resumed.
 
 ## The adapter contract (frozen surface)
 
@@ -70,7 +98,7 @@ replaced. See [options, result scope and recovery after a lost response](../guid
 
 ### Local MCP tools (0.2.7)
 
-The checkout adds an optional local stdio MCP server with five explicit tools:
+The 0.2.7 release introduced an optional local stdio MCP server with five explicit tools:
 safe_delete, ordinary restore, transactions, status and GC-plan preview.
 It invokes existing CLI operations without a shell, preserves policy/audit/
 recovery semantics and binds workspace/session identity at trusted startup.
@@ -272,6 +300,29 @@ While the major version is `0`:
 | Manifest record loses/repurposes a field | major + MIGRATION.md |
 | check.py CLI flags removed or re-semanticized | major + MIGRATION.md |
 | Default policy verdict changes for an existing shape | minor + entry in docs/history/friction.md |
+
+<a id="029-cleanup-maintenance-decision"></a>
+
+### 0.2.9: bounded Cleanup maintenance decision
+
+The maintainer selected **0.2.9** for read-only directory discovery and
+measurement, planning performance and the normal-corpus test correction.
+The new CLI modes, version-1 observation schemas and two MCP tools are
+additive public interfaces carried as this release's explicit maintenance
+exception. The general release-class promises remain in force; this decision
+does not authorize other patch releases or resume the 0.3.0 research plan.
+
+Upgrade both doctor and server from the same package: 0.2.9 expects seven
+tools, while 0.2.8 expects five. Existing installations need an explicit
+upgrade. Changed package/helper bytes may make an older doctor fingerprint
+baseline `DRIFTED`; review it rather than silently replacing it.
+
+The original five MCP operations, default executable plans and confirmation,
+Decision classes/reasons, default deletion rules, budgets, recovery manifests,
+ordinary restore and preview-only MCP GC retain their contracts. Observation
+IDs and policy projections cannot authorize deletion. No dependency or
+configuration/storage migration is introduced. See the
+[release notes](../releases/release-notes-0.2.9.md).
 
 <a id="028-diagnosis-maintenance-decision"></a>
 

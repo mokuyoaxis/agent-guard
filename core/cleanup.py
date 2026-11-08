@@ -127,7 +127,7 @@ def plan_cleanup(
         if record not in errors:
             errors.append(record)
 
-    def visit(relative: str, depth: int) -> _Node:
+    def visit(relative: str, depth: int, entry=None) -> _Node:
         nonlocal examined
         node = _Node(relative)
         nodes.append(node)
@@ -144,12 +144,22 @@ def plan_cleanup(
                     problem(node, "PROTECTED_ALIAS_REQUIRES_EXPLICIT_PROTECT")
         else:
             try:
-                info = os.lstat(absolute)
+                info = entry.stat(follow_symlinks=False) if entry is not None else os.lstat(absolute)
                 node.signature = [info.st_dev, info.st_ino, info.st_mode,
                                   info.st_size, info.st_mtime_ns, info.st_ctime_ns]
+                # Parents were checked before traversal and directory links
+                # are never followed. Ordinary files can reuse that location
+                # without repeating full boundary/type checks for every leaf.
+                # Keep the original classifier for directories, links and
+                # special roots (including an invalid trash path below a file).
+                ordinary_file = (stat.S_ISREG(info.st_mode)
+                                 and not classifier.protected_ancestor_root(absolute)
+                                 and not _under(trash, absolute))
                 spec = (classifier.classify_paths(["./" + relative], root, root, trash)[0]
-                        if relative != "." else None)
-                physical = os.path.relpath(os.path.realpath(absolute), root).replace(os.sep, "/")
+                        if relative != "." and not ordinary_file else None)
+                physical = os.path.relpath(
+                    absolute if ordinary_file else os.path.realpath(absolute), root
+                ).replace(os.sep, "/")
                 if ((spec and spec.protected) or set(physical.split("/")) & PROTECTED_NAMES
                         or any(_under(physical, p) for p in protect)
                         or (stat.S_ISLNK(info.st_mode)
@@ -160,20 +170,21 @@ def plan_cleanup(
                     if depth >= max_depth:
                         problem(node, "DEPTH_LIMIT_REACHED")
                     else:
-                        names = []
+                        children = []
                         with os.scandir(absolute) as entries:
-                            for entry in entries:
-                                if examined + len(names) >= max_entries:
+                            for child_entry in entries:
+                                if examined + len(children) >= max_entries:
                                     problem(node, "ENTRY_LIMIT_REACHED")
                                     break
-                                names.append(entry.name)
-                        for name in sorted(names):
+                                children.append(child_entry)
+                        for child_entry in sorted(children, key=lambda item: item.name):
                             if examined >= max_entries:
                                 problem(node, "ENTRY_LIMIT_REACHED")
                                 break
+                            name = child_entry.name
                             examined += 1
                             child = visit(name if relative == "." else relative + "/" + name,
-                                          depth + 1)
+                                          depth + 1, child_entry)
                             node.children.append(child)
                             node.files.update(child.files)
                             node.complete &= child.complete
@@ -206,6 +217,12 @@ def plan_cleanup(
         parts = path.split("/")
         tracked_ancestors.update("/".join(parts[:i]) for i in range(1, len(parts)))
 
+    def git_ignored(workspace, absolute):
+        return os.path.relpath(absolute, root).replace(os.sep, "/") in ignored
+
+    def regenerable(specs, context):
+        return policy._regenerable(specs, context, git_ignored)
+
     def row(node: _Node, category: str, reason: str) -> Dict[str, Any]:
         result = {
             "path": node.path, "kind": node.kind, "category": category,
@@ -220,7 +237,10 @@ def plan_cleanup(
             # Concrete, relative spelling also used by the execution CLI.
             spelling = "./" + node.path
             specs = classifier.classify_paths([spelling], root, root, trash)
-            verdict = policy.decide_path_batch(specs, ctx, recursive=True)
+            verdict = policy._decide_path_batch(
+                specs, ctx, recursive=True,
+                config_loader=lambda workspace: delete_config,
+                regenerable_check=regenerable)
             result["policy_code"] = verdict.code
             literal = (not specs[0].wildcard and not specs[0].indeterminable
                        and specs[0].resolved == os.path.join(root, node.path))

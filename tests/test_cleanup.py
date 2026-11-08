@@ -282,14 +282,21 @@ class CleanupTests(RepoFixture):
 
     def test_permission_error_keeps_partial_results_and_error(self):
         self.write("unreadable", "private")
-        original = os.lstat
+        original = os.scandir
 
-        def fail(path, *args, **kwargs):
-            if os.fspath(path) == os.path.join(self.physical_root, "unreadable"):
+        class DeniedEntry:
+            name = "unreadable"
+
+            def stat(self, **kwargs):
                 raise PermissionError(errno.EACCES, "synthetic failure")
-            return original(path, *args, **kwargs)
 
-        with mock.patch("core.cleanup.os.lstat", side_effect=fail):
+        @contextlib.contextmanager
+        def fail(path):
+            with original(path) as entries:
+                yield (DeniedEntry() if entry.name == "unreadable" else entry
+                       for entry in entries)
+
+        with mock.patch("core.cleanup.os.scandir", side_effect=fail):
             plan = self.plan()
         self.assertFalse(plan["complete"])
         self.assertIn({"path": "unreadable", "code": "OS_ERROR_13"}, plan["errors"])
@@ -307,6 +314,83 @@ class CleanupTests(RepoFixture):
         with mock.patch("core.cleanup.subprocess.run", wraps=subprocess.run) as run:
             self.plan()
         self.assertEqual(run.call_count, 2)
+
+    def test_generated_candidates_also_use_two_batched_git_queries(self):
+        for i in range(8):
+            self.write("ordinary/" + str(i) + "/build/output", "generated")
+        with mock.patch("core.cleanup.subprocess.run", wraps=subprocess.run) as run:
+            plan = self.plan()
+        self.assertEqual(plan["summary"]["regenerable"]["count"], 8)
+        self.assertEqual(run.call_count, 2)
+
+    def test_ordinary_files_do_not_multiply_path_resolution_work(self):
+        self.write("ordinary/seed", "valuable")
+        with mock.patch("core.cleanup.os.path.realpath", wraps=os.path.realpath) as resolve:
+            self.plan()
+        baseline = resolve.call_count
+        for i in range(80):
+            self.write("ordinary/" + str(i), "valuable")
+        with mock.patch("core.cleanup.os.path.realpath", wraps=os.path.realpath) as resolve:
+            plan = self.plan()
+        self.assertTrue(plan["complete"])
+        self.assertLessEqual(resolve.call_count - baseline, 80)
+
+    def test_later_policy_check_reads_changed_git_facts(self):
+        self.write("build/output", "generated")
+        self.assertEqual(self.rows(self.plan())["build"]["effect"], "delete")
+        self.write(".gitignore", ".internal/\n.agent-trash/\n")
+        from core.classifier import classify_paths
+        specs = classify_paths(["./build"], self.physical_root, self.physical_root,
+                               self.physical_root + "/.agent-trash")
+        ctx = policy.PolicyContext(workspace=self.physical_root,
+                                   trash_root=self.physical_root + "/.agent-trash",
+                                   base_dir=self.physical_root)
+        self.assertEqual(policy.decide_path_batch(specs, ctx, recursive=True).code,
+                         policy.CODE_RELOCATE_TREE)
+        self.assertEqual(self.rows(self.plan())["build"]["category"], "uncertain")
+
+    def test_later_policy_check_reads_changed_protection(self):
+        self.write("build/output", "generated")
+        self.assertTrue(self.rows(self.plan())["build"]["selectable"])
+        self.write(".agent-guard/delete-policy.json", json.dumps({"protected_paths": ["build"]}))
+        from core.classifier import classify_paths
+        specs = classify_paths(["./build"], self.physical_root, self.physical_root,
+                               self.physical_root + "/.agent-trash")
+        ctx = policy.PolicyContext(workspace=self.physical_root,
+                                   trash_root=self.physical_root + "/.agent-trash",
+                                   base_dir=self.physical_root)
+        self.assertEqual(policy.decide_path_batch(specs, ctx, recursive=True).code,
+                         policy.CODE_BLOCK_DELETE_PROTECTED)
+
+    def test_directory_changes_during_scan_still_refuse_selection(self):
+        self.write("build/output", "generated")
+        original = os.scandir
+
+        def changing(path):
+            if os.fspath(path) == self.physical_root + "/build":
+                info = os.stat(path)
+                os.utime(path, ns=(info.st_atime_ns, info.st_mtime_ns + 1_000_000_000))
+            return original(path)
+
+        with mock.patch("core.cleanup.os.scandir", side_effect=changing):
+            plan = self.plan()
+        self.assertFalse(plan["complete"])
+        self.assertIn({"path": "build", "code": "SOURCE_CHANGED_DURING_SCAN"}, plan["errors"])
+        with self.assertRaises(ValueError):
+            select_entries(plan, ["build"], plan["plan_id"])
+
+    def test_regular_file_cannot_hide_a_configured_recovery_access_path(self):
+        self.write("bucket-parent", "valuable")
+        trash = str(Path(self.root, "bucket-parent/recovery"))
+        with mock.patch.dict(os.environ, {"AGENT_GUARD_TRASH": trash}):
+            rows = self.rows(self.plan())
+        self.assertEqual(rows["bucket-parent"]["category"], "protected")
+
+    def test_regular_file_equal_to_home_stays_protected(self):
+        home = self.write("home-entry", "valuable")
+        with mock.patch.dict(os.environ, {"HOME": home}):
+            rows = self.rows(self.plan())
+        self.assertEqual(rows["home-entry"]["category"], "protected")
 
     def test_unsafe_or_unreviewed_selections_are_rejected(self):
         self.write("build/output", "generated")
