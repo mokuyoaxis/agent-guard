@@ -16,6 +16,8 @@ whether to prepare a cleanup plan. Both steps are available through CLI and MCP.
   sizes are explicit in the result.
 - Plan scans reuse ordinary-file metadata and batch Git queries instead of
   repeating them for every candidate.
+- Cleanup previews keep recovery parents protected when reached through
+  directory aliases.
 - The normal-corpus regression test uses Git-index paths and current file
   contents. Private untracked experiments no longer enter that metric;
   tracked and newly staged unsafe content still fails it.
@@ -54,10 +56,11 @@ configuration migration. The separate 0.3.0 research plan stays paused.
 
 ## Validation
 
-The 0.2.9 public candidate passed `npm test`: 1197 Python cases and both Node
+Before CI corrections, a local 0.2.9 candidate passed `npm test`: 1197 Python cases and both Node
 groups, with the optional MCP SDK enabled and no failures, errors or skips.
-All 16 real MCP protocol, doctor and interruption cases executed. Remote CI
-and publication are checked separately through the existing release workflow.
+All 16 real MCP protocol, doctor and interruption cases executed. Follow-up
+alias and test-fixture regressions are checked separately; CI and Release
+enforce the updated 1198-case suite before publication.
 
 Earlier local checks also covered real-project stdio inventory and one Kimi
 Code task in a synthetic workspace. That single task used three MCP calls;

@@ -17,7 +17,11 @@ from tests.helpers import RepoFixture
 
 class CleanupGroupTests(RepoFixture):
     def setUp(self):
-        super().setUp()
+        # The committed fixture must not launch detached Git maintenance.
+        with mock.patch.dict(os.environ, {"GIT_CONFIG_COUNT": "1",
+                                          "GIT_CONFIG_KEY_0": "maintenance.auto",
+                                          "GIT_CONFIG_VALUE_0": "false"}):
+            super().setUp()
         self.write('.gitignore', '.internal/\n.agent-trash/\n.venv*/\n.work/\n.pytest_cache/\nbuild/\n*.egg-info/\n')
         self.physical = Path(self.root).resolve()
 
@@ -192,13 +196,18 @@ class CleanupGroupTests(RepoFixture):
             row = Scanner(self.root).measure(['build'])['scopes'][0]
         self.assertFalse(row['observed_subset_complete'])
         self.assertIn('SOURCE_CHANGED_DURING_SCAN', [item['code'] for item in row['issues']])
-        original_stat = os.stat
-        def denied(path, *args, **kwargs):
-            if Path(path) == self.physical / 'build/out':
+        # Path.lstat delegates to different os calls across Python versions.
+        # Inject at the API the scanner uses so the failure is actually reached.
+        original_lstat = Path.lstat
+        denied_paths = []
+        def denied(path):
+            if path == self.physical / 'build/out':
+                denied_paths.append(path)
                 raise PermissionError(errno.EACCES, 'fixture')
-            return original_stat(path, *args, **kwargs)
-        with mock.patch('core.cleanup_groups.os.stat', side_effect=denied):
+            return original_lstat(path)
+        with mock.patch('core.cleanup_groups.Path.lstat', autospec=True, side_effect=denied):
             row = Scanner(self.root).measure(['build'])['scopes'][0]
+        self.assertIn(self.physical / 'build/out', denied_paths)
         self.assertFalse(row['size_complete'])
         self.assertIn(13, [item.get('errno') for item in row['issues']])
 

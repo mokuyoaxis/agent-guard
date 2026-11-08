@@ -113,6 +113,7 @@ def plan_cleanup(
             physical_protection.append(os.path.relpath(physical, root).replace(os.sep, "/"))
     protect = sorted(set(protect + physical_protection))
     trash = os.path.abspath(os.environ.get("AGENT_GUARD_TRASH", os.path.join(root, TRASH_DIRNAME)))
+    trash_physical = os.path.realpath(trash)
     if classifier.inside_path(trash, root):
         protect = sorted(set(protect + [os.path.relpath(trash, root).replace(os.sep, "/")]))
     ctx = policy.PolicyContext(workspace=root, trash_root=trash, base_dir=root,
@@ -154,7 +155,8 @@ def plan_cleanup(
                 # special roots (including an invalid trash path below a file).
                 ordinary_file = (stat.S_ISREG(info.st_mode)
                                  and not classifier.protected_ancestor_root(absolute)
-                                 and not _under(trash, absolute))
+                                 and not (_under(trash, absolute)
+                                          or _under(trash_physical, absolute)))
                 spec = (classifier.classify_paths(["./" + relative], root, root, trash)[0]
                         if relative != "." and not ordinary_file else None)
                 physical = os.path.relpath(

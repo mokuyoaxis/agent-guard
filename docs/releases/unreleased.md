@@ -88,12 +88,26 @@ checkpoints remain recorded below.
 
 ## Current validation checkpoint
 
-The versioned 0.2.9 public candidate passed the literal `npm test`: 1197
+Before the CI corrections below, the versioned 0.2.9 public candidate passed the literal `npm test`: 1197
 Python cases and both Node groups, with no failures, errors or skips.
 All 16 real MCP protocol/doctor/interruption cases executed with the existing
 pinned SDK. The candidate's 227 public source files stayed unchanged during
 the run. This is local candidate validation; remote CI and publication are
 separate checks, available through the [0.2.9 notes](release-notes-0.2.9.md).
+
+The first cross-version CI then exposed a test-fixture issue on Python 3.9
+and 3.10: mocking `os.stat` did not inject the intended metadata error through
+those versions' `Path.lstat` implementation. The fixture now injects at
+`Path.lstat` and verifies that the fault was reached, retaining the original
+error/incompleteness assertions. Further macOS logs exposed a preview fast
+path that missed a configured recovery parent through a directory alias.
+It now checks both recovery-path spellings before skipping classification;
+a new alias regression reproduces the pre-fix failure. The HOME fixture uses
+the scanner's physical path, and the read-only fixture disables detached Git
+maintenance before its baseline commit. These corrections retain deletion
+policy and live execution checks. The full run above keeps its original
+checkpoint; subsequent validation uses 1198 public cases and is recorded
+separately.
 
 Before the version alignment, local `npm test` passed all 1504 Python cases (1197 in public
 test modules and 307 existing private development cases) and both Node

@@ -387,10 +387,20 @@ class CleanupTests(RepoFixture):
         self.assertEqual(rows["bucket-parent"]["category"], "protected")
 
     def test_regular_file_equal_to_home_stays_protected(self):
-        home = self.write("home-entry", "valuable")
+        home = os.path.realpath(self.write("home-entry", "valuable"))
         with mock.patch.dict(os.environ, {"HOME": home}):
             rows = self.rows(self.plan())
         self.assertEqual(rows["home-entry"]["category"], "protected")
+
+    def test_configured_recovery_parent_is_protected_through_workspace_alias(self):
+        self.write("bucket-parent", "valuable")
+        alias = Path(self.root, "workspace-alias")
+        alias.symlink_to(self.physical_root, target_is_directory=True)
+        with mock.patch.dict(os.environ, {"AGENT_GUARD_TRASH": str(alias / "bucket-parent/recovery")}):
+            row = self.rows(self.plan())["bucket-parent"]
+        self.assertEqual(row["category"], "protected")
+        self.assertIsNone(row["size_bytes"])
+        self.assertFalse(row["selectable"])
 
     def test_unsafe_or_unreviewed_selections_are_rejected(self):
         self.write("build/output", "generated")
