@@ -1,6 +1,13 @@
 """Locate the shared Core through the real, complete installation path."""
+import io
 from pathlib import Path
 import sys
+
+# Preserve the caller's encoding; escape text it cannot represent instead of
+# failing after a completed filesystem operation (for example a Windows pipe).
+for _stream in (sys.stdout, sys.stderr):
+    if isinstance(_stream, io.TextIOWrapper):
+        _stream.reconfigure(errors="backslashreplace")
 
 _SKILL_ROOT = Path(__file__).resolve().parent.parent
 _REPO_ROOT = _SKILL_ROOT.parent.parent

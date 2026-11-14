@@ -28,6 +28,10 @@ class RepoFixture(unittest.TestCase):
             git("config", "user.email", "test@local")
             git("config", "user.name", "test")
             git("config", "commit.gpgsign", "false")
+            # Baseline commits must not leave background Git maintenance
+            # racing tests that assert the complete fixture is read-only.
+            git("config", "maintenance.auto", "false")
+            git("config", "gc.auto", "0")
             with open(os.path.join(self.root, ".gitignore"), "w") as fh:
                 fh.write("node_modules/\n*.log\n")
             os.makedirs(os.path.join(self.root, "src"))

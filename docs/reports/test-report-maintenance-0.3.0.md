@@ -133,6 +133,36 @@ two rate events. No permanent GC ran, and physical freed space was not
 measured. This is a bounded real-cache acceptance, separate from the pending
 fresh 71-root model task and native-shell sandbox certification.
 
+## CI portability corrections (2026-11-14)
+
+The [first development CI run](https://github.com/mokuyoaxis/agent-guard/actions/runs/43559467426)
+completed with nine successful jobs and six failed jobs. The five Linux
+full-suite jobs, both optional-MCP jobs and both DSH jobs passed. The Windows
+Core gate failed one of 92 tests: the bare restore CLI could not encode its
+bilingual summary through a legacy output stream. A local `cp1252:strict`
+reproduction confirmed that the file had already been restored before the
+printing error changed the exit code to 1.
+
+All five macOS jobs failed the same Skill backup-location assertion because
+the installer returned a resolved `/private/var` path while the fixture kept
+its `/var` alias. An owned parent-alias reproduction confirmed that the old
+Skill bytes were retained correctly. The Python 3.12 job also recorded two
+read-only snapshot mismatches in Git metadata. Baseline-commit tracing showed
+automatic Git maintenance being launched; shared fixtures now disable it
+before the baseline commit. Full snapshot assertions remain unchanged; the
+original remote snapshots do not identify the exact background writer.
+
+The correction changes the CLI output error policy to escape unrepresentable
+characters while preserving its encoding. It adds a real delete/restore
+regression with a strict legacy stream, including status/error output, and
+an aliased-parent installation regression. The legacy-stream case joins the
+Windows CI gate. The initial nine focused local checks passed. A subsequent
+run passed 227 related Python cases with no failures, errors or skips in
+411.292 seconds, followed by both existing Node groups. The nine focused
+cases overlap that run and are not added to its distinct-case count.
+Exact-commit hosted results remain separate; local emulation alone does not
+certify native Windows or macOS behavior.
+
 ## Local workflow and storage
 
 Tests used synthetic targets on ARM64 Linux in an Android Termux/PRoot
@@ -346,7 +376,7 @@ test artifacts or package contents.
 | Current-source native interception and MCP handoff | Kimi root Bash BLOCK, real operator approval, original-session execution and independent MCP recovery completed; plan-iteration deviation retained. DSH sandboxed profile is environment-blocked; zero-model local control passed. Broader hook coverage remains unverified. |
 | Claude model-backed maintenance | DEFERRED |
 | Local runtime regression and package/install | Second exact npm test on 2026-11-14 passed all 1562 Python cases and both Node groups with unchanged runtime; the first observer timeout remains recorded. The current package has only a dry-run preview; actual archive/install PASS belongs to the older 2026-11-11 checkpoint. |
-| Remote CI and the versioned 0.3.0 release artifact | NOT PERFORMED; package metadata still identifies the 0.2.9 baseline |
+| Remote CI and the versioned 0.3.0 release artifact | Development CI and its first failures are recorded above; exact-commit hosted results remain separate from local checks. No versioned 0.3.0 release artifact has been produced. |
 | 0.3.0 version alignment, tag and publication | NOT PERFORMED; local development commits retain 0.2.9 package metadata |
 
 Literal target planning can observe names containing glob metacharacters,

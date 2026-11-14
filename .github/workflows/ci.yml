@@ -121,6 +121,7 @@ jobs:
           python -m unittest -v `
             tests.test_dialects `
             tests.test_delete.SafeDeleteCLI.test_relocate_then_restore_roundtrip `
+            tests.test_delete.SafeDeleteCLI.test_legacy_output_encoding_keeps_real_receipts_and_restore_exit `
             tests.test_delete.WindowsVerbNoDialect `
             tests.test_delete.CheckCLI.test_cmd_dialect_cannot_turn_rm_root_delete_into_noop `
             tests.test_exfil_sanitize.FormatPreservation.test_native_windows_user_path_uses_exact_bytes_and_sanitizes `

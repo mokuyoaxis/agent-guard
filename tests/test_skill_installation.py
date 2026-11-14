@@ -39,9 +39,21 @@ class SkillInstallationTests(unittest.TestCase):
         plan = install_skill.installation_plan(str(self.target))
         install_skill.execute_plan(plan)
         backup = Path(plan["backup"])
-        self.assertEqual(backup.parent, self.directory / ".agent-guard-skill-backups")
+        self.assertEqual(backup.parent, self.directory.resolve() / ".agent-guard-skill-backups")
         self.assertEqual((backup / "owned.txt").read_bytes(), b"preserve exactly")
         self.assertTrue(self.target.is_symlink())
+
+    def test_update_through_parent_alias_retains_backup_outside_discovery(self):
+        self.old_skill()
+        alias = self.directory / "host-skills-alias"
+        alias.symlink_to(self.target.parent, target_is_directory=True)
+        plan = install_skill.installation_plan(str(alias / "delete-guard"))
+        install_skill.execute_plan(plan)
+        backup = Path(plan["backup"])
+        self.assertEqual(backup.parent, self.directory.resolve() / ".agent-guard-skill-backups")
+        self.assertFalse(backup.is_relative_to(alias.resolve()))
+        self.assertEqual((backup / "owned.txt").read_bytes(), b"preserve exactly")
+        self.assertEqual((alias / "delete-guard").resolve(), install_skill.SKILL.resolve())
 
     def test_link_creation_failure_restores_previous_target(self):
         self.old_skill()

@@ -138,6 +138,13 @@ CLI/public task receipt. CLI text uses the same projection; agent-written
 explanations cannot overwrite it. Full JSON retains the existing result keys
 and exit semantics. A successful preview/query is not completed deletion.
 
+The Skill CLIs keep the output stream's encoding and escape characters it
+cannot represent. This lets a legacy Windows pipe report a completed restore
+without failing while printing its bilingual summary. UTF-8 output retains
+its readable text; JSON fields and operation results are unchanged. If a
+caller loses a response for any reason, inspect the transaction or task
+instead of repeating the filesystem operation.
+
 | Action | Count and evidence |
 |---|---|
 | `quarantined` | Confirmed moved target records/selected roots; transaction references |

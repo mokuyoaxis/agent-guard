@@ -25,6 +25,32 @@ def run(script, *args, cwd):
 
 @unittest.skipUnless(git_available(), "git required")
 class SafeDeleteCLI(RepoFixture):
+    def test_legacy_output_encoding_keeps_real_receipts_and_restore_exit(self):
+        target = Path(self.write("report.txt", "owned bytes survive encoding limits"))
+        env = dict(os.environ, PYTHONIOENCODING="cp1252:strict")
+        invoke = lambda script, *args: subprocess.run(
+            [sys.executable, "-B", os.path.join(SCRIPTS, script), *args],
+            cwd=self.root, env=env, capture_output=True, timeout=60)
+        deleted = invoke("safe_delete.py", "--json", target.name)
+        self.assertEqual(deleted.returncode, 0, deleted.stderr)
+        receipt = json.loads(deleted.stdout)
+        self.assertFalse(target.exists())
+        restored = invoke("restore.py", receipt["txid"])
+        self.assertEqual(restored.returncode, 0, restored.stderr)
+        self.assertIn(b"COMPLETED", restored.stdout)
+        self.assertNotIn(b"UNKNOWN", restored.stdout)
+        self.assertIn(b"\\u", restored.stdout)
+        self.assertEqual(target.read_text(), "owned bytes survive encoding limits")
+        listing = json.loads(invoke("restore.py", "list", "--json").stdout)
+        self.assertEqual(next(row["state"] for row in listing["transactions"]
+                              if row["txid"] == receipt["txid"]), "RESTORED")
+        for args in ((), ("--view", "overview", "--json")):
+            status = invoke("status.py", *args)
+            self.assertEqual(status.returncode, 0, status.stderr)
+        refused = invoke("cleanup.py", "--from-plan", "a"*64)
+        self.assertEqual(refused.returncode, 2, refused.stderr)
+        self.assertNotIn(b"UnicodeEncodeError", refused.stderr)
+
     def test_quarantine_artifact_preview_command_executes_recoverably(self):
         target = Path(self.write("node_modules/cache", "regenerable, but recovery requested"))
         target.chmod(0o640)

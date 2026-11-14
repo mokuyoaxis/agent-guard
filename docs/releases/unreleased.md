@@ -112,6 +112,19 @@ transactions were preserved; budget charges remained after restore. This
 does not certify the separate 71-root model task or native-shell sandbox.
 See the [scoped verification history](../reports/test-report-maintenance-0.3.0.md#explicit-quarantine-option-2026-11-13-development).
 
+### CLI encoding and portable test fixtures
+
+The Skill CLIs preserve the selected output encoding and escape characters
+it cannot represent. This fixes a completed restore returning an error only
+because its bilingual summary could not be printed through a legacy Windows
+pipe. The recovery action and admission rules are unchanged.
+
+Installation tests compare resolved backup locations, including aliased
+parent directories. Shared test repositories disable automatic Git
+maintenance before committing their baseline so background writes do not
+race full read-only snapshots. The assertions still compare all observed
+entries. See the [CI failure and regression record](../reports/test-report-maintenance-0.3.0.md#ci-portability-corrections-2026-11-14).
+
 ## 0.2.9 maintenance history
 
 The 0.2.x sections below retain their original checkpoints. References there
