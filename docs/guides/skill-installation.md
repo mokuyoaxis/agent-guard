@@ -4,8 +4,9 @@ The installer and real-path bootstrap below are **0.3.0 development changes**,
 not additions to the published 0.2.9 package. Runtime, link/update and package
 smoke checks passed in owned POSIX locations; existing global Skills were not
 automatically migrated. See the [acceptance scope](../reports/test-report-maintenance-0.3.0.md).
-The package version field still identifies the stable baseline; inspect the
-selected installation's actual files when using a development checkout.
+The current candidate manifest is aligned to 0.3.0; publication remains
+pending. Earlier development archives used 0.2.9 metadata, so inspect the
+selected installation's actual files rather than relying on that version alone.
 
 Delete-guard depends on the shared `core/` directory. Keep the complete
 checkout or npm package, then link its `skills/delete-guard` directory into

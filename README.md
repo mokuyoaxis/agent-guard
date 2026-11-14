@@ -21,20 +21,20 @@ the matching adapter guide. Check your actual host/version and its official
 hook documentation, verify the integration, and report the observed coverage.
 Installed Skills or copied configuration alone do not establish protection.
 
-The **0.3.0 development plan** targets **Codex, DSH, Claude Code and Kimi Code**
+The **[0.3.0 candidate](docs/releases/release-notes-0.3.0.md)** targets **Codex, DSH, Claude Code and Kimi Code**
 using a shared [setup prompt](docs/guides/agent-setup-prompt.md). Other hosts
 use local adaptation; the versioned evidence below remains the support record.
 
 The development workflow lets an operator approve a saved selection once,
 then lets the agent execute and query it through CLI or MCP. It also supports
 requiring quarantine for regenerable artifacts. Local acceptance covers
-fresh-approved batches on DSH/Kimi and a real cache task on Codex, followed
-by independently verified recovery. Codex's separate 71-root batch, Claude
-model work and broader native-hook coverage remain unfinished. See the
+fresh-approved 71-root batches on Codex, DSH and Kimi, plus a real cache task
+on Codex, followed by independently verified recovery. Claude model work and
+broader native-hook coverage remain unfinished. See the
 [passed checks and remaining gaps](docs/reports/test-report-maintenance-0.3.0.md);
 these checkout results do not identify a published 0.3.0 package.
 
-Version **[0.2.9](docs/releases/release-notes-0.2.9.md)** makes cleanup
+The published **[0.2.9 baseline](docs/releases/release-notes-0.2.9.md)** makes cleanup
 investigation faster: get a bounded directory overview, then measure selected
 scopes through Cleanup Copilot or MCP. Existing plan scans also reuse metadata
 and Git queries. These observations grant no deletion permission; execution
@@ -45,7 +45,7 @@ Before installing, verify the exact GitHub release and npm version below.
 | Main capability | Included functions | Guides |
 |---|---|---|
 | **Exfil-guard** | Check supported credentials and identifying paths; plan and apply redaction; inspect JSON/dotenv structure without displaying scalar values | [Skill and CLI](skills/exfil-guard/SKILL.md) · [Rules](skills/exfil-guard/references/rules.md) · [Safe config view](skills/exfil-guard/SKILL.md#safe-config-view) |
-| **Delete-guard** | Recoverable deletion and supported Git snapshots; Cleanup Copilot plans, directory overview and measurement; persistent budgets, rate/repeat limits, protected paths and batch confirmation; transaction restore and manual GC; optional local MCP tools and connection diagnosis | [Skill and CLI](skills/delete-guard/SKILL.md) · [Cleanup Copilot](docs/guides/cleanup-plan.md) · [Deletion limits](docs/guides/deletion-limits.md) · [Recovery and GC](docs/guides/recovery-feedback.md) · [MCP tools](docs/guides/mcp.md) · [MCP doctor](docs/guides/mcp.md#diagnose-a-local-service-028) |
+| **Delete-guard** | Recoverable deletion and supported Git snapshots; Cleanup Copilot inventory, saved selections and operator-approved task execution/query; persistent budgets, rate/repeat limits, protected paths and batch confirmation; transaction restore and manual GC; optional local MCP tools and connection diagnosis | [Skill and CLI](skills/delete-guard/SKILL.md) · [Cleanup Copilot](docs/guides/cleanup-plan.md) · [Deletion limits](docs/guides/deletion-limits.md) · [Recovery and GC](docs/guides/recovery-feedback.md) · [MCP tools](docs/guides/mcp.md) · [MCP doctor](docs/guides/mcp.md#diagnose-a-local-service-028) |
 | **Guard-lab** | Four zero-model calibration controls; synthetic markers and declared-channel observation; evidence and observer-health checks; matched guard-off/on comparisons after an effective baseline | [Lab workflow](docs/lab/guard-lab.md) · [Four-control example](docs/lab/blue-team-calibration.md) · [Evidence levels](docs/lab/guard-lab.md#evidence-levels) |
 
 Cleanup Copilot, deletion limits and the current MCP tools/doctor belong to
@@ -129,7 +129,8 @@ The optional MCP adapter requires Python 3.10+ and a separately installed
 
 | Version | Status |
 |---|---|
-| [0.2.9](docs/releases/release-notes-0.2.9.md) | Current release line; verify exact-version availability below |
+| [0.3.0](docs/releases/release-notes-0.3.0.md) | Unreleased source candidate; tag, GitHub Release and npm publication pending |
+| [0.2.9](docs/releases/release-notes-0.2.9.md) | Published baseline; verify exact-version availability below |
 | [0.2.8](docs/releases/release-notes-0.2.8.md) | Earlier release with MCP diagnosis and recovery validation |
 | [0.2.7](docs/releases/release-notes-0.2.7.md) | Earlier release with Cleanup, deletion limits and local MCP tools |
 | [0.2.6](docs/releases/release-notes-0.2.6.md) | Earlier published release with Kimi feedback and host compatibility updates |
@@ -274,7 +275,7 @@ tool paths. Other combinations need their own checks.
 | Claude Code | 2.1.311 connected and discovered ten development MCP tools; model maintenance is deferred, newer hooks unverified. Native Bash enforcement retains its 2.1.270/2.1.273 scripted-host evidence. [Acceptance](docs/reports/test-report-maintenance-0.3.0.md#host-acceptance) · [Setup](adapters/claude/README.md) |
 | Kimi Code | 2.3.0 completed ordinary and fresh-approved development MCP maintenance. A later current-source root-Bash block led through planning and operator approval to original-session execution and independent recovery. Stop and missing/timed-out hooks retain their separate limits. [Acceptance](docs/reports/test-report-maintenance-0.3.0.md#host-acceptance) · [Setup](adapters/kimi-code/README.md) |
 | DSH | 0.2.0-rc.2 passed repaired original-root startup and fresh-approved MCP execution. A later native trial was blocked by an unavailable OS sandbox on PRoot; a separate zero-model local control passed. [Acceptance](docs/reports/test-report-maintenance-0.3.0.md#host-acceptance) · [Compatibility](docs/design/dsh-compatibility.md) · [Setup](adapters/dsh/README.md) |
-| Codex | 0.165.0 passed a fresh-approved real cache task with verified controller recovery. Its separate 71-root task remains unverified; native Shell/editor interception needs separate evidence. [Current acceptance](docs/reports/test-report-maintenance-0.3.0.md#host-acceptance) · [Earlier trials](docs/guides/mcp.md#codex-01650-with-published-027) |
+| Codex | 0.165.0 passed a freshly approved 71-root batch and a real cache task, with independent controller verification and recovery. Native Shell/editor interception needs separate evidence. [Current acceptance](docs/reports/test-report-maintenance-0.3.0.md#host-acceptance) · [Earlier trials](docs/guides/mcp.md#codex-01650-with-published-027) |
 | Other hosts | Use the official coding agent for version-specific local setup; verify blocking before claiming native interception. Explicit Skill/CLI/MCP use remains cooperative without a blocking hook. [Adaptation guide](adapters/INTEGRATION.md) |
 
 Use the [full capability and evidence matrix](docs/guides/harness-capabilities.md)

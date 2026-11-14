@@ -299,8 +299,9 @@ the three task tools above are separate additions. `ok: true` still means
 the preview completed, even when admission is
 `REQUIRES_APPROVAL` or `BLOCKED`; policy BLOCK keeps exit 2 and `ok: false`.
 This snapshot consumes no budget/grant and reserves nothing. It is absent
-from published 0.2.9 and has not yet received the planned runtime regression
-checks. See [fields, effects and exit codes](deletion-limits.md#dry-run-admission-preview-030-development).
+from published 0.2.9. Runtime, CLI/SDK and real batch checks are recorded in
+the [maintenance acceptance](../reports/test-report-maintenance-0.3.0.md).
+See [fields, effects and exit codes](deletion-limits.md#dry-run-admission-preview-030-development).
 
 Paths are literal names, relative to the fixed workspace or absolute; the
 Core still refuses outside targets. Glob characters name actual files rather
@@ -538,7 +539,11 @@ four Codex MCP calls and one execution, followed by independent controller
 verification and recovery of the root and a separate one-file transaction.
 All five original files were restored; no permanent GC ran. See the
 [real-project acceptance](../reports/test-report-maintenance-0.3.0.md#codex-real-project-quarantine-and-restore-2026-11-14)
-for the scope, accounting and remaining large-batch/native-sandbox limits.
+for that trial's scope and accounting. A separate freshly approved Codex
+71-root batch later passed through five model MCP calls, with independent
+verification and restoration of all 1006 payload files. See the
+[batch acceptance](../reports/test-report-maintenance-0.3.0.md#codex-fresh-approved-batch-2026-11-14).
+Neither trial certifies the native PRoot sandbox.
 
 The three task tools reuse the same package's Cleanup CLI and Core. They
 cannot change workspace, quarantine, session, environment, target selection
@@ -653,8 +658,9 @@ still calls only `status`, `transactions` and `gc_plan`. It does not invent
 a task, save a plan, approve or execute one. Runtime/SDK/host checks for this
 new flow include a real operator-approved 71-root protocol-client execution,
 and three model hosts' ordinary maintenance plus completed-task reads/replay.
-DSH and Kimi have since first executed separate new operator-approved tasks;
-Codex's new attempt was stopped by a host usage limit before business calls.
+Codex, DSH and Kimi have since first executed separate new operator-approved
+71-root tasks with independently verified recovery. Codex's earlier attempt
+stopped by a host usage limit remains a separate historical record.
 Claude model maintenance is deferred. Historical five/seven-tool results
 below retain their original scope.
 

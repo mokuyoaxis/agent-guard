@@ -1,8 +1,9 @@
 # Harness capability and evidence matrix
 
-This matrix accompanies [0.2.9](../releases/release-notes-0.2.9.md).
-Confirm availability through the exact GitHub release and npm version links
-in those notes; a source version does not establish publication.
+This matrix records the [0.3.0 candidate](../releases/release-notes-0.3.0.md)
+and earlier versioned evidence separately. The published baseline is
+[0.2.9](../releases/release-notes-0.2.9.md); confirm exact-version availability
+through the links in its notes. A source version does not establish publication.
 Published prerelease, checked on 2026-10-19:
 [0.2.5-rc3](../releases/release-notes-0.2.5-rc3.md).
 Rows below retain their tested source/host versions and do not automatically
@@ -28,10 +29,10 @@ The 0.3.0 development plan targets Codex, DSH, Claude Code and Kimi Code,
 using the shared [setup prompt](agent-setup-prompt.md). Its
 [maintenance acceptance](../reports/test-report-maintenance-0.3.0.md) now records
 local runtime checks and three model hosts' explicit MCP tasks; Claude model
-acceptance is deferred. Fresh approved batches passed on DSH/Kimi; Codex
-passed a single-root real cache task with independent controller recovery.
-Its separate 71-root task remains unverified after an earlier usage-limit
-block. These are explicit MCP operations. A later
+acceptance is deferred. Fresh approved 71-root batches passed on Codex,
+DSH and Kimi; Codex also passed a single-root real cache task. Independent
+controllers verified recovery copies and restored the data. Codex's earlier
+usage-limit block remains a separate historical attempt. These are explicit MCP operations. A later
 current-source trial observed Kimi root-Bash blocking, MCP planning, operator
 approval, original-session execution and independent recovery. DSH's sandboxed native path was
 environment-blocked, with a separate zero-model local control passing.
@@ -128,8 +129,8 @@ The 0.3.0 development checkout adds `cleanup_plan`, `cleanup_execute` and
 records as CLI. doctor expects ten tools and still queries only the original
 three state tools. Runtime/SDK, operator-approved protocol-client execution,
 ordinary model maintenance in Codex/Kimi/DSH and completed-task replay have
-recorded results. DSH/Kimi fresh-approved first execution has also passed;
-Codex remains blocked by host usage limits and Claude model work is deferred.
+recorded results. Codex, DSH and Kimi each passed first execution of a fresh
+operator-approved 71-root task; Claude model work is deferred.
 These results do not extend the native-hook evidence above. See the
 [current MCP host table](../reports/test-report-maintenance-0.3.0.md#host-acceptance).
 See [the development task contract](mcp.md#reviewed-maintenance-tasks-030-development).

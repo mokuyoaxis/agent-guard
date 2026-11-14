@@ -133,10 +133,10 @@ Tokens remain private. Same-UID files and terminal prompts are cooperative,
 not independent authentication. See [task states and limits](../guides/cleanup-plan.md#operator-approved-tasks-030-development).
 Runtime/concurrency/failure regressions passed, with constructed grants kept
 separate from the real operator-approved 71-root protocol-client task. The
-MCP tools below share these semantics. DSH/Kimi fresh-approved 71-root tasks
-passed; Codex later passed a fresh-approved single-root real cache task with
-independent recovery. Its separate 71-root task remains unverified after an
-earlier host usage-limit block. Claude model work is deferred.
+MCP tools below share these semantics. Fresh-approved 71-root tasks passed
+on Codex, DSH and Kimi; Codex also passed a single-root real cache task with
+independent recovery. Its earlier host usage-limit block remains recorded.
+Claude model work is deferred.
 
 ### Fixed MCP storage (0.3.0 development, unreleased)
 
@@ -192,9 +192,9 @@ Timeouts do not imply rollback or safe automatic retry. doctor validates ten
 registrations/annotations and invokes only its original three read-only state
 queries. SDK/runtime and local approved execution have passed; three hosts
 completed ordinary model-backed MCP maintenance and completed-task replay.
-DSH/Kimi first executed new approved batches; Codex later completed a
-fresh-approved real cache task with controller recovery. Its separate
-71-root task remains unverified, and Claude model work is deferred. The
+Codex/DSH/Kimi each first executed a new approved 71-root batch; Codex also
+completed a fresh-approved real cache task with controller recovery.
+Claude model work is deferred. The
 operator's Core approval and the client's tool permission are separate:
 follow the bounded setup in the MCP guide without changing tool annotations
 or broadening Core limits.

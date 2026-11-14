@@ -10,6 +10,13 @@ Agent Guard 提供恢复保护、外发检测和用户控制的行为验测。�
 
 ## Select the package root
 
+The [0.3.0 candidate](../releases/release-notes-0.3.0.md) adds saved selections,
+operator-approved task execution and query, optional quarantine for
+regenerable artifacts, and linked Skill installation. Its local manifest is
+aligned to 0.3.0; publication is still pending. Use a reviewed checkout or
+checked local archive for that candidate. The registry example below keeps
+the published 0.2.9 baseline until the exact new version is available.
+
 This guide covers [0.2.9](../releases/release-notes-0.2.9.md), with read-only
 Cleanup inventory and measurement, faster plan scans, MCP connection
 diagnosis and the existing deletion/recovery tools. Confirm the

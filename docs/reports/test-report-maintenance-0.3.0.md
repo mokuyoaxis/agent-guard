@@ -1,8 +1,9 @@
 # Maintenance acceptance / 维护任务验收（0.3.0 development）
 
-Checkpoint: **2026-11-14 UTC**. This report describes unreleased checkout
-work. Package metadata still says **0.2.9**; it does not identify a published
-0.3.0 artifact. The workflow belongs to **Delete-guard**, with **Guard-lab**
+Checkpoint: **2026-11-14 UTC**. This report describes the unreleased **0.3.0
+candidate**. The current manifest is aligned to 0.3.0; earlier development
+artifacts below used 0.2.9 metadata. Neither identifies a published 0.3.0
+artifact. The workflow belongs to **Delete-guard**, with **Guard-lab**
 providing controlled verification. Exfil-guard's production scope is unchanged.
 
 The intended workflow is: propose explicit targets, save the selection,
@@ -74,8 +75,8 @@ part of the record. No new installed archive or release is certified here.
 
 The option adds no native application-cache locking or arbitrary-file restore
 within a transaction. A later single-root real-project trial passed approval,
-execution and recovery; the separate fresh 71-root Codex batch remains
-unverified.
+execution and recovery. A separate fresh 71-root Codex batch subsequently
+passed; its evidence is recorded below rather than attributed to this trial.
 
 ## Codex process tool permission (2026-11-14)
 
@@ -130,8 +131,44 @@ budget rose from 18,509,461 bytes / 65 entries to 18,641,402 bytes / 74 entries:
 bytes / one entry for the independent file. Admission includes directory
 metadata. Both restores retained their charges; the two admissions produced
 two rate events. No permanent GC ran, and physical freed space was not
-measured. This is a bounded real-cache acceptance, separate from the pending
-fresh 71-root model task and native-shell sandbox certification.
+measured. This is a bounded real-cache acceptance, separate from the later
+fresh 71-root model task below and native-shell sandbox certification.
+
+## Codex fresh approved batch (2026-11-14)
+
+After a new review and approval in the operator's real terminal, Codex
+0.165.0 first executed a fresh 71-root / 1061-entry task through the actual
+installed development package. The fixture contained 16 ordinary files and
+55 directories with 18 files each; two protected keepers were excluded.
+Default limits, one fixed external quarantine and the shared CLI budget
+identity were retained. The pre-approval preview required batch approval.
+
+The model made five MCP calls in 61.682 seconds: status, approved-task query,
+one execution, terminal-task query and final status. The initial task was
+`APPROVED`; execution confirmed 71/71 roots, with zero unconfirmed or
+not-dispatched targets. No shell, editor, other-agent action or automatic
+execution retry was observed. The client used the previously verified
+process-only permission for `cleanup_execute`; Core's operator approval and
+all admission checks remained in force.
+
+The controller independently queried Core, checked all 1006 quarantine
+payload files and both keepers, then used four MCP calls to restore and
+verify the transaction and budget. Hashes, `0640` modes and file modification
+times matched the baseline. One transaction and one rate event charged
+223,100 logical bytes / 1061 entries, including directory metadata; restore
+retained that charge. A later independent three-query inspection confirmed
+task `COMPLETED`, transaction `RESTORED` and the same counters. Recovery was
+a controller action, separate from the five model calls. No permanent GC
+ran, and physical freed space was not measured.
+
+Preparation initially passed an unsupported `--strict-config` option to
+`codex mcp`. That getter failure was retained; the option was removed only
+from the metadata query and kept for actual `codex exec`. No model or grant
+was created by the failed preflight. The earlier usage-limit attempt and
+host-approval refusal also remain separate historical results. This batch
+closes the fresh Codex execution gap, while native PRoot sandbox isolation
+and broader hook coverage remain unverified. The exercised archive used
+0.2.9 development metadata; later candidate version alignment is separate.
 
 ## CI portability corrections (2026-11-14)
 
@@ -160,8 +197,68 @@ Windows CI gate. The initial nine focused local checks passed. A subsequent
 run passed 227 related Python cases with no failures, errors or skips in
 411.292 seconds, followed by both existing Node groups. The nine focused
 cases overlap that run and are not added to its distinct-case count.
-Exact-commit hosted results remain separate; local emulation alone does not
-certify native Windows or macOS behavior.
+The [follow-up CI run](https://github.com/mokuyoaxis/agent-guard/actions/runs/43561931583)
+for `f6930fa` completed successfully with all 15 jobs passing: five Linux,
+five macOS, Windows Core, two optional-MCP and two DSH jobs. The Windows
+gate passed 93 tests, including the original restore and new strict-stream
+regressions. The macOS Python 3.12 job passed its 1257-test run with 19
+existing conditional skips; the original snapshot and installation failures
+and the new alias regression passed. These are hosted results, separate
+from local emulation. The first failed run remains part of the record.
+
+## Development archive acceptance (2026-11-14)
+
+A fresh 171-file development archive was built from the runtime at `f6930fa`
+and installed offline in an owned local prefix. Archive and installed bytes
+matched the source; private experiments, tests, local configuration and
+internal evidence were excluded. All 13 executable CLI help entrypoints,
+the linked Skill's Core/Cleanup startup, and the installed MCP doctor passed.
+The doctor discovered ten tools without creating workspace or bucket state.
+Package metadata at that checkpoint was `0.2.9`; it was an unreleased
+development artifact, preceding the current version alignment.
+
+An independent JSON-RPC client exercised the installed service using owned
+synthetic data. Default CLI dry-run kept the regenerable classification;
+CLI/MCP quarantine previews requested relocation. Saving and reading the
+same quarantine plan retained its effect and installed-package operator
+command. Noninteractive approval and missing-task execution were refused,
+with no approval grant created or budget charged. This does not replace a
+real operator-approved model task.
+
+The client then quarantined the two-file cache through `safe_delete`, checked
+the recovery copy, reconnected and restored it. File hashes, `0640` modes and
+file modification times matched; the keeper and owned Git metadata stayed
+unchanged. The transaction was `RESTORED`, and restore retained the admission
+charge. No permanent GC, model request, global installation or host-config
+change occurred.
+
+Two driver parameter mistakes were retained: measurement without scopes and
+passing Cleanup's `--root` option to `safe_delete`. Both were rejected before
+target mutation. The remaining checks continued against the same verified
+installation after correcting the calls; product code was unchanged.
+
+## Local 0.3.0 candidate alignment (2026-11-14)
+
+The working-tree manifest and exact-version test now identify 0.3.0. A run
+of the package-manifest, release-channel, release-gate, MCP protocol, doctor
+and interruption modules passed all 54 tests in 146.609 seconds with no
+failures, errors or skips. The actual release workflow's SDK-coverage Python
+preflight also passed in the existing pinned environment without mocks;
+the complete Release workflow was not run.
+
+A 172-file local 0.3.0 archive passed offline installation, all 13 CLI help
+entrypoints, linked Skill/Core/Cleanup startup and an installed MCP doctor
+reporting version 0.3.0 with ten tools. The extra file is the new release
+note. All 78 non-Markdown files other than `package.json` match the earlier
+installed package used for real-host and recovery acceptance; package
+metadata changed only its version. No production dependency or policy was
+changed. Final documentation receives a separate archive/install identity
+check with the same tested non-Markdown files.
+
+These are local candidate checks, separate from the earlier full regression
+and `f6930fa` CI. Follow [development CI](https://github.com/mokuyoaxis/agent-guard/actions/workflows/ci.yml)
+for commit-level results; tag and publication require separate release steps. See the
+[candidate notes](../releases/release-notes-0.3.0.md).
 
 ## Local workflow and storage
 
@@ -178,7 +275,7 @@ storage compatibility.
 | Saved explicit targets | PASS | Save/read/refresh, unchanged selection and source-change refusal were exercised. A stored proposal does not approve execution. |
 | Explicit quarantine choice | PASS, runtime/protocol and bounded real project | Regenerable classification is retained while effects, saved selection, preview instructions and task execution preserve the requested quarantine. Codex executed a fresh-approved real cache task; the controller verified/restored the root and an independent one-file transaction. Defaults and pre-option plan IDs remain unchanged. |
 | Operator-approved batch | PASS | A real operator-terminal approval preceded a real stdio MCP execution: 71/71 selected roots quarantined, 2/2 keeper objects preserved, one safe_delete dispatch, one transaction and one rate event. |
-| Fresh approved model execution | PASS, DSH/Kimi | Each host first executed its own newly approved 71-root / 1061-entry task under default limits. Each used 5 model MCP calls, one execution dispatch and one rate event. The controller hashed all 1006 payload files in quarantine, restored through MCP and verified bytes/modes again; two keepers per task were preserved. |
+| Fresh approved model execution | PASS, Codex/DSH/Kimi | Each host first executed its own newly approved 71-root / 1061-entry task under default limits. Each used 5 model MCP calls, one execution dispatch and one rate event. The controller hashed all 1006 payload files in quarantine, restored through MCP and verified bytes/modes again; two keepers per task were preserved. |
 | Mixed effects and failures | PASS, unit scope | Group accounting, concurrency/replay, expired or changed approval, partial work, timeout/response loss and query behavior were tested with deliberately constructed unit grants. These are separate from the real operator approval above. |
 | Summaries and read-only queries | PASS | CLI/JSON/MCP views, saved-ID details, bounded metadata reads, missing/partial inputs, narrow text output and token omission have runtime checks. The overview does not measure payload occupancy or physical space released. |
 | Fixed external quarantine | PASS | Trusted startup binding, matching doctor/CLI instructions, reconnection, recovery, old-bucket protection and capacity refusal were tested. Selecting a path performs no migration or ledger merge. |
@@ -209,7 +306,7 @@ quarantine and restore, protected-path refusal and final status.
 
 | Host / recorded version | Connection and ten-tool discovery | Ordinary model maintenance | First execution of a fresh approved task | New native-hook acceptance |
 |---|---|---|---|---|
-| Codex 0.165.0 | PASS | Earlier ordinary task PASS, 8 MCP calls; project-registration read-only trial PASS, 3 calls | PASS for a single-root real cache, 4 model calls, followed by controller recovery; separate fresh 71-root execution NOT VERIFIED after the earlier usage-limit attempt | NOT VERIFIED |
+| Codex 0.165.0 | PASS | Earlier ordinary task PASS, 8 MCP calls; project-registration read-only trial PASS, 3 calls | PASS; fresh 71-root task, 5 model MCP calls, plus the separate single-root real cache task; controller verified and restored both. Earlier usage-limit attempt retained | NOT VERIFIED |
 | Kimi Code 2.3.0 | PASS | PASS, trusted owned fixture and restricted tool profile | PASS; new 71-root task, 5 model MCP calls | Later real-model root Bash BLOCK followed by operator approval and original-session MCP execution/recovery; Stop and other paths retain historical scope |
 | DSH 0.2.0-rc.2 | PASS | Earlier isolated-root task PASS; repaired original-root startup also PASS | PASS using the original persistence root; new 71-root task, 5 model MCP calls | Later current-profile trial blocked by unavailable OS sandbox; separate zero-model local-executor control passed |
 | Claude Code 2.1.311 | PASS | DEFERRED; authentication refusal prevented business tool calls | DEFERRED | NOT VERIFIED |
@@ -218,8 +315,8 @@ Codex, Kimi and DSH each also queried details and safely replayed the same
 **already completed** 71-root task, four MCP calls each. That verifies
 retrieval/replay, not each host's first execution of a fresh approval.
 The original first execution used a protocol client after the human approval.
-The later DSH and Kimi tasks were separately approved by the operator, then
-first executed by those actual model hosts. Recovery was performed by the
+The later Codex, DSH and Kimi tasks were separately approved by the operator,
+then first executed by those actual model hosts. Recovery was performed by the
 controller through MCP after independent copy verification, four calls per
 host. It was not attributed to model-issued restore calls. Restore did not
 refund the admitted entries or bytes.
@@ -314,8 +411,9 @@ adds no runtime dependency, input argument or record-format migration.
 Reason text is part of the plan fingerprint. Affected older proposals need
 new review/save and any required new operator approval after upgrading;
 do not edit stored records or reuse a grant to bypass refresh. Completed
-recovery data is not migrated. New final full-suite and installed-package
-validation remain separate release work.
+recovery data is not migrated. Later full-suite, hosted-CI and installed-package
+checkpoints are recorded separately in this report; this historical targeted
+run does not substitute for them.
 
 ## Project-scoped Codex MCP registration (2026-11-13)
 
@@ -338,8 +436,8 @@ not the model. There was no batch approval, injected operator grant, budget
 reset or permanent GC in this check. It does not fill Codex's fresh-approved
 batch gate. The local PRoot native-shell sandbox problem remains a separate
 environment limitation; MCP availability does not certify arbitrary shell
-isolation or interception. These installation/query checks do not replace
-the pending final source regression and package validation.
+isolation or interception. These installation/query checks retain their
+original scope; later regression and package results are recorded below.
 
 ## Regression and package checkpoints
 
@@ -358,6 +456,9 @@ targeted coverage above; the historical full run/archive do not certify it.
 | Frozen candidate, 2026-11-11 | Actual `npm test` passed: 1237 Python tests in 1446.545 seconds, with no failures, errors or skips, followed by both Node groups. Total command time was 1464.893 seconds; no controller retry was needed. Private experiments were excluded from the 242-file public candidate. |
 | Archive/install, 2026-11-11 | A 171-file development archive was installed offline in an owned prefix, matching that source checkpoint. All 13 bin help entrypoints, linked Skill/Cleanup, installed doctor and six real installed-service MCP calls passed; the owned file returned to its original bytes and mode. Later documentation received separate identity/update checks. This archive predates the feedback patch. |
 | Feedback patch, 2026-11-13 | 132 related Python cases, both Node groups, three old-proposal examples and two bounded real-host feedback/planning trials; no new full suite or installed archive. |
+| CI portability, 2026-11-14 | `f6930fa` passed 227 related local Python cases and both Node groups; its separate hosted CI passed all 15 jobs. The first failed CI run remains recorded above. |
+| Current development archive, 2026-11-14 | A new 171-file archive passed offline installation, all 13 CLI help entrypoints, linked Skill/Core/Cleanup startup, doctor and installed-service quarantine/reconnect/restore checks. A final documentation refresh is checked for archive/install identity and unchanged tested runtime; this is not a versioned 0.3.0 release. |
+| Version-aligned candidate, 2026-11-14 | 54 package/release/MCP tests passed, followed by the actual SDK-coverage preflight. A 172-file local 0.3.0 archive passed offline installation, 13 CLI help entrypoints, Skill/Core/Cleanup and ten-tool doctor version checks. Runtime payload identity to the earlier real-host-tested development package is checked separately from metadata and documentation. No new full npm run; remote CI and publication are separate from this local checkpoint. |
 
 The source checkout contains `tests/test_maintenance_workflow.py`,
 `tests/test_skill_installation.py`, `tests/test_mcp_quarantine.py`,
@@ -372,12 +473,12 @@ test artifacts or package contents.
 | Item | Status |
 |---|---|
 | Full DSH launch using the repaired original session root | PASS for the bounded read-only model task and fresh-approved MCP task; not native-hook recertification |
-| Fresh operator-approved first execution | PASS for DSH/Kimi 71-root tasks and Codex's single-root real cache. Codex's separate 71-root task remains NOT VERIFIED; Claude DEFERRED. |
+| Fresh operator-approved first execution | PASS for separate Codex/DSH/Kimi 71-root tasks and Codex's single-root real cache; Claude DEFERRED. |
 | Current-source native interception and MCP handoff | Kimi root Bash BLOCK, real operator approval, original-session execution and independent MCP recovery completed; plan-iteration deviation retained. DSH sandboxed profile is environment-blocked; zero-model local control passed. Broader hook coverage remains unverified. |
 | Claude model-backed maintenance | DEFERRED |
-| Local runtime regression and package/install | Second exact npm test on 2026-11-14 passed all 1562 Python cases and both Node groups with unchanged runtime; the first observer timeout remains recorded. The current package has only a dry-run preview; actual archive/install PASS belongs to the older 2026-11-11 checkpoint. |
-| Remote CI and the versioned 0.3.0 release artifact | Development CI and its first failures are recorded above; exact-commit hosted results remain separate from local checks. No versioned 0.3.0 release artifact has been produced. |
-| 0.3.0 version alignment, tag and publication | NOT PERFORMED; local development commits retain 0.2.9 package metadata |
+| Local runtime regression and package/install | The quarantine checkpoint's second exact npm test passed 1562 Python cases and both Node groups; its first observer timeout remains recorded. The later CI fix passed 227 related local cases and hosted CI. Development-package recovery and the version-aligned 54-test / 172-file local package checks have separate evidence above. |
+| Remote CI and the versioned 0.3.0 release artifact | PASS for all 15 development-CI jobs at `f6930fa`. A local 0.3.0 archive/install check passed; current commit-level CI is tracked in the workflow above, separately from a published release artifact. |
+| 0.3.0 version alignment, tag and publication | Manifest aligned to 0.3.0; package/release/MCP and local archive checks PASS. Tag and publication NOT PERFORMED. |
 
 Literal target planning can observe names containing glob metacharacters,
 but the existing execution API still refuses some such names, including `[`.

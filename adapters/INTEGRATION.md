@@ -20,10 +20,10 @@ authorized scope. Call shared Core rather than copying its policy. A local
 setup does not extend the project's tested-version list.
 
 The [maintenance acceptance table](../docs/reports/test-report-maintenance-0.3.0.md)
-distinguishes passed local/ordinary MCP tasks, DSH/Kimi fresh-approved batches,
-Codex's fresh-approved real cache task and controller recovery, deferred
-Claude model work and native-hook evidence. Codex's separate 71-root task
-and broader native coverage remain unverified.
+distinguishes passed local/ordinary MCP tasks, fresh-approved 71-root batches
+on Codex/DSH/Kimi, Codex's real cache task and controller recovery, deferred
+Claude model work and native-hook evidence. Broader native coverage remains
+unverified.
 Reproduce the needed path in the selected installation rather than treating
 another environment's result as activation evidence.
 
@@ -99,10 +99,9 @@ and verify that normal maintenance is not processed twice.
   `cleanup_task_status`: use the fixed binding, obtain operator CLI approval,
   then execute/query the returned task ID. There is no MCP approval tool or
   model-supplied grant. The ten-tool set and local workflow have runtime
-  evidence, with bounded Codex/Kimi/DSH model tasks, fresh-approved DSH/Kimi
-  batches and a later fresh-approved Codex real cache task with controller
-  recovery. Codex's separate 71-root task remains unverified; Claude model
-  work is deferred. New native-hook paths still need separate acceptance.
+  evidence, with bounded Codex/Kimi/DSH model tasks, each host's fresh-approved
+  71-root batch and Codex's real cache task with controller recovery.
+  Claude model work is deferred. New native-hook paths still need separate acceptance.
   Older five/seven-tool evidence retains its scope.
 
 Core `ASK` must reach a real human-approval path or become a refusal for that

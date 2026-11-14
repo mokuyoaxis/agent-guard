@@ -18,18 +18,18 @@ Agent Guard 提供三大功能：**Exfil-guard** 检查待外发文本，**Delet
 确认实际宿主／版本，查阅其官方 hook 文档，完成验证后报告实际覆盖范围。
 不能仅凭 Skill 已安装或配置已复制，就告诉用户防护已生效。
 
-**0.3.0 开发计划**以 **Codex、DSH、Claude Code 和 Kimi Code** 为维护目标，
+**[0.3.0 候选版本](docs/releases/release-notes-0.3.0.md)**以 **Codex、DSH、Claude Code 和 Kimi Code** 为维护目标，
 共享[接入提示词](docs/guides/agent-setup-prompt.md)。其他宿主由 Agent 本地适配；
 实际支持范围仍以下方精确版本的验收记录为准。
 
 开发中的维护流程支持：操作者审阅并批准一次已保存的选择，Agent 随后通过
-CLI／MCP 执行和查询；可再生产物也可显式要求隔离。本地验收已覆盖 DSH／Kimi
-新批准的批量任务，以及 Codex 的真实缓存任务，随后均独立核对并恢复。
-Codex 的独立 71 根批量任务、Claude 模型验收及更广的原生 hook 覆盖仍待完成。
+CLI／MCP 执行和查询；可再生产物也可显式要求隔离。本地验收已覆盖 Codex、DSH、Kimi
+各自新批准的 71 根批量任务，以及 Codex 的真实缓存任务，随后均独立核对并恢复。
+Claude 模型验收及更广的原生 hook 覆盖仍待完成。
 详见[已通过检查与剩余缺口](docs/reports/test-report-maintenance-0.3.0.md)，
 这些源码验收结果不代表 0.3.0 已发布。
 
-本版 **[0.2.9](docs/releases/release-notes-0.2.9.md)** 改善清理前的盘点体验：先看目录概况，
+已发布基线 **[0.2.9](docs/releases/release-notes-0.2.9.md)** 改善清理前的盘点体验：先看目录概况，
 再计量指定范围，Cleanup Copilot 和 MCP 都可使用；既有计划扫描也减少了重复的
 文件属性检查和 Git 查询。这些观察不授予删除许可，执行仍需另外生成计划、审阅并确认。
 使用方式见[目录概况与计量](docs/guides/cleanup-plan.md#directory-overview-and-measurement-029)。
@@ -38,7 +38,7 @@ Codex 的独立 71 根批量任务、Claude 模型验收及更广的原生 hook 
 | 主要功能 | 下属功能 | 对应链接 |
 |---|---|---|
 | **Exfil-guard** | 受支持的凭据与标识路径检测；脱敏计划与执行；不展示标量值的 JSON／dotenv 配置结构视图 | [Skill 与 CLI](skills/exfil-guard/SKILL.md) · [检测规则](skills/exfil-guard/references/rules.md) · [安全配置视图](skills/exfil-guard/SKILL.md#safe-config-view) |
-| **Delete-guard** | 可恢复删除与受支持的 Git 快照；Cleanup Copilot 计划、目录概况与计量；持久预算、速率／重复限制、保护路径与批量确认；事务恢复与手动 GC；可选本地 MCP 工具及接入诊断 | [Skill 与 CLI](skills/delete-guard/SKILL.md) · [Cleanup Copilot](docs/guides/cleanup-plan.md) · [删除限制](docs/guides/deletion-limits.md) · [恢复与 GC](docs/guides/recovery-feedback.md) · [MCP 工具](docs/guides/mcp.md) · [MCP doctor](docs/guides/mcp.md#diagnose-a-local-service-028) |
+| **Delete-guard** | 可恢复删除与受支持的 Git 快照；Cleanup Copilot 盘点、保存清单与获准任务执行／查询；持久预算、速率／重复限制、保护路径与批量确认；事务恢复与手动 GC；可选本地 MCP 工具及接入诊断 | [Skill 与 CLI](skills/delete-guard/SKILL.md) · [Cleanup Copilot](docs/guides/cleanup-plan.md) · [删除限制](docs/guides/deletion-limits.md) · [恢复与 GC](docs/guides/recovery-feedback.md) · [MCP 工具](docs/guides/mcp.md) · [MCP doctor](docs/guides/mcp.md#diagnose-a-local-service-028) |
 | **Guard-lab** | 四项零模型校准对照；合成标记与声明信道观察；证据和观察器健康检查；有效基线成立后的关闭／开启防护配对比较 | [Lab 流程](docs/lab/guard-lab.md) · [四控制示例](docs/lab/blue-team-calibration.md) · [证据等级](docs/lab/guard-lab.md#evidence-levels) |
 
 Cleanup Copilot、删除限制以及当前 MCP 工具／doctor 均归属 **Delete-guard**。
@@ -108,7 +108,8 @@ Core 需要 Python 3.9+ 和 Git。示例采用 POSIX Shell；原生桥接和可�
 
 | 版本 | 状态 |
 |---|---|
-| [0.2.9](docs/releases/release-notes-0.2.9.md) | 本版；安装前核实下方精确版本渠道 |
+| [0.3.0](docs/releases/release-notes-0.3.0.md) | 未发布的源码候选版本，tag、GitHub Release 和 npm 发布尚未执行 |
+| [0.2.9](docs/releases/release-notes-0.2.9.md) | 已发布基线；安装前核实下方精确版本渠道 |
 | [0.2.8](docs/releases/release-notes-0.2.8.md) | 较早版本：MCP 接入诊断与恢复验证 |
 | [0.2.7](docs/releases/release-notes-0.2.7.md) | 历史版本，包含 Cleanup、删除限制与本地 MCP 工具 |
 | [0.2.6](docs/releases/release-notes-0.2.6.md) | 历史已发布版本，包含 Kimi 反馈与宿主兼容性更新 |
@@ -233,7 +234,7 @@ python3 -c 'print("config: sk-proj-" + "AbCdEf0123456789GhIjKl")' |
 | Claude Code | 2.1.311 已连接并发现开发版十工具；模型维护延期，新版 hook 未验证。原生 Bash 拦截保留 2.1.270／2.1.273 的脚本宿主证据。[验收状态](docs/reports/test-report-maintenance-0.3.0.md#host-acceptance) · [接入](adapters/claude/README.md) |
 | Kimi Code | 2.3.0 已完成普通维护及新批准 MCP 执行；后续当前源码试次完成原生 Bash 拦截、保存计划、操作者批准、原会话执行及独立恢复。Stop、缺失／超时 hook 保留各自边界。[验收状态](docs/reports/test-report-maintenance-0.3.0.md#host-acceptance) · [接入](adapters/kimi-code/README.md) |
 | DSH | 0.2.0-rc.2 已通过修复后原根启动及新批准 MCP 执行；后续原生试次被 PRoot 上不可用的 OS 沙箱阻塞，独立零模型本地对照通过。[验收状态](docs/reports/test-report-maintenance-0.3.0.md#host-acceptance) · [兼容范围](docs/design/dsh-compatibility.md) · [接入](adapters/dsh/README.md) |
-| Codex | 0.165.0 已通过新批准的真实缓存任务及控制器独立恢复核验；独立 71 根批量仍待验，原生 Shell／编辑器拦截另需证据。[当前验收](docs/reports/test-report-maintenance-0.3.0.md#host-acceptance) · [早期试次](docs/guides/mcp.md#codex-01650-with-published-027) |
+| Codex | 0.165.0 已通过新批准的 71 根批量和真实缓存任务，隔离副本及恢复均由控制器独立核验；原生 Shell／编辑器拦截另需证据。[当前验收](docs/reports/test-report-maintenance-0.3.0.md#host-acceptance) · [早期试次](docs/guides/mcp.md#codex-01650-with-published-027) |
 | 其他宿主 | 推荐官方 Agent 按当前版本完成本地接入，并验证确实阻止执行后再声明原生拦截。没有阻塞 hook 时，Skill／CLI／MCP 仍属于协作式使用。[适配指南](adapters/INTEGRATION.md) |
 
 精确版本、试验与缺口统一见[完整能力矩阵](docs/guides/harness-capabilities.md)。

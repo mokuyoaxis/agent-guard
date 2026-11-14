@@ -16,8 +16,9 @@ Cleanup Copilot, deletion admission and the current MCP tools/doctor are
 Delete-guard functions. [Recovery-audit](../skills/recovery-audit/SKILL.md)
 is an auxiliary incident-recovery workflow.
 
-The unreleased [0.3.0 maintenance acceptance](reports/test-report-maintenance-0.3.0.md)
-records local workflow checks, three hosts' model-backed MCP tasks, Claude's
+The unreleased [0.3.0 candidate](releases/release-notes-0.3.0.md) has a separate
+[maintenance acceptance](reports/test-report-maintenance-0.3.0.md) recording
+local workflow checks, Codex/DSH/Kimi freshly approved 71-root MCP tasks, Claude's
 deferred model check, storage verification and remaining release gates.
 It is separate from the published 0.2.9 baseline below.
 

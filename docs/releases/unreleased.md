@@ -10,8 +10,9 @@ execute and query the returned task ID. This avoids re-entering the same batch
 or writing Core calls by hand. Execution still goes through safe_delete;
 approval does not lift protection, budget, capacity or rate limits.
 
-These are unreleased checkout changes, absent from published 0.2.9. Package
-metadata remains 0.2.9 until version alignment. The
+These are unreleased checkout changes, absent from published 0.2.9. The local
+candidate manifest is aligned to 0.3.0; tag and publication remain pending.
+See the [0.3.0 candidate notes](release-notes-0.3.0.md). The
 [maintenance acceptance table](../reports/test-report-maintenance-0.3.0.md)
 records passed checks, retained failures and remaining work.
 
@@ -35,8 +36,10 @@ executed separate new operator-approved 71-root batches; their recovery copies
 were independently verified and restored through MCP. DSH also passed full
 headless startup on its repaired original session root. Codex later executed
 a fresh-approved real cache task with independent root and single-file
-recovery; its separate 71-root attempt remains unverified after the earlier
-host usage-limit block. Claude connected and discovered tools, but model
+recovery. A later new terminal approval also led to a successful Codex
+71-root batch: five model MCP calls, one execution, independent verification
+of 1006 payload files and MCP recovery. Its earlier host usage-limit block
+remains recorded. Claude connected and discovered tools, but model
 acceptance is deferred. A later native-handoff trial observed a current-source
 Kimi root-Bash block, saved plan, real terminal
 approval, original-session execution and independent MCP recovery. An extra
@@ -74,13 +77,25 @@ proposals require a new review/save and any required new operator approval.
 No frontend/TUI panel, automatic GC, dependency or recovery-format migration
 is introduced. The earlier full runtime and archive/install checkpoints
 precede this feedback patch; its targeted checks are recorded separately.
-The quarantine-option runtime checkpoint below adds a full-suite result;
-a fresh final archive/install checkpoint remains pending. Codex's fresh
-71-root first execution after its recorded quota-blocked attempt, deferred Claude model work,
-broader native-hook acceptance, version alignment, remote CI and publication remain separate unfinished
-items. The setup contract and
+The quarantine-option runtime checkpoint below adds a full-suite result.
+The 2026-11-14 runtime at `f6930fa` passed a 171-file development archive
+before version alignment: offline installation, all 13 CLI help entrypoints, linked Skill/Core/Cleanup,
+doctor and installed-service quarantine/reconnect/restore using owned data.
+Its exact-commit development CI passed all 15 jobs; the original failed run
+remains recorded. See the [current archive acceptance](../reports/test-report-maintenance-0.3.0.md#development-archive-acceptance-2026-11-14).
+Claude model work remains deferred; broader native-hook acceptance and
+publication remain unfinished. Commit-level CI is tracked separately from
+these local checkpoints. The setup contract and
 four-host target are in the [shared prompt](../guides/agent-setup-prompt.md)
 and [compatibility notes](../design/compatibility.md).
+
+After alignment, the local 0.3.0 candidate passed 54 package/release/MCP
+tests and the actual SDK-coverage preflight. Its 172-file archive, including
+the new release note, passed offline installation, CLI/Skill startup and
+ten-tool doctor version checks. See the
+[candidate checkpoint](../reports/test-report-maintenance-0.3.0.md#local-030-candidate-alignment-2026-11-14).
+Follow [development CI](https://github.com/mokuyoaxis/agent-guard/actions/workflows/ci.yml)
+for commit-level checks. Tag and publication are separate release steps.
 
 ### Explicit quarantine for regenerable artifacts
 
@@ -109,7 +124,9 @@ operator-approved task completed through four Codex MCP calls in 53.697
 seconds. The controller verified and restored the five-file cache, then
 verified recovery of a separate one-file transaction. Source files and old
 transactions were preserved; budget charges remained after restore. This
-does not certify the separate 71-root model task or native-shell sandbox.
+does not itself certify the separate 71-root model task or native-shell sandbox.
+The later [Codex batch acceptance](../reports/test-report-maintenance-0.3.0.md#codex-fresh-approved-batch-2026-11-14)
+records the new approval, first batch execution and independent recovery.
 See the [scoped verification history](../reports/test-report-maintenance-0.3.0.md#explicit-quarantine-option-2026-11-13-development).
 
 ### CLI encoding and portable test fixtures
@@ -124,6 +141,11 @@ parent directories. Shared test repositories disable automatic Git
 maintenance before committing their baseline so background writes do not
 race full read-only snapshots. The assertions still compare all observed
 entries. See the [CI failure and regression record](../reports/test-report-maintenance-0.3.0.md#ci-portability-corrections-2026-11-14).
+
+The [follow-up CI for `f6930fa`](https://github.com/mokuyoaxis/agent-guard/actions/runs/43561931583)
+passed all 15 jobs, including the Windows restore/strict-stream regressions
+and all five macOS jobs. This validates that development commit, not a
+versioned 0.3.0 publication.
 
 ## 0.2.9 maintenance history
 
