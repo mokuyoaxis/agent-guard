@@ -83,50 +83,31 @@ and does not intercept operations that bypass them.
 
 ## Set up a coding agent
 
-Replace the root path below with your installation path, then give the prompt
-to your host's official coding agent. The
-[integration guide](../../adapters/INTEGRATION.md) covers the hook requirements
-and checks it should follow for the installed version.
+Use the [copyable setup prompt](agent-setup-prompt.md) with the full package
+root, workspace and authorized configuration scope. It is the shared entry
+for Codex, DSH, Claude Code, Kimi Code and local adaptation of other hosts.
+The four-host list is the 0.3.0 maintenance target; actual tested coverage
+still comes from the [capability matrix](harness-capabilities.md).
 
-We currently focus on DSH and Kimi Code. The Claude Code adapter remains a
-reference; testing new Claude versions is paused. Other hosts are configured
-locally by their official agents.
+Keep the complete installation. This development checkout adds a preview-first
+[Skill installer](skill-installation.md) that links `skills/delete-guard`
+into the selected host directory and preserves an old Skill during updates.
+Published 0.2.9 has no `install_skill.py`; its existing complete-package CLI
+and MCP entrypoints remain available. Check actual files before following
+development-only instructions.
 
-```text
-Set up Agent Guard for this workspace using /absolute/path/to/agent-guard.
-Before changing anything, read adapters/INTEGRATION.md in full, including
-its verification and evidence requirements. Do this even if an adapter exists.
-Read this host's current official hook documentation and inspect its installed version.
-Identify the actual host version, tool names and hook/skill capabilities.
-Read the README, Skill contracts and matching adapter guide; check Python/Git.
-Use the selected checkout/package version and preserve existing settings.
-For a host outside the DSH/Kimi maintenance focus, keep any new bridge and
-configuration local; reuse the shared Core and versioned references.
-Check which verification files that root includes. The npm package omits
-tests/; use its local doctor/probes and report source unit tests as NOT_INCLUDED.
-Respect already-approved paths and configuration scope. Ask only for missing
-information or changes beyond that scope, including new dependencies.
-Install/reference the relevant Skills. Configure a native hook only where a
-blocking event is supported; otherwise report Skill/CLI-only operation.
-Reuse the shared Core and its decisions; do not copy or relax its policy.
-Check required project/hook trust through the host's normal review flow
-within the authorized scope. Report activation as pending until it is complete.
-Keep the user's selected account/provider; report model checks that cannot run.
-Claude: adapters/claude/README.md. Kimi: adapters/kimi-code/README.md.
-DSH: adapters/dsh/README.md. Other hosts: adapters/INTEGRATION.md.
-Verify a harmless call. Submit BLOCK-shaped commands only as data to check.py;
-never execute deletion of real data as a test. For Claude/Kimi, run the local
-doctor, but do not treat PASS as proof of actual host interception.
-Finish configuration and local probes with a clear handoff before fresh-host
-verification. Report startup/reload requirements and preserve a checkpoint if
-the step budget ends. UNVERIFIED host-interception/model-delivery fields are
-expected local-doctor results; repeating the same probes will not clear them.
-Report the host/version, installed paths, configuration scope, covered tools,
-observed interception and unverified paths separately.
-Use the handoff format in section 4 of adapters/INTEGRATION.md.
-guard-lab is the user's controller, not a Skill to install into the tested
-agent. Run real-host/model experiments only in an explicitly selected scope.
-```
+The [development acceptance table](../reports/test-report-maintenance-0.3.0.md)
+records passed local installation/workflow checks and bounded MCP host tasks.
+Use the [upgrade checklist](skill-installation.md#upgrade-a-development-installation)
+to keep the selected complete package, outstanding task binding and MCP
+configuration consistent. Existing global installations are not updated by
+changing a checkout.
+
+Use MCP for explicit maintenance tools. Add a blocking hook/plugin where the
+actual host supports it; MCP registration alone does not protect native
+shell/editor operations. The [integration guide](../../adapters/INTEGRATION.md)
+defines the shared Core, approval and verification requirements. Configuration
+and live verification can be handed off separately when checks are deferred.
 
 不要把“Skill 已安装”“配置检查通过”和“真实调用被拦截”合并为一个成功状态。
 用户范围外的配置或依赖改动需另行确认；已经授权的常规接入不重复询问。

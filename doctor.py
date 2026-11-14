@@ -763,6 +763,7 @@ def main(argv: Optional[list[str]] = None, *, _include_mcp=True) -> int:
         mcp.add_argument("--python", default=sys.executable,
                          help="Python in the optional MCP SDK environment (default: current interpreter)")
         mcp.add_argument("--workspace", required=True, help="existing workspace bound to the server")
+        mcp.add_argument("--trash-root", help="same explicit absolute quarantine directory as the service")
         mcp.add_argument("--server", help="trusted server.py path (default: this package's MCP server)")
         mcp.add_argument("--timeout", type=int, default=30, metavar="SECONDS",
                          help="total diagnosis deadline, 5..120 seconds (default: 30)")
@@ -809,7 +810,8 @@ def main(argv: Optional[list[str]] = None, *, _include_mcp=True) -> int:
             parser.error("--timeout must be from 5 to 120 seconds")
         from adapters.mcp.doctor import diagnose, render
 
-        report = diagnose(args.python, args.workspace, server=args.server, timeout=args.timeout)
+        report = diagnose(args.python, args.workspace, server=args.server,
+                          trash_root=args.trash_root, timeout=args.timeout)
         if args.json:
             print(json.dumps(report, ensure_ascii=False))
         else:

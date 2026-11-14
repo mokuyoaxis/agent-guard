@@ -16,6 +16,11 @@ Cleanup Copilot, deletion admission and the current MCP tools/doctor are
 Delete-guard functions. [Recovery-audit](../skills/recovery-audit/SKILL.md)
 is an auxiliary incident-recovery workflow.
 
+The unreleased [0.3.0 maintenance acceptance](reports/test-report-maintenance-0.3.0.md)
+records local workflow checks, three hosts' model-backed MCP tasks, Claude's
+deferred model check, storage verification and remaining release gates.
+It is separate from the published 0.2.9 baseline below.
+
 Version [0.2.9](releases/release-notes-0.2.9.md) adds read-only Cleanup
 inventory and selected-scope measurement through CLI and MCP, faster plan
 scans and a repository-corpus test fix. The earlier
@@ -62,12 +67,18 @@ ALLOW_NOOP 覆盖边界及准确 GC 用法；纳入 0.2.5。
 | Document / 文档 | Scope / 范围 |
 |---|---|
 | [Getting started](guides/getting-started.md) | 安装路径、Agent 接入提示词与最短验证流程 |
+| [Agent setup prompt](guides/agent-setup-prompt.md) | 四宿主维护目标与其他宿主自助适配；MCP／hook／Skill 分工及真实状态交接 |
+| [Skill installation and updates](guides/skill-installation.md) | 0.3.0 开发中：完整包目录链接、Core 定位、Cleanup 入口、预览与保留旧安装 |
 | [Status and cleanup feedback](guides/recovery-feedback.md) | Python／插件状态、ALLOW_NOOP、保留空间与手动 GC |
 | [Cleanup Copilot](guides/cleanup-plan.md) | Delete-guard，0.2.7：零写入计划、四类候选、大小与显式确认执行 |
 | [Directory overview and measurement](guides/cleanup-plan.md#directory-overview-and-measurement-029) | Delete-guard，0.2.9：先概况、再按范围发现／计量；没有执行许可 |
 | [Deletion limits](guides/deletion-limits.md) | Delete-guard，0.2.7：隔离容量、会话预算、频率、保护路径与批量确认 |
 | [Local MCP tools](guides/mcp.md) | Delete-guard，0.2.7：本地 stdio 安全删除、普通恢复、事务／状态和 GC 预览；不替代 hook |
 | [Read-only cleanup MCP](guides/mcp.md#cleanup-observations-029) | Delete-guard，0.2.9：cleanup_discover／cleanup_measure、固定工作区与部分观察状态 |
+| [Reviewed maintenance MCP](guides/mcp.md#reviewed-maintenance-tasks-030-development) | Delete-guard，0.3.0开发中：保存计划、操作者批准交接、按task执行／查询；已有本地与限定宿主实跑 |
+| [Maintenance output](guides/maintenance-output.md) | Delete-guard，0.3.0开发中：人／agent共享概况、只读分页详情与执行摘要；计量／未知分开 |
+| [Unified read-only query](guides/read-only-query.md) | Delete-guard，0.3.0开发中：任务／隔离事务／预算统一查询与终端概览；无前端面板 |
+| [0.3.0 maintenance acceptance](reports/test-report-maintenance-0.3.0.md) | 已通过／待补测／延期：本地闭环、安装、MCP／宿主、外置桶和最终发布缺口 |
 | [MCP diagnosis](guides/mcp.md#diagnose-a-local-service-028) | Delete-guard，0.2.8：选定本地服务的依赖、握手、工作区绑定与只读调用检查 |
 | [Harness capabilities](guides/harness-capabilities.md) | 当前接入范围、证据等级与未验证路径 |
 | [Host drift](guides/host-drift.md) | 宿主版本、配置与本地基线检查 |

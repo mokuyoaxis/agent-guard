@@ -526,10 +526,14 @@ class RecoveryEngine:
 
     # ------------------------------------------------------------- restore
 
-    def transactions(self) -> Dict[str, Dict[str, Any]]:
-        """Group manifest entries by transaction id (insertion order)."""
+    def transactions(self, records: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Dict[str, Any]]:
+        """Group records and reconcile recorded copy paths (insertion order).
+
+        Bounded query readers may supply validated records. Restore/GC and
+        existing callers omit them and retain the full-manifest behavior.
+        """
         out: Dict[str, Dict[str, Any]] = {}
-        for record in self.read_manifest():
+        for record in self.read_manifest() if records is None else records:
             txid = record.get("txid")
             if not txid:
                 continue

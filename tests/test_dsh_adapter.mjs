@@ -307,11 +307,12 @@ try {
   delete shell.run;
   const nativeRequests = [];
   let nativeFailure;
+  let nativeFailureCode;
   shell.execute = async (spec) => {
     nativeRequests.push(spec);
-    if (nativeFailure === "prepare") throw new Error("synthetic prepare failure");
+    if (nativeFailure === "prepare") throw Object.assign(new Error("synthetic prepare failure"), { code: nativeFailureCode });
     return { result: async () => {
-      if (nativeFailure === "result") throw new Error("synthetic spawn failure");
+      if (nativeFailure === "result") throw Object.assign(new Error("synthetic spawn failure"), { code: nativeFailureCode });
       return {
         stdout: { text: JSON.stringify(spec.command.includes("status.py") ? statusReport :
           { decision: "BLOCK", code: "BLOCK_PROTECTED_PATH" }) },
@@ -368,6 +369,34 @@ try {
     assert.doesNotMatch(JSON.stringify(unavailable), /synthetic .* failure/);
   }
   assert.equal(continued, 2);
+  // A known host sandbox failure must be actionable without leaking its raw
+  // error or changing policy, diagnostic codes, dispatch count or fallback.
+  nativeFailureCode = "SANDBOX_UNAVAILABLE";
+  sandboxPolicy = { resolve: ({ session }) => policies.get(session) };
+  const sandboxExec = { ...nativeExec, agent: { session: rootSession } };
+  for (const stage of ["prepare", "result"]) {
+    nativeFailure = stage;
+    const before = nativeRequests.length;
+    const rejected = await handlers[0].handler(sandboxExec, next);
+    assert.equal(rejected.kind, "deny");
+    assert.match(rejected.reason, /CHECKER_EXECUTION_FAILED/);
+    assert.match(rejected.reason, /SANDBOX_UNAVAILABLE/);
+    assert.match(rejected.reason, /sandbox backend/);
+    assert.match(rejected.reason, /no Core policy verdict/);
+    assert.doesNotMatch(rejected.reason, /synthetic .* failure|danger-full-access/);
+    const unavailable = await statusTool.execute({}, sandboxExec);
+    assert.equal(unavailable.ok, false);
+    assert.equal(unavailable.diagnostic, "STATUS_EXECUTION_FAILED");
+    assert.equal(unavailable.report, null);
+    assert.match(unavailable.stderr, /SANDBOX_UNAVAILABLE/);
+    assert.match(unavailable.stderr, /sandbox backend/);
+    assert.doesNotMatch(JSON.stringify(unavailable), /synthetic .* failure|danger-full-access/);
+    assert.equal(nativeRequests.length, before + 2);
+    assert.ok(nativeRequests.slice(before).every(request => request.sandboxPolicy === policies.get(rootSession)));
+    assert.equal(continued, 2);
+  }
+  nativeFailureCode = undefined;
+  sandboxPolicy = undefined;
   delete shell.execute;
   shell.run = legacyRun;
   guardReport = { decision: "ALLOW", code: "ALLOW_NOOP" };

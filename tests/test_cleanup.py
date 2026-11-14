@@ -42,6 +42,44 @@ class CleanupTests(RepoFixture):
     def rows(self, plan):
         return {e["path"]: e for e in plan["entries"]}
 
+    def test_quarantine_keeps_classification_binds_effect_and_preserves_default_id(self):
+        self.write("build/output", "generated")
+        default = self.plan(targets=["build"])
+        self.assertEqual(default, self.plan(targets=["build"], quarantine=False))
+        self.assertNotIn("quarantine", default["options"])
+        forced = self.plan(targets=["build"], quarantine=True)
+        row = self.rows(forced)["build"]
+        self.assertEqual(row["category"], "regenerable")
+        self.assertEqual(row["effect"], "quarantine")
+        self.assertTrue(row["selectable"])
+        self.assertTrue(forced["options"]["quarantine"])
+        self.assertNotEqual(default["plan_id"], forced["plan_id"])
+        with self.assertRaisesRegex(ValueError, "plan changed"):
+            select_entries(default, ["build"], forced["plan_id"])
+
+    def test_quarantine_does_not_declare_uncertain_targets_discarded(self):
+        self.write("unknown/data", "ordinary content")
+        row = self.rows(self.plan(targets=["unknown"], quarantine=True))["unknown"]
+        self.assertEqual(row["category"], "uncertain")
+        self.assertFalse(row["selectable"])
+        self.assertEqual(row["effect"], "review")
+
+    def test_legacy_confirmed_selection_passes_quarantine_to_real_safe_delete(self):
+        self.write("build/output", "regenerable with recovery")
+        plan = self.plan(targets=["build"], quarantine=True)
+        selected = select_entries(plan, ["build"], plan["plan_id"])
+        # Unit boundary only; not evidence of real terminal approval.
+        result = cli.execute_selection(plan, selected)
+        self.assertEqual(result["exit"], 0, result)
+        receipt = result["reports"][0]["report"]
+        self.assertEqual(receipt["verdict"]["decision"], "RELOCATE")
+        self.assertTrue(receipt["quarantine"])
+        self.assertTrue(receipt["txid"])
+        back = subprocess.run([sys.executable, str(SCRIPT.with_name("restore.py")),
+                               "--json", receipt["txid"]], cwd=self.root, capture_output=True, text=True)
+        self.assertEqual(back.returncode, 0, back.stderr)
+        self.assertEqual(Path(self.root, "build/output").read_text(), "regenerable with recovery")
+
     def invoke(self, *args):
         return subprocess.run([sys.executable, "-B", str(SCRIPT), "--root", self.root,
                                "--json", *args], cwd=self.root, capture_output=True,
@@ -80,6 +118,41 @@ class CleanupTests(RepoFixture):
         rows = self.rows(self.plan())
         self.assertEqual(rows["notes.log"]["category"], "uncertain")
         self.assertEqual(rows["old.txt"]["category"], "uncertain")
+
+    def test_uncertain_reasons_distinguish_tracking_from_missing_declaration(self):
+        self.write("unknown.txt", "ordinary untracked content")
+        self.write("unknown-directory/item.txt", "ordinary untracked content")
+        for targets, tracked_path in ((None, "src"),
+                                      (["src/main.py", "unknown.txt", "unknown-directory"], "src/main.py")):
+            with self.subTest(targets=targets):
+                rows = self.rows(self.plan(targets=targets))
+                self.assertIn("Git-tracked path or tracked descendant", rows[tracked_path]["reason"])
+                for name in ("unknown.txt", "unknown-directory"):
+                    self.assertIn("No Git-tracked content found", rows[name]["reason"])
+                    self.assertIn("no explicit discard declaration", rows[name]["reason"])
+                for name in (tracked_path, "unknown.txt", "unknown-directory"):
+                    self.assertEqual(rows[name]["category"], "uncertain")
+                    self.assertFalse(rows[name]["selectable"])
+                    self.assertEqual(rows[name]["effect"], "review")
+
+    def test_uncertain_reason_keeps_unavailable_git_evidence_unknown(self):
+        self.write("unknown.txt", "ordinary content")
+        with mock.patch("core.cleanup._git_facts", return_value=(set(), set(), "GIT_UNAVAILABLE")):
+            plan = self.plan(targets=["unknown.txt"])
+        entry = self.rows(plan)["unknown.txt"]
+        self.assertIn("Git tracking evidence unavailable", entry["reason"])
+        self.assertNotIn("No Git-tracked content found", entry["reason"])
+        self.assertEqual(plan["warnings"], ["GIT_UNAVAILABLE"])
+        self.assertFalse(entry["selectable"])
+
+    def test_uncertain_reason_does_not_erase_an_existing_discard_declaration(self):
+        Path(self.root, "empty").mkdir()
+        entry = self.rows(self.plan(targets=["empty"], discard=["empty"],
+                                    protect=["empty/future-evidence"]))["empty"]
+        self.assertEqual(entry["category"], "uncertain")
+        self.assertFalse(entry["selectable"])
+        self.assertIn("declared discard cannot select this whole subtree", entry["reason"])
+        self.assertNotIn("no explicit discard declaration", entry["reason"])
 
     def test_artifact_name_without_git_ignore_is_not_regeneration_proof(self):
         self.write("dist/output", "valuable")

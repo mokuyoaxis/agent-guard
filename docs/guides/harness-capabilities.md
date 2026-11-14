@@ -24,9 +24,19 @@ host does **not** mean that host intercepts tool calls, and an adapter returning
 For an unlisted host, use the [self-adaptation guide](../../adapters/INTEGRATION.md)
 and keep its native-interception status `UNVERIFIED` until independently tested.
 
-We currently focus on DSH and Kimi Code. Claude Code's adapter and past
-results remain available; testing new Claude versions is paused. For other
-hosts, ask the official agent to configure and test the integration locally.
+The 0.3.0 development plan targets Codex, DSH, Claude Code and Kimi Code,
+using the shared [setup prompt](agent-setup-prompt.md). Its
+[maintenance acceptance](../reports/test-report-maintenance-0.3.0.md) now records
+local runtime checks and three model hosts' explicit MCP tasks; Claude model
+acceptance is deferred. Fresh approved batches passed on DSH/Kimi; Codex
+passed a single-root real cache task with independent controller recovery.
+Its separate 71-root task remains unverified after an earlier usage-limit
+block. These are explicit MCP operations. A later
+current-source trial observed Kimi root-Bash blocking, MCP planning, operator
+approval, original-session execution and independent recovery. DSH's sandboxed native path was
+environment-blocked, with a separate zero-model local control passing.
+The rows below retain their actual native source/version evidence.
+Other hosts use local adaptation and report each tested path separately.
 
 ## Evidence levels
 
@@ -77,6 +87,8 @@ bounded "Enforcement observed" evidence only for that root-agent Bash call.
 | DSH 0.2.1-alpha.4 / Node 22 (Agent Guard 0.2.6) | Default deletion adapter; three recovery tools and prompt guidance | Native approval service; sampled rejection and fixed answerer grant | [Native CLI report](../reports/test-report-dsh-alpha4.md): actual Profile/Boot, Bash allow/block, quarantine/restore, root/child BLOCK and ASK, per-session policy forwarding; no external model calls | No optional read or Lab admission. Interactive approval UI, OS sandbox confinement, arbitrary PTC, concurrent agents, GUI activation and real-model behavior are unverified. |
 | Kimi Code 0.42.0 / 2.1.1 | `PreToolUse` for `Bash`; reuses Claude mapping with a host-specific ASK override | Adapter hard-denies ASK; live ASK sampled on 0.42.0 | [Bounded report](../reports/test-report-kimi-code-block.md): authenticated 2.1.1 root-Bash sentinels; older 0.42.0 root/subagent enforcement; later actual-CLI fixed-loopback fault cases on both versions | 2.1.1 subagents, concurrency and live ASK UI remain unverified. Missing/timed-out hooks allowed tools in the fault cases; other tools and arbitrary spawn failures remain uncovered. Client route labels do not identify remote model weights. |
 | Kimi Code 2.3.0 (Agent Guard 0.2.6) | Root `Bash` PreToolUse in prompt CLI and ACP; ACP uses Kimi's local executor | Adapter hard-denies ASK | [Sixteen actual-host loopback trials](../reports/test-report-kimi-code-block.md#kimi-230-acceptance): allow/BLOCK/ASK, Python startup refusal, absence control, recovery; ACP process/payload cwd matched the session workspace despite a different service startup cwd | No external model calls. Subagents, other tools, client-provided terminals, concurrency, background execution and host-timeout behavior remain unverified. Hook absence allowed the inert marker. Web checks covered startup/status/shutdown only. |
+| Kimi Code 2.3.0 (0.3.0 development checkout, 2026-11-12) | One real-model root `Bash` probe, then MCP planning and original-session approved execution | No ASK sampled | [Native handoff](../reports/test-report-maintenance-0.3.0.md#native-interception-to-mcp-handoff-2026-11-12): current hook receipt, Core `BLOCK_WILDCARD`, absent marker; real terminal approval, 71/71 roots, one transaction/rate event and independent MCP recovery | Extra plan save retained as an instruction-limit deviation. Native and MCP budget identities differ in this configuration; no universal budget sharing, Stop or other-tool claim. |
+| DSH 0.2.0-rc.2 (0.3.0 development checkout, 2026-11-12) | Current headless profile plus separate actual-SDK local-executor control | Local control refused ASK without approver | [Native handoff](../reports/test-report-maintenance-0.3.0.md#native-interception-to-mcp-handoff-2026-11-12): headless checker denied when the OS sandbox was unavailable; six zero-model local checks passed | The `workspace-write` headless path is environment-blocked on this PRoot host. Local control does not establish that profile's Core-policy execution or OS confinement. |
 | Kimi optional Stop, 0.42.0 / 2.1.1 / 2.3.0; Agent Guard 0.2.6 | Recovery guidance after the initial answer; separately configured POSIX hook | No additional approval path | [Feedback follow-up](../reports/test-report-kimi-code-block.md#recovery-feedback-follow-up-2026-10-20-unreleased-source): actual-CLI fixed-loopback delivery and one bounded 2.1.1 real-model session. [2.3.0 prompt/ACP follow-up](../reports/test-report-kimi-code-block.md#kimi-230-acceptance): actual txids, storage/GC guidance and byte-exact recovery with fixed responses | Adds a response after new compensation records. The initial answer may be inaccurate; emission is not acknowledgement. Shared-session actors, exhausted budgets and broader model/scheduling behavior retain their limits. |
 | Codex CLI 0.154.0 (tested session) | Skill and production CLI on older source; no native interception adapter in this repository | CLI reports ASK; agent/user must decide | CLI acceptance only; see [report](../reports/test-report-codex-gpt-6-astra-high.md) | No automatic tool-call enforcement claim. |
 | ZCode (Windows session; host version unrecorded) | Historical Skill/CLI and process-type `PreToolUse` trial | One ASK prompted the user; persistent approval then skipped the hook | [Windows evaluation](../reports/test-report-zcode-glm-flash.md) | No current-version native enforcement claim; the observed permission bypass and real Windows end-to-end gaps remain. |
@@ -110,6 +122,17 @@ The [MCP doctor introduced in 0.2.8](mcp.md#diagnose-a-local-service-028)
 checks a selected service through handshake and read-only calls. Its PASS
 does not establish host connection, model use or native interception; those
 remain separate evidence levels.
+
+The 0.3.0 development checkout adds `cleanup_plan`, `cleanup_execute` and
+`cleanup_task_status`, reusing operator-terminal approval and the same task
+records as CLI. doctor expects ten tools and still queries only the original
+three state tools. Runtime/SDK, operator-approved protocol-client execution,
+ordinary model maintenance in Codex/Kimi/DSH and completed-task replay have
+recorded results. DSH/Kimi fresh-approved first execution has also passed;
+Codex remains blocked by host usage limits and Claude model work is deferred.
+These results do not extend the native-hook evidence above. See the
+[current MCP host table](../reports/test-report-maintenance-0.3.0.md#host-acceptance).
+See [the development task contract](mcp.md#reviewed-maintenance-tasks-030-development).
 
 Version 0.2.9 adds the read-only `cleanup_discover` and `cleanup_measure`
 tools. Local source checks include real-project stdio observations and one

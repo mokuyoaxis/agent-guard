@@ -1,7 +1,8 @@
 # Deletion limits / 删除准入与预算
 
 These limits are introduced in **0.2.7** and are absent from 0.2.6. The
-separate 0.3.0 plan remains paused. Versioned validation and exact-version
+separate disclosure-authorization research remains paused. The 0.3.0 maintenance
+preview described below is an unreleased development change. Versioned validation and exact-version
 availability checks are tracked in the [0.2.7 notes](../releases/release-notes-0.2.7.md);
 the following results retain their earlier deletion-hardening checkpoint,
 which used 0.2.6 package metadata rather than the final 0.2.7 artifact.
@@ -20,7 +21,85 @@ is limited to the observed root Bash hook and optional Stop, not other tools
 or subagents. Historical Cleanup/release evidence keeps its original scope;
 the earlier npm timeout remains unexplained and did not recur in these runs.
 
+## Dry-run admission preview (0.3.0 development)
+
+This checkout adds `admission` to `safe_delete --dry-run` JSON and displays
+the same information in terminal output. It is absent from published 0.2.9.
+The existing `verdict` remains the policy projection; `admission` describes
+the current execution checks, with the first refusal in their normal order.
+
+| `admission.status` | Meaning |
+|---|---|
+| `READY` | Current shared admission checks pass; execution must recheck |
+| `REQUIRES_APPROVAL` | A reviewed Cleanup approval is missing, expired, changed or consumed |
+| `BLOCKED` | Policy, a current limit, protection, configuration, source inventory or state prevents proceeding |
+| `NOT_APPLICABLE` | No deletion is needed, or shared admission does not apply to quarantine housekeeping |
+
+The object includes `code`, `reason`, the measured request bytes/entries and
+batch limits when available, plus `approval.required` and `approval.status`.
+Approval status is `VALID`, `REQUIRED`, `INVALID`, `NOT_REQUIRED` or
+`NOT_CHECKED`. A null requirement means it was not determined; an earlier
+limit can stop checks before approval validation. `requested` remains null
+when inventory was not performed. No token or approval-state inventory is
+returned.
+
+`reserved` and `lock_checked` are false. The check does not create an
+admission lock/state, debit a budget, consume a grant, reserve capacity or
+test payload-storage writes. The CLI retains its existing advisory audit
+side effects, which can create metadata. Measurements and state can change
+after the snapshot; execution still checks under its lock.
+
+Exit codes retain their meaning: a successful preview exits 0 even if its
+current admission is `BLOCKED` or `REQUIRES_APPROVAL`. A policy BLOCK still
+exits 2. A dry-run of an unmatched glob remains a no-op. Do not interpret
+exit 0, `READY`, or an MCP `ok: true` as a new grant of permission.
+
+`admission.next_step` supplies an action, explanation, working directory,
+workspace/quarantine binding and supported commands. Each command has both
+structured `argv` and a POSIX-quoted `command` string. Keep the same session
+settings; the output never includes its approval token. A ready request's
+execution command uses the observed literal targets, with glob characters
+escaped for the existing CLI. It does not automatically execute them.
+
+Batch refusals now point to [saved explicit-target proposals](cleanup-plan.md#saved-explicit-target-plans-030-development)
+in this development checkout. The generated command lists the observed
+literal roots and uses `--save-plan`; it does not declare them discarded.
+After confirming discardability, add `--discard-targets` or individual
+`--discard` declarations, inspect the stored selection and use `--from-plan ID --approve`
+in an operator terminal. The agent then executes or queries the returned
+`--task ID`. These CLI additions do not add an MCP approval
+tool. Limits direct the caller to status; rate/repeat refusals call
+for inspecting the window/loop. Quarantine housekeeping directs the caller
+to a GC preview. No guidance automatically resets state, splits batches,
+changes identity, answers confirmation or purges recovery copies.
+
+Runtime, no-debit/grant-preservation and CLI/MCP regressions passed in the
+[maintenance verification](../reports/test-report-maintenance-0.3.0.md).
+The older counts above retain their separate source checkpoint; final
+release-candidate regression and untested host paths remain separate gates.
+
+## Quarantine-only requests (0.3.0 development)
+
+Use `safe_delete --quarantine` or create a Cleanup plan with `--quarantine`
+when authorized cleanup must preserve recovery copies even for proven
+regenerable artifacts. MCP `safe_delete` and new `cleanup_plan` calls accept
+`quarantine: true`. Published 0.2.9 lacks this option. Defaults are unchanged;
+false/omission follows existing policy, rather than forcing direct deletion.
+
+Preview admission measures quarantine capacity for the requested effect, and
+its ready/batch-plan commands retain `--quarantine`. The choice does not
+reserve space or relax protection, restricted mode, batch approval, session
+budget or rate checks. Quarantine admission/storage failure stops the request;
+there is no direct-delete or automatic-GC fallback. Restore does not refund
+the budget. This option cannot be used to purge existing recovery copies.
+See [saved choice and execution](cleanup-plan.md#require-quarantine-030-development).
+
 ## Configuration and defaults
+
+In the development checkout, capacity inspection resolves a linked quarantine
+root to its physical directory before measuring occupancy. Links among the
+deletion targets remain opaque entries. This correction is absent from older
+installed copies; selecting an external bucket does not update their code.
 
 The optional workspace file `.agent-guard/delete-policy.json` overrides the
 defaults below. An absent file uses defaults without creating configuration.
@@ -123,6 +202,31 @@ automatic compensation and do not consume this admission budget. Existing
 Git reset/restore/checkout snapshots also use their separate Git storage,
 outside this quarantine budget. This change adds no new coverage or bound
 for those paths; Git snapshot storage can still grow.
+
+## Approved-task accounting (0.3.0 development)
+
+The [saved-plan task workflow](cleanup-plan.md#operator-approved-tasks-030-development)
+separates operator approval from an agent's execution. Approval alone does
+not debit counters. One task groups quarantine and regenerable deletion into
+at most two safe_delete calls. Its first admitted group charges one rate and
+repeat event using the entire approved target set; the second group shares
+that event. Legacy CLI and native-hook requests keep their existing accounting.
+
+Each group still checks protection, configuration, session/capacity limits,
+source metadata and its approved effect under the admission lock. Logical
+bytes/entries are debited once for that admitted group, including directory
+metadata; failures and restores do not refund them. A whole-task read-only
+preflight checks the combined session budget, with capacity checked for the
+quarantine group. It reserves nothing. Concurrent activity or expiry can
+still stop later groups, leaving a partial task.
+
+Task grants keep the existing 600-second expiry. They bind a task ID and
+per-root effect, so a quarantine plan cannot later use the regenerable-delete
+or housekeeping path. No threshold is relaxed and no identity changes.
+Query `cleanup --task ID --json` after a partial or unknown result; a repeated
+execute never resumes a claimed task. Additional work requires reviewing a
+fresh proposal for unresolved roots. This development flow is absent from
+published 0.2.9 and has not yet completed runtime validation.
 
 ## Status and operator recovery
 

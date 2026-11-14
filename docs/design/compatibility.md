@@ -4,6 +4,13 @@ agent-guard's promise is recoverability. A promise is only as good as its
 stability over time - this page states exactly what may change and what
 may not, per release class.
 
+The active **0.3.0 maintenance scope** adds reviewed-task execution and
+queries. Its [acceptance table](../reports/test-report-maintenance-0.3.0.md)
+records passed checks and remaining gates; it is not yet a published artifact.
+Historical sections below retain their original release decisions. Their
+paused 0.3.0 references concern the earlier disclosure-authorization research,
+not this maintenance scope.
+
 Version [0.2.9](../releases/release-notes-0.2.9.md) adds read-only Cleanup
 inventory and measurement, faster planning and a repository-corpus test fix.
 Version [0.2.8](../releases/release-notes-0.2.8.md) adds diagnosis and
@@ -22,7 +29,7 @@ earlier releases.
 
 The maintainer selected **0.2.7** for Cleanup Copilot, deletion admission and
 optional MCP tools. The bounded versioning decision is recorded below; the
-separate 0.3.0 plan remains paused.
+separate disclosure-authorization research remained paused at that checkpoint.
 The later **0.2.8** selection is independently scoped to MCP diagnosis and
 reliability maintenance, as recorded below; earlier exceptions do not grant
 permission to change unrelated policy under a patch number.
@@ -59,7 +66,229 @@ The maintainer selected 0.2.9 through the new bounded decision below;
 earlier patch-version exceptions do not authorize it. The paused 0.3.0
 research roadmap is a separate scope decision and is not resumed.
 
+## Skill installation (0.3.0 development, unreleased)
+
+This checkout adds `install_skill.py` / `agent-guard-install-skill` and a
+real-path bootstrap for delete-guard scripts. The helper defaults to a plan;
+`--execute --target PATH` registers the selected complete package's Skill
+directory link, retaining a previous Skill outside the search directory.
+It does not edit host settings, reset budgets or change recovery formats.
+The installer and its new bin entry are absent from published 0.2.9.
+
+Script startup resolves symlinks before locating the package Core. A detached
+Skill without Core exits 1 with installation guidance rather than exposing
+the import traceback; it does not search the workspace or use another Core.
+New [setup instructions](../guides/agent-setup-prompt.md) distinguish the
+four-host maintenance target from measured support and MCP from native hooks.
+Runtime/link/update and package smoke checks passed in owned POSIX locations;
+global installations were not automatically updated. Native Windows link
+installation, final candidate checks, version alignment and publication remain separate.
+
 ## The adapter contract (frozen surface)
+
+### Saved target proposals (0.3.0 development, unreleased)
+
+Cleanup adds `--target`, `--targets-file`, `--discard-targets`, `--save-plan`
+and `--from-plan`. Target mode scopes traversal and tracked Git facts to the
+listed literal roots. Its plan adds `scope`, `targets` and an opaque session
+fingerprint; the legacy default workspace plan retains its output and
+fingerprint construction. Discovery/measurement `--scope` stays separate.
+
+Explicit saving creates `cleanup_saved_plan/v1` records under the protected
+`.agent-guard/cleanup-plans` directory, retaining the plan and proposed
+selection. It does not migrate existing config, manifest or recovery data.
+The saved ID checks consistency, not authenticity. A view does not refresh;
+approval reconstructs the same scoped plan before and after terminal
+confirmation. Existing CLI full-workspace execution remains available;
+MCP access is described below. Step-4 guidance generates a literal-target proposal command.
+See [flags, selection, effects and limits](../guides/cleanup-plan.md#saved-explicit-target-plans-030-development).
+Runtime, save/read/refresh, legacy-plan and source-change checks have recorded
+results. Literal observation does not expand the existing execution API's
+filename support; some glob-metacharacter names, including `[`, still refuse.
+
+### Approved cleanup tasks (0.3.0 development, unreleased)
+
+`--from-plan ID --approve` obtains operator-terminal confirmation and returns
+a task ID without deleting source data. `--task ID` reads status, and
+`--task ID --execute` permits one agent execution attempt without another
+terminal prompt. Saved-plan `--execute` remains an operator convenience that
+creates and immediately attempts the same kind of task. Legacy full-workspace
+execution retains its original interface and per-row accounting.
+
+New `cleanup_task/v1` control records are stored under the protected
+`.agent-guard/cleanup-tasks` subtree. Existing admission-state version 1 gains
+optional task grant fields for task ID, effect binding and a shared rate event;
+legacy grants retain their behavior. There is no configuration or recovery
+format migration. Approved tasks must be executed by this same implementation;
+older versions do not implement effect binding or task accounting. Do not
+switch to an older package while task approvals remain outstanding.
+
+Tasks bind the existing short-lived grant to the exact selection and planned
+effects. They group at most two safe_delete calls, charge one rate event and
+debit logical bytes/entries per admitted group. Preflight does not reserve
+capacity. Durable intent and receipts distinguish completion, partial work
+and unknown outcomes; a repeated execute returns status rather than retrying.
+Read-only query exits 0 for a readable record regardless of completion.
+Tokens remain private. Same-UID files and terminal prompts are cooperative,
+not independent authentication. See [task states and limits](../guides/cleanup-plan.md#operator-approved-tasks-030-development).
+Runtime/concurrency/failure regressions passed, with constructed grants kept
+separate from the real operator-approved 71-root protocol-client task. The
+MCP tools below share these semantics. DSH/Kimi fresh-approved 71-root tasks
+passed; Codex later passed a fresh-approved single-root real cache task with
+independent recovery. Its separate 71-root task remains unverified after an
+earlier host usage-limit block. Claude model work is deferred.
+
+### Fixed MCP storage (0.3.0 development, unreleased)
+
+Trusted startup `--trash-root` selects a stable absolute quarantine; omitted,
+it retains `WORKSPACE/.agent-trash`. The explicit path is resolved once at
+startup. Tool arguments and ambient environment cannot select another bucket.
+Doctor and operator handoff commands retain the same storage/session binding.
+This adds no dependency or configuration/recovery-format migration.
+
+Selecting another bucket selects its existing authorization, budget and
+recovery records; it does not merge or migrate them. Existing plans/tasks
+retain their original path binding. Separately authorized directory relocation
+is an operator operation, not a side effect of starting the server.
+
+Capacity measurement follows the quarantine root to its physical directory,
+including a retained default-path link; deletion-target links remain opaque.
+Old installed copies do not acquire this correction automatically. Storage
+regression, stdio recovery and a local DSH directory-layout check have passed;
+the latter does not certify every application layout. A later original-root
+DSH headless startup and approved MCP batch also passed, separately from native-plugin evidence.
+See [storage and limits](../guides/mcp.md#select-a-fixed-quarantine-directory-030-development).
+
+### MCP maintenance tasks (0.3.0 development, unreleased)
+
+Three additive tools bring this checkout's MCP contract to ten:
+`cleanup_plan`, `cleanup_execute`, `cleanup_task_status`. Published 0.2.9
+retains seven; update doctor and server from the same installation. No SDK,
+protocol version, configuration or recovery migration is introduced, and the
+original seven operation arguments retain their contracts.
+
+Planning accepts bounded literal targets and optional declarations/limits.
+It defaults to zero writes; explicit saving retains the CLI proposal and
+selection. Saved-ID viewing with read controls does not refresh. Valid incomplete plans
+return `ok: true, partial: true` with the original CLI exit code. The plan
+tool's read-only annotation is false because it can save metadata. Status
+is read-only, and approved execution accepts only a task ID. MCP does not
+provide approval, tokens, budget identities, force restore or GC execution.
+
+The development feedback refinement distinguishes known Git tracking from
+missing discard evidence and unavailable Git facts. Categories, selection
+rules and declarations keep their existing meanings. Reason text is included
+in plan fingerprints: affected older snapshots remain readable, but refresh
+requires a newly reviewed proposal and any required new approval. This is
+the existing changed-plan boundary, with no record migration. The MCP tool
+description also explains when to include the already-supported discard
+declaration in the first proposal; argument names and defaults are unchanged.
+
+Task query success reports readable state, not completed cleanup. Mutating
+failures preserve CLI evidence; missing responses retain the requested task
+ID and query guidance. Existing calls retain their 120-second deadline; task
+execution has a separate 300-second outer deadline for two inner groups.
+Timeouts do not imply rollback or safe automatic retry. doctor validates ten
+registrations/annotations and invokes only its original three read-only state
+queries. SDK/runtime and local approved execution have passed; three hosts
+completed ordinary model-backed MCP maintenance and completed-task replay.
+DSH/Kimi first executed new approved batches; Codex later completed a
+fresh-approved real cache task with controller recovery. Its separate
+71-root task remains unverified, and Claude model work is deferred. The
+operator's Core approval and the client's tool permission are separate:
+follow the bounded setup in the MCP guide without changing tool annotations
+or broadening Core limits.
+Later [native handoff checks](../reports/test-report-maintenance-0.3.0.md#native-interception-to-mcp-handoff-2026-11-12)
+observed a Kimi root-Bash block, MCP plan, real terminal approval,
+original-session execution and independently verified MCP recovery;
+DSH's sandboxed profile was environment-blocked while its isolated local
+control passed. Broader native paths retain their separate evidence limits.
+See [arguments and handoff](../guides/mcp.md#reviewed-maintenance-tasks-030-development).
+
+### Maintenance output views (0.3.0 development, unreleased)
+
+Shared Core projections add `cleanup_view/v1` for overviews/detail pages and
+`maintenance_summary/v1` for execution summaries. Views are generated after
+planning/receipt creation, outside plan fingerprints and persisted payloads.
+Existing saved plans, approvals and task formats are unchanged.
+
+Cleanup plan/task text defaults to summary, and existing CLI `--json` defaults to full.
+Restore/GC text prints a summary plus the original detailed rows by default;
+explicit `--view summary` omits rows. There is no general retained-detail
+endpoint for those operations, so retrieving details must not require replay.
+The legacy workspace execution flow also keeps per-row text receipts by
+default because it has no retained task-detail endpoint.
+Full execution JSON keeps existing keys/exit semantics and adds
+`execution_summary`. The original seven MCP operation arguments remain the
+same, with the later additive status overview controls below. New cleanup MCP tools default to summary; plan/status support paginated
+details/full, execution supports summary/full. The tool set stays ten.
+
+Saved-plan input now permits read controls alongside its ID, while rejecting
+target/declaration/selection overrides. Detail filters never narrow execution,
+and confirmation still presents the complete selection. Pages distinguish
+display coverage from scan completeness; mutable task pages are not atomic
+multi-request snapshots. Full task output remains the public projection,
+without private grant tokens or raw task state.
+
+Counts retain selected-root, candidate-row, recursive admission-entry,
+restore-item and GC-transaction units. Confirmed receipt counts are distinct
+from unknown actual effects and undispatched roots. Size estimates, previous
+admission previews, unestablished debit and unmeasured physical freed space
+remain separate. GC's existing best-effort logical inventory is not promoted
+to a complete space measurement. No deletion/approval/GC authority changes.
+See [views, fields and compatibility](../guides/maintenance-output.md).
+Runtime/view/legacy-output and recorded transport checks have passed. These
+bounded observations do not establish a general token or speed reduction.
+
+### Unified read-only queries (0.3.0 development, unreleased)
+
+The version scope now ships CLI/JSON/MCP queries; GUI/web/TUI applications
+and operation panels are deferred. `workspace_query/v1` is a separate bounded
+metadata projection. Plain status text defaults to the formatted overview;
+existing `--json`, explicit `--tail` and MCP status default to the legacy
+full result. Explicit `--view full` also retains that behavior.
+
+The MCP status tool adds `view: overview/full` and overview-only `limit`
+(1–50, default 10). Existing tail/default semantics and other tool schemas
+are retained; the service stays at ten tools. Valid partial overview results
+use `ok: true, partial: true` with CLI exit 1. Doctor still performs only its
+original three state calls, without certifying the new overview path.
+
+Bounded task listing uses the same validation as direct task reads and
+filters the current budget/quarantine before projecting public fields. The
+JSON reader accepts an internal byte bound; default saved-plan/task limits
+are unchanged. Existing transaction reconciliation can accept a validated
+bounded record list for queries, while restore/GC still use their full input.
+No writer, approval/budget rule, configuration or persistence format changes.
+
+Overview does not walk payload trees, measure occupancy or establish
+capacity-based GC eligibility. Unknown measurements, incomplete coverage and
+existing Core best-effort path/mode semantics stay explicit. Terminal layout
+and optional TTY section colors use stdlib only; JSON/MCP contains no added
+ANSI sequences. See [limits and query contract](../guides/read-only-query.md).
+Runtime, bounded-read and rendering checks passed in the recorded POSIX
+environment, alongside bounded model-host overview reads. Other platforms,
+native interception and final artifact validation remain separate.
+
+### Dry-run admission (0.3.0 development, unreleased)
+
+`safe_delete --dry-run` gains an additive `admission` projection and next-step
+guidance. Its original policy verdict, outcome and exit codes remain: current
+execution admission may be blocked while an assessment exits 0; policy BLOCK
+still exits 2. The MCP tool forwards the projection in `result.admission`,
+with its existing `ok`/`isError` mapping and arguments. The task tools are
+separate additions to the previous seven-tool set.
+`check.py` advisory responses are unchanged.
+
+Shared read-only checks preserve execution refusal order. Only `admit()`
+locks, consumes approval, saves a debit and yields to mutation. The projection
+does not prove lock availability or payload-storage writability and reserves
+nothing; the old advisory audit metadata side effects remain. Generated
+commands use existing CLIs and the observed targets, with structured argv
+and POSIX shell quoting. The preview adds no approval endpoint, reset or automatic GC.
+See [field semantics](../guides/deletion-limits.md#dry-run-admission-preview-030-development).
+Runtime and compatibility regressions passed at the recorded maintenance
+checkpoint; the final release candidate still needs its own full verification.
 
 <a id="mcp-doctor-028-development"></a>
 

@@ -32,11 +32,14 @@ import _bootstrap  # noqa: F401
 from core import AUDIT_NAME, TRASH_DIRNAME, audit
 from core import classifier, recovery
 from core.messages import gc_guidance, print_gc_guidance
+from core.operation_summary import execution_summary, format_execution_summary, unavailable_summary
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--json", action="store_true", dest="as_json")
+    ap.add_argument("--view", choices=("summary", "full"),
+                    help="output only; full by default, summary explicitly omits detailed rows")
     ap.add_argument("--execute", action="store_true",
                     help="actually purge (default: plan only)")
     ap.add_argument("--txid", action="append", default=[],
@@ -44,6 +47,7 @@ def main() -> int:
     ap.add_argument("--all-eligible", action="store_true",
                     help="purge every GC_ELIGIBLE transaction")
     args = ap.parse_args()
+    view = args.view or "full"
 
     base = os.getcwd()
     workspace = classifier.discover_workspace(base)
@@ -53,10 +57,17 @@ def main() -> int:
     plan = engine.gc_plan()
 
     if not args.execute:
-        payload = {"mode": "plan", **plan, "gc": gc_guidance()}
-        if args.as_json:
+        payload = {"mode": "plan", **plan, "gc": gc_guidance(workspace, trash_root)}
+        payload["execution_summary"] = execution_summary("gc", payload)
+        if args.as_json and view == "full":
             print(json.dumps(payload, ensure_ascii=False, indent=2))
+        elif args.as_json:
+            print(json.dumps({"mode": "plan", "execution_summary": payload["execution_summary"]}, indent=2))
+        elif view == "summary":
+            print(format_execution_summary(payload["execution_summary"]))
+            print_gc_guidance(payload["gc"])
         else:
+            print(format_execution_summary(payload["execution_summary"]))
             print(f"quarantine bytes: {plan['total_bytes']} "
                   f"(soft cap {plan['size_limit_bytes']})")
             for entry in plan["eligible"]:
@@ -101,10 +112,16 @@ def main() -> int:
                   "plan_reasons": {e["txid"]: e["reason"]
                                    for e in plan["eligible"] if e["txid"] in txids}},
                  os.path.join(trash_root, AUDIT_NAME))
-    if args.as_json:
-        print(json.dumps({"mode": "execute", **report}, ensure_ascii=False,
-                         indent=2))
+    payload = {"mode": "execute", **report}
+    payload["execution_summary"] = execution_summary("gc", payload)
+    if args.as_json and view == "full":
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    elif args.as_json:
+        print(json.dumps({"mode": "execute", "execution_summary": payload["execution_summary"]}, indent=2))
+    elif view == "summary":
+        print(format_execution_summary(payload["execution_summary"]))
     else:
+        print(format_execution_summary(payload["execution_summary"]))
         for txid in report["purged"]:
             print(f"purged: {txid}")
         for txid in report["missing"]:
@@ -117,4 +134,5 @@ if __name__ == "__main__":
         sys.exit(main())
     except Exception as exc:
         print(f"agent-guard internal error: {exc}", file=sys.stderr)
+        print(format_execution_summary(unavailable_summary("gc")), file=sys.stderr)
         sys.exit(1)

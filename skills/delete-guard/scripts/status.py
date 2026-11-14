@@ -10,8 +10,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
+
+sys.dont_write_bytecode = True
 
 import _bootstrap  # noqa: F401
 
@@ -19,12 +22,17 @@ from core import AUDIT_NAME, TRASH_DIRNAME
 from core import admission, audit, classifier, policy, recovery
 from core.messages import (
     HOST_STATUS_NOTICE, QUARANTINE_NOTICE, gc_guidance, print_gc_guidance)
+from core.query_text import format_workspace_query
+from core.workspace_query import DEFAULT_LIMIT, workspace_query
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--json", action="store_true", dest="as_json")
-    ap.add_argument("--tail", type=int, default=10)
+    ap.add_argument("--tail", type=int, default=None, help="legacy full view audit tail; default 10")
+    ap.add_argument("--view", choices=("overview", "full"),
+                    help="text defaults to a read-only metadata overview; JSON retains full legacy status")
+    ap.add_argument("--limit", type=int, help="overview task/transaction rows, 1–50; default 10")
     ap.add_argument("--reset-delete-budget", action="store_true",
                     help="interactively reset this session's deletion budget; preserves recovery copies")
     ap.add_argument("--trash-index", action="store_true",
@@ -41,6 +49,10 @@ def main() -> int:
 
     if args.reset_delete_budget and args.trash_index:
         ap.error("--reset-delete-budget cannot be combined with --trash-index")
+    if args.trash_index and (args.view is not None or args.limit is not None):
+        ap.error("view/limit controls do not apply to --trash-index")
+    if args.reset_delete_budget and (args.view == "overview" or args.limit is not None):
+        ap.error("the read-only overview cannot be combined with budget reset")
     if args.reset_delete_budget and not (sys.stdin.isatty() and sys.stderr.isatty()):
         print("Deletion-budget reset requires interactive stdin and stderr; no state changed.",
               file=sys.stderr)
@@ -91,6 +103,26 @@ def main() -> int:
     workspace = classifier.discover_workspace(base)
     trash_root = os.environ.get(
         "AGENT_GUARD_TRASH", os.path.join(workspace, TRASH_DIRNAME))
+    view = args.view or ("full" if args.as_json or args.tail is not None or args.reset_delete_budget else "overview")
+    if args.limit is not None and view != "overview":
+        ap.error("--limit requires --view overview")
+    if view == "overview":
+        try:
+            result = workspace_query(workspace, trash_root,
+                                     limit=DEFAULT_LIMIT if args.limit is None else args.limit)
+        except (ValueError, OSError) as exc:
+            if args.as_json:
+                print(json.dumps({"tool": "status", "error": str(exc), "exit": 2}, ensure_ascii=True))
+            else:
+                print("Status query refused: " + str(exc), file=sys.stderr)
+            return 2
+        if args.as_json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            color = sys.stdout.isatty() and "NO_COLOR" not in os.environ and os.environ.get("TERM") != "dumb"
+            print(format_workspace_query(result, width=shutil.get_terminal_size((96, 24)).columns, color=color))
+        return 0 if result["complete"] else 1
+    args.tail = 10 if args.tail is None else args.tail
     engine = recovery.RecoveryEngine(workspace, trash_root)
     if args.reset_delete_budget and not reset_delete_budget(workspace, trash_root, engine):
         return 2
@@ -130,7 +162,7 @@ def main() -> int:
         "recent_audit": audit_tail(engine.trash_root, args.tail),
         "host_status_notice": HOST_STATUS_NOTICE,
         "storage_notice": QUARANTINE_NOTICE,
-        "gc": gc_guidance(),
+        "gc": gc_guidance(workspace, trash_root),
     }
     if args.as_json:
         print(json.dumps(info, ensure_ascii=False, indent=2))

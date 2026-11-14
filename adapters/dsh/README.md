@@ -7,6 +7,28 @@ delegates deletion verdicts to the shared Python core
 The opt-in text-read prototype reuses the existing Core exfil policy through
 a bounded local worker. Both ship inside this package.
 
+The unreleased [0.3.0 MCP maintenance checks](../../docs/reports/test-report-maintenance-0.3.0.md#host-acceptance)
+include DSH 0.2.0-rc.2 with isolated persistence, then original-root headless
+startup and a fresh operator-approved batch after bucket repair. Cleaning the
+session-storage root can conflict with its strict layout when a local
+quarantine contains JSONL metadata. Select a stable external bucket using
+the development [MCP storage option](../../docs/guides/mcp.md#select-a-fixed-quarantine-directory-030-development);
+an existing bucket needs separately reviewed handling. These explicit-tool
+checks do not revalidate this native plugin or every session layout.
+
+A later [native handoff trial](../../docs/reports/test-report-maintenance-0.3.0.md#native-interception-to-mcp-handoff-2026-11-12)
+loaded the current plugin but hit `SANDBOX_UNAVAILABLE` in the caller's
+`workspace-write` executor on this PRoot host. The checker could not start,
+so the native call was denied. A separate actual-SDK local-executor control
+passed six zero-model checks; it does not validate the sandboxed profile.
+
+The development feedback update recognizes the executor's exact
+`SANDBOX_UNAVAILABLE` error code in checker/status failures and reports the
+unavailable sandbox backend explicitly. It keeps `CHECKER_EXECUTION_FAILED`
+and `STATUS_EXECUTION_FAILED`, the existing denial and the caller's policy.
+Inspect the host backend with the operator; this diagnostic supplies no Core
+deletion-policy verdict. Raw exception details are not copied into this hint.
+
 The [0.2.3 contract review](../../docs/reports/test-report-release-readiness-0.2.3.md)
 verifies the default deletion path on `0.2.0-rc.2` and `0.1.5-rc.1`, and
 the opt-in read path on the reviewed new local and sandbox filesystem providers.
@@ -182,6 +204,9 @@ no new native-host/model result; use the
 
 - Deletion commands inherit the caller's sandbox policy per invocation
   (`exec.agent.session`) through the native shell executor.
+- Plugin-process startup can pass while a later caller's sandbox is
+  unavailable. `CHECKER_EXECUTION_FAILED` then requires checking the host
+  executor/backend; it is not proof of a Core policy verdict.
 - Once the adapter has registered its pre-execute listener, Core process and
   output failures fail closed (deny). An absent/disabled bundle, a changed host
   event contract, or failure before listener registration cannot deny a call

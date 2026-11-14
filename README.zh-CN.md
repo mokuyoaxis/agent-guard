@@ -18,8 +18,16 @@ Agent Guard 提供三大功能：**Exfil-guard** 检查待外发文本，**Delet
 确认实际宿主／版本，查阅其官方 hook 文档，完成验证后报告实际覆盖范围。
 不能仅凭 Skill 已安装或配置已复制，就告诉用户防护已生效。
 
-目前主要维护 **DSH 和 Kimi Code** 的接入。其他宿主建议交给对应的官方
-编码 Agent 在本地配置。
+**0.3.0 开发计划**以 **Codex、DSH、Claude Code 和 Kimi Code** 为维护目标，
+共享[接入提示词](docs/guides/agent-setup-prompt.md)。其他宿主由 Agent 本地适配；
+实际支持范围仍以下方精确版本的验收记录为准。
+
+开发中的维护流程支持：操作者审阅并批准一次已保存的选择，Agent 随后通过
+CLI／MCP 执行和查询；可再生产物也可显式要求隔离。本地验收已覆盖 DSH／Kimi
+新批准的批量任务，以及 Codex 的真实缓存任务，随后均独立核对并恢复。
+Codex 的独立 71 根批量任务、Claude 模型验收及更广的原生 hook 覆盖仍待完成。
+详见[已通过检查与剩余缺口](docs/reports/test-report-maintenance-0.3.0.md)，
+这些源码验收结果不代表 0.3.0 已发布。
 
 本版 **[0.2.9](docs/releases/release-notes-0.2.9.md)** 改善清理前的盘点体验：先看目录概况，
 再计量指定范围，Cleanup Copilot 和 MCP 都可使用；既有计划扫描也减少了重复的
@@ -212,18 +220,20 @@ python3 -c 'print("config: sk-proj-" + "AbCdEf0123456789GhIjKl")' |
 
 ## 接入你的编码 Agent
 
-让对应宿主的官方编码 Agent 按[适配指南](adapters/INTEGRATION.md)，为当前
-安装的版本配置 Agent Guard。优先使用能在工具执行前阻止调用的 hook。
-我们主要维护 DSH 和 Kimi Code 的接入；其他宿主由 Agent 在本地配置桥接。
+让负责接入的 Agent 使用[通用提示词](docs/guides/agent-setup-prompt.md)和
+[适配指南](adapters/INTEGRATION.md)，按实际安装版本配置。MCP 承担主动维护，
+已验证的阻塞 hook／插件检查它覆盖的原生调用。0.3.0 开发源码另有
+[Skill 安装更新入口](docs/guides/skill-installation.md)，已发布 0.2.9 不含该安装器。
+四宿主为开发维护目标，各自的验收状态单独记录。
 
 下表记录所测源码、宿主版本和工具路径；其他组合需要另行验证。
 
 | 宿主 | 接入与证据 |
 |---|---|
-| Claude Code | 保留参考实现，暂缓新版本验收。Bash 原生 `PreToolUse`；2.1.270／2.1.273 的受限脚本宿主拦截记录。[接入](adapters/claude/README.md) |
-| Kimi Code | Bash 原生 `PreToolUse`；0.42.0 的有限主／子路径及 2.1.1 的根代理 Bash 记录。0.2.6 新增 2.3.0 prompt／ACP 根代理 Bash 固定响应证据。ASK 拒绝；缺失／超时 hook 不覆盖。[接入](adapters/kimi-code/README.md) |
-| DSH | 默认删除适配覆盖 0.1.5-rc.1／0.2.0-rc.2／0.2.1-alpha.4。可选原生 read 与 Lab 保留各自的两版边界。[兼容范围](docs/design/dsh-compatibility.md) · [接入](adapters/dsh/README.md) |
-| Codex | Codex 0.165.0 已通过已发布 0.2.7 的实际客户端与真实模型 MCP 试次。证据覆盖显式工具；原生 Shell／编辑器拦截仍需单独验证。[MCP 证据与限制](docs/guides/mcp.md#codex-01650-with-published-027) |
+| Claude Code | 2.1.311 已连接并发现开发版十工具；模型维护延期，新版 hook 未验证。原生 Bash 拦截保留 2.1.270／2.1.273 的脚本宿主证据。[验收状态](docs/reports/test-report-maintenance-0.3.0.md#host-acceptance) · [接入](adapters/claude/README.md) |
+| Kimi Code | 2.3.0 已完成普通维护及新批准 MCP 执行；后续当前源码试次完成原生 Bash 拦截、保存计划、操作者批准、原会话执行及独立恢复。Stop、缺失／超时 hook 保留各自边界。[验收状态](docs/reports/test-report-maintenance-0.3.0.md#host-acceptance) · [接入](adapters/kimi-code/README.md) |
+| DSH | 0.2.0-rc.2 已通过修复后原根启动及新批准 MCP 执行；后续原生试次被 PRoot 上不可用的 OS 沙箱阻塞，独立零模型本地对照通过。[验收状态](docs/reports/test-report-maintenance-0.3.0.md#host-acceptance) · [兼容范围](docs/design/dsh-compatibility.md) · [接入](adapters/dsh/README.md) |
+| Codex | 0.165.0 已通过新批准的真实缓存任务及控制器独立恢复核验；独立 71 根批量仍待验，原生 Shell／编辑器拦截另需证据。[当前验收](docs/reports/test-report-maintenance-0.3.0.md#host-acceptance) · [早期试次](docs/guides/mcp.md#codex-01650-with-published-027) |
 | 其他宿主 | 推荐官方 Agent 按当前版本完成本地接入，并验证确实阻止执行后再声明原生拦截。没有阻塞 hook 时，Skill／CLI／MCP 仍属于协作式使用。[适配指南](adapters/INTEGRATION.md) |
 
 精确版本、试验与缺口统一见[完整能力矩阵](docs/guides/harness-capabilities.md)。

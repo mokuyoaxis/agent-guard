@@ -5,6 +5,7 @@ shell command, and leaves policy, admission, audit and recovery to the CLIs.
 """
 from __future__ import annotations
 
+from contextlib import nullcontext
 import glob
 import json
 import os
@@ -14,13 +15,19 @@ import subprocess
 import sys
 import threading
 
+from core.cleanup_views import read_options
+from core.operation_summary import unavailable_summary
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS = ROOT / "skills" / "delete-guard" / "scripts"
 GROUP_TOOLS = frozenset(("cleanup_discover", "cleanup_measure"))
-TOOLS = frozenset(("safe_delete", "restore", "transactions", "status", "gc_plan")) | GROUP_TOOLS
+TASK_TOOLS = frozenset(("cleanup_execute", "cleanup_task_status"))
+TOOLS = frozenset(("safe_delete", "restore", "transactions", "status", "gc_plan", "cleanup_plan")) | GROUP_TOOLS | TASK_TOOLS
 MAX_PATHS = 1000
 TXID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*\Z")
+PLAN_ID_RE = re.compile(r"[0-9a-f]{64}\Z")
+TASK_ID_RE = re.compile(r"[0-9a-f]{32}\Z")
+VIEW_FIELDS = frozenset(("view", "category", "path", "state", "offset", "limit"))
 
 
 class InvalidArguments(ValueError):
@@ -40,25 +47,49 @@ def _locations(path):
     return (absolute, os.path.realpath(absolute), os.path.join(os.path.realpath(parent), leaf))
 
 
+def resolve_trash_root(workspace, trash_root=None):
+    """Resolve trusted startup storage without creating or migrating it."""
+    if trash_root is None:
+        # Keep the legacy spelling, including existing bucket links/task IDs.
+        return os.path.join(workspace, ".agent-trash")
+    selected = Path(os.path.expanduser(trash_root))
+    if not selected.is_absolute():
+        raise ValueError("MCP --trash-root must be an absolute directory path")
+    selected = selected.resolve()
+    if _inside(workspace, str(selected)):
+        raise ValueError("MCP quarantine must not be the workspace or contain it")
+    ancestor = selected
+    while not ancestor.exists():
+        ancestor = ancestor.parent
+    if not ancestor.is_dir():
+        raise ValueError("MCP quarantine must name a directory or have a directory parent")
+    return str(selected)
+
+
 class Operations:
     """One server binding; clients cannot supply paths to another workspace.
 
     ``session=None`` uses the CLI's stable shared default budget, including
     after a server restart. An explicit identity is trusted startup input,
-    never a tool argument. The selected quarantine is workspace-local.
+    never a tool argument. Storage defaults to the workspace-local bucket;
+    an explicit trusted startup path can select a stable external bucket.
     """
 
-    def __init__(self, workspace, *, session=None, timeout=120):
+    def __init__(self, workspace, *, trash_root=None, session=None, timeout=120, task_timeout=300):
         selected = Path(workspace).resolve(strict=True)
         if not selected.is_dir() or selected.parent == selected:
             raise ValueError("MCP workspace must be an existing non-root directory")
         if session is not None and (not isinstance(session, str) or not session or "\0" in session):
             raise ValueError("MCP session must be a nonempty startup identity")
-        if type(timeout) not in (int, float) or not 0 < timeout <= 3600:
-            raise ValueError("MCP CLI timeout must be positive and at most 3600 seconds")
+        for label, value in (("CLI", timeout), ("task", task_timeout)):
+            if type(value) not in (int, float) or not 0 < value <= 3600:
+                raise ValueError("MCP " + label + " timeout must be positive and at most 3600 seconds")
         self.workspace = str(selected)
-        self.trash_root = os.path.join(self.workspace, ".agent-trash")
+        self.trash_root = resolve_trash_root(self.workspace, trash_root)
         self.timeout = timeout
+        # A task may use two 120-second safe_delete groups plus preflight.
+        # Keep the outer dispatcher deadline distinct from a single CLI call.
+        self.task_timeout = task_timeout
         self._env = {key: value for key, value in os.environ.items()
                      if not key.startswith(("AGENT_GUARD_", "GIT_"))
                      and key not in ("PYTHONPATH", "PYTHONHOME")}
@@ -76,13 +107,30 @@ class Operations:
             raise InvalidArguments("unknown MCP tool")
         if not isinstance(arguments, dict):
             raise InvalidArguments("tool arguments must be an object")
-        allowed = {"safe_delete": {"paths", "dry_run"}, "restore": {"txid"},
-                   "status": {"tail"}, "transactions": set(), "gc_plan": set(),
+        allowed = {"safe_delete": {"paths", "dry_run", "quarantine"}, "restore": {"txid"},
+                   "status": {"tail", "view", "limit"}, "transactions": set(), "gc_plan": set(),
                    "cleanup_discover": {"scopes", "max_entries", "max_depth"},
-                   "cleanup_measure": {"scopes", "max_entries", "max_depth"}}[name]
+                   "cleanup_measure": {"scopes", "max_entries", "max_depth"},
+                   "cleanup_plan": {"targets", "saved_plan_id", "save", "discard_targets", "quarantine",
+                                    "discard", "protect", "select", "max_entries", "max_depth",
+                                    "view", "category", "path", "offset", "limit"},
+                   "cleanup_execute": {"task_id", "view"},
+                   "cleanup_task_status": {"task_id", "view", "state", "path", "offset", "limit"}}[name]
         if set(arguments) - allowed:
             raise InvalidArguments("unsupported tool argument")
         result = dict(arguments)
+        if name == "cleanup_plan" or name in TASK_TOOLS:
+            if any(result[key] is None for key in VIEW_FIELDS if key in result):
+                raise InvalidArguments("omit unused read controls; null is not a declared view/filter/page value")
+            try:
+                settings = read_options("plan" if name == "cleanup_plan" else
+                                        "execution" if name == "cleanup_execute" else "task",
+                                        **{key: result[key] for key in VIEW_FIELDS if key in result})
+            except ValueError as exc:
+                raise InvalidArguments(str(exc)) from exc
+            result["view"] = settings["view"]
+            if settings["view"] == "details":
+                result.update({key: value for key, value in settings.items() if value is not None})
         if name == "safe_delete":
             paths = result.get("paths")
             if (not isinstance(paths, list) or not 1 <= len(paths) <= MAX_PATHS
@@ -95,6 +143,9 @@ class Operations:
             if type(result.get("dry_run", False)) is not bool:
                 raise InvalidArguments("dry_run must be a boolean")
             result["dry_run"] = result.get("dry_run", False)
+            if type(result.get("quarantine", False)) is not bool:
+                raise InvalidArguments("quarantine must be a boolean")
+            result["quarantine"] = result.get("quarantine", False)
         elif name == "restore":
             txid = result.get("txid")
             # Match the recovery engine's transaction-ID grammar at this
@@ -105,6 +156,49 @@ class Operations:
             if type(result.get("tail", 10)) is not int or not 0 <= result.get("tail", 10) <= 100:
                 raise InvalidArguments("tail must be an integer between 0 and 100")
             result["tail"] = result.get("tail", 10)
+            view = result.get("view", "full")
+            if view not in ("overview", "full"):
+                raise InvalidArguments("status view must be overview or full")
+            result["view"] = view
+            if view == "overview":
+                limit = result.get("limit", 10)
+                if type(limit) is not int or not 1 <= limit <= 50:
+                    raise InvalidArguments("status overview limit must be an integer between 1 and 50")
+                result["limit"] = limit
+            elif "limit" in result:
+                raise InvalidArguments("limit applies only to the status overview")
+        elif name in TASK_TOOLS:
+            task_id = result.get("task_id")
+            if not isinstance(task_id, str) or not TASK_ID_RE.fullmatch(task_id):
+                raise InvalidArguments("task_id must be a 32-character lowercase hexadecimal cleanup task ID")
+        elif name == "cleanup_plan":
+            if "saved_plan_id" in result:
+                if ((set(result) - VIEW_FIELDS) != {"saved_plan_id"} or not isinstance(result["saved_plan_id"], str)
+                        or not PLAN_ID_RE.fullmatch(result["saved_plan_id"])):
+                    raise InvalidArguments("saved_plan_id permits read controls only; targets, declarations and selection cannot change")
+                return result
+            for field in ("save", "discard_targets", "quarantine"):
+                if type(result.get(field, False)) is not bool:
+                    raise InvalidArguments(field + " must be a boolean")
+                result[field] = result.get(field, False)
+            for field in ("targets", "discard", "protect", "select"):
+                if field == "select" and field not in result:
+                    continue
+                values = result.get(field, [])
+                minimum = 1 if field in ("targets", "select") else 0
+                if (not isinstance(values, list) or not minimum <= len(values) <= MAX_PATHS
+                        or any(not isinstance(p, str) or not p or "\0" in p for p in values)):
+                    raise InvalidArguments(field + " must contain " + str(minimum) + " through 1000 nonempty literal paths")
+                if any(os.path.normpath(p)[-1].isspace() for p in values):
+                    raise InvalidArguments("literal paths cannot end in whitespace")
+                result[field] = values
+            if "select" in result and not result["save"]:
+                raise InvalidArguments("select requires save=true; it proposes a selection, not approval")
+            for field, maximum in (("max_entries", 10000), ("max_depth", 32)):
+                value = result.get(field, maximum)
+                if type(value) is not int or not 1 <= value <= maximum:
+                    raise InvalidArguments(field + " must be an integer between 1 and " + str(maximum))
+                result[field] = value
         elif name in GROUP_TOOLS:
             scopes = result.get("scopes", [])
             if (not isinstance(scopes, list) or len(scopes) > 64
@@ -121,20 +215,34 @@ class Operations:
         return result
 
     def _quarantine_overlap(self, paths):
-        boundaries = _locations(self.trash_root)
+        # Selecting new storage never makes the retained default bucket a
+        # normal deletion target. Include physical/lexical aliases of both.
+        buckets = {self.trash_root, os.path.join(self.workspace, ".agent-trash")}
+        boundaries = [location for bucket in buckets for location in _locations(bucket)]
         return any(_inside(target, boundary) or _inside(boundary, target)
                    for path in paths for target in _locations(path) for boundary in boundaries)
 
     @staticmethod
-    def _failure(name, code, message, *, exit_code=None, may_have_changed=False):
-        return {"tool": name, "ok": False, "exit_code": exit_code,
-                "error": {"code": code, "message": message,
-                          "may_have_changed": may_have_changed,
-                          "inspect_tools": ["status", "transactions"] if may_have_changed else []}}
+    def _failure(name, code, message, *, exit_code=None, may_have_changed=False, task_id=None):
+        result = {"tool": name, "ok": False, "exit_code": exit_code,
+                  "error": {"code": code, "message": message,
+                            "may_have_changed": may_have_changed,
+                            "inspect_tools": (["status", "transactions"]
+                                              if may_have_changed and name != "cleanup_plan" else [])}}
+        if task_id is not None:
+            result["task_id"] = task_id
+            result["error"]["inspect_tools"] = ["cleanup_task_status", "transactions", "status"]
+            result["query"] = {"name": "cleanup_task_status", "arguments": {"task_id": task_id}}
+        if (may_have_changed and name in ("safe_delete", "restore", "cleanup_execute")) or name == "cleanup_task_status":
+            result["execution_summary"] = unavailable_summary("cleanup" if name in TASK_TOOLS else name)
+        return result
 
     def call(self, name, arguments):
         args = self.validate(name, arguments)
-        mutating = name == "restore" or (name == "safe_delete" and not args["dry_run"])
+        mutating = (name in ("restore", "cleanup_execute")
+                    or (name == "safe_delete" and not args["dry_run"])
+                    or (name == "cleanup_plan" and args.get("save", False)))
+        task_id = args["task_id"] if name in TASK_TOOLS else None
         if name == "safe_delete":
             paths = [os.path.normpath(os.path.join(self.workspace, path)) for path in args["paths"]]
             if self._quarantine_overlap(paths):
@@ -143,6 +251,8 @@ class Operations:
             command = ["safe_delete.py", "--json"]
             if args["dry_run"]:
                 command.append("--dry-run")
+            if args["quarantine"]:
+                command.append("--quarantine")
             # The CLI expands globs. Escape each absolute target so a literal
             # filename such as '[old]*.txt' cannot select adjacent files.
             command += ["--", *(glob.escape(path) for path in paths)]
@@ -152,8 +262,29 @@ class Operations:
             command = ["restore.py", "list", "--json"]
         elif name == "status":
             command = ["status.py", "--json", "--tail", str(args["tail"])]
+            if args["view"] == "overview":
+                command += ["--view", "overview", "--limit", str(args["limit"])]
         elif name == "gc_plan":
             command = ["gc.py", "--json"]
+        elif name == "cleanup_plan":
+            command = ["cleanup.py", "--json", "--root", self.workspace]
+            if "saved_plan_id" in args:
+                command += ["--from-plan", args["saved_plan_id"]]
+            else:
+                command += ["--max-entries", str(args["max_entries"]), "--max-depth", str(args["max_depth"])]
+                for field, flag in (("targets", "--target"), ("discard", "--discard"),
+                                    ("protect", "--protect"), ("select", "--select")):
+                    command += [flag + "=" + path for path in args.get(field, [])]
+                if args["discard_targets"]:
+                    command.append("--discard-targets")
+                if args["save"]:
+                    command.append("--save-plan")
+                if args["quarantine"]:
+                    command.append("--quarantine")
+        elif name in TASK_TOOLS:
+            command = ["cleanup.py", "--json", "--root", self.workspace, "--task", task_id]
+            if name == "cleanup_execute":
+                command.append("--execute")
         else:
             command = ["cleanup.py", "--json", "--discover" if name == "cleanup_discover" else "--measure",
                        "--max-entries", str(args["max_entries"]), "--max-depth", str(args["max_depth"])]
@@ -161,35 +292,66 @@ class Operations:
             # value, without changing the server's fixed workspace binding.
             command += ["--scope=" + scope for scope in args["scopes"]]
 
-        # Serialize calls in this server, without changing process cwd or
-        # environment. Other participating processes share Core admission.
-        with self._lock:
+        if name == "cleanup_plan" or name in TASK_TOOLS:
+            command += ["--" + key + "=" + str(args[key])
+                        for key in ("view", "category", "path", "state", "offset", "limit")
+                        if key in args]
+
+        # Keep existing calls serialized. Task status reads atomically
+        # replaced receipts and must not wait behind its own long execution.
+        # No call changes process cwd/environment; writers share Core admission.
+        with (nullcontext() if name == "cleanup_task_status" or
+              (name == "status" and args["view"] == "overview") else self._lock):
             try:
                 child = subprocess.run([sys.executable, "-B", str(SCRIPTS / command[0]), *command[1:]],
                                        cwd=self.workspace, env=self._env, stdin=subprocess.DEVNULL,
                                        capture_output=True, text=True, encoding="utf-8", errors="strict",
-                                       timeout=self.timeout, shell=False)
+                                       timeout=self.task_timeout if name == "cleanup_execute" else self.timeout,
+                                       shell=False)
             except subprocess.TimeoutExpired:
                 return self._failure(name, "MCP_CLI_TIMEOUT",
-                                     "CLI timed out; do not retry automatically. Inspect status and recovery transactions",
-                                     may_have_changed=mutating)
+                                     "CLI timed out; do not retry automatically. Inspect the relevant task, proposal or recovery state",
+                                     may_have_changed=mutating, task_id=task_id)
             except OSError as exc:
                 return self._failure(name, "MCP_CLI_UNAVAILABLE",
-                                     "CLI could not start (OS error " + str(exc.errno) + ")")
+                                     "CLI could not start (OS error " + str(exc.errno) + ")", task_id=task_id)
             except UnicodeError:
                 return self._failure(name, "MCP_CLI_PROTOCOL_ERROR",
                                      "CLI output is not valid UTF-8; inspect recovery state before retrying",
-                                     may_have_changed=mutating)
+                                     may_have_changed=mutating, task_id=task_id)
         try:
             result = json.loads(child.stdout)
         except (ValueError, RecursionError):
             return self._failure(name, "MCP_CLI_PROTOCOL_ERROR",
                                  "CLI did not return a JSON object; inspect recovery state before retrying",
-                                 exit_code=child.returncode, may_have_changed=mutating)
+                                 exit_code=child.returncode, may_have_changed=mutating, task_id=task_id)
         if not isinstance(result, dict):
             return self._failure(name, "MCP_CLI_PROTOCOL_ERROR",
                                  "CLI did not return a JSON object; inspect recovery state before retrying",
-                                 exit_code=child.returncode, may_have_changed=mutating)
+                                 exit_code=child.returncode, may_have_changed=mutating, task_id=task_id)
+        if name == "status" and args["view"] == "overview" and child.returncode in (0, 1):
+            if (result.get("schema") != "workspace_query/v1" or result.get("workspace") != self.workspace
+                    or result.get("trash_root") != self.trash_root or type(result.get("complete")) is not bool):
+                return self._failure(name, "MCP_CLI_PROTOCOL_ERROR", "Unexpected workspace query response",
+                                     exit_code=child.returncode)
+            return {"tool": name, "ok": True, "partial": not result["complete"],
+                    "exit_code": child.returncode, "result": result}
+        if name == "cleanup_plan" and child.returncode in (0, 1):
+            stored = args.get("save", False) or "saved_plan_id" in args
+            compact = args["view"] != "full"
+            plan = result if compact else result.get("plan") if stored else result
+            if (not isinstance(plan, dict) or plan.get("scope") != "targets"
+                    or plan.get("workspace") != self.workspace or type(plan.get("complete")) is not bool
+                    or (compact and (result.get("schema") != "cleanup_view/v1" or result.get("kind") != "plan"))
+                    or (stored and not compact and result.get("schema") != "cleanup_saved_plan/v1")):
+                return self._failure(name, "MCP_CLI_PROTOCOL_ERROR", "Unexpected cleanup plan response",
+                                     exit_code=child.returncode, may_have_changed=mutating)
+            return {"tool": name, "ok": True, "partial": not plan["complete"],
+                    "exit_code": child.returncode, "result": result,
+                    "binding": {"workspace": self.workspace, "trash_root": self.trash_root,
+                                "session_mode": ("EXPLICIT_STARTUP_SESSION" if "AGENT_GUARD_SESSION" in self._env
+                                                 else "SHARED_CLI_DEFAULT"),
+                                "notice": "Operator approval must use this same package, workspace and quarantine. Follow the returned argv to retain custom storage. For SHARED_CLI_DEFAULT unset AGENT_GUARD_SESSION; otherwise use the identical startup session from trusted configuration. Raw session identity is not returned. Saving is not approval."}}
         if name in GROUP_TOOLS and child.returncode in (0, 1):
             expected = "cleanup_group_discovery/v1" if name == "cleanup_discover" else "cleanup_group_measurement/v1"
             if result.get("schema") != expected:
@@ -200,5 +362,10 @@ class Operations:
             return {"tool": name, "ok": True, "partial": partial, "exit_code": child.returncode, "result": result}
         # Preserve all existing CLI evidence, including txids/moved paths on
         # partial failures. A nonzero exit never means 'nothing changed'.
-        return {"tool": name, "ok": child.returncode == 0,
-                "exit_code": child.returncode, "result": result}
+        response = {"tool": name, "ok": child.returncode == 0,
+                    "exit_code": child.returncode, "result": result}
+        if task_id is not None:
+            response["task_id"] = task_id
+            if name == "cleanup_execute" and result.get("status") != "COMPLETED":
+                response["query"] = {"name": "cleanup_task_status", "arguments": {"task_id": task_id}}
+        return response

@@ -247,11 +247,17 @@ class AuditMetadataCliTests(RepoFixture):
                             actor=MARKER, session=MARKER)
         state_path = Path(policy.state_path(str(self.trash), session=MARKER))
         original = state_path.read_bytes()
-        for args in ((), ('--json',)):
+        # The legacy full display retains the projected actor. Default text
+        # now uses the bounded overview, which does not display actor identity.
+        for args in (('--view', 'full'), ('--json',)):
             proc = self.cli('status.py', *args)
             self.assertEqual(proc.returncode, 0, proc.stderr)
             self.assertNotIn(MARKER, proc.stdout + proc.stderr)
             self.assertIn(audit.correlation_id(MARKER), proc.stdout)
+        overview = self.cli('status.py')
+        self.assertEqual(overview.returncode, 0, overview.stderr)
+        self.assertIn('RESTRICTED', overview.stdout)
+        self.assertNotIn(MARKER, overview.stdout + overview.stderr)
         data = json.loads(self.cli('status.py', '--json').stdout)
         self.assertEqual(data['mode'], 'RESTRICTED')
         self.assertEqual(data['mode_set_by'], audit.correlation_id(MARKER))

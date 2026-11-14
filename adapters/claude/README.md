@@ -1,10 +1,14 @@
 # agent-guard adapter for Claude Code
 
-We currently focus on DSH and Kimi Code. This Claude Code adapter and its past
-test results remain available as a reference; testing new Claude versions is
-paused. For local setup, follow the [integration requirements](../INTEGRATION.md)
-and independently test the installed version. The results below cover only
-the recorded versions.
+Claude Code is one of the 0.3.0 maintenance targets alongside Codex, DSH and
+Kimi Code. The 2.1.311 trial connected to MCP and discovered ten tools, but
+model authentication prevented business calls; model acceptance is deferred
+and newer-hook behavior remains unverified. This adapter's past results
+remain a reference for the recorded versions, separate from the
+[current MCP acceptance](../../docs/reports/test-report-maintenance-0.3.0.md#host-acceptance).
+For local setup, use the
+[shared prompt](../../docs/guides/agent-setup-prompt.md) and
+[integration requirements](../INTEGRATION.md), then verify the selected version.
 
 Wraps Claude Code's `PreToolUse` hook so matching Bash calls that reach the
 hook pass through the shared core (`skills/delete-guard/scripts/check.py`)
@@ -17,14 +21,16 @@ Decision Protocol onto Claude Code's native hook semantics.
 | Core decision | Claude Code behavior |
 |---|---|
 | `ALLOW` (no compensation) | exit 0, silent |
-| `ALLOW` (compensation applied) | `permissionDecision: "allow"` + reason naming what was quarantined and the txid |
+| `ALLOW` (compensation applied) | `permissionDecision: "allow"` + reason naming what was quarantined and the txid; UI/model delivery requires version-specific verification |
 | `ASK` (`COMPOUND_CWD_DELETE`, `COMPOUND_CREATE_DELETE`) | `permissionDecision: "ask"` - ASK_ONCE, reason shown to the human; splitting the command avoids future prompts |
-| `BLOCK` | exit 2 - stderr is fed back to **Claude**, so the model sees the code, the explanation, and the remediation |
+| `BLOCK` | exit 2 with stderr code, explanation and remediation; delivery is established only for the recorded host tests |
 | malformed hook payload / guard failure after adapter starts | exit 2 (fail-closed for that call) |
 | Python launch/runtime failure while bridge runs | bridge converts non-0/2 exits to exit 2 |
 
-Note the deliberate asymmetry: allow/ask reasons are user-facing, while
-BLOCK uses the stderr channel so the *model* learns the remediation.
+The adapter emits allow/ask decision reasons and a BLOCK stderr explanation.
+Their presence in its response does not establish user or model visibility
+in a later host version. Verify feedback delivery separately from enforcement;
+this README does not certify newer reason-display or hook-failure semantics.
 
 In a headless run (`claude -p`) with no interactive approver, an ASK that
 nobody approves is a **denial** and the command does not run. That is the

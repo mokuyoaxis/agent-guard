@@ -7,6 +7,22 @@ or the recovery format.
 The final Kimi section describes the additions in
 [0.2.6](../releases/release-notes-0.2.6.md).
 
+The 0.3.0 development checkout adds a shared
+[receipt-derived execution summary](maintenance-output.md#fixed-execution-summaries)
+for safe_delete, Cleanup, restore and GC. Full JSON retains the old fields
+and adds `execution_summary`; text restore/GC prints that summary before
+retaining the original detailed rows. Explicit `--view summary` omits rows;
+capture full output in the original call rather than rerunning to fetch it.
+Missing receipts stay unknown,
+GC inventory is labeled best effort, and no summary claims measured physical
+space release. These changes are absent from published 0.2.9. Their runtime
+and output checks passed in the
+[frozen-candidate acceptance](../reports/test-report-maintenance-0.3.0.md#regression-and-package-checkpoints).
+It also adds [read-only workspace queries](read-only-query.md): plain text
+status groups budgets, tasks and transactions in a terminal overview, while
+default `--json` preserves the legacy full result. Missing measurements and
+partial metadata remain explicit; no frontend or operation panel is included.
+
 ## What the status establishes
 
 The DSH adapter runs `python3 check.py --help` before registering its tools
@@ -49,6 +65,15 @@ Once a command reaches the checker, process failure, timeout and unusable
 output remain denials. Static `CHECKER_*` diagnostics distinguish these
 failures from a Core policy refusal without copying private command text or
 raw process errors into adapter logs.
+
+In the 0.3.0 development checkout, a known executor error with code
+`SANDBOX_UNAVAILABLE` gets an explicit sandbox-backend explanation while
+retaining `CHECKER_EXECUTION_FAILED` / `STATUS_EXECUTION_FAILED`. It is an
+execution-environment failure, not a Core deletion-policy verdict. Inspect
+the configured backend with the operator; the adapter preserves the caller's
+policy and does not retry through an unconfined executor. The hint is fixed
+text rather than a copy of the raw exception message. Other executor errors
+keep their generic failure feedback.
 
 ## What ALLOW_NOOP means
 

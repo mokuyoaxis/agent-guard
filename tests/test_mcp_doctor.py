@@ -121,7 +121,8 @@ class McpDoctorBoundaryTests(unittest.TestCase):
             version = VERSION
             workspace = sys.argv[-1]
             requests = pathlib.Path(REQUESTS)
-            names = ["safe_delete", "restore", "transactions", "status", "gc_plan", "cleanup_discover", "cleanup_measure"]
+            names = ["safe_delete", "restore", "transactions", "status", "gc_plan", "cleanup_discover", "cleanup_measure",
+                     "cleanup_plan", "cleanup_execute", "cleanup_task_status"]
             for line in sys.stdin:
                 request = json.loads(line)
                 with requests.open("a") as stream:
@@ -151,7 +152,7 @@ class McpDoctorBoundaryTests(unittest.TestCase):
                         result["protocolVersion"] = "PRIVATE-MARKER-protocol"
                 elif method == "tools/list":
                     result = {"tools": [{"name": name, "annotations": {
-                        "readOnlyHint": name in ("status", "transactions", "gc_plan", "cleanup_discover", "cleanup_measure")}}
+                        "readOnlyHint": name in ("status", "transactions", "gc_plan", "cleanup_discover", "cleanup_measure", "cleanup_task_status")}}
                         for name in names]}
                     if mode == "tools":
                         result["tools"][0]["name"] = "PRIVATE-MARKER-tool"

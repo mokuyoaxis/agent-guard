@@ -2,7 +2,121 @@
 
 <a id="current-unreleased-scope"></a>
 
-## Current scope: 0.2.9
+## Current scope: 0.3.0 development
+
+The maintenance workflow connects review to execution: save an explicit
+selection, approve it once in the operator's terminal, then let the agent
+execute and query the returned task ID. This avoids re-entering the same batch
+or writing Core calls by hand. Execution still goes through safe_delete;
+approval does not lift protection, budget, capacity or rate limits.
+
+These are unreleased checkout changes, absent from published 0.2.9. Package
+metadata remains 0.2.9 until version alignment. The
+[maintenance acceptance table](../reports/test-report-maintenance-0.3.0.md)
+records passed checks, retained failures and remaining work.
+
+| Area | Change | Guide |
+|---|---|---|
+| Skill setup | Real-path Core/Cleanup startup and preview-first link installer; updates retain the old Skill | [Installation and upgrade](../guides/skill-installation.md) |
+| Preview | Current admission, required approval and supported next steps alongside the existing verdict | [Dry-run semantics](../guides/deletion-limits.md#dry-run-admission-preview-030-development) |
+| Explicit targets | Save a literal batch and proposed selection; read by ID without rescanning | [Saved proposals](../guides/cleanup-plan.md#saved-explicit-target-plans-030-development) |
+| Approved tasks | Separate operator approval from agent execution; one rate event, per-group debit, durable partial/unknown state | [Task workflow](../guides/cleanup-plan.md#operator-approved-tasks-030-development) |
+| MCP | Add plan, execute and task-status tools, bringing the set to ten; keep approval outside MCP | [Tools and binding](../guides/mcp.md#reviewed-maintenance-tasks-030-development) |
+| Results and queries | Shared overview, paginated details, execution summaries and bounded read-only CLI/JSON/MCP status | [Output](../guides/maintenance-output.md) · [Query](../guides/read-only-query.md) |
+| Storage | Trusted fixed `--trash-root`, matching doctor and handoff instructions; linked-bucket capacity counts physical contents | [External quarantine](../guides/mcp.md#select-a-fixed-quarantine-directory-030-development) |
+| Recovery choice | Require quarantine for regenerable artifacts; retain the choice in saved plans and approved effects | [Explicit quarantine](../guides/cleanup-plan.md#require-quarantine-030-development) |
+| Feedback | Distinguish Git tracking from missing discard evidence; explain initial discard declarations and known DSH sandbox-backend failures | [Feedback checks](../reports/test-report-maintenance-0.3.0.md#feedback-refinement-2026-11-13) |
+
+Local acceptance includes a real operator-approved 71-root task: all targets
+quarantined, two keeper objects preserved, one safe_delete dispatch and one
+rate event. Codex, Kimi and DSH completed ordinary model-backed MCP maintenance
+and queried/replayed an already completed task. DSH and Kimi have since first
+executed separate new operator-approved 71-root batches; their recovery copies
+were independently verified and restored through MCP. DSH also passed full
+headless startup on its repaired original session root. Codex later executed
+a fresh-approved real cache task with independent root and single-file
+recovery; its separate 71-root attempt remains unverified after the earlier
+host usage-limit block. Claude connected and discovered tools, but model
+acceptance is deferred. A later native-handoff trial observed a current-source
+Kimi root-Bash block, saved plan, real terminal
+approval, original-session execution and independent MCP recovery. An extra
+plan save remains recorded. DSH's sandboxed native profile was environment-blocked
+on PRoot; a separate zero-model local control passed. Broader native coverage
+and historical hook evidence retain their exact limits.
+
+Runtime, installation/update, output/query and package checks have recorded
+results. Storage received separate focused regression and real MCP recovery
+checks. The capacity correction passed 59 related tests. The earlier
+2026-11-11 candidate passed actual npm test: 1237 Python cases and both Node
+groups. Its 171-file archive passed isolated installation, 13 bin help checks,
+linked Skill/Cleanup, doctor and installed-service MCP recovery. These checkpoints
+retain their separate source and documentation scopes; see the
+[regression history](../reports/test-report-maintenance-0.3.0.md#regression-and-package-checkpoints).
+
+Keep the complete selected package, workspace, quarantine and session binding
+across approval and execution. Existing global Skills and host configuration
+are not automatically updated. Selecting a different quarantine performs no
+migration or budget/history merge, and existing tasks keep their original
+binding. An application-managed session tree may need a dedicated external
+bucket and separately authorized handling of any old conflicting bucket.
+Older installed copies do not acquire the linked-capacity correction by
+moving a directory.
+
+The 2026-11-13 feedback patch passed 132 related Python cases and both Node
+groups. One Kimi model trial saved all three confirmed-obsolete targets on
+its first MCP call. DSH delivered the explicit backend cause through both
+checker and status results, while its model's closing recommendation still
+misstated the status hint; that contradiction is retained. This does not
+establish general model reliability. Changed uncertain-reason text can change
+a reviewed plan fingerprint: older snapshots stay readable, but affected
+proposals require a new review/save and any required new operator approval.
+
+No frontend/TUI panel, automatic GC, dependency or recovery-format migration
+is introduced. The earlier full runtime and archive/install checkpoints
+precede this feedback patch; its targeted checks are recorded separately.
+The quarantine-option runtime checkpoint below adds a full-suite result;
+a fresh final archive/install checkpoint remains pending. Codex's fresh
+71-root first execution after its recorded quota-blocked attempt, deferred Claude model work,
+broader native-hook acceptance, version alignment, remote CI and publication remain separate unfinished
+items. The setup contract and
+four-host target are in the [shared prompt](../guides/agent-setup-prompt.md)
+and [compatibility notes](../design/compatibility.md).
+
+### Explicit quarantine for regenerable artifacts
+
+The 0.3.0 development CLI adds `safe_delete --quarantine` and the same option
+when creating Cleanup plans. MCP `safe_delete` and new `cleanup_plan` calls
+accept `quarantine: true`; the set remains ten tools. Regenerable artifacts
+keep their category while their action becomes quarantine. The choice is
+retained in saved proposals and approved effects; execution inherits it by
+task ID. Dry-run next-step commands preserve the choice.
+
+Default behavior and old proposals without the option remain unchanged.
+Protection, RESTRICTED mode, budgets, capacity, rate and batch approval still
+apply. Failed quarantine never falls back to direct deletion or automatic GC.
+Application cache locking and transaction-level restore retain their existing
+limits. The option is absent from published 0.2.9; see
+[workflow and binding](../guides/cleanup-plan.md#require-quarantine-030-development).
+On 2026-11-14 the second exact npm test run passed all 1562 Python cases
+(1255 public candidate / 307 retained private research) and both Node groups.
+The first run's one existing observer-readiness timeout remains recorded;
+an isolated diagnostic and the second full run used unchanged source,
+assertions and deadlines, without establishing the original timeout's cause.
+A real Codex session saved a one-root quarantine proposal through three MCP
+calls. An initial approved attempt was refused by the host before Core
+dispatch. After testing a process-only permission for cleanup_execute, a new
+operator-approved task completed through four Codex MCP calls in 53.697
+seconds. The controller verified and restored the five-file cache, then
+verified recovery of a separate one-file transaction. Source files and old
+transactions were preserved; budget charges remained after restore. This
+does not certify the separate 71-root model task or native-shell sandbox.
+See the [scoped verification history](../reports/test-report-maintenance-0.3.0.md#explicit-quarantine-option-2026-11-13-development).
+
+## 0.2.9 maintenance history
+
+The 0.2.x sections below retain their original checkpoints. References there
+to a paused 0.3.0 plan concern the earlier disclosure-authorization research;
+the active maintenance scope and its current evidence are recorded above.
 
 The maintainer selected **0.2.9** for the changes below. Confirm exact-version
 availability through the [release notes](release-notes-0.2.9.md) before installation.
@@ -19,7 +133,8 @@ The separate disclosure-authorization roadmap and commercial work stay paused.
 The default executable-plan workflow, original five MCP operations, deletion
 policy, budgets and recovery formats retain their contracts. Overview and
 measurement never grant execution permission. Use doctor and server from the
-same installation; published 0.2.8 has five tools, this checkout has seven.
+same installation; published 0.2.8 has five tools and 0.2.9 has seven.
+The development task additions above bring this checkout to ten.
 See the [latest local validation](#current-validation-checkpoint) before
 interpreting historical counts or host evidence.
 
@@ -43,7 +158,7 @@ existing default plan and confirmed safe_delete workflow remain separate.
 
 The MCP adapter returns valid partial observations with `ok: true` and
 `partial: true`, preserving the CLI exit code and completeness details. The
-original five tools retain their contracts. The source doctor expects seven
+original five tools retain their contracts. The 0.2.9 doctor expects seven
 tools but still invokes only the original three read-only state queries.
 Use doctor and server from the same installation.
 
@@ -86,7 +201,9 @@ it is not a whole-workspace safety scan. See the
 [current validation](#current-validation-checkpoint); earlier failed
 checkpoints remain recorded below.
 
-## Current validation checkpoint
+<a id="current-validation-checkpoint"></a>
+
+## 0.2.9 validation checkpoint (historical)
 
 Before the CI corrections below, the versioned 0.2.9 public candidate passed the literal `npm test`: 1197
 Python cases and both Node groups, with no failures, errors or skips.

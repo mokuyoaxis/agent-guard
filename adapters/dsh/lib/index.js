@@ -41,6 +41,8 @@ export const inject = ["tools", "shell", "systemPrompt"];
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // lib -> adapters/dsh -> repository root (where core/ and skills/ live).
 const PACKAGE_ROOT = path.resolve(__dirname, "..", "..", "..");
+const SANDBOX_UNAVAILABLE_NOTICE =
+  "The caller's sandbox backend is unavailable (SANDBOX_UNAVAILABLE). Check the host's sandbox backend; this is an execution-environment failure.";
 // Keep the configuration boundary aligned with core/dialects.py. Tool- or
 // environment-supplied names still go to Core for a BLOCK_DIALECT_* verdict.
 const CONFIG_DIALECTS = new Set([
@@ -384,9 +386,11 @@ function contribute(ctx, config, rt) {
             90000,
             exec
           );
-        } catch (_err) {
+        } catch (error) {
           return checkerFailure("CHECKER_EXECUTION_FAILED",
-            "The checker could not start or finish. Check Python and the caller's shell environment; inspect recovery state before retrying.");
+            error?.code === "SANDBOX_UNAVAILABLE"
+              ? SANDBOX_UNAVAILABLE_NOTICE + " The checker could not run; no Core policy verdict is available. Inspect recovery state before retrying."
+              : "The checker could not start or finish. Check Python and the caller's shell environment; inspect recovery state before retrying.");
         }
         if (result.timedOut) {
           return checkerFailure("CHECKER_TIMEOUT",
@@ -508,7 +512,9 @@ function contribute(ctx, config, rt) {
           } catch (error) {
             if (name !== "agent_guard_status") throw error;
             return statusFailure("STATUS_EXECUTION_FAILED",
-              "Status could not run in the caller's shell environment. Check Python and the package; adapter diagnostics below remain available.");
+              error?.code === "SANDBOX_UNAVAILABLE"
+                ? SANDBOX_UNAVAILABLE_NOTICE + " Status could not run; adapter diagnostics below remain available."
+                : "Status could not run in the caller's shell environment. Check Python and the package; adapter diagnostics below remain available.");
           }
           const parsed = rt.parseJson(rt.outText(result.stdout));
           if (name === "agent_guard_status") {

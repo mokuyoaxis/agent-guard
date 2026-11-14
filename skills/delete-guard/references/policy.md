@@ -46,6 +46,14 @@ See [status and cleanup feedback](../../../docs/guides/recovery-feedback.md).
 
 ### Assessment and dry-run side effects
 
+The 0.3.0 development checkout adds an independent `admission` snapshot to
+`safe_delete --dry-run`. It reuses execution checks without a lock, debit,
+approval consumption or reservation. Policy verdicts and dry-run exit codes
+retain the table's meaning: an admission refusal can accompany preview exit 0,
+while a policy BLOCK remains exit 2. Existing advisory auditing below still
+applies. `check.py` advisory output is unchanged. See
+[preview fields](../../../docs/guides/deletion-limits.md#dry-run-admission-preview-030-development).
+
 Advisory `check.py` and `safe_delete.py --dry-run` keep command targets
 unchanged. They do not execute the assessed shell text, relocate targets,
 create Git stashes or create recovery transactions. They may still write

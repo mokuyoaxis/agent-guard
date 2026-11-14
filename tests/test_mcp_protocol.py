@@ -18,10 +18,15 @@ SDK_AVAILABLE = bool(os.environ.get("AGENT_GUARD_MCP_PYTHON") or importlib.util.
 
 
 class Connection:
-    def __init__(self, workspace):
+    def __init__(self, workspace, *, trash_root=None, session=None):
         self.stderr = tempfile.TemporaryFile()
         env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
-        self.child = subprocess.Popen([MCP_PYTHON, "-B", str(SERVER), "--workspace", str(workspace)],
+        command = [MCP_PYTHON, "-B", str(SERVER), "--workspace", str(workspace)]
+        if trash_root is not None:
+            command += ["--trash-root", str(trash_root)]
+        if session is not None:
+            command += ["--session", session]
+        self.child = subprocess.Popen(command,
                                       stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                       stderr=self.stderr, env=env, text=True, encoding="utf-8")
         self.received = queue.Queue()
@@ -130,12 +135,13 @@ class McpProtocolTests(unittest.TestCase):
                          json.loads((ROOT / "package.json").read_text())["version"])
         tools = connection.request("tools/list", {})["result"]["tools"]
         self.assertEqual({row["name"] for row in tools},
-                         {"safe_delete", "restore", "transactions", "status", "gc_plan", "cleanup_discover", "cleanup_measure"})
+                         {"safe_delete", "restore", "transactions", "status", "gc_plan", "cleanup_discover", "cleanup_measure",
+                          "cleanup_plan", "cleanup_execute", "cleanup_task_status"})
         for tool in tools:
             self.assertFalse(tool["inputSchema"]["additionalProperties"])
             self.assertFalse(tool["annotations"]["openWorldHint"])
             self.assertEqual(tool["annotations"]["readOnlyHint"],
-                             tool["name"] in ("status", "transactions", "gc_plan", "cleanup_discover", "cleanup_measure"))
+                             tool["name"] in ("status", "transactions", "gc_plan", "cleanup_discover", "cleanup_measure", "cleanup_task_status"))
         self.assertTrue(next(row for row in tools if row["name"] == "safe_delete")["annotations"]["destructiveHint"])
 
     def test_read_only_tools_do_not_initialize_workspace_state(self):
@@ -232,6 +238,31 @@ class McpProtocolTests(unittest.TestCase):
                 self.assertTrue("error" in reply or reply["result"].get("isError"), reply)
                 self.assertEqual(path.read_text(), "preserve")
         self.assertFalse((self.workspace / ".agent-trash").exists())
+
+    def test_quarantine_option_is_exposed_and_roundtrips_over_real_stdio(self):
+        target = self.workspace / 'node_modules/cache'
+        target.parent.mkdir()
+        target.write_text('regenerable fixture, keep recovery')
+        connection = self.start()
+        definitions = {tool['name']: tool for tool in connection.request('tools/list', {})['result']['tools']}
+        for name in ('safe_delete', 'cleanup_plan'):
+            self.assertEqual(definitions[name]['inputSchema']['properties']['quarantine']['type'], 'boolean')
+        self.assertNotIn('quarantine', definitions['cleanup_execute']['inputSchema']['properties'])
+        preview = self.content(connection.call('safe_delete', paths=['node_modules'], dry_run=True, quarantine=True))
+        self.assertTrue(preview['ok'], preview)
+        self.assertEqual(preview['result']['verdict']['decision'], 'RELOCATE')
+        deleted = self.content(connection.call('safe_delete', paths=['node_modules'], quarantine=True))
+        self.assertTrue(deleted['ok'], deleted)
+        self.assertFalse(target.exists())
+        connection.close()
+        fresh = self.start()
+        restored = self.content(fresh.call('restore', txid=deleted['result']['txid']))
+        self.assertTrue(restored['ok'], restored)
+        self.assertEqual(target.read_text(), 'regenerable fixture, keep recovery')
+        saved = self.content(fresh.call('cleanup_plan', targets=['node_modules'], quarantine=True, save=True, view='full'))
+        self.assertTrue(saved['ok'], saved)
+        self.assertTrue(saved['result']['plan']['options']['quarantine'])
+        self.assertEqual(saved['result']['plan']['entries'][0]['effect'], 'quarantine')
 
     def test_quarantine_payload_cannot_be_deleted_through_safe_delete(self):
         path = self.workspace / "valuable.txt"

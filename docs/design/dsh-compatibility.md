@@ -1,5 +1,13 @@
 # DSH compatibility
 
+The current development [MCP maintenance report](../reports/test-report-maintenance-0.3.0.md)
+is separate from this native-plugin version contract. It records a DSH
+0.2.0-rc.2 model task with isolated persistence, then original-root headless
+startup and fresh-approved MCP execution after its bucket was moved outside
+the tree. These explicit-tool tasks do not recertify the native plugin. Use
+[fixed external MCP storage](../guides/mcp.md#select-a-fixed-quarantine-directory-030-development)
+for application-managed trees; selecting it does not migrate an existing bucket.
+
 The default deletion adapter in Agent Guard 0.2.6 admits three
 exact DSH versions:
 

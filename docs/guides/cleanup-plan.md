@@ -14,6 +14,225 @@ layout or Git exclude rules. It also suppresses project bytecode creation.
 Planning does not call `safe_delete --dry-run`, whose metadata side effects
 remain documented in the [policy reference](../../skills/delete-guard/references/policy.md#assessment-and-dry-run-side-effects).
 
+The 0.3.0 development checkout adds [overviews, detail pages and execution summaries](maintenance-output.md).
+Text planning defaults to an overview; `--json` retains full output unless
+`--view summary|details` is explicitly selected. Saved reads accept display
+filters without changing the selected targets. Confirmation still prints
+the entire selection. These additions are absent from published 0.2.9;
+runtime checks and bounded host observations are recorded in the
+[maintenance acceptance](../reports/test-report-maintenance-0.3.0.md).
+
+## Require quarantine (0.3.0 development)
+
+For authorized cleanup that must remain recoverable, add `--quarantine`
+while creating the plan. Proven regenerable artifacts keep their category,
+but their proposed action becomes `quarantine` instead of permanent `delete`:
+
+```sh
+python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/cleanup.py \
+  --root /absolute/path/to/project --target .pytest_cache --quarantine --save-plan --json
+```
+
+The direct CLI also supports `safe_delete.py --quarantine PATH`, including
+`--dry-run`. MCP accepts `quarantine: true` on `safe_delete` or a new
+`cleanup_plan`; published 0.2.9 lacks these options. Omission/false keeps the
+existing policy. The flag requests stricter recovery handling, not discard
+evidence or execution permission. Unknown content still needs review;
+protection, RESTRICTED mode and all admission limits still apply.
+
+An explicit true choice is stored in the plan options and bound into its ID,
+selection and approved effects. Saved reads and approval inherit it; the agent
+executes only the returned task ID, without another mode argument. Do not
+append `--quarantine` to `--from-plan`/`--task`, or supply it with MCP saved-ID
+reads or execution. Create a new proposal to change a choice. This addition
+preserves fingerprints and policy for proposals without the option; no stored
+record is migrated or silently converted. Earlier reason-text changes retain
+their separately documented compatibility limits below.
+
+Dry-run next-step commands retain the flag. If quarantine cannot accept the
+request, execution stops without falling back to direct deletion or automatic
+GC. Recovery copies still occupy disk space. Application-managed caches need
+their own consistency review; this option adds no native cache locking.
+Restore remains transaction-level, including when the transaction contains a
+whole cache directory. Keep an independently authorized single-file recovery
+test in its own transaction when that is the required scope.
+
+## Saved explicit-target plans (0.3.0 development)
+
+This checkout adds literal-target planning and saved proposals. Published
+0.2.9 does not include these flags. Save/read/refresh, source-change refusal
+and execution have local runtime evidence; host-specific gaps remain in the
+[acceptance table](../reports/test-report-maintenance-0.3.0.md).
+
+For a short list, repeat `--target PATH`. For a large batch, provide a JSON
+array such as `["sessions/old-1.jsonl", "sessions/old-directory"]`:
+
+```sh
+# Scan only the listed roots; do not save or delete anything.
+python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/cleanup.py \
+  --root /absolute/path/to/project --targets-file /absolute/path/to/targets.json --json
+
+# If this entire batch is confirmed discarded, declare that once and save.
+python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/cleanup.py \
+  --root /absolute/path/to/project --targets-file /absolute/path/to/targets.json \
+  --discard-targets --save-plan --json
+
+# View the stored proposal without rescanning.
+python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/cleanup.py \
+  --root /absolute/path/to/project --from-plan '<saved-plan-id>' --json
+
+# After review, the operator types APPROVE in a terminal; sources stay put.
+python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/cleanup.py \
+  --root /absolute/path/to/project --from-plan '<saved-plan-id>' --approve --json
+
+# The agent uses the returned task ID, without another terminal prompt.
+python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/cleanup.py \
+  --root /absolute/path/to/project --task '<task-id>' --execute --json
+
+# Read the last durable status; this does not rescan or retry.
+python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/cleanup.py \
+  --root /absolute/path/to/project --task '<task-id>' --json
+```
+
+`--target` and `--targets-file` are alternatives. Paths are literal names,
+relative to the fixed workspace or absolute inside it; no glob expansion
+occurs. Exact duplicates normalize to one root, overlapping roots are refused,
+and directory-link parents are refused. The original workspace boundary is
+retained. Only the listed roots and their subtrees are scanned; tracked Git
+facts are also requested for those literal roots. No unrelated workspace
+directory metadata is included in this plan's fingerprint.
+
+Literal observation does not make every filename executable: the existing
+safe_delete path API still refuses some glob-metacharacter names, including
+`[`. Preserve the refusal and report it rather than switching deletion routes.
+
+A target list does not declare content discarded. Without discard or proven
+regenerability, ordinary content remains uncertain. `--discard-targets` is an
+explicit caller declaration for all supplied roots, not an inference or an
+approval; use individual `--discard PATH` declarations for a mixed batch.
+Protection always wins. The four categories and scan limits remain in force.
+
+If the task already confirms every listed target discarded, include
+`--discard-targets` in the initial saved proposal (MCP: `discard_targets=true`).
+For a mixed batch, declare only the confirmed obsolete paths. An uncertain
+row now distinguishes a Git-tracked path/descendant, no tracked content found,
+and unavailable Git evidence, then explains the missing cleanup evidence.
+Being untracked does not establish obsolescence; a Git warning does not prove
+the absence of tracked content.
+
+`--save-plan` writes a proposal and selection under
+`.agent-guard/cleanup-plans/<saved-plan-id>.json`. Plan files are created with
+owner-only permissions, an existing record is verified and reused without
+replacement, and a new store creates its own `.gitignore` when absent.
+Existing ignore rules and explicitly tracked files retain Git's normal
+semantics. The store belongs to the already-protected configuration subtree;
+it adds no quarantine, debit or approval. Inputs and saved JSON have a 16 MiB
+read/write bound. The store may not use directory links.
+
+The 0.3.0 development reason-text refinement can change a plan fingerprint:
+reasons are part of the reviewed plan. Older snapshots remain readable, but
+an affected proposal stops at the existing refresh check. Review and save a
+new proposal, then obtain a new operator approval when required. Do not edit
+stored JSON or reuse an earlier approval to suppress that check. This adds no
+storage-format migration and does not rewrite completed recovery records.
+
+By default the proposed selection contains only selectable **requested roots**
+from a complete plan. The tool does not silently substitute descendants when
+a requested parent cannot be selected. To propose a specific subset, supply
+`--select PATH` while saving. Incomplete scans or no eligible roots can be
+saved with an empty selection for review, but no execution command is offered.
+The selection and snapshot are bound by the saved ID; it is a consistency
+digest, not a signature or human approval.
+
+`--from-plan` accepts that saved ID in the currently selected workspace. Its
+view returns stored data with `refreshed: false`; exit 0 means the record was
+read, not that it is current or complete. Generation still exits 1 for an
+incomplete scan, 2 for refusal. To change targets, options or selection,
+create a new proposal; do not combine `--from-plan` with override flags.
+
+Approval reloads the stored request and rescans **only its targets** before
+confirmation and once again afterward; task execution checks it again.
+Source metadata, classification, Git
+facts, configuration, mode, quarantine or session changes invalidate the
+reviewed plan. Keep the same workspace/quarantine/session settings. The
+input targets JSON is not reread to change a saved request.
+
+Saving or editing a file does not authorize deletion. All actual operations
+still go through safe_delete and existing limits. The convenience command
+`--from-plan ID --execute` retains the operator's `EXECUTE` prompt, then
+creates and executes the same kind of task. The original full-workspace
+`--execute --plan-id ID --select PATH` workflow retains its per-row behavior.
+
+## Operator-approved tasks (0.3.0 development)
+
+`--from-plan ID --approve` requires both stdin and stderr to be terminals.
+The operator reviews the selection and types `APPROVE`. The command creates
+approval/control metadata and returns a `task_id`; it does not move or delete
+source files or debit session counters. An agent must never allocate a PTY,
+answer confirmation, or call internal approval functions for the operator.
+Terminal confirmation is a cooperative workflow, not human authentication.
+
+The approval lasts **600 seconds** and binds the saved selection, workspace,
+quarantine, session, configuration, source metadata and planned effects.
+Keep `AGENT_GUARD_SESSION` and `AGENT_GUARD_TRASH` settings consistent between
+operator and agent. The private grant token is not returned in status or
+commands. Task files live under `.agent-guard/cleanup-tasks/<task-id>.json`
+with owner-only creation permissions and a local ignore file. They include
+paths and receipts; treat them as private operational data. There is no new
+configuration/recovery migration or automatic history cleanup.
+
+For an MCP service using the development `--trash-root` option, the returned
+approval/query/execution argv retains that location through POSIX `env`
+arguments. Run the complete instruction and keep the trusted session setting;
+using another bucket rejects the saved plan/task instead of rebinding it.
+Dry-run and GC guidance also retain custom storage. GC execution remains an
+explicit operator action. See [MCP storage selection](mcp.md#select-a-fixed-quarantine-directory-030-development).
+
+`--task ID --execute` atomically claims an approved task once. It checks the
+whole request's current budget, then groups targets by planned effect:
+quarantine first, regenerable direct deletion second, at most two safe_delete
+calls. A task consumes one rate/repeat event on its first actual admission;
+bytes and entries are debited for each admitted group. Failure and restore
+do not refund them. Approval cannot lift protection, budgets or capacity,
+change quarantine into direct deletion, or authorize quarantine housekeeping.
+Preflight is an observation, not a reservation; later checks can still stop
+a partially completed task.
+
+| Task status | Meaning |
+|---|---|
+| `APPROVED` | No attempt claimed yet; `can_execute` also checks expiry, configuration and grant availability |
+| `RUNNING` | Durable attempt intent exists; it does not prove a process is still alive |
+| `COMPLETED` | Execution receipts confirm every selected root |
+| `PARTIAL` | Some roots are confirmed, then execution stopped |
+| `STOPPED` | No root is confirmed by receipts; consult group errors before assuming sources are unchanged |
+| `UNKNOWN` | A timeout or unusable response prevents establishing the full outcome |
+
+Status is read-only: no inventory, lock creation, debit or retry. A successful
+query exits 0 even for an incomplete task; read `status`, `counts`, group
+receipts and `may_have_changed`. Counts describe selected roots, not recursive
+entries or freed bytes. A no-op is not counted as a confirmed deletion.
+Each group lists its unconfirmed roots. `counts.not_dispatched` covers only
+groups never sent to safe_delete; unconfirmed roots within a dispatched
+group need receipt/transaction inspection and are not declared untouched.
+`can_execute` does not verify source freshness, budgets, rate or capacity.
+Querying an expired task does
+not change its stored status.
+
+Execution intent is persisted before each child call and receipts afterward.
+Relocation manifests carry `cleanup_task` for correlation if a response is
+lost. A repeated execute on a claimed task only returns its recorded status;
+it never resumes, even after a crash. Inspect transactions and source state
+first, then propose remaining targets for new review and approval. A task-state
+write failure reports the task ID and uncertainty; do not blindly rerun it.
+
+These CLI additions are absent from published 0.2.9. Local acceptance includes
+one real operator-approved 71-root task; mixed effects and failure cases also
+have unit regression evidence. DSH and Kimi also first executed their own
+newly approved batches; Codex's new attempt hit a host usage limit and Claude
+model acceptance is deferred. The [MCP task tools](mcp.md#reviewed-maintenance-tasks-030-development)
+reuse this workflow; no agent-issued approval,
+atomic filesystem snapshot or independent same-UID security boundary is added.
+
 <a id="directory-overview-and-measurement-unreleased"></a>
 
 ## Directory overview and measurement (0.2.9)

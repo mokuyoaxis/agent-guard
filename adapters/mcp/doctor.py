@@ -22,14 +22,17 @@ ROOT = Path(__file__).resolve().parents[2]
 SERVER = ROOT / "adapters/mcp/server.py"
 SDK_VERSION = "2.3.0"
 PROTOCOL_VERSION = "2025-06-18"
-TOOLS = frozenset(("safe_delete", "restore", "transactions", "status", "gc_plan", "cleanup_discover", "cleanup_measure"))
+TOOLS = frozenset(("safe_delete", "restore", "transactions", "status", "gc_plan", "cleanup_discover", "cleanup_measure",
+                   "cleanup_plan", "cleanup_execute", "cleanup_task_status"))
 READ_ONLY = ("status", "transactions", "gc_plan")
-READ_ONLY_TOOLS = frozenset(READ_ONLY) | {"cleanup_discover", "cleanup_measure"}
+READ_ONLY_TOOLS = frozenset(READ_ONLY) | {"cleanup_discover", "cleanup_measure", "cleanup_task_status"}
 MAX_MESSAGE_BYTES = 2 * 1024 * 1024
 
 PROBLEMS = {
     "MCP_DOCTOR_WORKSPACE": ("Select an existing non-root workspace directory.",
                              "Check the requested workspace path before reconnecting."),
+    "MCP_DOCTOR_TRASH_ROOT": ("The selected quarantine directory is invalid.",
+                              "Use an absolute directory path that does not contain the workspace."),
     "MCP_DOCTOR_SERVER": ("The selected server script is unavailable.",
                           "Select the reviewed agent-guard adapters/mcp/server.py file."),
     "MCP_DOCTOR_PYTHON": ("The selected Python executable could not start.",
@@ -106,13 +109,17 @@ def _check_sdk(python, deadline, env, diagnostics):
 
 
 class _Connection:
-    def __init__(self, python, server, workspace, env, deadline, diagnostics):
+    def __init__(self, python, server, workspace, env, deadline, diagnostics, *, trash_root=None):
         self.deadline = deadline
         self.counter = 0
         self.messages = queue.Queue(maxsize=8)
         self.stopped = threading.Event()
         try:
-            self.child = subprocess.Popen([python, "-B", str(server), "--workspace", str(workspace)],
+            command = [python, "-B", str(server)]
+            if trash_root is not None:
+                command += ["--trash-root", trash_root]
+            command += ["--workspace", str(workspace)]
+            self.child = subprocess.Popen(command,
                                           cwd=workspace, env=env, stdin=subprocess.PIPE,
                                           stdout=subprocess.PIPE, stderr=diagnostics, shell=False)
         except OSError:
@@ -206,7 +213,7 @@ def _tool_result(value, name):
     return content["result"]
 
 
-def diagnose(python, workspace, *, server=None, timeout=30):
+def diagnose(python, workspace, *, server=None, trash_root=None, timeout=30):
     """Check a trusted local service, without returning its private responses.
 
     ``timeout`` is the total diagnostic deadline (5..120 seconds); closing
@@ -241,6 +248,14 @@ def diagnose(python, workspace, *, server=None, timeout=30):
             if not valid:
                 raise _Failure("MCP_DOCTOR_WORKSPACE")
             report["checks"].append({"stage": stage, "status": "PASS"})
+            from adapters.mcp.operations import resolve_trash_root
+            try:
+                selected_trash = resolve_trash_root(str(selected), trash_root)
+            except (OSError, ValueError):
+                stage = "quarantine"
+                raise _Failure("MCP_DOCTOR_TRASH_ROOT") from None
+            if trash_root is not None:
+                report["checks"].append({"stage": "quarantine", "status": "PASS"})
             stage = "server"
             try:
                 selected_server = Path(server if server is not None else SERVER).expanduser().absolute()
@@ -256,7 +271,8 @@ def diagnose(python, workspace, *, server=None, timeout=30):
             report["sdk_version"] = SDK_VERSION
             report["checks"].append({"stage": stage, "status": "PASS"})
             stage = "initialize"
-            connection = _Connection(python, selected_server, selected, env, deadline, diagnostics)
+            connection = _Connection(python, selected_server, selected, env, deadline, diagnostics,
+                                     trash_root=selected_trash if trash_root is not None else None)
             initialized = connection.request("initialize", {"protocolVersion": PROTOCOL_VERSION,
                 "capabilities": {}, "clientInfo": {"name": "agent-guard-doctor", "version": expected_version}})
             identity = initialized.get("serverInfo")
@@ -289,7 +305,7 @@ def diagnose(python, workspace, *, server=None, timeout=30):
                     "name": name, "arguments": {"tail": 0} if name == "status" else {}}), name)
                 if name == "status":
                     if (result.get("workspace") != str(selected)
-                            or result.get("trash_root") != str(selected / ".agent-trash")):
+                            or result.get("trash_root") != selected_trash):
                         raise _Failure("MCP_DOCTOR_BINDING")
                     admission = result.get("delete_admission")
                     if not isinstance(admission, dict):

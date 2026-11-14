@@ -20,6 +20,7 @@
     "./package.json": "./package.json"
   },
   "bin": {
+    "agent-guard-install-skill": "./install_skill.py",
     "agent-guard-doctor": "./doctor.py",
     "agent-guard-live-sentinel": "./live_sentinel.py",
     "agent-guard-lab": "./guard_lab.py",
@@ -44,6 +45,7 @@
     "skills",
     "docs",
     "assets",
+    "install_skill.py",
     "doctor.py",
     "live_sentinel.py",
     "guard_lab.py",

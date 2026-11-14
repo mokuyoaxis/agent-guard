@@ -20,6 +20,7 @@ import _bootstrap  # noqa: F401
 
 from core import AUDIT_NAME, TRASH_DIRNAME, audit
 from core import classifier, policy, recovery
+from core.operation_summary import execution_summary, format_execution_summary, unavailable_summary
 
 
 def context():
@@ -59,6 +60,8 @@ def main() -> int:
     rp.add_argument("txid")
     rp.add_argument("--force", action="store_true")
     rp.add_argument("--json", action="store_true", dest="as_json")
+    rp.add_argument("--view", choices=("summary", "full"),
+                    help="output only; full by default, summary explicitly omits detailed rows")
     # Allow the ergonomic form: restore.py <txid> == restore.py restore <txid>
     argv = sys.argv[1:]
     if argv and argv[0] not in ("list", "restore", "-h", "--help"):
@@ -97,9 +100,16 @@ def main() -> int:
         report["ok"] = False
         report.setdefault("errors", []).append(
             "restore audit could not be stored; inspect filesystem state")
-    if args.as_json:
+    report["execution_summary"] = execution_summary("restore", report, reference=args.txid)
+    view = args.view or "full"
+    if args.as_json and view == "full":
         print(json.dumps(report, ensure_ascii=False, indent=2))
+    elif args.as_json:
+        print(json.dumps({"execution_summary": report["execution_summary"]}, ensure_ascii=True, indent=2))
+    elif view == "summary":
+        print(format_execution_summary(report["execution_summary"]))
     else:
+        print(format_execution_summary(report["execution_summary"]))
         for txid in report.get("backup_txids", []):
             print(f"current-version preservation transaction: {txid} (inspect state)")
         for path in report.get("restored", []):
@@ -122,4 +132,5 @@ if __name__ == "__main__":
         sys.exit(main())
     except Exception as exc:
         print(f"agent-guard internal error: {exc}", file=sys.stderr)
+        print(format_execution_summary(unavailable_summary("restore")), file=sys.stderr)
         sys.exit(1)

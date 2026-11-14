@@ -1,5 +1,15 @@
 # Kimi Code adapter
 
+The unreleased [0.3.0 acceptance](../../docs/reports/test-report-maintenance-0.3.0.md#host-acceptance)
+records ordinary model-backed MCP maintenance and first execution of a new
+operator-approved batch on Kimi Code 2.3.0 in a trusted synthetic workspace.
+Those explicit-tool trials are separate from native Bash/Stop coverage.
+A [2026-11-12 current-checkout trial](../../docs/reports/test-report-maintenance-0.3.0.md#native-interception-to-mcp-handoff-2026-11-12)
+observed a real-model root Bash block, saved MCP plan, operator-terminal
+approval, original-session execution of 71 roots and independent MCP recovery.
+An extra plan save remains a recorded instruction-limit deviation. Native and MCP session budgets are not
+automatically aligned. Stop and broader paths retain their recorded scope.
+
 PreToolUse interception for [Kimi Code CLI](https://github.com/MoonshotAI/kimi-code),
 built on the shared Core and Claude Code adapter with one conservative
 host-specific difference: Core `ASK` is mapped to a hard refusal rather than

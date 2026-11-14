@@ -21,8 +21,18 @@ the matching adapter guide. Check your actual host/version and its official
 hook documentation, verify the integration, and report the observed coverage.
 Installed Skills or copied configuration alone do not establish protection.
 
-We currently focus on **DSH and Kimi Code** integrations. For other hosts,
-ask the official coding agent to configure Agent Guard locally.
+The **0.3.0 development plan** targets **Codex, DSH, Claude Code and Kimi Code**
+using a shared [setup prompt](docs/guides/agent-setup-prompt.md). Other hosts
+use local adaptation; the versioned evidence below remains the support record.
+
+The development workflow lets an operator approve a saved selection once,
+then lets the agent execute and query it through CLI or MCP. It also supports
+requiring quarantine for regenerable artifacts. Local acceptance covers
+fresh-approved batches on DSH/Kimi and a real cache task on Codex, followed
+by independently verified recovery. Codex's separate 71-root batch, Claude
+model work and broader native-hook coverage remain unfinished. See the
+[passed checks and remaining gaps](docs/reports/test-report-maintenance-0.3.0.md);
+these checkout results do not identify a published 0.3.0 package.
 
 Version **[0.2.9](docs/releases/release-notes-0.2.9.md)** makes cleanup
 investigation faster: get a bounded directory overview, then measure selected
@@ -248,20 +258,23 @@ Read the [Skill](skills/exfil-guard/SKILL.md),
 
 ## Connect your coding agent
 
-Ask the host's official coding agent to configure Agent Guard for the installed
-version, following the [integration guide](adapters/INTEGRATION.md). Prefer a
-hook that can block a tool call before it runs. We maintain the DSH and Kimi
-Code integrations; other hosts use local bridges and configuration.
+Use the [setup prompt](docs/guides/agent-setup-prompt.md) and
+[integration guide](adapters/INTEGRATION.md) for the actual installed version.
+MCP provides explicit maintenance tools; a verified blocking hook/plugin adds
+checking of covered native calls. The 0.3.0 development checkout also adds a
+[Skill installer/update flow](docs/guides/skill-installation.md), absent from
+published 0.2.9. Four-host maintenance is a development target, with each
+host's acceptance recorded separately.
 
 The results below apply to the recorded source versions, host versions and
 tool paths. Other combinations need their own checks.
 
 | Host | Integration and evidence |
 |---|---|
-| Claude Code | Retained reference; new version validation paused. Native Bash `PreToolUse`; sampled 2.1.270/2.1.273 scripted-host enforcement. [Setup](adapters/claude/README.md) |
-| Kimi Code | Native Bash `PreToolUse`; bounded 0.42.0 root/child and 2.1.1 root-Bash observations. Version 0.2.6 adds 2.3.0 prompt/ACP root-Bash evidence with fixed responses. ASK is denied; missing/timed-out hooks remain uncovered. [Setup](adapters/kimi-code/README.md) |
-| DSH | Default deletion paths on 0.1.5-rc.1/0.2.0-rc.2/0.2.1-alpha.4. Optional native read and Lab retain their two-version boundaries. [Compatibility](docs/design/dsh-compatibility.md) · [Setup](adapters/dsh/README.md) |
-| Codex | Codex 0.165.0 exercised published 0.2.7 through actual-client and real-model MCP trials. This covers explicit tools; native Shell/editor interception needs separate verification. [MCP evidence and limits](docs/guides/mcp.md#codex-01650-with-published-027) |
+| Claude Code | 2.1.311 connected and discovered ten development MCP tools; model maintenance is deferred, newer hooks unverified. Native Bash enforcement retains its 2.1.270/2.1.273 scripted-host evidence. [Acceptance](docs/reports/test-report-maintenance-0.3.0.md#host-acceptance) · [Setup](adapters/claude/README.md) |
+| Kimi Code | 2.3.0 completed ordinary and fresh-approved development MCP maintenance. A later current-source root-Bash block led through planning and operator approval to original-session execution and independent recovery. Stop and missing/timed-out hooks retain their separate limits. [Acceptance](docs/reports/test-report-maintenance-0.3.0.md#host-acceptance) · [Setup](adapters/kimi-code/README.md) |
+| DSH | 0.2.0-rc.2 passed repaired original-root startup and fresh-approved MCP execution. A later native trial was blocked by an unavailable OS sandbox on PRoot; a separate zero-model local control passed. [Acceptance](docs/reports/test-report-maintenance-0.3.0.md#host-acceptance) · [Compatibility](docs/design/dsh-compatibility.md) · [Setup](adapters/dsh/README.md) |
+| Codex | 0.165.0 passed a fresh-approved real cache task with verified controller recovery. Its separate 71-root task remains unverified; native Shell/editor interception needs separate evidence. [Current acceptance](docs/reports/test-report-maintenance-0.3.0.md#host-acceptance) · [Earlier trials](docs/guides/mcp.md#codex-01650-with-published-027) |
 | Other hosts | Use the official coding agent for version-specific local setup; verify blocking before claiming native interception. Explicit Skill/CLI/MCP use remains cooperative without a blocking hook. [Adaptation guide](adapters/INTEGRATION.md) |
 
 Use the [full capability and evidence matrix](docs/guides/harness-capabilities.md)

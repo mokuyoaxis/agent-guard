@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """safe_delete - the recoverable deletion tool for AI agents.
 
-    safe_delete.py [--json] [--dry-run] [--reason TEXT] PATH...
+    safe_delete.py [--json] [--dry-run] [--quarantine] [--reason TEXT] PATH...
 
 Globs are expanded here, explicitly, before classification: an opaque
 wildcard never reaches the filesystem unexamined. Assessments are best-effort
@@ -11,6 +11,9 @@ quarantine/audit metadata and a Git local exclude rule. Policy blocks exit 2
 even in dry-run. A failed real compensation can leave partial target changes.
 New audit events contain decisions, counts and recovery IDs, not target paths
 or free-form --reason text. Exact recovery paths stay in the manifest/result.
+Dry-run also reports current admission separately from policy. Preview exit 0
+does not promise execution: admission can still require approval or be blocked.
+No budget or approval is consumed by the admission snapshot.
 """
 from __future__ import annotations
 
@@ -25,7 +28,11 @@ import _bootstrap  # noqa: F401
 
 from core import AUDIT_NAME, TRASH_DIRNAME, audit
 from core import admission, classifier, policy, recovery
-from core.messages import QUARANTINE_NOTICE, gc_guidance, print_gc_guidance
+from core.operation_summary import execution_summary, format_execution_summary, unavailable_summary
+from core.messages import (
+    ADMISSION_PREVIEW_NOTICE, QUARANTINE_NOTICE, deletion_guidance, gc_guidance,
+    print_admission_preview, print_gc_guidance,
+)
 
 
 def expand_globs(patterns):
@@ -81,11 +88,16 @@ def safe_delete_audit_event(event, decision, code, target_count, *,
     return entry
 
 
-def print_result(result, as_json):
+def print_result(result, as_json, *, text=None):
+    result["execution_summary"] = execution_summary("safe_delete", result)
     if as_json:
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return
-    print(result["outcome"] + (f" txid={result['txid']}" if result.get("txid") else ""))
+    print(format_execution_summary(result["execution_summary"]))
+    print(text if text is not None else result["outcome"]
+          + (f" txid={result['txid']}" if result.get("txid") else ""))
+    if "admission" in result:
+        print_admission_preview(result["admission"])
     if "storage_notice" in result:
         print(result["storage_notice"])
         print_gc_guidance(result["gc"])
@@ -101,11 +113,30 @@ def admission_refused(exc, result, record, specs, as_json):
     return 2
 
 
+def dry_run_admission(verdict, specs, workspace, trash_root, cwd, *, quarantine=False):
+    """Keep policy and current execution admission separate in the preview."""
+    paths = [spec.resolved for spec in specs]
+    if verdict.blocked or verdict.code in (policy.CODE_ALLOW_NOOP, policy.CODE_ALLOW_TRASH_GC):
+        preview = {"status": "BLOCKED" if verdict.blocked else "NOT_APPLICABLE",
+                   "code": verdict.code, "reason": verdict.explanation,
+                   "requested": None, "approval": {"required": None, "status": "NOT_CHECKED"},
+                   "reserved": False, "lock_checked": False}
+    else:
+        preview = admission.preview(workspace, trash_root, paths,
+                                    quarantine=verdict.code != policy.CODE_ALLOW_REGENERABLE)
+    preview["notice"] = ADMISSION_PREVIEW_NOTICE
+    preview["next_step"] = deletion_guidance(preview, workspace, trash_root, cwd, paths,
+                                            quarantine=quarantine)
+    return preview
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("paths", nargs="+", help="paths or globs to delete")
     ap.add_argument("--json", action="store_true", dest="as_json")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--quarantine", action="store_true",
+                    help="quarantine even proven regenerable artifacts; no direct deletion or GC fallback")
     ap.add_argument("--reason", default="",
                     help="why this deletion is needed (text is not persisted)")
     args = ap.parse_args()
@@ -117,6 +148,8 @@ def main() -> int:
     mode = policy.load_mode(trash_root)["mode"]
     ctx = policy.PolicyContext(
         workspace=workspace, trash_root=trash_root, base_dir=base, mode=mode)
+    if args.quarantine:
+        ctx.config.allow_regenerable = False
 
     concrete, unmatched = expand_globs(args.paths)
     specs = classifier.classify_paths(concrete, base, workspace, trash_root)
@@ -132,10 +165,19 @@ def main() -> int:
             "outcome": "nothing to do (no matches)",
             "exit": 0,
         }
-        print(json.dumps(result, ensure_ascii=False, indent=2) if args.as_json
-              else result["outcome"])
+        if args.quarantine:
+            result["quarantine"] = True
+        if args.dry_run:
+            noop = policy.Verdict(policy.DECISION_ALLOW, policy.CODE_ALLOW_NOOP,
+                                  explanation=policy.EXPLANATIONS[policy.CODE_ALLOW_NOOP])
+            result["admission"] = dry_run_admission(
+                noop, specs, workspace, trash_root, base, quarantine=args.quarantine)
+        print_result(result, args.as_json)
         return 0
     verdict = policy.decide_path_batch(specs, ctx, recursive=True)
+    if args.quarantine and verdict.code == policy.CODE_ALLOW_TRASH_GC:
+        verdict = policy.Verdict(policy.DECISION_BLOCK, policy.CODE_BLOCK_PROTECTED_PATH,
+                                 ["a quarantine-only request cannot purge recovery copies"])
     engine = recovery.RecoveryEngine(workspace, trash_root)
     relocation_report = None
 
@@ -150,6 +192,8 @@ def main() -> int:
         "no_match": unmatched,
         "dry_run": args.dry_run,
     }
+    if args.quarantine:
+        result["quarantine"] = True
 
     def record(entry, required=False):
         """Append audit after safe layout setup.
@@ -171,10 +215,17 @@ def main() -> int:
     if verdict.blocked:
         record(safe_delete_audit_event(
             "decision", "BLOCK", verdict.code, len(specs)))
+        if args.dry_run:
+            result["admission"] = dry_run_admission(
+                verdict, specs, workspace, trash_root, base, quarantine=args.quarantine)
         result["exit"] = 2
-        print(json.dumps(result, ensure_ascii=False, indent=2) if args.as_json
-              else f"BLOCKED [{verdict.code}]: {verdict.reasons}")
+        print_result(result, args.as_json, text=f"BLOCKED [{verdict.code}]: {verdict.reasons}")
         return 2
+
+    if os.environ.get("AGENT_GUARD_CLEANUP_TASK") and verdict.code == policy.CODE_ALLOW_TRASH_GC:
+        return admission_refused(admission.AdmissionDenied(
+            "BLOCK_DELETE_BATCH_CONFIRM", "approved cleanup tasks cannot perform quarantine housekeeping; review GC separately"),
+            result, record, specs, args.as_json)
 
     # Preflight every real mutation before recording authorization or touching
     # a target. In sandboxes where `.git` is read-only this either confirms an
@@ -192,8 +243,7 @@ def main() -> int:
             }
             result["outcome"] = "BLOCKED: quarantine preflight failed"
             result["exit"] = 2
-            print(json.dumps(result, ensure_ascii=False, indent=2)
-                  if args.as_json else result["outcome"])
+            print_result(result, args.as_json)
             return 2
 
     # Authorization/intent must be durable before direct deletion. Dry-run
@@ -202,6 +252,8 @@ def main() -> int:
         record(safe_delete_audit_event(
             "decision", verdict.decision, verdict.code, len(specs),
             phase="advisory"))
+        result["admission"] = dry_run_admission(
+            verdict, specs, workspace, trash_root, base, quarantine=args.quarantine)
     elif verdict.code != policy.CODE_ALLOW_NOOP:
         try:
             record(safe_delete_audit_event(
@@ -217,8 +269,7 @@ def main() -> int:
             }
             result["outcome"] = "BLOCKED: durable audit intent failed"
             result["exit"] = 2
-            print(json.dumps(result, ensure_ascii=False, indent=2)
-                  if args.as_json else result["outcome"])
+            print_result(result, args.as_json)
             return 2
 
     if verdict.code == policy.CODE_ALLOW_NOOP:
@@ -240,8 +291,10 @@ def main() -> int:
         result["deleted"] = deleted
     else:  # RELOCATE_*
         try:
-            report = engine.relocate(specs, meta={
-                "tool": "safe_delete", "code": verdict.code})
+            meta = {"tool": "safe_delete", "code": verdict.code}
+            if os.environ.get("AGENT_GUARD_CLEANUP_TASK"):
+                meta["cleanup_task"] = os.environ["AGENT_GUARD_CLEANUP_TASK"]
+            report = engine.relocate(specs, meta=meta)
         except admission.AdmissionDenied as exc:
             return admission_refused(exc, result, record, specs, args.as_json)
         relocation_report = report
@@ -250,7 +303,7 @@ def main() -> int:
         result["skipped"] = report["skipped"]
         if report["moved"]:
             result["storage_notice"] = QUARANTINE_NOTICE
-            result["gc"] = gc_guidance()
+            result["gc"] = gc_guidance(workspace, trash_root)
         if report.get("storage_failure"):
             # Hard principle: capacity limits never downgrade to deletion.
             result["verdict"] = {
@@ -298,6 +351,7 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         sys.exit(main())
-    except Exception as exc:  # internal error: fail loudly, change nothing
+    except Exception as exc:  # Internal errors can follow partial work.
         print(f"agent-guard internal error: {exc}", file=sys.stderr)
+        print(format_execution_summary(unavailable_summary("safe_delete")), file=sys.stderr)
         sys.exit(1)

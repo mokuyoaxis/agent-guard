@@ -60,12 +60,16 @@ class _Node:
     has_protected: bool = False
 
 
-def _git_facts(root: str, paths: List[str]):
+def _git_facts(root: str, paths: List[str], targets=None):
     """Batch queries; an unavailable Git supplies no regenerability proof."""
     env = dict(os.environ, GIT_OPTIONAL_LOCKS="0")
     try:
+        tracked_command = ["git", "-C", root, "ls-files", "--cached", "-z"]
+        if targets is not None:
+            tracked_command = ["git", "--literal-pathspecs", "-C", root,
+                               "ls-files", "--cached", "-z", "--", *targets]
         tracked = subprocess.run(
-            ["git", "-C", root, "ls-files", "--cached", "-z"],
+            tracked_command,
             capture_output=True, timeout=10, env=env)
         if tracked.returncode:
             return set(), set(), "GIT_UNAVAILABLE"
@@ -85,22 +89,45 @@ def _git_facts(root: str, paths: List[str]):
 def plan_cleanup(
         workspace: str, *, discard: Iterable[str] = (), protect: Iterable[str] = (),
         max_entries: int = DEFAULT_MAX_ENTRIES, max_depth: int = DEFAULT_MAX_DEPTH,
+        targets: Optional[Iterable[str]] = None, quarantine: bool = False,
         ) -> Dict[str, Any]:
     """Propose disjoint targets under a bounded workspace scan.
 
-    Protected subtrees are represented without traversal or size estimates.
+    Optional literal targets limit traversal to those disjoint roots. Target
+    mode does not infer discardability or fingerprint unrelated workspace
+    entries. Protected subtrees are represented without traversal or sizes.
     Ordinary unknown subtrees collapse to one review row; generated or
     explicitly discarded children remain visible. Sizes deduplicate hardlinks
     and exclude directory metadata; they do not predict released disk blocks.
+    quarantine preserves regenerable categories but requires recovery rather
+    than direct deletion. It never supplies discard evidence or approval.
     """
     if type(max_entries) is not int or max_entries < 1:
         raise ValueError("max_entries must be a positive integer")
     if type(max_depth) is not int or not 1 <= max_depth <= 128:
         raise ValueError("max_depth must be between 1 and 128")
+    if type(quarantine) is not bool:
+        raise ValueError("quarantine must be a boolean")
     root = os.path.realpath(os.path.abspath(os.fspath(workspace)))
     if not os.path.isdir(root) or classifier.protected_ancestor_root(root):
         raise ValueError("provide an existing workspace below a filesystem root")
     delete_config = load_config(root)
+    target_roots = None
+    if targets is not None:
+        target_roots = _declared_paths(targets, root, must_exist=True)
+        if not target_roots:
+            raise ValueError("provide at least one literal cleanup target")
+        seen_targets = set()
+        for path in target_roots:
+            parts = path.split("/")
+            if any("/".join(parts[:end]) in seen_targets for end in range(1, len(parts))):
+                raise ValueError("cleanup target roots must not overlap")
+            seen_targets.add(path)
+            parent = root
+            for part in parts[:-1]:
+                parent = os.path.join(parent, part)
+                if os.path.islink(parent):
+                    raise ValueError("target parents must not be directory links; select the link itself")
     discard = _declared_paths(discard, root, must_exist=True)
     protect = list(protect) + delete_config.protected_paths
     protect = sorted(set(_declared_paths(protect, root, must_exist=False)) | PROTECTED_NAMES)
@@ -118,6 +145,8 @@ def plan_cleanup(
         protect = sorted(set(protect + [os.path.relpath(trash, root).replace(os.sep, "/")]))
     ctx = policy.PolicyContext(workspace=root, trash_root=trash, base_dir=root,
                                mode=policy.load_mode(trash)["mode"])
+    if quarantine:
+        ctx.config.allow_regenerable = False
     errors = []
     nodes: List[_Node] = []
     examined = 0
@@ -210,10 +239,26 @@ def plan_cleanup(
                                     [c.fingerprint for c in node.children]])
         return node
 
-    # The workspace root is a boundary, but its children are scanned.
-    tree = visit(".", 0)
+    if target_roots is None:
+        # Legacy workspace planning retains its traversal and fingerprint.
+        tree = visit(".", 0)
+    else:
+        # A virtual root keeps unrelated directory changes and saving the
+        # proposal itself out of the target fingerprint.
+        tree = _Node(".", kind="selection")
+        for relative in target_roots:
+            if examined >= max_entries:
+                problem(tree, "ENTRY_LIMIT_REACHED")
+                break
+            examined += 1
+            child = visit(relative, 0)
+            tree.children.append(child)
+            tree.files.update(child.files)
+            tree.complete &= child.complete
+        tree.has_protected = any(child.has_protected for child in tree.children)
+        tree.fingerprint = _digest([target_roots, [child.fingerprint for child in tree.children]])
     tracked, ignored, git_warning = _git_facts(
-        root, [n.path for n in nodes if n.path != "." and not n.protected])
+        root, [n.path for n in nodes if n.path != "." and not n.protected], target_roots)
     tracked_ancestors = set(tracked)
     for path in tracked:
         parts = path.split("/")
@@ -271,7 +316,13 @@ def plan_cleanup(
         if (node.path == "."
                 or any(entry["category"] != "uncertain" for entry in children)):
             return children
-        return [row(node, "uncertain", "tracked content or no explicit discard/regeneration evidence")]
+        tracking = ("Git tracking evidence unavailable" if git_warning else
+                    "Git-tracked path or tracked descendant" if node.path in tracked_ancestors else
+                    "No Git-tracked content found")
+        evidence = ("declared discard cannot select this whole subtree"
+                    if any(_under(node.path, p) for p in discard) else
+                    "no explicit discard declaration; regeneration not proven")
+        return [row(node, "uncertain", tracking + "; " + evidence)]
 
     entries = sorted(flatten(tree), key=lambda entry: entry["path"])
     summary = {}
@@ -292,6 +343,13 @@ def plan_cleanup(
         "warnings": [git_warning] if git_warning else [],
         "size_notice": "Logical bytes, hardlinks counted once per category; protected subtrees omitted. Quarantine retains storage; bytes are not a freed-space estimate.",
     }
+    if target_roots is not None:
+        from .admission import _session_key
+        result.update(scope="targets", targets=target_roots,
+                      session_fingerprint=_session_key())
+    # Omit the default to preserve existing plan IDs and saved v1 proposals.
+    if quarantine:
+        result["options"]["quarantine"] = True
     result["plan_id"] = _digest({"plan": result, "tree": tree.fingerprint,
                                  "config": vars(ctx.config),
                                  "deletion_config": fingerprint(delete_config)})

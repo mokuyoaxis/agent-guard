@@ -25,6 +25,55 @@ def run(script, *args, cwd):
 
 @unittest.skipUnless(git_available(), "git required")
 class SafeDeleteCLI(RepoFixture):
+    def test_quarantine_artifact_preview_command_executes_recoverably(self):
+        target = Path(self.write("node_modules/cache", "regenerable, but recovery requested"))
+        target.chmod(0o640)
+        before = target.stat()
+        default = json.loads(run("safe_delete.py", "--json", "--dry-run", "node_modules", cwd=self.root).stdout)
+        self.assertEqual(default["verdict"]["code"], "ALLOW_REGENERABLE")
+        preview = run("safe_delete.py", "--json", "--dry-run", "--quarantine", "node_modules", cwd=self.root)
+        self.assertEqual(preview.returncode, 0, preview.stderr)
+        value = json.loads(preview.stdout)
+        self.assertTrue(value["quarantine"])
+        self.assertEqual(value["verdict"]["decision"], "RELOCATE")
+        self.assertEqual(value["admission"]["status"], "READY")
+        command = value["admission"]["next_step"]["commands"][0]["argv"]
+        self.assertIn("--quarantine", command)
+        moved = subprocess.run(command, cwd=self.root, capture_output=True, text=True, timeout=30)
+        self.assertEqual(moved.returncode, 0, moved.stderr)
+        receipt = json.loads(moved.stdout)
+        self.assertTrue(receipt["txid"])
+        self.assertNotIn("deleted", receipt)
+        self.assertFalse(target.exists())
+        restored = run("restore.py", "--json", receipt["txid"], cwd=self.root)
+        self.assertEqual(restored.returncode, 0, restored.stderr)
+        self.assertEqual(target.read_text(), "regenerable, but recovery requested")
+        self.assertEqual(target.stat().st_mode, before.st_mode)
+        self.assertEqual(target.stat().st_mtime_ns, before.st_mtime_ns)
+
+    def test_quarantine_capacity_refusal_never_falls_back_to_artifact_delete(self):
+        target = Path(self.write("node_modules/cache", "retain all bytes"))
+        self.write(".agent-guard/delete-policy.json", json.dumps({"quarantine_max_bytes": 1}))
+        default = json.loads(run("safe_delete.py", "--json", "--dry-run", "node_modules", cwd=self.root).stdout)
+        self.assertEqual(default["admission"]["status"], "READY")
+        proc = run("safe_delete.py", "--json", "--quarantine", "node_modules", cwd=self.root)
+        self.assertEqual(proc.returncode, 2, proc.stderr)
+        value = json.loads(proc.stdout)
+        self.assertEqual(value["verdict"]["code"], "BLOCK_DELETE_LIMIT")
+        self.assertEqual(target.read_text(), "retain all bytes")
+        self.assertNotIn("deleted", value)
+
+    def test_quarantine_cannot_purge_recovery_copies_or_override_protection(self):
+        payload = Path(self.write(".agent-trash/payload", "existing recovery copy"))
+        for relative in (".agent-trash/payload", ".git/HEAD"):
+            path = Path(self.root, relative)
+            before = path.read_bytes()
+            proc = run("safe_delete.py", "--json", "--quarantine", relative, cwd=self.root)
+            self.assertEqual(proc.returncode, 2, proc.stderr)
+            self.assertEqual(json.loads(proc.stdout)["verdict"]["decision"], "BLOCK")
+            self.assertEqual(path.read_bytes(), before)
+        self.assertEqual(payload.read_text(), "existing recovery copy")
+
     def test_relocate_then_restore_roundtrip(self):
         self.write("report.txt", "data")
         proc = run("safe_delete.py", "--json", "report.txt", cwd=self.root)
@@ -350,7 +399,7 @@ class StatusCLI(RepoFixture):
 
     def test_json_and_human_modes(self):
         run("safe_delete.py", "s.txt", cwd=self.root) if self.write("s.txt") else None
-        human = run("status.py", cwd=self.root)
+        human = run("status.py", "--view", "full", cwd=self.root)
         self.assertEqual(human.returncode, 0)
         self.assertIn("mode      : NORMAL", human.stdout)
         js = json.loads(run("status.py", "--json", cwd=self.root).stdout)

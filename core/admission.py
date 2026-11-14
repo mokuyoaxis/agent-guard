@@ -2,7 +2,8 @@
 
 Limits describe admitted work, not successful deletions or physical disk
 quotas. The portable files and session identity remain advisory to same-UID
-processes. A lock covers measurement, durable debit and the guarded mutation.
+processes. Execution holds a lock for measurement, durable debit and mutation;
+the read-only preview takes no lock and reserves nothing.
 """
 from __future__ import annotations
 
@@ -218,6 +219,15 @@ def _load(trash_root):
                 or any(not isinstance(k, str) or not isinstance(v, str)
                        for k, v in record["paths"].items())):
             raise ValueError("invalid cleanup approval")
+        if "task" in record:
+            if (not isinstance(record["task"], str)
+                    or not isinstance(record.get("targets"), str)
+                    or type(record.get("rate_charged")) is not bool
+                    or not isinstance(record.get("effects"), dict)
+                    or not set(record["paths"]).issubset(record["effects"])
+                    or any(not isinstance(k, str) or v not in ("quarantine", "delete")
+                           for k, v in record["effects"].items())):
+                raise ValueError("invalid cleanup task approval")
     return data
 
 
@@ -258,9 +268,109 @@ def check_batch(workspace, paths):
     return measured
 
 
+def _approved_grant(state, token, measured, config, now, sid, task_id, quarantine):
+    grant = state["approvals"].get(_digest(token)) if token else None
+    authorized = bool(grant and grant["expires"] >= now
+                      and grant["session"] == sid
+                      and grant["config"] == fingerprint(config)
+                      and grant.get("task") == task_id
+                      and all(grant["paths"].get(key) == value
+                              for key, value in measured["trees"].items()))
+    if authorized and task_id and quarantine is not None:
+        effect = "quarantine" if quarantine else "delete"
+        authorized = all(grant["effects"].get(key) == effect for key in measured["trees"])
+    if not authorized:
+        raise AdmissionDenied("BLOCK_DELETE_BATCH_CONFIRM", "cleanup approval expired, changed, consumed or has a different task/effect; review a fresh plan")
+    return grant
+
+
+def _check_admission(trash_root, paths, config, state, measured, now, sid,
+                     *, quarantine, approval, task_id=None):
+    """Shared checks only; neither debit state nor consume an approval."""
+    record = state["sessions"].get(sid, _empty_session())
+    events = [event for event in record["events"]
+              if event["at"] > now - config.rate_window_seconds]
+    targets = _digest(paths)
+    # Only a matching task grant can share one rate event across its groups.
+    # Legacy requests retain their original refusal order and accounting.
+    grant = (_approved_grant(state, approval, measured, config, now, sid, task_id, quarantine)
+             if task_id else None)
+    charge_event = grant is None or not grant["rate_charged"]
+    if grant is not None:
+        targets = grant["targets"]
+    if charge_event and len(events) >= min(config.rate_max_operations, 10_000):
+        raise AdmissionDenied("BLOCK_DELETE_RATE", "deletion admission rate exceeded; wait for the window to expire")
+    if charge_event and sum(event["targets"] == targets for event in events) >= config.repeat_max_operations:
+        raise AdmissionDenied("BLOCK_DELETE_REPEAT", "repeated admission of the same target set; inspect the delete/recreate loop")
+    if (record["used_bytes"] + measured["bytes"] > config.session_max_bytes
+            or record["used_entries"] + measured["entries"] > config.session_max_entries):
+        raise AdmissionDenied("BLOCK_DELETE_LIMIT", "session deletion budget exhausted; inspect status and explicitly reset or adjust policy")
+    if sid not in state["sessions"] and len(state["sessions"]) >= MAX_SESSIONS:
+        raise AdmissionDenied("BLOCK_DELETE_LIMIT", "session budget inventory is full; operator review is required")
+    if quarantine:
+        # A linked bucket still owns its physical contents; target links stay opaque.
+        usage = _measure([os.path.realpath(trash_root)])
+        if (usage["bytes"] + measured["bytes"] > config.quarantine_max_bytes
+                or usage["entries"] + measured["entries"] > config.quarantine_max_entries):
+            raise AdmissionDenied("BLOCK_DELETE_LIMIT", "quarantine admission capacity exceeded; inspect existing recovery copies and the explicit GC plan")
+    if approval and grant is None:
+        grant = _approved_grant(state, approval, measured, config, now, sid, task_id, quarantine)
+    if (measured["bytes"] > config.batch_max_bytes
+            or measured["entries"] > config.batch_max_entries) and grant is None:
+        raise AdmissionDenied("BLOCK_DELETE_BATCH_CONFIRM", "large deletion requires a reviewed Cleanup plan and interactive execution confirmation")
+    return record, events, targets, grant
+
+
+def preview(workspace, trash_root, paths, *, quarantine=True, approval=None, task_id=None):
+    """Read-only admission snapshot after policy; no lock, debit or grant use.
+
+    Checks stop at the first refusal, in the same order as admit(). This is
+    not a storage-write preflight, reservation, or promise of later execution.
+    quarantine=None is a mixed-task budget check only; no capacity/effect check.
+    """
+    result = {"status": "BLOCKED", "code": None, "reason": None,
+              "requested": None,
+              "approval": {"required": None, "status": "NOT_CHECKED"},
+              "reserved": False, "lock_checked": False}
+    token = approval or os.environ.get("AGENT_GUARD_CLEANUP_APPROVAL")
+    task_id = task_id or os.environ.get("AGENT_GUARD_CLEANUP_TASK")
+    try:
+        config = _config(workspace)
+        paths = _roots(paths)
+        _check_protected(paths, workspace, config)
+        state = _load(trash_root)
+        measured = _measure(paths)
+        result["requested"] = {"bytes": measured["bytes"], "entries": measured["entries"],
+                               "quarantine": quarantine}
+        result["batch_limits"] = {"bytes": config.batch_max_bytes,
+                                  "entries": config.batch_max_entries}
+        result["approval"]["required"] = (measured["bytes"] > config.batch_max_bytes
+                                             or measured["entries"] > config.batch_max_entries)
+        now = time.time()
+        result["checked_at"] = now
+        grant = None
+        if measured["entries"]:
+            _, _, _, grant = _check_admission(
+                trash_root, paths, config, state, measured, now, _session_key(),
+                quarantine=quarantine, approval=token, task_id=task_id)
+        result.update(status="READY", reason="Current admission checks pass; execution must recheck.")
+        result["approval"]["status"] = "VALID" if grant is not None else "NOT_REQUIRED"
+    except AdmissionDenied as exc:
+        result.update(code=exc.code, reason=exc.reason)
+        if exc.code == "BLOCK_DELETE_BATCH_CONFIRM":
+            result["status"] = "REQUIRES_APPROVAL"
+            result["approval"]["status"] = "INVALID" if token else "REQUIRED"
+    except (OSError, ValueError, TypeError, RecursionError) as exc:
+        result.update(code="BLOCK_DELETE_STATE_INVALID",
+                      reason="cannot safely inspect deletion admission: " + str(exc))
+    return result
+
+
 @contextmanager
-def admit(workspace, trash_root, paths, *, quarantine=True, approval=None):
+def admit(workspace, trash_root, paths, *, quarantine=True, approval=None, task_id=None):
     """Debit once before yielding; a failed guarded operation is not refunded."""
+    if type(quarantine) is not bool:
+        raise ValueError("execution admission requires a concrete deletion effect")
     config = _config(workspace)
     paths = _roots(paths)
     _check_protected(paths, workspace, config)
@@ -274,44 +384,20 @@ def admit(workspace, trash_root, paths, *, quarantine=True, approval=None):
                 yield measured
                 return
             now, sid = time.time(), _session_key()
-            record = state["sessions"].get(sid, _empty_session())
-            events = [event for event in record["events"]
-                      if event["at"] > now - config.rate_window_seconds]
-            targets = _digest(paths)
-            if len(events) >= min(config.rate_max_operations, 10_000):
-                raise AdmissionDenied("BLOCK_DELETE_RATE", "deletion admission rate exceeded; wait for the window to expire")
-            if sum(event["targets"] == targets for event in events) >= config.repeat_max_operations:
-                raise AdmissionDenied("BLOCK_DELETE_REPEAT", "repeated admission of the same target set; inspect the delete/recreate loop")
-            if (record["used_bytes"] + measured["bytes"] > config.session_max_bytes
-                    or record["used_entries"] + measured["entries"] > config.session_max_entries):
-                raise AdmissionDenied("BLOCK_DELETE_LIMIT", "session deletion budget exhausted; inspect status and explicitly reset or adjust policy")
-            if sid not in state["sessions"] and len(state["sessions"]) >= MAX_SESSIONS:
-                raise AdmissionDenied("BLOCK_DELETE_LIMIT", "session budget inventory is full; operator review is required")
-            if quarantine:
-                usage = _measure([trash_root])
-                if (usage["bytes"] + measured["bytes"] > config.quarantine_max_bytes
-                        or usage["entries"] + measured["entries"] > config.quarantine_max_entries):
-                    raise AdmissionDenied("BLOCK_DELETE_LIMIT", "quarantine admission capacity exceeded; inspect existing recovery copies and the explicit GC plan")
             token = approval or os.environ.get("AGENT_GUARD_CLEANUP_APPROVAL")
-            authorized = False
-            if token:
-                grant = state["approvals"].get(_digest(token))
-                authorized = bool(grant and grant["expires"] >= now
-                                  and grant["session"] == sid
-                                  and grant["config"] == fingerprint(config)
-                                  and all(grant["paths"].get(key) == value
-                                          for key, value in measured["trees"].items()))
-                if not authorized:
-                    raise AdmissionDenied("BLOCK_DELETE_BATCH_CONFIRM", "cleanup approval expired, changed or already consumed; review a fresh plan")
-            if (measured["bytes"] > config.batch_max_bytes
-                    or measured["entries"] > config.batch_max_entries) and not authorized:
-                raise AdmissionDenied("BLOCK_DELETE_BATCH_CONFIRM", "large deletion requires a reviewed Cleanup plan and interactive execution confirmation")
-            if authorized:
+            task_id = task_id or os.environ.get("AGENT_GUARD_CLEANUP_TASK")
+            record, events, targets, grant = _check_admission(
+                trash_root, paths, config, state, measured, now, sid,
+                quarantine=quarantine, approval=token, task_id=task_id)
+            charge_event = grant is None or "task" not in grant or not grant["rate_charged"]
+            if grant is not None:
+                if "task" in grant:
+                    grant["rate_charged"] = True
                 for key in measured["trees"]:
                     del grant["paths"][key]
             record = {"used_bytes": record["used_bytes"] + measured["bytes"],
                       "used_entries": record["used_entries"] + measured["entries"],
-                      "events": events + [{"at": now, "targets": targets}]}
+                      "events": events + ([{"at": now, "targets": targets}] if charge_event else [])}
             state["sessions"][sid] = record
             state["approvals"] = {key: value for key, value in state["approvals"].items()
                                   if value["expires"] >= now and value["paths"]}
@@ -328,7 +414,7 @@ def admit(workspace, trash_root, paths, *, quarantine=True, approval=None):
         raise AdmissionDenied("BLOCK_DELETE_STATE_INVALID", "cannot safely measure, lock or persist deletion admission") from exc
 
 
-def approve_cleanup(workspace, trash_root, paths, plan_id):
+def approve_cleanup(workspace, trash_root, paths, plan_id, *, task_id=None, effects=None):
     """Called only by Cleanup after its terminal confirmation and rescan."""
     config = _config(workspace)
     paths = _roots(paths)
@@ -347,6 +433,13 @@ def approve_cleanup(workspace, trash_root, paths, plan_id):
                 "session": _session_key(), "config": fingerprint(config),
                 "expires": now + APPROVAL_SECONDS, "paths": measured["trees"],
                 "plan_id": plan_id}
+            if task_id is not None:
+                bound_effects = {_digest(_location(path)): effect for path, effect in effects.items()}
+                if (set(bound_effects) != set(measured["trees"])
+                        or any(effect not in ("quarantine", "delete") for effect in bound_effects.values())):
+                    raise ValueError("task effects must match the approved target roots")
+                state["approvals"][_digest(token)].update(
+                    task=task_id, targets=_digest(paths), rate_charged=False, effects=bound_effects)
             _save(trash_root, state)
             return token
     except AdmissionDenied:

@@ -6,18 +6,32 @@ records which paths have been tested. A prompt, Skill, CLI call or adapter
 exit code alone does not prove automatic tool interception.
 
 Give the host's **official coding agent** the
-[setup prompt](../docs/guides/getting-started.md#set-up-a-coding-agent) and this
+[setup prompt](../docs/guides/agent-setup-prompt.md) and this
 guide. It should check the installed version and official hook documentation,
-reuse a matching adapter where possible, and prefer a synchronous hook that
-can block the call before execution. The project maintains the shared Core,
-CLI/Decision Protocol, reference adapters and these verification steps.
+reuse the shared MCP service for explicit maintenance, and add a synchronous
+blocking hook/plugin for the native calls it supports. The project maintains
+the shared Core, CLI/Decision Protocol, MCP and thin host adapters.
 
-We currently focus on **DSH and Kimi Code**. The Claude Code adapter and its
-tested-version records remain available; testing new Claude versions is
-paused. For other hosts, including Codex, create only the bridge and
-configuration needed locally, within the user's authorized scope. Call the
-shared Core rather than copying its policy. A local setup does not extend
-the project's tested-version list.
+The **0.3.0 maintenance targets are Codex, DSH, Claude Code and Kimi Code**.
+Existing evidence remains version- and tool-specific; this target does not
+declare new-version acceptance or native interception for all four. Other
+hosts create only the bridge/configuration needed locally, within the user's
+authorized scope. Call shared Core rather than copying its policy. A local
+setup does not extend the project's tested-version list.
+
+The [maintenance acceptance table](../docs/reports/test-report-maintenance-0.3.0.md)
+distinguishes passed local/ordinary MCP tasks, DSH/Kimi fresh-approved batches,
+Codex's fresh-approved real cache task and controller recovery, deferred
+Claude model work and native-hook evidence. Codex's separate 71-root task
+and broader native coverage remain unverified.
+Reproduce the needed path in the selected installation rather than treating
+another environment's result as activation evidence.
+
+Keep the complete installation and use the development
+[Skill installation/update flow](../docs/guides/skill-installation.md) where
+the helper is present. Copying only `skills/delete-guard` omits Core and can
+leave Cleanup or instructions stale. The helper registers a Skill; it does
+not enable MCP or hooks.
 
 **Instructions for the AI agent doing the setup:** Read this guide before
 editing settings or writing a bridge, including when an adapter already
@@ -49,6 +63,11 @@ or a public report. If the host contract or version is unclear, mark it
 
 ## 2. Choose an integration
 
+Prefer the shared MCP tools for active maintenance. Add a native blocking
+adapter when automatic checking is required and the host supplies a verified
+entrypoint. These paths can coexist; use the same workspace/budget binding
+and verify that normal maintenance is not processed twice.
+
 - **Documented host:** choose its adapter README from the
   [integration matrix](../README.md#integration-and-validation-matrix) and
   preserve existing settings. Claude, Kimi, and DSH have distinct host
@@ -66,6 +85,9 @@ or a public report. If the host contract or version is unclear, mark it
 - **Client supports MCP:** the [local MCP adapter](../docs/guides/mcp.md), introduced in 0.2.7,
   exposes explicit safe_delete, ordinary restore, transaction/status queries
   and GC preview. Configure its optional SDK and fixed workspace separately.
+  The 0.3.0 development service also accepts an operator-selected absolute
+  `--trash-root`; keep it stable with the approval/session binding. This is
+  startup configuration, never a tool argument, and does not migrate old data.
   Say `MCP tools only` unless a separate blocking hook has been verified;
   registering tools does not intercept shell, script or editor operations.
   This path adds no force restore, GC execution or model-approved budget reset.
@@ -73,6 +95,15 @@ or a public report. If the host contract or version is unclear, mark it
   `cleanup_measure`; published 0.2.8 does not include them. Inspect their
   coverage/size fields and `partial` status rather than treating a successful
   observation as a complete scan or deletion approval.
+  The 0.3.0 development checkout adds `cleanup_plan`, `cleanup_execute` and
+  `cleanup_task_status`: use the fixed binding, obtain operator CLI approval,
+  then execute/query the returned task ID. There is no MCP approval tool or
+  model-supplied grant. The ten-tool set and local workflow have runtime
+  evidence, with bounded Codex/Kimi/DSH model tasks, fresh-approved DSH/Kimi
+  batches and a later fresh-approved Codex real cache task with controller
+  recovery. Codex's separate 71-root task remains unverified; Claude model
+  work is deferred. New native-hook paths still need separate acceptance.
+  Older five/seven-tool evidence retains its scope.
 
 Core `ASK` must reach a real human-approval path or become a refusal for that
 call. It must never silently become allow. Treat malformed payloads and
@@ -131,6 +162,11 @@ host process. Repeating local probes cannot turn `host_interception` or
 `model_delivery` into PASS. At a step limit, leave a checkpoint with completed
 work and remaining checks so the next session can continue without repeating
 the setup.
+
+Checks may be grouped later at the user's request. Record each unrun check as
+`NOT_RUN` and keep activation/interception unverified; do not repeat local
+probes just to obtain a broader PASS. Deferred verification does not grant
+permission to execute destructive tests on real data.
 
 The hook-specific `doctor.py kimi|claude` configuration and local-probe PASS
 states do **not** prove a live host loaded or enforced a hook. The separate

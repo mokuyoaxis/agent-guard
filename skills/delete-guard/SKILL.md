@@ -14,6 +14,28 @@ Version **0.2.7** adds the Cleanup proposals and deletion admission described
 below; 0.2.6 lacks these additions. See the
 [0.2.7 scope, upgrade impact and exact-version availability checks](../../docs/releases/release-notes-0.2.7.md).
 
+## Installation and updates (0.3.0 development)
+
+Keep this Skill inside a complete Agent Guard installation and register a
+directory link to it. The shared Core and all scripts, including Cleanup,
+then come from the same package. This checkout adds a preview-first helper:
+
+```sh
+python3 /absolute/path/to/agent-guard/install_skill.py --target /absolute/path/to/host-skills/delete-guard --json
+```
+
+Review the selected installation and target, then add `--execute` within the
+authorized configuration scope. A previous Skill is retained outside the
+host's Skill search directory; updating uses the same command. The host's
+Skill directory must be selected for its actual version and scope.
+
+The helper is not in published 0.2.9. Do not copy this directory alone,
+copy Core into the host, or patch PYTHONPATH to compensate for a partial
+installation. If a selected older package lacks the helper, use its scripts
+from the complete package root. See [installation and updates](../../docs/guides/skill-installation.md).
+Skill registration does not configure hooks or MCP; use the
+[setup prompt](../../docs/guides/agent-setup-prompt.md) for that separate task.
+
 You operate inside a workspace where irreversible destruction is not a
 default capability. This skill defines the deletion discipline the guard
 enforces and how to work with it productively. The four pillars:
@@ -47,6 +69,14 @@ python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/restore.py '<t
 python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/status.py
 ```
 
+In the 0.3.0 development checkout, text status defaults to a bounded read-only
+overview with current-budget task IDs, transaction metadata and budget bars.
+Use `--view overview --json` or MCP `status` with `view: overview` for the
+same data. Default JSON/MCP status remains legacy full. Occupancy/capacity
+GC is not measured by overview, task rows do not validate grants, and partial
+coverage is not absence. Follow task IDs for existing detail queries; no GUI
+or operation panel is part of this version. See [query scope](../../docs/guides/read-only-query.md).
+
 Globs passed to `safe_delete` are expanded explicitly before anything moves.
 That is why `safe_delete '*.log'` works while `rm *.log` is blocked: the
 guard refuses opaque target sets, not cleanup work.
@@ -77,9 +107,74 @@ application-managed cache consistency separately. See
 [observation limits](../../docs/guides/cleanup-plan.md#directory-overview-and-measurement-unreleased)
 and [MCP semantics](../../docs/guides/mcp.md#cleanup-observations-unreleased).
 
+## Require quarantine (0.3.0 development)
+
+When authorized cleanup requires recovery, use `safe_delete.py --quarantine`
+(also with `--dry-run`) or add `--quarantine` while creating a Cleanup plan.
+MCP `safe_delete` and new `cleanup_plan` calls accept `quarantine: true`.
+Proven regenerable artifacts keep their category, but the action becomes
+quarantine. Defaults are unchanged; published 0.2.9 lacks these options.
+
+The choice is saved and bound to the plan and approval. Follow the returned
+operator command, then execute by task ID; do not add overrides to saved
+queries, approval or execution. Dry-run follow-up commands retain it.
+Protection, RESTRICTED mode, budgets, capacity, rate and batch confirmation
+still apply. A refusal never falls back to direct deletion or automatic GC.
+Quarantine still occupies storage; this option cannot purge recovery copies,
+declare unknown content obsolete, coordinate application cache locks, or
+restore an arbitrary file inside a multi-file transaction. See
+[quarantine-only plans](../../docs/guides/cleanup-plan.md#require-quarantine-030-development).
+
 <a id="cleanup-proposals-027-candidate"></a>
 
 ## Cleanup proposals (0.2.7)
+
+The 0.3.0 development checkout can retain an explicit batch without repeating
+its declaration and selection on execution:
+
+```sh
+python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/cleanup.py --targets-file /absolute/path/to/targets.json --discard-targets --save-plan --json
+# Operator terminal: review, then type APPROVE (agent must not fill this in).
+python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/cleanup.py --from-plan '<saved-plan-id>' --approve --json
+# Agent: attempt the returned task once; query before further work.
+python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/cleanup.py --task '<task-id>' --execute --json
+python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/cleanup.py --task '<task-id>' --json
+```
+
+Keep the same workspace, quarantine and session settings. The JSON input is a list of literal
+paths; use `--discard-targets` only after confirming the whole batch is
+discarded. It is a proposal, not approval. Protection and unknowns remain;
+empty selections cannot execute. Saved execution refreshes only the stored
+targets. Only the operator approves; the agent can then execute the returned
+task ID without a terminal prompt. Approval expires after 600 seconds and
+does not lift protection, budgets or capacity limits. Tasks count one rate
+event, with bytes/entries charged per admitted effect group. Partial, unknown
+or already attempted tasks never automatically resume: inspect the task and
+recovery transactions, then seek review of remaining targets. Do not allocate
+a PTY, auto-answer confirmation or call internal approval functions. These
+flags are absent from published 0.2.9. See
+[saved target plans](../../docs/guides/cleanup-plan.md#saved-explicit-target-plans-030-development).
+
+If the selected installation actually exposes the 0.3.0 development MCP
+tools, use `cleanup_plan` with literal `targets`; only `save: true` stores
+a proposal. `saved_plan_id` alone reads it without refresh. Follow the
+returned operator command and `binding`; there is no MCP approval tool.
+After the operator approves in the same package/workspace/quarantine/session,
+use `cleanup_execute` with the returned `task_id`, and `cleanup_task_status`
+after partial or uncertain results. Never substitute `approved`, `confirm`,
+a grant token or a new identity. Local runtime and bounded MCP-host results
+are recorded in the [maintenance acceptance](../../docs/reports/test-report-maintenance-0.3.0.md);
+the flow is absent from published 0.2.9. See [MCP task handoff](../../docs/guides/mcp.md#reviewed-maintenance-tasks-030-development).
+
+The development cleanup MCP tools default to an overview. Use `view: details`
+on saved plan/task queries for bounded rows (50 by default, at most 200),
+or `view: full` for the full public result. Filters affect display only;
+they never alter the approved selection. Cleanup plan/task text defaults to summaries,
+while existing `--json` keeps full fields unless a compact view is requested.
+Confirmation still shows the entire selection. Read `execution_summary`
+as receipt evidence: distinguish dispatched-unconfirmed from not-dispatched,
+keep missing outcomes unknown and do not equate logical bytes with freed
+disk space. See [views and result units](../../docs/guides/maintenance-output.md).
 
 To propose concrete executable candidates, produce a separate read-only plan:
 
@@ -93,7 +188,7 @@ discarded paths with `--discard PATH` and evidence/backup roots with
 `--protect PATH`. Age, ignore status and untracked status alone do not prove
 discardability. `.internal`, Git metadata and recovery boundaries are pruned.
 
-Only propose the plan by default. Execution requires `--execute`, the
+Only propose the plan by default. The original full-workspace execution requires `--execute`, the
 reviewed `--plan-id`, exact `--select PATH` entries and a human's terminal
 acknowledgement. Do not answer that prompt on the user's behalf. The tool
 rechecks the plan after confirmation and delegates to existing safe_delete;
@@ -104,6 +199,14 @@ native host tool or human-identity guarantee. See the
 <a id="deletion-admission-027-candidate"></a>
 
 ## Deletion admission (0.2.7)
+
+In the 0.3.0 development checkout, `safe_delete --dry-run` also reports
+`admission` separately from the policy `verdict`. Read its current status,
+approval requirement and `next_step`; exit 0 only means the preview completed.
+`READY` is a snapshot, not reserved budget or execution permission. The check
+does not debit budget or consume approval, while existing dry-run auditing
+may still write metadata. Published 0.2.9 lacks this projection; see
+[preview fields and limits](../../docs/guides/deletion-limits.md#dry-run-admission-preview-030-development).
 
 Covered deletion paths now share persistent session byte/entry budgets,
 short-window rate/repeated-target-set limits and quarantine capacity admission.

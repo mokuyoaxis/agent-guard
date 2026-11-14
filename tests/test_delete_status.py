@@ -102,11 +102,16 @@ class DeleteStatusTests(unittest.TestCase):
         self.configure(session_max_bytes=7, session_max_entries=8,
                        rate_max_operations=9, rate_window_seconds=17)
         self.consume()
-        result = self.invoke()
+        result = self.invoke("--view", "full")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("4/7 bytes", result.stdout)
         self.assertIn("1/8 entries", result.stdout)
         self.assertIn("1/9 operations in 17s", result.stdout)
+        overview = self.invoke()
+        self.assertEqual(overview.returncode, 0, overview.stderr)
+        self.assertIn("4 B / 7 B", overview.stdout)
+        self.assertIn("1 / 8", overview.stdout)
+        self.assertIn("1 / 9 in 17s", overview.stdout)
 
     def test_corrupt_admission_is_visible_and_gc_remains_available(self):
         self.write(".agent-trash/admission.json", b"not JSON")

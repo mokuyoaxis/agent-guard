@@ -1,7 +1,7 @@
 # Local MCP tools / 本地 MCP 工具
 
 This adapter is introduced in **0.2.7** and is absent from 0.2.6. The separate
-0.3.0 plan remains paused. The historical
+disclosure-authorization research remains paused. The historical
 protocol/package records and three real Kimi Code trials below belong to the earlier
 2026-10-28 source checkpoint with 0.2.6 package metadata, including a failed
 first full run. They do not certify the new versioned artifact. See the
@@ -19,6 +19,22 @@ Version **0.2.9** adds `cleanup_discover` and `cleanup_measure`.
 Version 0.2.8 retains the original five tools. The new read-only workflow
 and its separate partial-result contract are described
 [below](#cleanup-observations-029).
+
+The **0.3.0 development checkout** adds reviewed maintenance tasks through
+`cleanup_plan`, `cleanup_execute` and `cleanup_task_status`, for ten tools in
+total. These additions are absent from published 0.2.9. Runtime and host
+acceptance are recorded separately; tool discovery alone does not prove a
+model completed an approved task or a native hook intercepted an operation.
+See [the task workflow](#reviewed-maintenance-tasks-030-development).
+The [maintenance acceptance](../reports/test-report-maintenance-0.3.0.md)
+records local approved execution, three hosts' ordinary model-backed tasks,
+DSH/Kimi fresh-approved execution, Claude's connected/deferred status and
+Codex's earlier usage-limit block before business calls, and the separate
+2026-11-14 single-root real-cache execution with controller recovery.
+The same development scope also adds `status(view=overview)` for
+[bounded metadata queries](read-only-query.md), keeping the ten-tool set and
+legacy default status result. CLI/JSON/MCP queries are the current interface;
+frontend and operation panels are deferred.
 
 MCP gives a supporting coding-agent client an explicit way to use the existing
 safe deletion and recovery operations. It does **not** intercept shell `rm`,
@@ -58,6 +74,12 @@ wheel is platform-independent, but some transitive dependencies contain
 native code; the selected environment must successfully install them.
 Do not replace a working global Python environment to enable this adapter.
 
+For a persistent client entry, keep this environment at a stable location
+outside experiment artifacts or temporary package prefixes. Check the
+selected package's SDK pin before installation and obtain any required
+dependency-installation authorization. Run `doctor mcp` with the intended
+interpreter and storage binding before registering it in a client.
+
 The local launch command is:
 
 ```sh
@@ -68,8 +90,59 @@ The client starts this stdio process. No network listener, cloud account or
 system service is required. Use absolute paths and bind one workspace at
 startup; a tool call cannot change it or select another quarantine. Protocol
 messages use stdout; diagnostics use stderr.
-This adapter binds the workspace-local `.agent-trash/`; it does not adopt an
-ambient custom quarantine or deletion-policy environment override.
+Storage defaults to the workspace-local `.agent-trash/`. The **0.3.0
+development checkout** also accepts a trusted startup `--trash-root` for a
+fixed quarantine directory; published 0.2.9 does not have this option. Ambient
+quarantine and deletion-policy environment overrides are still ignored.
+
+### Select a fixed quarantine directory (0.3.0 development)
+
+For a workspace whose owning application expects a strict directory layout,
+select a dedicated stable bucket outside that application-managed tree:
+
+```sh
+/absolute/path/to/agent-guard-mcp-venv/bin/python -B \
+  /absolute/path/to/agent-guard/adapters/mcp/server.py \
+  --workspace /absolute/path/to/workspace \
+  --trash-root /absolute/path/to/guard-storage/workspace-a
+```
+
+Only the operator's startup configuration chooses this path. Tool arguments
+cannot change it. Explicit paths must be absolute after home expansion;
+directory links are resolved once at startup. The directory may be absent,
+but it cannot be a file, the workspace itself or an ancestor containing the
+workspace. Startup and read-only queries do not create it. Writes occur when
+an operation audits, approves or executes through the existing Core.
+
+Use one stable bucket per workspace and retain it across restarts. Selecting
+another bucket selects that bucket's recovery records, authorization state
+and budget ledger; it does not carry over or merge the old ledger. Existing
+saved plans/tasks remain bound to their original location. This option
+performs no migration. The retained default `.agent-trash/` and its aliases
+remain protected from MCP safe_delete even when another bucket is selected.
+
+This matters when cleaning a DSH session-storage root: the installed backend
+examined during development rejected quarantine JSONL audit/manifest files
+as old flat session logs. Even an audited dry-run can create those files.
+Keeping new audit data outside the session tree avoids that collision; an
+already existing conflicting bucket still needs a separate reviewed
+migration. Changing this flag does not fix its presence. Ordinary project
+workspaces outside that session tree do not have this particular conflict.
+
+Copy the returned plan/task commands to retain the selected location. Custom
+storage instructions use POSIX `env` argv with `AGENT_GUARD_WORKSPACE` and
+`AGENT_GUARD_TRASH`; keep the trusted session setting as described below.
+Native Windows command handoff for this option is not verified.
+
+Development verification also exercised an authorized existing-bucket move
+to external storage, retaining an old-path link. The installed DSH directory
+checker then passed. A later full headless DSH read-only task and new approved
+MCP batch also passed using that original persistence root.
+This is a version-specific compatibility observation, not an automatic
+migration or a universal recommendation for application storage trees.
+Current Core measures a linked bucket's physical contents for capacity;
+older copies need the correction or an explicit physical storage path.
+See [storage acceptance](../reports/test-report-maintenance-0.3.0.md#local-workflow-and-storage).
 
 An optional trusted startup `--session stable-name` selects both the existing
 CLI authorization mode and persistent deletion-budget identity. Without it,
@@ -109,17 +182,30 @@ client configuration. `--timeout` bounds the diagnostic checks in seconds
 (default 30; accepted range 5–120). Closing the service process can add up to
 three seconds of process waits and one second of reader-thread waiting beyond that deadline.
 
+For a development service using custom storage, pass the same `--trash-root`
+to the doctor. It validates that binding and still calls only the original
+three read-only tools; it neither creates nor migrates the selected bucket:
+
+```sh
+python3 -B /absolute/path/to/agent-guard/doctor.py mcp \
+  --python /absolute/path/to/agent-guard-mcp-venv/bin/python \
+  --workspace /absolute/path/to/workspace \
+  --trash-root /absolute/path/to/guard-storage/workspace-a --json
+```
+
 The checks cover:
 
 1. The selected interpreter, pinned SDK metadata and actual SDK imports.
 2. A classic `2025-06-18` stdio handshake, the `agent-guard` service identity
    and a service version matching the doctor's package version.
 3. The expected tools and query annotations for this installation: five in
-   0.2.8, seven in 0.2.9. Use doctor and server
+   0.2.8, seven in published 0.2.9, ten in the 0.3.0 development checkout.
+   The plan tool is annotated as writable because it can explicitly save;
+   task status is read-only. Use doctor and server
    from the same installation; matching package version text alone does not
    establish an identical tool set.
 4. Successful `status`, `transactions` and `gc_plan` calls, including the
-   requested workspace and its local quarantine binding reported by `status`.
+   requested workspace and the selected quarantine binding reported by `status`.
 
 No model, deletion, restore, GC execution or dependency installation is part
 of this diagnosis. It does not create host configuration or approve a budget
@@ -178,13 +264,43 @@ or atomic rollback. Final candidate results are recorded in the
 
 | Tool | Inputs | Effect |
 |---|---|---|
-| `safe_delete` | `paths` (1–1000 literal strings), optional `dry_run` (default false) | Delegate to safe_delete with the existing policy, budget, audit and recovery rules |
+| `safe_delete` | `paths` (1–1000 literal strings), optional `dry_run` (default false); 0.3.0 adds `quarantine` (default false) | Existing policy and admission; `quarantine: true` retains recovery copies even for proven regenerable artifacts |
 | `restore` | `txid` | Restore a transaction without force-overwriting an occupant |
 | `transactions` | none | List the selected workspace's recovery transactions |
-| `status` | optional integer `tail` (0–100, default 10) | Inspect recovery state, limits and recent audit information |
+| `status` | optional `tail` (0–100); 0.3.0 adds `view: overview/full` and overview-only `limit` (1–50) | Legacy full by default; explicit overview reads bounded task/transaction metadata and budget without payload size walks |
 | `gc_plan` | none | Preview the existing transaction GC plan; never execute it |
 | `cleanup_discover` (0.2.9) | optional literal directory `scopes`, `max_entries` (1–10000), `max_depth` (1–4) | Bounded read-only overview; no executable plan |
 | `cleanup_measure` (0.2.9) | required directory `scopes`, optional `max_entries` (1–20000), `max_depth` (1–32) | Read-only metadata measurement; protected whole sizes stay unknown |
+| `cleanup_plan` (0.3.0 dev) | literal `targets` with declarations/limits, `save` and optional `quarantine`, or `saved_plan_id`; optional output view/detail controls | Default overview; explicit saving stores metadata and requested effects; saved reads do not refresh sources |
+| `cleanup_execute` (0.3.0 dev) | operator-approved `task_id`, optional `view: full` | Default receipt summary; never sign an approval or resume a claimed task |
+| `cleanup_task_status` (0.3.0 dev) | `task_id`, optional view/detail controls | Default durable summary; no inventory, budget debit or retry |
+
+For recoverable cleanup in the **0.3.0 development checkout**, use
+`safe_delete` with `quarantine: true`, or create a proposal such as:
+
+```json
+{"name":"cleanup_plan","arguments":{"targets":[".pytest_cache"],"quarantine":true,"save":true}}
+```
+
+This retains the regenerable classification while changing its action to
+quarantine. Unknown content still needs discard evidence; protection and all
+admission checks remain. The saved choice is bound into the plan/approval;
+follow its operator command and execute by task ID. Saved-ID queries and
+`cleanup_execute` reject a quarantine override, even false. A failed quarantine
+never falls back to direct deletion or automatic GC. The option does not
+coordinate application cache locks or free disk space by itself. It is absent
+from published 0.2.9; use matching updated CLI/server processes and reconnect
+existing clients after updating. See [quarantine-only plans](cleanup-plan.md#require-quarantine-030-development).
+
+In the **0.3.0 development checkout**, `safe_delete` with `dry_run: true`
+also returns `result.admission`, including current admission/approval status
+and supported next steps. This preserves the existing safe_delete arguments;
+the three task tools above are separate additions. `ok: true` still means
+the preview completed, even when admission is
+`REQUIRES_APPROVAL` or `BLOCKED`; policy BLOCK keeps exit 2 and `ok: false`.
+This snapshot consumes no budget/grant and reserves nothing. It is absent
+from published 0.2.9 and has not yet received the planned runtime regression
+checks. See [fields, effects and exit codes](deletion-limits.md#dry-run-admission-preview-030-development).
 
 Paths are literal names, relative to the fixed workspace or absolute; the
 Core still refuses outside targets. Glob characters name actual files rather
@@ -218,9 +334,10 @@ cannot be used as an alternate permanent-GC interface. `gc_plan` is a preview
 restriction of this adapter, not a new claim that the existing GC CLI requires
 a terminal or human confirmation.
 
-Large batches remain refused with Cleanup guidance; use the existing
-[reviewed terminal workflow](cleanup-plan.md#confirm-and-execute) when
-authorized. A model-provided `confirm=true`, client tool annotation or
+The direct safe_delete tool still refuses unapproved large batches. In this
+development checkout use the [saved-plan task workflow](#reviewed-maintenance-tasks-030-development);
+older versions use the [reviewed terminal workflow](cleanup-plan.md#confirm-and-execute).
+A model-provided `confirm=true`, client tool annotation or
 permissive auto-approval setting does not replace that workflow. Restore
 conflicts require operator review. Changing policy, force restoration,
 executing GC or resetting a budget remains outside this server's tool set.
@@ -335,7 +452,27 @@ trusted project, merge this entry into `.codex/config.toml` instead:
 [mcp_servers.agent-guard]
 command = "/absolute/path/to/agent-guard-mcp-venv/bin/python"
 args = ["-B", "/absolute/path/to/agent-guard/adapters/mcp/server.py", "--workspace", "/absolute/path/to/your-project"]
+cwd = "/absolute/path/to/your-project"
+startup_timeout_sec = 30
+tool_timeout_sec = 360
+required = true
 ```
+
+These are explicit client deadlines, not new Core limits. The development
+adapter allows 120 seconds for an ordinary CLI call and 300 seconds for an
+approved task; Codex's default 60-second tool deadline can expire earlier.
+The 360-second example leaves a margin for the existing task deadline.
+`required = true` makes this project's Codex startup fail if the service
+cannot connect. Choose it when Guard availability is required; it grants
+neither deletion permission nor operator approval. A timeout or lost reply
+still requires querying the task/transaction before another mutation.
+
+Bind each entry to its intended workspace, existing quarantine and budget
+identity. Omitting `--session` retains the shared CLI default; do not add a
+new identity during setup or reconnection. A local configuration containing
+machine-specific paths should stay out of public commits. Project-scoped
+configuration is loaded only for trusted projects; do not broaden the global
+project trust policy to make an unreviewed entry load.
 
 Use `codex mcp list` and `/mcp` in a fresh session to inspect configuration and
 connection state. Configuration being present does not prove a model actually
@@ -348,10 +485,184 @@ Codex acceptance below covers one exact version and selected MCP scenarios.
 Client schemas, approvals and connection behavior can change; verify the
 installed version rather than copying another client's configuration shape.
 
+The project-scoped entry was also exercised on 2026-11-13 with Codex 0.165.0,
+a stable SDK 2.3.0 environment and this ten-tool development checkout. A fresh
+session used the actual project configuration for three read-only MCP calls,
+without shell calls or MCP launch overrides. See the
+[registration acceptance](../reports/test-report-maintenance-0.3.0.md#project-scoped-codex-mcp-registration-2026-11-13)
+for the separate protocol-client recovery check and remaining host limits.
+
+## Reviewed maintenance tasks (0.3.0 development)
+
+Guard's operator approval and the MCP client's permission to call a writing
+tool are separate gates. A valid task does not override the client's policy.
+In a recorded Codex trial, `approval_policy="never"` rejected
+`cleanup_execute` before it reached Core, despite a current terminal-approved
+task. The model conversation still exited successfully; that was not a
+successful maintenance receipt. Verify the client's approval path before
+requesting a time-limited business grant, and inspect the actual task after a
+refusal. Read-only connection/plan tests do not establish mutation permission.
+See [OpenAI's approval behavior](https://learn.chatgpt.com/docs/sandboxing/auto-review)
+and [client tool settings](https://learn.chatgpt.com/docs/extend/mcp).
+Preserve truthful tool annotations and existing safety boundaries when
+arranging client approval; never label a writer as read-only to avoid a gate.
+
+For an operator-authorized unattended run, Codex 0.165.0 can grant permission
+to one MCP tool in that process. After verifying the same behavior with an
+owned no-op tool, start the execution process with these CLI overrides:
+
+```sh
+codex exec --sandbox read-only \
+  -c 'approval_policy="never"' \
+  -c 'features.shell_tool=false' \
+  -c 'mcp_servers.agent-guard.enabled_tools=["status","cleanup_task_status","cleanup_execute"]' \
+  -c 'mcp_servers.agent-guard.tools.cleanup_execute.approval_mode="approve"' \
+  'Inspect the approved task, execute its task_id once, then query its receipts.'
+```
+
+Use the registered server's actual name and the same project directory. These
+arguments do not write configuration files. They permit this client's tool
+call; they do not create Core approval, extend its expiry, or lift protection
+and limits. The setting applies to the tool, not to a single task ID; Core
+still validates each task. Other tools retain their client policies. Arrange
+any broader access separately with the operator. The read-only sandbox
+selection alone does not certify effective OS isolation on PRoot.
+
+The bounded host probe succeeded for the permitted synthetic tool while an
+unpermitted sibling remained blocked, with destructive annotations retained.
+That probe establishes the client setting's behavior in the tested version.
+The real cleanup was verified separately below. See the [permission record](../reports/test-report-maintenance-0.3.0.md#codex-process-tool-permission-2026-11-14).
+
+A later fresh-approved real cache task also passed with this process setup:
+four Codex MCP calls and one execution, followed by independent controller
+verification and recovery of the root and a separate one-file transaction.
+All five original files were restored; no permanent GC ran. See the
+[real-project acceptance](../reports/test-report-maintenance-0.3.0.md#codex-real-project-quarantine-and-restore-2026-11-14)
+for the scope, accounting and remaining large-batch/native-sandbox limits.
+
+The three task tools reuse the same package's Cleanup CLI and Core. They
+cannot change workspace, quarantine, session, environment, target selection
+on execution, or supply `approved`, `confirm` or a grant token. Approval is
+still an operator-terminal action; MCP does not create a new approval bridge.
+No additional SDK, network service, configuration or recovery migration is
+needed. Update/reconnect the selected server and use its own doctor and CLI;
+package version text alone does not identify this unreleased implementation.
+
+These tools now default to `view: summary`. Plan/status queries can request
+`view: details` with category/state, literal relative path and pagination;
+`view: full` returns full public JSON. Execute supports summary/full only.
+Read filters change display, never selection or execution. The shared
+[output contract](maintenance-output.md) defines units, unknowns and pages;
+MCP text and structured content both carry the selected view. Local protocol
+and view regressions have passed, with bounded model-host observations in
+the [acceptance report](../reports/test-report-maintenance-0.3.0.md).
+The tool count and read-only annotations stay unchanged.
+
+`cleanup_plan` takes 1–1000 literal `targets`, optional `discard` and `protect`
+arrays (up to 1000 each), `discard_targets` (default false), `max_entries`
+(1–10000, default 10000) and `max_depth` (1–32, default 32). Paths retain the
+fixed workspace boundary; no shell/glob expansion occurs. Unknown or protected
+roots remain unavailable. Listing roots does not declare them discarded.
+
+Default `save: false` planning writes nothing. `save: true` explicitly saves
+the request and proposed selection under `.agent-guard/cleanup-plans` without
+deleting sources or approving execution. Optional `select` lists 1–1000 exact
+selectable plan entries and requires saving; otherwise selectable requested
+roots are proposed. Use `discard_targets: true` only after confirming every
+requested root is discarded; use individual declarations for a mixed batch.
+For example, after confirming both synthetic example roots are disposable:
+
+```json
+{"name":"cleanup_plan","arguments":{"targets":["sessions/old.jsonl","cache/old-run"],"discard_targets":true,"save":true}}
+```
+
+The saved ID is in `result.saved_plan_id`; `result.next_step.argv` provides
+the operator approval command when the stored selection is complete and
+nonempty. Empty or incomplete selections grant no execution permission.
+A valid incomplete proposal has `ok: true, partial: true`, preserving CLI
+exit 1; a complete proposal has `partial: false`. Check the actual selection
+and reasons, not just `ok`.
+
+To read an existing proposal without rescanning, pass its saved ID, optionally
+with read controls:
+
+```json
+{"name":"cleanup_plan","arguments":{"saved_plan_id":"<saved-plan-id>"}}
+```
+
+The response retains `refreshed: false`; `partial` describes the stored
+snapshot, not present source freshness. Only `view`, `category`, `path`,
+`offset` and `limit` may accompany that ID; targets, declarations and selection
+cannot be overridden. To change the proposal, create a new one.
+
+The returned `binding` records workspace, quarantine and `session_mode`.
+Storage follows the trusted startup `--trash-root`, or the workspace's
+`.agent-trash` when that option is absent. For `SHARED_CLI_DEFAULT`,
+the operator must unset `AGENT_GUARD_SESSION`; for `EXPLICIT_STARTUP_SESSION`,
+use the identical identity from trusted `--session` configuration. The raw
+session identity is not returned. Keep the same package and settings when
+approving and executing. With custom storage the returned `next_step.argv`
+already contains its workspace/quarantine environment. For the shared default
+session, a POSIX operator terminal can use this equivalent command, with the
+actual selected quarantine path:
+
+```sh
+env -u AGENT_GUARD_SESSION \
+  AGENT_GUARD_TRASH=/absolute/path/to/selected-quarantine \
+  /absolute/path/to/agent-guard-mcp-venv/bin/python -B \
+  /absolute/path/to/agent-guard/skills/delete-guard/scripts/cleanup.py \
+  --root /absolute/path/to/project --from-plan '<saved-plan-id>' --approve --json
+```
+
+The operator reviews the selection and types `APPROVE`. The CLI refreshes
+the plan and returns `task_id` without moving sources or charging the session.
+The agent must not allocate a PTY, fill confirmation, call internal approval
+functions or change budget identity to make this step pass.
+
+```json
+{"name":"cleanup_execute","arguments":{"task_id":"<task-id>"}}
+{"name":"cleanup_task_status","arguments":{"task_id":"<task-id>"}}
+```
+
+Execution delegates to `cleanup --task ID --execute`. The 600-second grant,
+source/effect binding, one rate event and per-group logical budget accounting
+are identical to CLI execution. All source mutations still go through
+safe_delete. Query delegates to `cleanup --task ID --json`: `ok: true` means
+the record was read even if `result.status` is PARTIAL, STOPPED or UNKNOWN.
+Task status does not wait behind the server's execution-call lock. Read the
+counts, unconfirmed roots and per-group receipts; RUNNING is a last
+durable intent, not proof of a live process. `can_execute` does not check
+source freshness or current budgets/capacity. See [task states](cleanup-plan.md#operator-approved-tasks-030-development).
+
+Adapter timeout, invalid UTF-8 or missing JSON retains the requested task ID
+and a `query` invocation for `cleanup_task_status`. Structured CLI failures
+retain their receipts. A repeated execute never resumes a claimed task.
+Inspect task/transaction/source evidence before reviewing remaining targets
+in a new proposal; do not infer rollback from a missing response.
+
+Existing calls retain a 120-second adapter deadline; cleanup_execute has a
+300-second outer deadline to allow two bounded safe_delete groups plus
+preflight. A timeout/disconnect can still leave work or a child process in
+progress. After response loss, query instead of automatically retrying.
+For a timed-out saving plan call, `may_have_changed` concerns proposal metadata,
+not source deletion. Task/control files and tool results contain private paths;
+neither their raw contents nor grant tokens belong in public reports.
+
+doctor checks all ten registrations and their read-only annotations, then
+still calls only `status`, `transactions` and `gc_plan`. It does not invent
+a task, save a plan, approve or execute one. Runtime/SDK/host checks for this
+new flow include a real operator-approved 71-root protocol-client execution,
+and three model hosts' ordinary maintenance plus completed-task reads/replay.
+DSH and Kimi have since first executed separate new operator-approved tasks;
+Codex's new attempt was stopped by a host usage limit before business calls.
+Claude model maintenance is deferred. Historical five/seven-tool results
+below retain their original scope.
+
 ## Verify and report
 
 1. Confirm the interpreter starts the server and the client discovers the
-   tools for that installation: five in 0.2.8, seven in 0.2.9.
+   tools for that installation: five in 0.2.8, seven in published 0.2.9,
+   ten in the 0.3.0 development checkout.
    Check stderr when a dependency or executable cannot
    be found, and reconnect after changing the selected installation.
 2. Call `status`, `transactions` and `gc_plan` in a disposable project; confirm
