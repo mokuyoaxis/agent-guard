@@ -97,8 +97,14 @@ and verify that normal maintenance is not processed twice.
   observation as a complete scan or deletion approval.
   The 0.3.0 development checkout adds `cleanup_plan`, `cleanup_execute` and
   `cleanup_task_status`: use the fixed binding, obtain operator CLI approval,
-  then execute/query the returned task ID. There is no MCP approval tool or
-  model-supplied grant. The ten-tool set and local workflow have runtime
+  then execute/query the returned task ID. The default ten-tool set has no
+  approval tool or model-supplied grant. An operator-selected
+  `--approval-channel codex` adds `cleanup_request_approval(saved_plan_id)`:
+  review the complete exported list and use the host form; never auto-answer
+  it or enable that channel on the operator's behalf. Durable request/task
+  queries handle response loss without re-prompting or reissuing. See
+  [confirmation scope](../docs/guides/mcp.md#host-confirmation-030-development).
+  The default ten-tool set and local workflow have runtime
   evidence, with bounded Codex/Kimi/DSH model tasks, each host's fresh-approved
   71-root batch and Codex's real cache task with controller recovery.
   Claude model work is deferred. New native-hook paths still need separate acceptance.

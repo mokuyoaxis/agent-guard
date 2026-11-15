@@ -250,7 +250,9 @@ full result. Explicit `--view full` also retains that behavior.
 
 The MCP status tool adds `view: overview/full` and overview-only `limit`
 (1–50, default 10). Existing tail/default semantics and other tool schemas
-are retained; the service stays at ten tools. Valid partial overview results
+are retained; the default service stays at ten tools. The separately enabled
+[Codex confirmation channel](../guides/mcp.md#host-confirmation-030-development)
+adds an eleventh tool without changing those query defaults. Valid partial overview results
 use `ok: true, partial: true` with CLI exit 1. Doctor still performs only its
 original three state calls, without certifying the new overview path.
 

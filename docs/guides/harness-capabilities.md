@@ -125,9 +125,12 @@ does not establish host connection, model use or native interception; those
 remain separate evidence levels.
 
 The 0.3.0 development checkout adds `cleanup_plan`, `cleanup_execute` and
-`cleanup_task_status`, reusing operator-terminal approval and the same task
-records as CLI. doctor expects ten tools and still queries only the original
-three state tools. Runtime/SDK, operator-approved protocol-client execution,
+`cleanup_task_status`, reusing the same approved task records as CLI.
+Terminal approval is the default; the optional
+[Codex confirmation channel](mcp.md#host-confirmation-030-development) adds
+native-form approval of a saved selection. doctor expects ten tools by
+default or eleven with `--approval-channel codex`, and still queries only
+the original three state tools. Runtime/SDK, operator-approved protocol-client execution,
 ordinary model maintenance in Codex/Kimi/DSH and completed-task replay have
 recorded results. Codex, DSH and Kimi each passed first execution of a fresh
 operator-approved 71-root task; Claude model work is deferred.

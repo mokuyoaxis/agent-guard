@@ -22,6 +22,7 @@ from adapters.mcp.server import serve
 class ReplyBarrier:
     def __init__(self, workspace, control):
         self.operations = Operations(workspace)
+        self.approval_channel = self.operations.approval_channel
         self.control = Path(control)
 
     def call(self, name, arguments):

@@ -24,7 +24,9 @@ prints the full selected list and revalidates it before approval/execution.
 | Restore/GC `--json` | Full original fields plus `execution_summary` | `--view summary` |
 | safe_delete | Existing fields/text plus `execution_summary` or its formatted text | Optional 0.3.0 `--quarantine` / MCP `quarantine: true` for recovery, including regenerable artifacts |
 
-The MCP set remains ten tools. The original seven MCP operations retain
+The default MCP set remains ten tools; operator-enabled
+[Codex host confirmation](mcp.md#host-confirmation-030-development) adds an
+eleventh tool without changing these output views. The original seven MCP operations retain
 their default behavior and full CLI results, with additive execution summaries
 for safe_delete, restore and GC preview. The development safe_delete entry
 adds the optional quarantine choice above. Restore/GC have no general retained

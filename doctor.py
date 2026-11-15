@@ -764,6 +764,8 @@ def main(argv: Optional[list[str]] = None, *, _include_mcp=True) -> int:
                          help="Python in the optional MCP SDK environment (default: current interpreter)")
         mcp.add_argument("--workspace", required=True, help="existing workspace bound to the server")
         mcp.add_argument("--trash-root", help="same explicit absolute quarantine directory as the service")
+        mcp.add_argument("--approval-channel", choices=("terminal", "codex"), default="terminal",
+                         help="same operator-selected confirmation channel as the service (default: terminal)")
         mcp.add_argument("--server", help="trusted server.py path (default: this package's MCP server)")
         mcp.add_argument("--timeout", type=int, default=30, metavar="SECONDS",
                          help="total diagnosis deadline, 5..120 seconds (default: 30)")
@@ -811,7 +813,7 @@ def main(argv: Optional[list[str]] = None, *, _include_mcp=True) -> int:
         from adapters.mcp.doctor import diagnose, render
 
         report = diagnose(args.python, args.workspace, server=args.server,
-                          trash_root=args.trash_root, timeout=args.timeout)
+                          trash_root=args.trash_root, timeout=args.timeout, approval_channel=args.approval_channel)
         if args.json:
             print(json.dumps(report, ensure_ascii=False))
         else:

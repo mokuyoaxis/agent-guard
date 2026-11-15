@@ -415,7 +415,7 @@ def admit(workspace, trash_root, paths, *, quarantine=True, approval=None, task_
 
 
 def approve_cleanup(workspace, trash_root, paths, plan_id, *, task_id=None, effects=None):
-    """Called only by Cleanup after its terminal confirmation and rescan."""
+    """Called by Cleanup after operator confirmation and the same-plan rescan."""
     config = _config(workspace)
     paths = _roots(paths)
     _check_protected(paths, workspace, config)

@@ -1,6 +1,6 @@
 # Maintenance acceptance / 维护任务验收（0.3.0 development）
 
-Checkpoint: **2026-11-14 UTC**. This report describes the unreleased **0.3.0
+Checkpoint: **2026-11-15 UTC**. This report describes the unreleased **0.3.0
 candidate**. The current manifest is aligned to 0.3.0; earlier development
 artifacts below used 0.2.9 metadata. Neither identifies a published 0.3.0
 artifact. The workflow belongs to **Delete-guard**, with **Guard-lab**
@@ -19,6 +19,94 @@ uses safe_delete and its protection, budget, capacity and rate checks.
 | PARTIAL / 待补齐 | Some layers passed; the named remaining layer is not certified. |
 | NOT VERIFIED / 待补测 | No completed acceptance establishes this specific path. |
 | DEFERRED / 延期 | The check is explicitly postponed; it does not count as a pass. |
+
+<a id="host-confirmation-2026-11-15"></a>
+
+## Host confirmation extension (2026-11-15)
+
+The source now supports an operator-selected Codex form channel. Default
+startup retains ten tools and terminal approval. With `--approval-channel
+codex`, the service adds `cleanup_request_approval(saved_plan_id)` and exports
+the complete saved list for review. The form defaults to no approval and
+requires an explicit full-review declaration. Its durable request/task
+association prevents repeated prompts and issuance; saved-ID queries locate
+the task after response loss. See [the contract](../guides/mcp.md#host-confirmation-030-development).
+
+The first focused run passed 18 tests; subsequent review, storage and
+cancellation cases bring the new coverage to **24 tests**, including the
+eleven-tool doctor. Across the recorded runs, **308 distinct related tests**
+passed, including existing Core, CLI, MCP, installation and release checks.
+This is targeted regression coverage, not a new full `npm test` or CI run.
+The new tests use real SDK 2.3.0 stdio with scripted answerers and owned
+storage/Core fixtures. They cover
+default-negative/unreviewed replies, decline/cancel, unsupported or URL-only
+clients, simultaneous request reuse, source/config change, expiry, interrupted
+issuance, lost final receipts, custom storage binding, protocol cancellation/
+disconnection, budget/capacity refusal, and approved quarantine/query/replay/
+restore. The 71-row export was checked in full, including selected flags and
+mixed permanent/quarantine effects. An initial
+test expectation incorrectly treated a successful completed-task replay as
+another execution; the corrected checks establish unchanged accounting and
+transaction count and preserved restored files, without changing Core replay
+behavior. Four original interruption tests initially failed at startup because
+their test wrapper did not forward the new channel attribute; the wrapper was
+updated and all four passed with their interruption assertions intact.
+The failed runs are retained internally.
+
+An additional **scripted** full-batch trial used the production MCP/Core under
+default limits: 71 roots / 1061 recursive entries required approval, issued
+one task despite a repeated request, and quarantined/restored all targets.
+Independent checks matched all 1006 payload files' bytes, modes and mtimes,
+plus two keeper files. The ledger retained 1061 entries / 274076 logical
+bytes after restore; no permanent GC ran. This was zero-model protocol
+testing, not operator acceptance.
+
+Codex 0.165.0 also exercised the new production request in two negative-only
+trials: `never` declined without asking a frontend; an actual native TUI
+showed the summary and complete-list location and submitted its defaults
+`暂不批准` and `reviewed: false`. Both produced zero grants, zero deletion
+debit and unchanged synthetic payloads. The latter was agent-controlled
+negative rendering, not a human decision or proof of full-list review.
+
+These scripted replies are **not human approval evidence**. The earlier
+native-UI probes established transport without Core issuance; the later
+operator trial below covers the new bridge.
+
+**Operator-native confirmation: PASS, bounded synthetic scope.** At
+05:57–05:58 UTC on 2026-11-15, Codex 0.165.0 displayed one native form and
+returned the operator's explicit one-time approval with `reviewed: true`.
+Four actual MCP calls requested approval, queried the task, executed it once
+and restored the transaction. Core confirmed 71/71 roots; independent checks
+verified all 1006 payload files' bytes, modes and mtimes and two keepers after
+recovery. Codex exited 0. A subsequent read-only protocol check confirmed
+task `COMPLETED`, transaction `RESTORED`, no remaining grant and unchanged
+fixture content/control metadata. Task counts remain historical execution
+receipts after restoration; current recovery state belongs to the transaction.
+
+The prompt's 84216 logical bytes describe selected payloads. Admission charged
+274076 logical bytes / 1061 entries including directory metadata; both were
+independently reconciled. Restore kept that debit and the one recorded rate
+event. No permanent GC ran. This was an operator-driven, zero-model native
+MCP/Core trial, not a model's autonomous planning run or independent identity
+attestation. The earlier 308 related tests remain the runtime regression
+record; this review changes documentation only. Earlier full-suite, CI and
+archive records below retain their exact checkpoints. Claude,
+DSH and Kimi bridges are not enabled by the Codex option; their terminal
+workflow remains available. No new dependency, frontend, automatic GC,
+publication or permanent host-configuration change is part of this extension.
+
+The optional-SDK CI job now explicitly includes `tests.test_mcp_approval`.
+Release preflight also requires `HostApprovalProtocolTests` to be available,
+nonempty and free of class/method skip declarations. Regression cases cover
+each of those refusal conditions and the CI selection itself. These local
+workflow changes passed the actual pinned-SDK release preflight and the
+CI-selected 100-test run locally, including all nine host-approval protocol
+cases with no skips. Eight gate regressions passed. In a separate stdlib-only
+run, 31 tests completed with nine expected SDK-dependent skips; Core and gate
+checks passed without the optional SDK. These are local pre-commit results;
+follow [development CI](https://github.com/mokuyoaxis/agent-guard/actions/workflows/ci.yml)
+for the submitted commit's hosted checks. The old candidate CI result retains
+its original source scope.
 
 ## Explicit quarantine option (2026-11-13 development)
 

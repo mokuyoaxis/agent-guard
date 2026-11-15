@@ -33,6 +33,10 @@ on Codex, followed by independently verified recovery. Claude model work and
 broader native-hook coverage remain unfinished. See the
 [passed checks and remaining gaps](docs/reports/test-report-maintenance-0.3.0.md);
 these checkout results do not identify a published 0.3.0 package.
+The optional [Codex confirmation channel](docs/guides/mcp.md#host-confirmation-030-development)
+lets the operator review the complete saved list and approve through a native
+form. Its operator-driven quarantine/restore trial passed; model-led use of
+this channel remains unverified. Terminal approval remains the default.
 
 The published **[0.2.9 baseline](docs/releases/release-notes-0.2.9.md)** makes cleanup
 investigation faster: get a bounded directory overview, then measure selected

@@ -109,7 +109,8 @@ def _check_sdk(python, deadline, env, diagnostics):
 
 
 class _Connection:
-    def __init__(self, python, server, workspace, env, deadline, diagnostics, *, trash_root=None):
+    def __init__(self, python, server, workspace, env, deadline, diagnostics, *, trash_root=None,
+                 approval_channel="terminal"):
         self.deadline = deadline
         self.counter = 0
         self.messages = queue.Queue(maxsize=8)
@@ -118,6 +119,8 @@ class _Connection:
             command = [python, "-B", str(server)]
             if trash_root is not None:
                 command += ["--trash-root", trash_root]
+            if approval_channel != "terminal":
+                command += ["--approval-channel", approval_channel]
             command += ["--workspace", str(workspace)]
             self.child = subprocess.Popen(command,
                                           cwd=workspace, env=env, stdin=subprocess.PIPE,
@@ -213,7 +216,7 @@ def _tool_result(value, name):
     return content["result"]
 
 
-def diagnose(python, workspace, *, server=None, trash_root=None, timeout=30):
+def diagnose(python, workspace, *, server=None, trash_root=None, timeout=30, approval_channel="terminal"):
     """Check a trusted local service, without returning its private responses.
 
     ``timeout`` is the total diagnostic deadline (5..120 seconds); closing
@@ -223,6 +226,9 @@ def diagnose(python, workspace, *, server=None, trash_root=None, timeout=30):
     """
     if type(timeout) not in (int, float) or not math.isfinite(timeout) or not 5 <= timeout <= 120:
         raise ValueError("MCP doctor timeout must be from 5 to 120 seconds")
+    if approval_channel not in ("terminal", "codex"):
+        raise ValueError("MCP approval channel must be terminal or codex")
+    expected_tools = TOOLS | ({"cleanup_request_approval"} if approval_channel == "codex" else set())
     python = os.fspath(python)
     if not python or "\0" in python:
         raise ValueError("MCP doctor needs a nonempty interpreter")
@@ -234,7 +240,8 @@ def diagnose(python, workspace, *, server=None, trash_root=None, timeout=30):
     expected_version = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))["version"]
     report = {"schema_version": 1, "harness": "mcp", "status": "FAIL", "stage": "workspace",
               "checks": [], "host_connection": "UNVERIFIED", "model_delivery": "UNVERIFIED",
-              "host_interception": "UNVERIFIED"}
+              "host_interception": "UNVERIFIED", "approval_channel": approval_channel,
+              "host_confirmation": "UNVERIFIED"}
     stage = "workspace"
     connection = None
     deadline = time.monotonic() + timeout
@@ -272,7 +279,8 @@ def diagnose(python, workspace, *, server=None, trash_root=None, timeout=30):
             report["checks"].append({"stage": stage, "status": "PASS"})
             stage = "initialize"
             connection = _Connection(python, selected_server, selected, env, deadline, diagnostics,
-                                     trash_root=selected_trash if trash_root is not None else None)
+                                     trash_root=selected_trash if trash_root is not None else None,
+                                     approval_channel=approval_channel)
             initialized = connection.request("initialize", {"protocolVersion": PROTOCOL_VERSION,
                 "capabilities": {}, "clientInfo": {"name": "agent-guard-doctor", "version": expected_version}})
             identity = initialized.get("serverInfo")
@@ -288,16 +296,16 @@ def diagnose(python, workspace, *, server=None, trash_root=None, timeout=30):
             stage = "tools"
             listing = connection.request("tools/list", {})
             tools = listing.get("tools")
-            if (not isinstance(tools, list) or len(tools) != len(TOOLS)
+            if (not isinstance(tools, list) or len(tools) != len(expected_tools)
                     or any(not isinstance(tool, dict) or not isinstance(tool.get("name"), str) for tool in tools)
-                    or {tool["name"] for tool in tools} != TOOLS or listing.get("nextCursor") is not None):
+                    or {tool["name"] for tool in tools} != expected_tools or listing.get("nextCursor") is not None):
                 raise _Failure("MCP_DOCTOR_TOOLS")
             for tool in tools:
                 annotations = tool.get("annotations")
                 if (not isinstance(annotations, dict) or
                         annotations.get("readOnlyHint") is not (tool["name"] in READ_ONLY_TOOLS)):
                     raise _Failure("MCP_DOCTOR_TOOLS")
-            report["tools"] = sorted(TOOLS)
+            report["tools"] = sorted(expected_tools)
             report["checks"].append({"stage": stage, "status": "PASS"})
             for name in READ_ONLY:
                 stage = name

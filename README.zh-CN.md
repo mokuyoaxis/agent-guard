@@ -28,6 +28,9 @@ CLI／MCP 执行和查询；可再生产物也可显式要求隔离。本地验�
 Claude 模型验收及更广的原生 hook 覆盖仍待完成。
 详见[已通过检查与剩余缺口](docs/reports/test-report-maintenance-0.3.0.md)，
 这些源码验收结果不代表 0.3.0 已发布。
+可选的 [Codex 宿主确认通道](docs/guides/mcp.md#host-confirmation-030-development)支持
+审阅完整清单后在原生表单批准，已通过操作者驱动的隔离／恢复验收。
+默认仍用终端批准；新通道的模型自主维护尚待验收。
 
 已发布基线 **[0.2.9](docs/releases/release-notes-0.2.9.md)** 改善清理前的盘点体验：先看目录概况，
 再计量指定范围，Cleanup Copilot 和 MCP 都可使用；既有计划扫描也减少了重复的

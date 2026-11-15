@@ -21,8 +21,10 @@ and its separate partial-result contract are described
 [below](#cleanup-observations-029).
 
 The **0.3.0 development checkout** adds reviewed maintenance tasks through
-`cleanup_plan`, `cleanup_execute` and `cleanup_task_status`, for ten tools in
-total. These additions are absent from published 0.2.9. Runtime and host
+`cleanup_plan`, `cleanup_execute` and `cleanup_task_status`, for ten tools by
+default. An operator-enabled Codex confirmation channel adds an eleventh
+tool; see [host confirmation](#host-confirmation-030-development).
+These additions are absent from published 0.2.9. Runtime and host
 acceptance are recorded separately; tool discovery alone does not prove a
 model completed an approved task or a native hook intercepted an operation.
 See [the task workflow](#reviewed-maintenance-tasks-030-development).
@@ -32,7 +34,7 @@ DSH/Kimi fresh-approved execution, Claude's connected/deferred status and
 Codex's earlier usage-limit block before business calls, and the separate
 2026-11-14 single-root real-cache execution with controller recovery.
 The same development scope also adds `status(view=overview)` for
-[bounded metadata queries](read-only-query.md), keeping the ten-tool set and
+[bounded metadata queries](read-only-query.md), keeping the default ten-tool set and
 legacy default status result. CLI/JSON/MCP queries are the current interface;
 frontend and operation panels are deferred.
 
@@ -199,7 +201,8 @@ The checks cover:
 2. A classic `2025-06-18` stdio handshake, the `agent-guard` service identity
    and a service version matching the doctor's package version.
 3. The expected tools and query annotations for this installation: five in
-   0.2.8, seven in published 0.2.9, ten in the 0.3.0 development checkout.
+   0.2.8, seven in published 0.2.9, ten by default in the 0.3.0 development checkout,
+   or eleven with the matching `--approval-channel codex` option.
    The plan tool is annotated as writable because it can explicitly save;
    task status is read-only. Use doctor and server
    from the same installation; matching package version text alone does not
@@ -274,6 +277,7 @@ or atomic rollback. Final candidate results are recorded in the
 | `cleanup_plan` (0.3.0 dev) | literal `targets` with declarations/limits, `save` and optional `quarantine`, or `saved_plan_id`; optional output view/detail controls | Default overview; explicit saving stores metadata and requested effects; saved reads do not refresh sources |
 | `cleanup_execute` (0.3.0 dev) | operator-approved `task_id`, optional `view: full` | Default receipt summary; never sign an approval or resume a claimed task |
 | `cleanup_task_status` (0.3.0 dev) | `task_id`, optional view/detail controls | Default durable summary; no inventory, budget debit or retry |
+| `cleanup_request_approval` (0.3.0 dev, opt-in) | `saved_plan_id` only | Ask the selected Codex host for confirmation; reuse a durable receipt, never delete targets |
 
 For recoverable cleanup in the **0.3.0 development checkout**, use
 `safe_delete` with `quarantine: true`, or create a proposal such as:
@@ -329,7 +333,7 @@ Tool responses can include workspace paths and recovery metadata; review them
 before sharing logs. MCP does not add file-content disclosure sanitization.
 
 The tool schema supplies no workspace/session/environment override, arbitrary
-shell command, force restore, Cleanup approval, budget reset or GC execute
+shell command, force restore, model-supplied approval, budget reset or GC execute
 argument. The MCP safe-delete entry also refuses quarantine targets, so it
 cannot be used as an alternate permanent-GC interface. `gc_plan` is a preview
 restriction of this adapter, not a new claim that the existing GC CLI requires
@@ -348,6 +352,84 @@ reported transaction IDs and `transactions`/`status`; do not assume failure or
 cancellation means nothing moved. Do not automatically retry a mutating call
 after a client timeout or disconnection. The existing recovery, concurrency
 and same-UID boundaries remain; this server is not an OS sandbox.
+
+<a id="host-confirmation-030-development"></a>
+
+## Host confirmation (0.3.0 development, opt-in)
+
+The default remains ten tools and operator-terminal approval. To use the
+Codex host form, the **operator** adds `--approval-channel codex` to this
+server's startup arguments. Keep the existing workspace, quarantine and
+session binding, and reconnect the client. For example:
+
+```sh
+/absolute/path/to/agent-guard-mcp-venv/bin/python -B \
+  /absolute/path/to/agent-guard/adapters/mcp/server.py \
+  --workspace /absolute/path/to/project --approval-channel codex
+```
+
+Keep the host tool deadline longer than the five-minute confirmation window
+(for Codex, for example `tool_timeout_sec = 360`). The new tool is absent
+unless the operator enables this channel. Never let a model enable it to
+bypass a refusal. No frontend framework, network listener or new dependency
+is needed. Codex forwards standard form requests and accept/decline/cancel
+responses; see the [official App Server contract](https://learn.chatgpt.com/docs/app-server#mcp-server-elicitation-requests).
+
+1. Call `cleanup_plan` with explicit targets and `save: true`. The result adds
+   `host_approval.review.file`, an owner-readable, read-only Markdown export
+   of the **whole saved snapshot**. It includes the requested roots, full
+   selection, every candidate's path, category, effect, logical size and reason.
+   `view: details` remains available for bounded reads; filters never alter selection.
+2. Have the operator review that complete file, then call
+   `cleanup_request_approval` with only the `saved_plan_id`. The native form
+   shows selected-root and effect counts, logical size estimates, workspace
+   and the complete-list location. It defaults to **暂不批准** and
+   `reviewed: false`. Issuance requires `action: accept` with exactly
+   `{"decision":"仅批准本次","reviewed":true}`. Accept alone, a tool permission,
+   a missing review declaration, decline or cancel never issues a task.
+3. After the reply, Core refreshes the same saved selection and issues its
+   existing ten-minute task approval. Use the returned `task_id` with
+   `cleanup_execute` and `cleanup_task_status`, then the existing restore
+   tools as needed. Approval itself never moves targets. Protection, mode,
+   budgets, rate, capacity and one-attempt execution still apply.
+
+The export lives under `.agent-guard/cleanup-reviews/`; request receipts live
+under `.agent-guard/cleanup-approvals/`. Both are protected control metadata,
+ignored locally and retained for review. No old records are migrated or purged.
+These files contain paths: do not publish them as generic public logs. Export
+and request preparation write metadata; saved-ID queries only read it and
+do not refresh sources or create a new confirmation. Logical size in the
+prompt sums selected-row estimates; it can count a hardlink in separate roots
+more than once and is neither an admission charge nor freed space.
+
+Read `result.host_approval` from `cleanup_plan(saved_plan_id)` after a lost
+response or reconnect. Requests are associated with that exact saved ID and
+workspace/quarantine/budget binding. A repeated request reuses `PENDING`,
+`APPROVED` or the recorded negative outcome; it does not prompt or issue again.
+`ISSUING`/`UNKNOWN` can include a pre-associated task ID even when task
+persistence is not established. Query it before any execution; no automatic
+reissue or resume is permitted. A readable plan can include an approval-state
+error; inspect that nested state rather than treating plan `ok` as approval.
+An expired request/approval is not renewed by querying. To reconsider a
+declined, cancelled or expired request, the operator can use the existing
+full terminal review/approval workflow; agents must not edit receipts or
+change identity to obtain another prompt. Unsupported or URL-only clients
+receive a refusal and retain that terminal fallback.
+
+This is an **operator-selected trusted host channel**, not independent human
+attestation. Client names/capabilities are compatibility information. A host
+with automatic form answers or consent-changing hooks must not be used as
+an interactive approval channel. Receipts retain `human_verified: false`;
+local control files and the existing TTY workflow do not isolate malicious
+same-UID clients. Claude, DSH and Kimi approval bridges are not enabled by
+this Codex option; their existing terminal workflow remains available.
+
+`doctor mcp --approval-channel codex` checks eleven tools with the same
+workspace/storage options. It still invokes only status, transactions and
+GC preview: host confirmation remains `UNVERIFIED`, and diagnosis creates
+neither review/request files nor approvals. Protocol tests with scripted
+answers are distinct from real operator/frontend acceptance; see the
+[maintenance report](../reports/test-report-maintenance-0.3.0.md).
 
 <a id="cleanup-observations-unreleased"></a>
 
@@ -547,8 +629,10 @@ Neither trial certifies the native PRoot sandbox.
 
 The three task tools reuse the same package's Cleanup CLI and Core. They
 cannot change workspace, quarantine, session, environment, target selection
-on execution, or supply `approved`, `confirm` or a grant token. Approval is
-still an operator-terminal action; MCP does not create a new approval bridge.
+on execution, or supply `approved`, `confirm` or a grant token. Default approval
+is an operator-terminal action. The separate, explicitly enabled
+[Codex host confirmation](#host-confirmation-030-development) can request
+approval of a saved selection without model-supplied consent.
 No additional SDK, network service, configuration or recovery migration is
 needed. Update/reconnect the selected server and use its own doctor and CLI;
 package version text alone does not identify this unreleased implementation.

@@ -58,8 +58,16 @@ MCP 连接不证明原生 Shell／脚本／编辑器受保护；没有验证阻�
 观察结果不是执行许可。检查所选安装实际提供的工具，不假定旧版具有新入口。
 0.3.0 开发中提供 cleanup_plan、cleanup_execute、cleanup_task_status；先计划，
 显式 save 才写提议。已有 saved_plan_id 可只读查看；执行只接受操作者获准的
-task_id，不接受 approved／confirm 或 token。MCP 没有批准工具；所选宿主／安装
-仍须单独验收，不能继承其他环境的通过结果。
+task_id，不接受 approved／confirm 或 token。默认十工具没有批准入口。
+若操作者明确选择可信 Codex 交互通道，可在服务启动参数加入
+--approval-channel codex，额外暴露 cleanup_request_approval(saved_plan_id)。
+先由操作者审阅保存计划返回的完整只读 review.file，再请求宿主确认；表单默认
+暂不批准，须明确选择仅批准本次并声明已审阅。不得代答、自动启用或用客户端
+名字冒充人工凭据。重连后按 saved_plan_id 查询 host_approval 与已有 task_id，
+重复请求不重新弹窗或签发。拒绝／取消／过期后的新决定保留原终端入口。
+doctor mcp 的 --approval-channel codex 只核对十一工具与三只读调用，不认证人工。
+Claude／DSH／Kimi 本轮仍使用终端通路；所选宿主／安装须分别验收，不能继承
+其他环境的通过结果。完整清单与内部回执不放进公开报告。
 Guard任务批准与宿主调用MCP写工具的许可是两道门；Core的can_execute不代表
 宿主已允许调用。先验证宿主审批通路，再索取有时限的Core批准；never会直接
 拒绝仍需审批的调用。会话退出0不等于业务成功，宿主拒绝后只读查询并记录
@@ -69,7 +77,7 @@ Core状态，不换入口冒充该宿主通过，也不隐藏工具的写入／�
 其他工具仍被拦截。具体命令见MCP指南的reviewed maintenance tasks。先验证当前
 宿主版本，再通过进程参数只许可cleanup_execute、暴露status／cleanup_task_status／
 cleanup_execute，并关闭Shell工具；不自动写全局配置或放行safe_delete／restore。
-该许可针对工具而非单个task_id，Core仍逐任务核对真实终端批准、有效期及原限制。
+该许可针对工具而非单个task_id，Core仍逐任务核对操作者批准、有效期及原限制。
 宿主预检完成后再请操作者批准业务任务，防止批准时间耗在宿主装配上。
 目标清单本身不是废弃声明。任务已明确确认整批废弃时，在首次 cleanup_plan
 提议中带 discard_targets=true；混合批仅用 discard 声明确认过的废弃项。

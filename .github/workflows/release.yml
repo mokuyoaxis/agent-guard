@@ -116,10 +116,12 @@ jobs:
           from tests.test_mcp_protocol import McpProtocolTests, SDK_AVAILABLE
           from tests.test_mcp_doctor import McpDoctorProtocolTests, SDK_AVAILABLE as DOCTOR_SDK_AVAILABLE
           from tests.test_mcp_interruption import McpInterruptionTests, SDK_AVAILABLE as INTERRUPTION_SDK_AVAILABLE
+          from tests.test_mcp_approval import HostApprovalProtocolTests, SDK_AVAILABLE as APPROVAL_SDK_AVAILABLE
 
           for suite, available in ((McpProtocolTests, SDK_AVAILABLE),
                                    (McpDoctorProtocolTests, DOCTOR_SDK_AVAILABLE),
-                                   (McpInterruptionTests, INTERRUPTION_SDK_AVAILABLE)):
+                                   (McpInterruptionTests, INTERRUPTION_SDK_AVAILABLE),
+                                   (HostApprovalProtocolTests, APPROVAL_SDK_AVAILABLE)):
               methods = unittest.defaultTestLoader.getTestCaseNames(suite)
               if (not available or not methods
                       or getattr(suite, "__unittest_skip__", False)

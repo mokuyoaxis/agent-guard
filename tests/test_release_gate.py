@@ -1,6 +1,7 @@
 """Exercise the actual release SDK gate without making Core depend on the SDK."""
 import os
 from pathlib import Path
+import shlex
 import subprocess
 import sys
 import textwrap
@@ -64,13 +65,19 @@ sys.modules.update({"tests": tests, "tests.test_mcp_protocol": protocol})
 for module_name, class_name, scenario_name in (
     ("test_mcp_doctor", "McpDoctorProtocolTests", "skipped-doctor"),
     ("test_mcp_interruption", "McpInterruptionTests", "skipped-interruption"),
+    ("test_mcp_approval", "HostApprovalProtocolTests", "skipped-approval"),
 ):
     module = ModuleType("tests." + module_name)
     case = type(class_name, (unittest.TestCase,), {"test_wire": lambda self: None})
     if scenario == scenario_name:
         case.__unittest_skip__ = True
+    if module_name == "test_mcp_approval":
+        if scenario == "skipped-approval-method":
+            case.test_wire.__unittest_skip__ = True
+        elif scenario == "empty-approval-suite":
+            case = unittest.TestCase
     setattr(module, class_name, case)
-    module.SDK_AVAILABLE = True
+    module.SDK_AVAILABLE = not (module_name == "test_mcp_approval" and scenario == "unavailable-approval")
     setattr(tests, module_name, module)
     sys.modules["tests." + module_name] = module
 exec(compile(sys.stdin.read(), "<actual release SDK gate>", "exec"))
@@ -112,6 +119,17 @@ class ReleaseGateTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("protocol tests are enabled", result.stdout)
 
+    def test_ci_runs_approval_contracts_with_the_pinned_sdk(self):
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text()
+        job = workflow.split("  mcp-adapter:\n", 1)[1].split("\n  dsh-native-lab:", 1)[0]
+        install = "python -m pip install -r adapters/mcp/requirements.txt"
+        run = step_block(job, "Real stdio, workspace, budget and recovery contracts (no model)")
+        command = shlex.split(run.strip().removeprefix("run: "))
+        self.assertEqual(command[:4], ["python", "-m", "unittest", "-v"])
+        self.assertIn("tests.test_mcp_approval", command[4:])
+        self.assertLess(job.index(install), job.index(run))
+        self.assertNotIn("continue-on-error:", job)
+
     def test_missing_sdk_fails_release_gate(self):
         result = self.run_gate("missing")
         self.assertNotEqual(result.returncode, 0)
@@ -130,6 +148,13 @@ class ReleaseGateTests(unittest.TestCase):
     def test_unavailable_or_skipped_protocol_suite_fails_release_gate(self):
         for scenario in ("unavailable", "skipped-class", "skipped-method", "empty-suite",
                          "skipped-doctor", "skipped-interruption"):
+            with self.subTest(scenario=scenario):
+                result = self.run_gate(scenario)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("every MCP protocol test to be enabled", result.stderr)
+
+    def test_unavailable_empty_or_skipped_approval_suite_fails_release_gate(self):
+        for scenario in ("unavailable-approval", "empty-approval-suite", "skipped-approval", "skipped-approval-method"):
             with self.subTest(scenario=scenario):
                 result = self.run_gate(scenario)
                 self.assertNotEqual(result.returncode, 0)

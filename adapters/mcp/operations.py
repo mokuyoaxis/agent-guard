@@ -22,7 +22,8 @@ ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS = ROOT / "skills" / "delete-guard" / "scripts"
 GROUP_TOOLS = frozenset(("cleanup_discover", "cleanup_measure"))
 TASK_TOOLS = frozenset(("cleanup_execute", "cleanup_task_status"))
-TOOLS = frozenset(("safe_delete", "restore", "transactions", "status", "gc_plan", "cleanup_plan")) | GROUP_TOOLS | TASK_TOOLS
+APPROVAL_TOOL = "cleanup_request_approval"
+TOOLS = frozenset(("safe_delete", "restore", "transactions", "status", "gc_plan", "cleanup_plan", APPROVAL_TOOL)) | GROUP_TOOLS | TASK_TOOLS
 MAX_PATHS = 1000
 TXID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*\Z")
 PLAN_ID_RE = re.compile(r"[0-9a-f]{64}\Z")
@@ -75,7 +76,8 @@ class Operations:
     an explicit trusted startup path can select a stable external bucket.
     """
 
-    def __init__(self, workspace, *, trash_root=None, session=None, timeout=120, task_timeout=300):
+    def __init__(self, workspace, *, trash_root=None, session=None, timeout=120, task_timeout=300,
+                 approval_channel="terminal"):
         selected = Path(workspace).resolve(strict=True)
         if not selected.is_dir() or selected.parent == selected:
             raise ValueError("MCP workspace must be an existing non-root directory")
@@ -86,6 +88,9 @@ class Operations:
                 raise ValueError("MCP " + label + " timeout must be positive and at most 3600 seconds")
         self.workspace = str(selected)
         self.trash_root = resolve_trash_root(self.workspace, trash_root)
+        if approval_channel not in ("terminal", "codex"):
+            raise ValueError("MCP approval channel must be terminal or codex")
+        self.approval_channel = approval_channel
         self.timeout = timeout
         # A task may use two 120-second safe_delete groups plus preflight.
         # Keep the outer dispatcher deadline distinct from a single CLI call.
@@ -114,6 +119,7 @@ class Operations:
                    "cleanup_plan": {"targets", "saved_plan_id", "save", "discard_targets", "quarantine",
                                     "discard", "protect", "select", "max_entries", "max_depth",
                                     "view", "category", "path", "offset", "limit"},
+                   APPROVAL_TOOL: {"saved_plan_id"},
                    "cleanup_execute": {"task_id", "view"},
                    "cleanup_task_status": {"task_id", "view", "state", "path", "offset", "limit"}}[name]
         if set(arguments) - allowed:
@@ -131,7 +137,11 @@ class Operations:
             result["view"] = settings["view"]
             if settings["view"] == "details":
                 result.update({key: value for key, value in settings.items() if value is not None})
-        if name == "safe_delete":
+        if name == APPROVAL_TOOL:
+            identifier = result.get("saved_plan_id")
+            if not isinstance(identifier, str) or not PLAN_ID_RE.fullmatch(identifier):
+                raise InvalidArguments("saved_plan_id must be a 64-character lowercase hexadecimal saved plan ID")
+        elif name == "safe_delete":
             paths = result.get("paths")
             if (not isinstance(paths, list) or not 1 <= len(paths) <= MAX_PATHS
                     or any(not isinstance(path, str) or not path or "\0" in path for path in paths)):
@@ -239,6 +249,8 @@ class Operations:
 
     def call(self, name, arguments):
         args = self.validate(name, arguments)
+        if name == APPROVAL_TOOL:
+            raise InvalidArguments("host approval requires the MCP request context, not a direct operation call")
         mutating = (name in ("restore", "cleanup_execute")
                     or (name == "safe_delete" and not args["dry_run"])
                     or (name == "cleanup_plan" and args.get("save", False)))
@@ -346,6 +358,15 @@ class Operations:
                     or (stored and not compact and result.get("schema") != "cleanup_saved_plan/v1")):
                 return self._failure(name, "MCP_CLI_PROTOCOL_ERROR", "Unexpected cleanup plan response",
                                      exit_code=child.returncode, may_have_changed=mutating)
+            if stored and self.approval_channel == "codex":
+                approval = self.host_approval("review" if args.get("save") else "inspect",
+                                              result["saved_plan_id"])
+                result["host_approval"] = approval["result"]
+                result["next_step"] = {"request": {"name": APPROVAL_TOOL,
+                                                    "arguments": {"saved_plan_id": result["saved_plan_id"]}},
+                                       "operator_cli": result.get("next_step"),
+                                       "notice": "Review the complete exported list, then request host confirmation. "
+                                                 "An existing receipt is reused without a new prompt; inspect it before further work."}
             return {"tool": name, "ok": True, "partial": not plan["complete"],
                     "exit_code": child.returncode, "result": result,
                     "binding": {"workspace": self.workspace, "trash_root": self.trash_root,
@@ -368,4 +389,36 @@ class Operations:
             response["task_id"] = task_id
             if name == "cleanup_execute" and result.get("status") != "COMPLETED":
                 response["query"] = {"name": "cleanup_task_status", "arguments": {"task_id": task_id}}
+        return response
+
+    def host_approval(self, action, saved_id, *internal_values):
+        """Internal fixed-environment worker, never model-supplied outcomes."""
+        name = APPROVAL_TOOL
+        if self.approval_channel != "codex":
+            return self._failure(name, "MCP_APPROVAL_DISABLED", "Use operator terminal approval for this service")
+        command = [sys.executable, "-B", str(ROOT / "adapters/mcp/approval.py"),
+                   action, saved_id, *internal_values]
+        with self._lock:
+            try:
+                child = subprocess.run(command, cwd=self.workspace, env=self._env,
+                                       stdin=subprocess.DEVNULL, capture_output=True,
+                                       text=True, encoding="utf-8", errors="strict", timeout=self.timeout)
+            except (subprocess.TimeoutExpired, OSError, UnicodeError):
+                result = {"error": {"code": "MCP_APPROVAL_WORKER_UNAVAILABLE",
+                                    "message": "Confirmation worker did not return a usable receipt; query the saved plan before any new request"}}
+            else:
+                try:
+                    result = json.loads(child.stdout)
+                    if not isinstance(result, dict):
+                        raise ValueError("expected a receipt")
+                except (ValueError, RecursionError):
+                    result = {"error": {"code": "MCP_APPROVAL_PROTOCOL_ERROR",
+                                        "message": "Confirmation worker returned no usable receipt; query the saved plan"}}
+                if child.returncode and "error" not in result:
+                    result = {"error": {"code": "MCP_APPROVAL_WORKER_FAILED", "message": "Confirmation worker failed; query the saved plan"}}
+        response = {"tool": name, "ok": "error" not in result, "exit_code": None, "result": result,
+                    "saved_plan_id": saved_id,
+                    "query": {"name": "cleanup_plan", "arguments": {"saved_plan_id": saved_id}}}
+        if "task_id" in result:
+            response["task_id"] = result["task_id"]
         return response

@@ -34,6 +34,21 @@ INSTRUCTIONS = (
     "still has incomplete coverage or unknown whole sizes; inspect those fields and use exact scopes."
 )
 
+HOST_APPROVAL_INSTRUCTIONS = (
+    " This service has operator-enabled Codex host confirmation. Saved cleanup_plan results include "
+    "a complete read-only review file and host_approval receipt. After the operator reviews the full selection, "
+    "use cleanup_request_approval(saved_plan_id) to ask the host; only the host reply can authorize issuance. "
+    "It never deletes. Repeated calls reuse durable state without re-prompting. After disconnection read "
+    "cleanup_plan(saved_plan_id) to locate the receipt/task, then use the existing task query/execution. "
+    "Default is no approval; never auto-answer the form, generate consent or enable this channel yourself. "
+    "The terminal CLI remains the fallback for unsupported hosts or a fresh operator decision."
+)
+
+APPROVAL_FORM = {"type": "object", "properties": {
+    "decision": {"type": "string", "title": "本次决定", "enum": ["暂不批准", "仅批准本次"], "default": "暂不批准"},
+    "reviewed": {"type": "boolean", "title": "我已审阅完整清单及选中范围", "default": False}},
+    "required": ["decision", "reviewed"]}
+
 TOOL_DEFINITIONS = {
     "safe_delete": {
         "description": "Delete explicit literal paths using existing guard policy, budgets and audit. Ordinary files are quarantined with a recovery transaction; proven ignored regenerable artifacts may be permanently removed. Set quarantine=true to require quarantine for this request, including regenerable artifacts; failure never falls back to direct deletion or GC. No shell or glob expansion. Quarantine targets are refused. For large batches use cleanup_plan, operator CLI approval, then cleanup_execute(task_id). A dry_run includes result.admission with current limits/approval status and supported next steps; ok=true reports preview completion, not execution approval.",
@@ -108,6 +123,11 @@ TOOL_DEFINITIONS = {
                        "view": {"type": "string", "enum": ["summary", "full"], "default": "summary"}},
         "required": ["task_id"], "read_only": False, "destructive": True,
     },
+    "cleanup_request_approval": {
+        "description": "Request operator confirmation through the explicitly enabled Codex host channel for one saved selection. Only saved_plan_id is accepted. Review the complete exported list first; the form defaults to no approval and requires an explicit reviewed declaration. No deletion, approval booleans/tokens, target edits, identity changes or automatic re-prompt. After response loss read cleanup_plan(saved_plan_id) before further work. The host's reply is a trusted channel, not independent human attestation. Terminal approval remains available.",
+        "properties": {"saved_plan_id": {"type": "string", "pattern": "^[0-9a-f]{64}$"}},
+        "required": ["saved_plan_id"], "read_only": False, "destructive": False,
+    },
     "cleanup_task_status": {
         "description": "Read a task's last durable receipts: default summary; view=details returns bounded per-root rows; view=full returns the complete public receipt. Optional detail filters never change execution targets. No source scan, lock creation, debit or retry. ok=true means readable, not completed; RUNNING is not process liveness. can_execute is not source/budget readiness. Unconfirmed and not_dispatched are distinct. Pages may change while running; tokens/raw session identity are never returned. Inspect evidence before new work.",
         "properties": {"task_id": {"type": "string", "pattern": "^[0-9a-f]{32}$"},
@@ -127,19 +147,78 @@ def create_server(operations):
     import mcp_types as types
     from mcp.server import Server
 
+    definitions = {name: value for name, value in TOOL_DEFINITIONS.items()
+                   if name != "cleanup_request_approval" or operations.approval_channel == "codex"}
+    if operations.approval_channel == "codex":
+        definitions = {name: {**value, "description": value["description"]
+                             .replace("operator CLI approval", "operator confirmation")
+                             .replace("Follow the operator command and binding for terminal approval",
+                                      "Follow the returned complete-list review, host confirmation and binding")}
+                       for name, value in definitions.items()}
     schemas = {name: {"type": "object", "properties": value["properties"],
                       "required": value["required"], "additionalProperties": False,
                       **({"oneOf": value["one_of"]} if "one_of" in value else {})}
-               for name, value in TOOL_DEFINITIONS.items()}
+               for name, value in definitions.items()}
     tools = [types.Tool(
         name=name, description=value["description"], input_schema=schemas[name],
         annotations=types.ToolAnnotations(read_only_hint=value["read_only"],
                                           destructive_hint=value["destructive"],
                                           idempotent_hint=False, open_world_hint=False))
-        for name, value in TOOL_DEFINITIONS.items()]
+        for name, value in definitions.items()]
 
     async def list_tools(context, params):
         return types.ListToolsResult(tools=tools)
+
+    async def request_approval(context, arguments):
+        from adapters.mcp.operations import APPROVAL_TOOL
+        from mcp import MCPError
+        from mcp.shared.exceptions import NoBackChannelError
+        from pydantic import ValidationError
+
+        args = operations.validate(APPROVAL_TOOL, arguments)
+        saved_id = args["saved_plan_id"]
+        capabilities = context.session.client_capabilities
+        elicitation = capabilities.elicitation if capabilities is not None else None
+        if (elicitation is None or (elicitation.form is None
+                                   and elicitation.model_dump(exclude_none=True))):
+            return operations._failure(APPROVAL_TOOL, "MCP_APPROVAL_UNSUPPORTED",
+                                       "Host form elicitation is unavailable; use the saved plan's operator terminal command")
+        prepared = await anyio.to_thread.run_sync(operations.host_approval, "prepare", saved_id)
+        if not prepared["ok"] or not prepared["result"].get("prompt_required"):
+            return prepared
+        receipt = prepared["result"]
+        overview = receipt["review"]["overview"]
+        message = "\n".join([
+            f"Cleanup: {overview['selected_roots']} roots; {overview['known_logical_bytes']} logical B; {overview['unknown_size_roots']} unknown sizes.",
+            f"Quarantine: {overview['quarantine_roots']}; PERMANENT DELETE: {overview['permanent_delete_roots']}. No GC.",
+            "Workspace: " + json.dumps(operations.workspace, ensure_ascii=False),
+            "Review the COMPLETE list before approving:",
+            json.dumps(receipt["review"]["file"], ensure_ascii=False),
+            "Approve saved plan " + saved_id[:16] + " once; execution and admission checks follow separately.",
+        ])
+        outcome = "CANCELLED"
+        try:
+            with anyio.fail_after(300):
+                reply = await context.session.elicit_form(message=message, requested_schema=APPROVAL_FORM,
+                                                          related_request_id=context.request_id)
+            if reply.action == "accept":
+                content = reply.content
+                outcome = ("approve" if content == {"decision": "仅批准本次", "reviewed": True}
+                           and type(content["reviewed"]) is bool else "DECLINED")
+            else:
+                outcome = "DECLINED" if reply.action == "decline" else "CANCELLED"
+        except TimeoutError:
+            outcome = "TIMED_OUT"
+        except (MCPError, NoBackChannelError, ValidationError, anyio.EndOfStream,
+                anyio.ClosedResourceError, anyio.BrokenResourceError):
+            outcome = "UNAVAILABLE"
+        finally:
+            # Cancellation/disconnect never implies approval. Once a valid
+            # reply is received, persist issuance without abandoning a worker.
+            with anyio.CancelScope(shield=True):
+                finished = await anyio.to_thread.run_sync(operations.host_approval, "finish", saved_id,
+                                                          receipt["request_id"], outcome)
+        return finished
 
     async def call_tool(context, params):
         # Do not abandon a mutation thread on protocol cancellation: it may
@@ -148,7 +227,10 @@ def create_server(operations):
         from adapters.mcp.operations import InvalidArguments
 
         try:
-            result = await anyio.to_thread.run_sync(operations.call, params.name, params.arguments or {})
+            if params.name == "cleanup_request_approval" and operations.approval_channel == "codex":
+                result = await request_approval(context, params.arguments or {})
+            else:
+                result = await anyio.to_thread.run_sync(operations.call, params.name, params.arguments or {})
         except InvalidArguments as exc:
             result = {"tool": params.name, "ok": False, "exit_code": None,
                       "error": {"code": "MCP_INVALID_ARGUMENTS", "message": str(exc),
@@ -158,7 +240,11 @@ def create_server(operations):
             structured_content=result, is_error=not result["ok"])
 
     package_version = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))["version"]
-    return Server("agent-guard", version=package_version, instructions=INSTRUCTIONS,
+    instructions = INSTRUCTIONS
+    if operations.approval_channel == "codex":
+        instructions = instructions.replace("in the same package's terminal CLI", "through the enabled host channel or the same package's terminal CLI")
+        instructions += HOST_APPROVAL_INSTRUCTIONS
+    return Server("agent-guard", version=package_version, instructions=instructions,
                   get_tool_input_schema=schemas.get,
                   on_list_tools=list_tools, on_call_tool=call_tool)
 
@@ -176,11 +262,14 @@ def main(argv=None):
     parser.add_argument("--workspace", required=True, help="Existing workspace directory, fixed for this process")
     parser.add_argument("--trash-root", help="Trusted absolute quarantine directory; default: WORKSPACE/.agent-trash. No migration")
     parser.add_argument("--session", help="Trusted stable budget identity; omitted uses the shared CLI bucket")
+    parser.add_argument("--approval-channel", choices=("terminal", "codex"), default="terminal",
+                        help="Operator-selected confirmation channel; codex enables host form requests. Default: terminal")
     args = parser.parse_args(argv)
     from adapters.mcp.operations import Operations
 
     try:
-        operations = Operations(args.workspace, trash_root=args.trash_root, session=args.session)
+        operations = Operations(args.workspace, trash_root=args.trash_root, session=args.session,
+                                approval_channel=args.approval_channel)
     except (ValueError, OSError) as exc:
         parser.error(str(exc))
     try:

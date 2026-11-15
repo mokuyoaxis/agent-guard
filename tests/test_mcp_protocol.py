@@ -18,7 +18,8 @@ SDK_AVAILABLE = bool(os.environ.get("AGENT_GUARD_MCP_PYTHON") or importlib.util.
 
 
 class Connection:
-    def __init__(self, workspace, *, trash_root=None, session=None):
+    def __init__(self, workspace, *, trash_root=None, session=None, approval_channel=None,
+                 capabilities=None, elicitation_handler=None):
         self.stderr = tempfile.TemporaryFile()
         env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
         command = [MCP_PYTHON, "-B", str(SERVER), "--workspace", str(workspace)]
@@ -26,12 +27,16 @@ class Connection:
             command += ["--trash-root", str(trash_root)]
         if session is not None:
             command += ["--session", session]
+        if approval_channel is not None:
+            command += ["--approval-channel", approval_channel]
         self.child = subprocess.Popen(command,
                                       stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                       stderr=self.stderr, env=env, text=True, encoding="utf-8")
         self.received = queue.Queue()
         self.counter = 0
         self.closed = False
+        self.elicitations = []
+        self.elicitation_handler = elicitation_handler
 
         def read():
             for line in self.child.stdout:
@@ -44,7 +49,7 @@ class Connection:
         self.reader = threading.Thread(target=read, daemon=True)
         self.reader.start()
         result = self.request("initialize", {"protocolVersion": "2025-06-18",
-                               "capabilities": {}, "clientInfo": {"name": "synthetic-test", "version": "1"}})
+                               "capabilities": capabilities or {}, "clientInfo": {"name": "synthetic-test", "version": "1"}})
         self.initialized = result["result"]
         self.send({"jsonrpc": "2.0", "method": "notifications/initialized"})
 
@@ -60,6 +65,13 @@ class Connection:
             if isinstance(value, Exception):
                 self.stderr.seek(0)
                 raise AssertionError(str(value) + ": " + self.stderr.read().decode("utf-8", errors="replace"))
+            if value.get("method") == "elicitation/create" and "id" in value:
+                self.elicitations.append(value["params"])
+                if self.elicitation_handler is None:
+                    raise AssertionError("test client has no elicitation answerer")
+                self.send({"jsonrpc": "2.0", "id": value["id"],
+                           "result": self.elicitation_handler(value["params"])})
+                continue
             if value.get("id") == self.counter:
                 return value
 

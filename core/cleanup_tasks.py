@@ -119,10 +119,15 @@ def _groups(selected):
             for effect in ("quarantine", "delete") if any(r["effect"] == effect for r in selected)]
 
 
-def approve_task(saved):
-    """Operator entry only: CLI has just obtained real terminal confirmation."""
+def approve_task(saved, *, task_id=None):
+    """Operator entry: terminal or explicitly enabled trusted host confirmation.
+
+    A host request may pre-associate an ID so interrupted issuance can be
+    queried. This function still refreshes the saved selection before issuing.
+    """
     plan, selected = refresh_saved_plan(saved)
-    task_id = secrets.token_hex(16)
+    task_id = secrets.token_hex(16) if task_id is None else task_id
+    _path(plan["workspace"], task_id)
     effects = {os.path.join(plan["workspace"], r["path"]): r["effect"] for r in selected}
     recovery.RecoveryEngine(plan["workspace"], plan["trash_root"]).ensure_layout()
     token = admission.approve_cleanup(plan["workspace"], plan["trash_root"],

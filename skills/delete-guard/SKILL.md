@@ -158,7 +158,16 @@ flags are absent from published 0.2.9. See
 If the selected installation actually exposes the 0.3.0 development MCP
 tools, use `cleanup_plan` with literal `targets`; only `save: true` stores
 a proposal. `saved_plan_id` alone reads it without refresh. Follow the
-returned operator command and `binding`; there is no MCP approval tool.
+returned operator command and `binding` for the default terminal workflow.
+An operator-enabled `--approval-channel codex` additionally exposes
+`cleanup_request_approval(saved_plan_id)`: have the operator review the
+complete exported list, then request the host form. Default is no approval;
+never answer the form, change startup trust or manufacture consent yourself.
+After response loss read `cleanup_plan(saved_plan_id)` for its durable
+`host_approval` receipt and possible task ID; repeated requests do not prompt
+or issue again. Negative/expired requests retain terminal operator review as
+the fallback. This trusted host channel is not independent human attestation.
+See [host confirmation and limits](../../docs/guides/mcp.md#host-confirmation-030-development).
 After the operator approves in the same package/workspace/quarantine/session,
 use `cleanup_execute` with the returned `task_id`, and `cleanup_task_status`
 after partial or uncertain results. Never substitute `approved`, `confirm`,

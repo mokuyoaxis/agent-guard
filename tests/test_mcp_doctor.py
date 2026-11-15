@@ -266,6 +266,20 @@ class McpDoctorProtocolTests(unittest.TestCase):
         self.assertEqual(self.inventory(), before)
         self.assertFalse((self.workspace / ".agent-trash").exists())
 
+    def test_real_opt_in_channel_checks_eleven_tools_without_requesting_confirmation(self):
+        before = self.inventory()
+        proc = subprocess.run([sys.executable, "-B", str(ROOT / "doctor.py"), "mcp",
+                               "--python", MCP_PYTHON, "--workspace", str(self.workspace),
+                               "--approval-channel", "codex", "--json"],
+                              capture_output=True, text=True, timeout=40)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        result = json.loads(proc.stdout)
+        self.assertEqual(set(result["tools"]), mcp_doctor.TOOLS | {"cleanup_request_approval"})
+        self.assertEqual(result["approval_channel"], "codex")
+        self.assertEqual(result["host_confirmation"], "UNVERIFIED")
+        self.assertEqual(self.inventory(), before)
+        self.assertFalse((self.workspace / ".agent-trash").exists())
+
     def test_real_cli_json_and_interpreter_symlink_work(self):
         before = self.inventory()
         proc = subprocess.run([sys.executable, "-B", str(ROOT / "doctor.py"), "mcp",

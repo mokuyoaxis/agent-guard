@@ -5,7 +5,7 @@
 ## Current scope: 0.3.0 development
 
 The maintenance workflow connects review to execution: save an explicit
-selection, approve it once in the operator's terminal, then let the agent
+selection, obtain operator approval once, then let the agent
 execute and query the returned task ID. This avoids re-entering the same batch
 or writing Core calls by hand. Execution still goes through safe_delete;
 approval does not lift protection, budget, capacity or rate limits.
@@ -22,7 +22,7 @@ records passed checks, retained failures and remaining work.
 | Preview | Current admission, required approval and supported next steps alongside the existing verdict | [Dry-run semantics](../guides/deletion-limits.md#dry-run-admission-preview-030-development) |
 | Explicit targets | Save a literal batch and proposed selection; read by ID without rescanning | [Saved proposals](../guides/cleanup-plan.md#saved-explicit-target-plans-030-development) |
 | Approved tasks | Separate operator approval from agent execution; one rate event, per-group debit, durable partial/unknown state | [Task workflow](../guides/cleanup-plan.md#operator-approved-tasks-030-development) |
-| MCP | Add plan, execute and task-status tools, bringing the set to ten; keep approval outside MCP | [Tools and binding](../guides/mcp.md#reviewed-maintenance-tasks-030-development) |
+| MCP | Ten tools by default with terminal approval; an operator-enabled Codex channel adds a default-negative confirmation request and durable lookup | [Tasks](../guides/mcp.md#reviewed-maintenance-tasks-030-development) · [Host confirmation](../guides/mcp.md#host-confirmation-030-development) |
 | Results and queries | Shared overview, paginated details, execution summaries and bounded read-only CLI/JSON/MCP status | [Output](../guides/maintenance-output.md) · [Query](../guides/read-only-query.md) |
 | Storage | Trusted fixed `--trash-root`, matching doctor and handoff instructions; linked-bucket capacity counts physical contents | [External quarantine](../guides/mcp.md#select-a-fixed-quarantine-directory-030-development) |
 | Recovery choice | Require quarantine for regenerable artifacts; retain the choice in saved plans and approved effects | [Explicit quarantine](../guides/cleanup-plan.md#require-quarantine-030-development) |
@@ -101,7 +101,9 @@ for commit-level checks. Tag and publication are separate release steps.
 
 The 0.3.0 development CLI adds `safe_delete --quarantine` and the same option
 when creating Cleanup plans. MCP `safe_delete` and new `cleanup_plan` calls
-accept `quarantine: true`; the set remains ten tools. Regenerable artifacts
+accept `quarantine: true`; the default set remains ten tools. The optional
+[Codex confirmation channel](../guides/mcp.md#host-confirmation-030-development)
+adds an eleventh tool. Regenerable artifacts
 keep their category while their action becomes quarantine. The choice is
 retained in saved proposals and approved effects; execution inherits it by
 task ID. Dry-run next-step commands preserve the choice.

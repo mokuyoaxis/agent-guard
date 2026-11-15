@@ -230,7 +230,10 @@ one real operator-approved 71-root task; mixed effects and failure cases also
 have unit regression evidence. DSH and Kimi also first executed their own
 newly approved batches; Codex's new attempt hit a host usage limit and Claude
 model acceptance is deferred. The [MCP task tools](mcp.md#reviewed-maintenance-tasks-030-development)
-reuse this workflow; no agent-issued approval,
+reuse this workflow. The optional [Codex host confirmation](mcp.md#host-confirmation-030-development)
+exports the whole saved list for review and requests a default-negative form;
+only an explicit host reply can issue the same Core task. Repeated requests
+reuse durable state, while terminal approval remains available. No agent-issued approval,
 atomic filesystem snapshot or independent same-UID security boundary is added.
 
 <a id="directory-overview-and-measurement-unreleased"></a>

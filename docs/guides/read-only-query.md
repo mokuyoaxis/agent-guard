@@ -34,8 +34,10 @@ tail applies only to the full view. `--limit` applies only to overview.
 Overview cannot be combined with budget reset; the existing interactive
 reset workflow remains separate.
 
-The existing MCP `status` tool gains optional read arguments; the service
-still has ten tools:
+The existing MCP `status` tool gains optional read arguments; the default
+service still has ten tools. The separately enabled
+[Codex confirmation channel](mcp.md#host-confirmation-030-development) adds
+an eleventh tool and keeps this status contract:
 
 ```json
 {"name":"status","arguments":{"view":"overview","limit":10}}

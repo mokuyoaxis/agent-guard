@@ -1,6 +1,6 @@
 # 0.3.0 — Reviewed cleanup tasks
 
-Save a concrete cleanup selection, review it once in your terminal, then let
+Save a concrete cleanup selection, review and approve it once, then let
 the agent execute and query that approved task through CLI or MCP. Existing
 protection, budgets, capacity and rate checks still apply.
 
@@ -16,7 +16,10 @@ Release and npm publication have not been performed.
 - Save literal targets or a JSON target list as a reviewed proposal. The
   operator approves that selection; the agent continues with its task ID.
 - MCP adds `cleanup_plan`, `cleanup_execute` and `cleanup_task_status`,
-  bringing the service to ten tools. There is no MCP approval tool.
+  bringing the default service to ten tools. Operator-selected
+  `--approval-channel codex` adds `cleanup_request_approval`: a complete
+  read-only list and a default-negative host form, with durable request/task
+  lookup after disconnection. The existing terminal workflow remains available.
 - Dry-run reports current admission and required approval separately from
   the policy decision, with the supported next operation.
 - Plans, tasks and execution receipts share readable summaries and bounded
@@ -47,7 +50,8 @@ query the task and recovery transaction before deciding what remains.
 ## Upgrade
 
 Keep doctor, MCP server, CLI and linked Skill on the same reviewed installation.
-Version 0.2.9 exposes seven MCP tools; 0.3.0 exposes ten. Reconnect the client
+Version 0.2.9 exposes seven MCP tools; 0.3.0 exposes ten by default, or eleven
+with the operator-enabled Codex channel. Reconnect the client
 after upgrading, inspect the actual tool list and keep unfinished approved
 tasks on their original installation/workspace/quarantine/session binding.
 
@@ -68,6 +72,20 @@ source or a checked local package.
 
 ## Validation and scope
 
+The 2026-11-15 host-confirmation extension has separate
+[protocol and operator acceptance](../reports/test-report-maintenance-0.3.0.md#host-confirmation-2026-11-15).
+Earlier full-suite, archive, CI and model-host records below predate that
+extension; they do not certify its new runtime bytes. A host form is an
+operator-selected trusted channel, not independent human attestation; see
+[setup and limits](../guides/mcp.md#host-confirmation-030-development).
+
+The operator-driven Codex 0.165.0 form trial completed one confirmation and
+four MCP calls for a 71-root quarantine/restore task. Independent checks
+matched all 1006 payload files and both keepers after recovery. The updated
+optional-SDK CI selection passed 100 tests locally, including nine approval
+protocol cases; eight release-gate regressions also passed. Model-led use of
+the new approval channel remains unverified, and commit-level CI is separate.
+
 Codex 0.165.0, Kimi Code 2.3.0 and DSH 0.2.0-rc.2 each first executed a new
 operator-approved 71-root / 1061-entry task through MCP. Each used five model
 MCP calls and one execution dispatch. The controller independently checked
@@ -76,10 +94,10 @@ through MCP; budget charges remained. Codex also passed a real-cache task.
 These runtime trials used development archives with 0.2.9 metadata; current
 candidate version/package checks are separate.
 
-The version-aligned candidate passed 54 package/release/MCP tests and the
+At the 2026-11-14 alignment checkpoint, the candidate passed 54 package/release/MCP tests and the
 actual pinned-SDK coverage preflight. Its 172-file local archive installed
 offline; all 13 CLI help entrypoints, linked Skill/Core/Cleanup and a
-ten-tool doctor reporting version 0.3.0 passed. Runtime payload files match
+ten-tool doctor reporting version 0.3.0 passed. Those runtime payload files matched
 the earlier tested development package apart from version metadata. These
 checks are separate from a full release-workflow run.
 
