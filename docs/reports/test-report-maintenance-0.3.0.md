@@ -108,6 +108,47 @@ follow [development CI](https://github.com/mokuyoaxis/agent-guard/actions/workfl
 for the submitted commit's hosted checks. The old candidate CI result retains
 its original source scope.
 
+<a id="model-host-confirmation-2026-11-15"></a>
+
+### Real model with native confirmation: PASS (2026-11-15)
+
+The later operator-run trial used Codex 0.165.0, gpt-6.1-terra, Node 22.23.4
+and the existing MCP SDK 2.3.0 against runtime `066563d`. Its existing
+[15-job development CI](https://github.com/mokuyoaxis/agent-guard/actions/runs/43720684853)
+is a separate source check. This was one owned synthetic workspace with
+explicitly obsolete targets and a restricted six-tool MCP profile; it does
+not establish arbitrary project discovery, other hosts or native OS isolation.
+
+One actual model turn completed seven MCP calls: status, save a cleanup
+plan, read its saved ID, request native approval, execute, query the task,
+and status. There was one new plan, one saved read, one native form and one
+execution call. The proxy recorded and forwarded the native response;
+it injected no MCP calls or affirmative answers. The operator returned
+accept with the explicit one-time decision and `reviewed: true`. Planning
+and the full-list read retained all 71 roots as quarantine. The model turn
+took 78.257 seconds including 5.431 seconds awaiting the operator; these
+are observed trial timings, not a throughput guarantee.
+
+Core confirmed 71/71 roots, with no unconfirmed or undispatched targets.
+After the model finished, an independent controller verified all 1006
+quarantine payload files and two keepers, restored the payloads through production MCP,
+and matched bytes, modes and mtimes. A subsequent fresh read-only audit
+queried plan, task, transactions and status without changing payloads or
+control metadata: task `COMPLETED`, transaction `RESTORED`, zero remaining
+grants and one durable rate event. Restore retained the charge of 1061
+entries / 263010 logical bytes, including 189860 directory-metadata bytes;
+the selected payloads totalled 73150 bytes. No permanent GC ran.
+
+The model correctly reported the executed task, transaction and budget,
+leaving recovery to the controller and physical-space measurement unknown.
+Codex exited 0. The earlier planning-only real-model run also passed:
+three MCP calls, one saved 71-root plan and no approval, execution or debit.
+The first new-harness socket-startup timeout is retained; the old-entry
+control and later short-path preflights passed, without establishing a
+unique cause. Production code, default limits and installed dependencies
+were unchanged. Public documents were updated after these checks;
+the source CI above does not certify the new documentation edits.
+
 ## Explicit quarantine option (2026-11-13 development)
 
 The development CLI adds `--quarantine` to safe_delete and new Cleanup plans;
@@ -394,7 +435,7 @@ quarantine and restore, protected-path refusal and final status.
 
 | Host / recorded version | Connection and ten-tool discovery | Ordinary model maintenance | First execution of a fresh approved task | New native-hook acceptance |
 |---|---|---|---|---|
-| Codex 0.165.0 | PASS | Earlier ordinary task PASS, 8 MCP calls; project-registration read-only trial PASS, 3 calls | PASS; fresh 71-root task, 5 model MCP calls, plus the separate single-root real cache task; controller verified and restored both. Earlier usage-limit attempt retained | NOT VERIFIED |
+| Codex 0.165.0 | PASS | Earlier ordinary task PASS, 8 MCP calls; project-registration read-only trial PASS, 3 calls | PASS; earlier terminal-approved 71-root task, 5 model MCP calls, and single-root real cache task. Later native-form task PASS: 7 model calls, one form and 71 roots. Controller verification/recovery passed; earlier usage-limit attempt retained | NOT VERIFIED |
 | Kimi Code 2.3.0 | PASS | PASS, trusted owned fixture and restricted tool profile | PASS; new 71-root task, 5 model MCP calls | Later real-model root Bash BLOCK followed by operator approval and original-session MCP execution/recovery; Stop and other paths retain historical scope |
 | DSH 0.2.0-rc.2 | PASS | Earlier isolated-root task PASS; repaired original-root startup also PASS | PASS using the original persistence root; new 71-root task, 5 model MCP calls | Later current-profile trial blocked by unavailable OS sandbox; separate zero-model local-executor control passed |
 | Claude Code 2.1.311 | PASS | DEFERRED; authentication refusal prevented business tool calls | DEFERRED | NOT VERIFIED |
@@ -562,6 +603,7 @@ test artifacts or package contents.
 |---|---|
 | Full DSH launch using the repaired original session root | PASS for the bounded read-only model task and fresh-approved MCP task; not native-hook recertification |
 | Fresh operator-approved first execution | PASS for separate Codex/DSH/Kimi 71-root tasks and Codex's single-root real cache; Claude DEFERRED. |
+| Codex opt-in native form with model-led planning/execution | PASS for the bounded 71-root synthetic task, one form and seven model MCP calls; independent quarantine verification, MCP recovery and fresh read-only audit passed. |
 | Current-source native interception and MCP handoff | Kimi root Bash BLOCK, real operator approval, original-session execution and independent MCP recovery completed; plan-iteration deviation retained. DSH sandboxed profile is environment-blocked; zero-model local control passed. Broader hook coverage remains unverified. |
 | Claude model-backed maintenance | DEFERRED |
 | Local runtime regression and package/install | The quarantine checkpoint's second exact npm test passed 1562 Python cases and both Node groups; its first observer timeout remains recorded. The later CI fix passed 227 related local cases and hosted CI. Development-package recovery and the version-aligned 54-test / 172-file local package checks have separate evidence above. |

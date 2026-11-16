@@ -1,9 +1,9 @@
 # Harness capability and evidence matrix
 
-This matrix records the [0.3.0 candidate](../releases/release-notes-0.3.0.md)
-and earlier versioned evidence separately. The published baseline is
-[0.2.9](../releases/release-notes-0.2.9.md); confirm exact-version availability
-through the links in its notes. A source version does not establish publication.
+This matrix records [0.3.0](../releases/release-notes-0.3.0.md)
+and earlier versioned evidence separately. Confirm exact-version availability
+through the release and package links in its notes. A source version does not
+establish publication.
 Published prerelease, checked on 2026-10-19:
 [0.2.5-rc3](../releases/release-notes-0.2.5-rc3.md).
 Rows below retain their tested source/host versions and do not automatically
@@ -25,7 +25,7 @@ host does **not** mean that host intercepts tool calls, and an adapter returning
 For an unlisted host, use the [self-adaptation guide](../../adapters/INTEGRATION.md)
 and keep its native-interception status `UNVERIFIED` until independently tested.
 
-The 0.3.0 development plan targets Codex, DSH, Claude Code and Kimi Code,
+The 0.3.0 maintenance workflow targets Codex, DSH, Claude Code and Kimi Code,
 using the shared [setup prompt](agent-setup-prompt.md). Its
 [maintenance acceptance](../reports/test-report-maintenance-0.3.0.md) now records
 local runtime checks and three model hosts' explicit MCP tasks; Claude model
@@ -134,6 +134,10 @@ the original three state tools. Runtime/SDK, operator-approved protocol-client e
 ordinary model maintenance in Codex/Kimi/DSH and completed-task replay have
 recorded results. Codex, DSH and Kimi each passed first execution of a fresh
 operator-approved 71-root task; Claude model work is deferred.
+The opt-in Codex channel also passed a
+[real-model native-form trial](../reports/test-report-maintenance-0.3.0.md#model-host-confirmation-2026-11-15):
+seven model MCP calls for one saved 71-root synthetic plan, one operator
+confirmation and one execution, followed by independently verified MCP recovery.
 These results do not extend the native-hook evidence above. See the
 [current MCP host table](../reports/test-report-maintenance-0.3.0.md#host-acceptance).
 See [the development task contract](mcp.md#reviewed-maintenance-tasks-030-development).

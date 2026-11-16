@@ -2,7 +2,7 @@
 
 <a id="current-unreleased-scope"></a>
 
-## Current scope: 0.3.0 development
+## 0.3.0 maintenance workflow
 
 The maintenance workflow connects review to execution: save an explicit
 selection, obtain operator approval once, then let the agent
@@ -10,11 +10,19 @@ execute and query the returned task ID. This avoids re-entering the same batch
 or writing Core calls by hand. Execution still goes through safe_delete;
 approval does not lift protection, budget, capacity or rate limits.
 
-These are unreleased checkout changes, absent from published 0.2.9. The local
-candidate manifest is aligned to 0.3.0; tag and publication remain pending.
-See the [0.3.0 candidate notes](release-notes-0.3.0.md). The
+These additions belong to 0.3.0 and are absent from 0.2.9. Before installing,
+check the exact [GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.3.0)
+and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.3.0).
+See the [0.3.0 notes](release-notes-0.3.0.md). The
 [maintenance acceptance table](../reports/test-report-maintenance-0.3.0.md)
 records passed checks, retained failures and remaining work.
+
+The operator-enabled Codex form channel has now passed a
+[real-model synthetic task](../reports/test-report-maintenance-0.3.0.md#model-host-confirmation-2026-11-15):
+one saved 71-root plan, one native confirmation and one execution, with
+seven model MCP calls. Independent checks verified the quarantine copies,
+restored every payload through MCP, verified both keepers unchanged, and confirmed retained
+budget charges. Default approval remains the terminal workflow.
 
 | Area | Change | Guide |
 |---|---|---|

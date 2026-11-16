@@ -1,12 +1,19 @@
-# AGENT-GUARD
+<h1 align="center">
+  <img src="assets/agent-guard-logo.svg" alt="AGENT-GUARD" width="760">
+</h1>
 
-[![CI](https://github.com/mokuyoaxis/agent-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/mokuyoaxis/agent-guard/actions/workflows/ci.yml)
-[![npm stable](https://img.shields.io/npm/v/%40mokuyoaxis%2Fagent-guard.svg)](https://www.npmjs.com/package/@mokuyoaxis/agent-guard)
-[![License](https://img.shields.io/github/license/mokuyoaxis/agent-guard)](LICENSE)
-[![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![0.2.9](https://img.shields.io/badge/release-0.2.9-5B6B7A)](docs/releases/release-notes-0.2.9.md)
+<p align="center">
+  <a href="https://github.com/mokuyoaxis/agent-guard/actions/workflows/ci.yml"><img src="https://github.com/mokuyoaxis/agent-guard/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://www.npmjs.com/package/@mokuyoaxis/agent-guard"><img src="https://img.shields.io/npm/v/%40mokuyoaxis%2Fagent-guard.svg" alt="npm stable"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/mokuyoaxis/agent-guard" alt="License"></a>
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&amp;logoColor=white" alt="Python 3.9+"></a>
+  <a href="docs/releases/release-notes-0.3.0.md"><img src="https://img.shields.io/badge/notes-0.3.0-5B6B7A" alt="0.3.0 notes"></a>
+</p>
 
-**Disclosure checks · Recoverable deletion · Agent experiments** · [简体中文](README.zh-CN.md)
+<p align="center">
+  <strong>Disclosure checks · Recoverable deletion · Agent experiments</strong><br>
+  <a href="README.zh-CN.md">简体中文</a>
+</p>
 
 Agent Guard has three main capabilities: **Exfil-guard** checks text before
 sending it, **Delete-guard** preserves recovery data before supported destructive
@@ -21,25 +28,26 @@ the matching adapter guide. Check your actual host/version and its official
 hook documentation, verify the integration, and report the observed coverage.
 Installed Skills or copied configuration alone do not establish protection.
 
-The **[0.3.0 candidate](docs/releases/release-notes-0.3.0.md)** targets **Codex, DSH, Claude Code and Kimi Code**
+The **[0.3.0 maintenance workflow](docs/releases/release-notes-0.3.0.md)** targets **Codex, DSH, Claude Code and Kimi Code**
 using a shared [setup prompt](docs/guides/agent-setup-prompt.md). Other hosts
 use local adaptation; the versioned evidence below remains the support record.
 
-The development workflow lets an operator approve a saved selection once,
+The workflow lets an operator approve a saved selection once,
 then lets the agent execute and query it through CLI or MCP. It also supports
 requiring quarantine for regenerable artifacts. Local acceptance covers
 fresh-approved 71-root batches on Codex, DSH and Kimi, plus a real cache task
 on Codex, followed by independently verified recovery. Claude model work and
 broader native-hook coverage remain unfinished. See the
 [passed checks and remaining gaps](docs/reports/test-report-maintenance-0.3.0.md);
-these checkout results do not identify a published 0.3.0 package.
+check exact-version availability below before installing.
 The optional [Codex confirmation channel](docs/guides/mcp.md#host-confirmation-030-development)
 lets the operator review the complete saved list and approve through a native
-form. Its operator-driven quarantine/restore trial passed; model-led use of
-this channel remains unverified. Terminal approval remains the default.
+form. A [real-model 71-root synthetic trial](docs/reports/test-report-maintenance-0.3.0.md#model-host-confirmation-2026-11-15)
+passed plan creation, native confirmation, execution/query and independent
+recovery. Terminal approval remains the default.
 
-The published **[0.2.9 baseline](docs/releases/release-notes-0.2.9.md)** makes cleanup
-investigation faster: get a bounded directory overview, then measure selected
+Version **[0.2.9](docs/releases/release-notes-0.2.9.md)** introduced bounded cleanup
+inventory: get a directory overview, then measure selected
 scopes through Cleanup Copilot or MCP. Existing plan scans also reuse metadata
 and Git queries. These observations grant no deletion permission; execution
 still requires a separate reviewed plan and confirmation.
@@ -133,8 +141,8 @@ The optional MCP adapter requires Python 3.10+ and a separately installed
 
 | Version | Status |
 |---|---|
-| [0.3.0](docs/releases/release-notes-0.3.0.md) | Unreleased source candidate; tag, GitHub Release and npm publication pending |
-| [0.2.9](docs/releases/release-notes-0.2.9.md) | Published baseline; verify exact-version availability below |
+| [0.3.0](docs/releases/release-notes-0.3.0.md) | Saved cleanup tasks, separate operator approval and agent execution; optional Codex form. Verify exact-version availability below |
+| [0.2.9](docs/releases/release-notes-0.2.9.md) | Earlier release with Cleanup inventory, measurement and faster scans |
 | [0.2.8](docs/releases/release-notes-0.2.8.md) | Earlier release with MCP diagnosis and recovery validation |
 | [0.2.7](docs/releases/release-notes-0.2.7.md) | Earlier release with Cleanup, deletion limits and local MCP tools |
 | [0.2.6](docs/releases/release-notes-0.2.6.md) | Earlier published release with Kimi feedback and host compatibility updates |
@@ -143,21 +151,21 @@ The optional MCP adapter requires Python 3.10+ and a separately installed
 | [0.2.4-hotfix.1](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.4-hotfix.1) | Opt-in quarantine protection backport; npm `hotfix` |
 | [0.2.5-rc3](docs/releases/release-notes-0.2.5-rc3.md) | Published prerelease, including RC1/RC2 maintenance; npm `rc` |
 
-Before installing 0.2.9, confirm availability through its exact
-[GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.9)
-and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.9).
+Before installing 0.3.0, confirm availability through its exact
+[GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.3.0)
+and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.3.0).
 A checkout or manifest alone does not establish package availability.
 
 If that version is unavailable, use reviewed source or a locally built
-tarball following the [version notes](docs/releases/release-notes-0.2.9.md).
+tarball following the [version notes](docs/releases/release-notes-0.3.0.md).
 Versioned tests and package checks retain their original checkpoints.
 The [admission limits](docs/guides/deletion-limits.md) introduced in 0.2.7 can
-refuse previously successful deletions and remain in effect in 0.2.9.
+refuse previously successful deletions and remain in effect in 0.3.0.
 
 Once the exact version is available, install to a chosen, stable user-owned prefix:
 
 ```sh
-npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.9
+npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.3.0
 ```
 
 The package root is
@@ -266,10 +274,9 @@ Read the [Skill](skills/exfil-guard/SKILL.md),
 Use the [setup prompt](docs/guides/agent-setup-prompt.md) and
 [integration guide](adapters/INTEGRATION.md) for the actual installed version.
 MCP provides explicit maintenance tools; a verified blocking hook/plugin adds
-checking of covered native calls. The 0.3.0 development checkout also adds a
+checking of covered native calls. Version 0.3.0 also provides a
 [Skill installer/update flow](docs/guides/skill-installation.md), absent from
-published 0.2.9. Four-host maintenance is a development target, with each
-host's acceptance recorded separately.
+0.2.9. Each maintenance target has its own acceptance record.
 
 The results below apply to the recorded source versions, host versions and
 tool paths. Other combinations need their own checks.
@@ -279,7 +286,7 @@ tool paths. Other combinations need their own checks.
 | Claude Code | 2.1.311 connected and discovered ten development MCP tools; model maintenance is deferred, newer hooks unverified. Native Bash enforcement retains its 2.1.270/2.1.273 scripted-host evidence. [Acceptance](docs/reports/test-report-maintenance-0.3.0.md#host-acceptance) · [Setup](adapters/claude/README.md) |
 | Kimi Code | 2.3.0 completed ordinary and fresh-approved development MCP maintenance. A later current-source root-Bash block led through planning and operator approval to original-session execution and independent recovery. Stop and missing/timed-out hooks retain their separate limits. [Acceptance](docs/reports/test-report-maintenance-0.3.0.md#host-acceptance) · [Setup](adapters/kimi-code/README.md) |
 | DSH | 0.2.0-rc.2 passed repaired original-root startup and fresh-approved MCP execution. A later native trial was blocked by an unavailable OS sandbox on PRoot; a separate zero-model local control passed. [Acceptance](docs/reports/test-report-maintenance-0.3.0.md#host-acceptance) · [Compatibility](docs/design/dsh-compatibility.md) · [Setup](adapters/dsh/README.md) |
-| Codex | 0.165.0 passed a freshly approved 71-root batch and a real cache task, with independent controller verification and recovery. Native Shell/editor interception needs separate evidence. [Current acceptance](docs/reports/test-report-maintenance-0.3.0.md#host-acceptance) · [Earlier trials](docs/guides/mcp.md#codex-01650-with-published-027) |
+| Codex | 0.165.0 passed a freshly approved 71-root batch, a real cache task and the optional native-form model task, with independent controller verification and recovery. Native Shell/editor interception needs separate evidence. [Current acceptance](docs/reports/test-report-maintenance-0.3.0.md#host-acceptance) · [Earlier trials](docs/guides/mcp.md#codex-01650-with-published-027) |
 | Other hosts | Use the official coding agent for version-specific local setup; verify blocking before claiming native interception. Explicit Skill/CLI/MCP use remains cooperative without a blocking hook. [Adaptation guide](adapters/INTEGRATION.md) |
 
 Use the [full capability and evidence matrix](docs/guides/harness-capabilities.md)

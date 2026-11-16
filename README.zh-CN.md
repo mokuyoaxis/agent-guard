@@ -1,12 +1,19 @@
-# AGENT-GUARD
+<h1 align="center">
+  <img src="assets/agent-guard-logo.svg" alt="AGENT-GUARD" width="760">
+</h1>
 
-[![CI](https://github.com/mokuyoaxis/agent-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/mokuyoaxis/agent-guard/actions/workflows/ci.yml)
-[![npm 稳定版](https://img.shields.io/npm/v/%40mokuyoaxis%2Fagent-guard.svg)](https://www.npmjs.com/package/@mokuyoaxis/agent-guard)
-[![License](https://img.shields.io/github/license/mokuyoaxis/agent-guard)](LICENSE)
-[![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![0.2.9](https://img.shields.io/badge/release-0.2.9-5B6B7A)](docs/releases/release-notes-0.2.9.md)
+<p align="center">
+  <a href="https://github.com/mokuyoaxis/agent-guard/actions/workflows/ci.yml"><img src="https://github.com/mokuyoaxis/agent-guard/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://www.npmjs.com/package/@mokuyoaxis/agent-guard"><img src="https://img.shields.io/npm/v/%40mokuyoaxis%2Fagent-guard.svg" alt="npm 稳定版"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/mokuyoaxis/agent-guard" alt="License"></a>
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&amp;logoColor=white" alt="Python 3.9+"></a>
+  <a href="docs/releases/release-notes-0.3.0.md"><img src="https://img.shields.io/badge/notes-0.3.0-5B6B7A" alt="0.3.0 说明"></a>
+</p>
 
-**外发检查 · 可恢复删除 · Agent 验测** · [English](README.md)
+<p align="center">
+  <strong>外发检查 · 可恢复删除 · Agent 验测</strong><br>
+  <a href="README.md">English</a>
+</p>
 
 Agent Guard 提供三大功能：**Exfil-guard** 检查待外发文本，**Delete-guard**
 在受支持的破坏性操作前保留恢复数据，**Guard-lab** 通过受控实验测试 Agent
@@ -18,21 +25,21 @@ Agent Guard 提供三大功能：**Exfil-guard** 检查待外发文本，**Delet
 确认实际宿主／版本，查阅其官方 hook 文档，完成验证后报告实际覆盖范围。
 不能仅凭 Skill 已安装或配置已复制，就告诉用户防护已生效。
 
-**[0.3.0 候选版本](docs/releases/release-notes-0.3.0.md)**以 **Codex、DSH、Claude Code 和 Kimi Code** 为维护目标，
+**[0.3.0 维护流程](docs/releases/release-notes-0.3.0.md)**以 **Codex、DSH、Claude Code 和 Kimi Code** 为维护目标，
 共享[接入提示词](docs/guides/agent-setup-prompt.md)。其他宿主由 Agent 本地适配；
 实际支持范围仍以下方精确版本的验收记录为准。
 
-开发中的维护流程支持：操作者审阅并批准一次已保存的选择，Agent 随后通过
+维护流程支持：操作者审阅并批准一次已保存的选择，Agent 随后通过
 CLI／MCP 执行和查询；可再生产物也可显式要求隔离。本地验收已覆盖 Codex、DSH、Kimi
 各自新批准的 71 根批量任务，以及 Codex 的真实缓存任务，随后均独立核对并恢复。
 Claude 模型验收及更广的原生 hook 覆盖仍待完成。
 详见[已通过检查与剩余缺口](docs/reports/test-report-maintenance-0.3.0.md)，
-这些源码验收结果不代表 0.3.0 已发布。
+安装前请通过下方精确版本渠道确认包的可用性。
 可选的 [Codex 宿主确认通道](docs/guides/mcp.md#host-confirmation-030-development)支持
-审阅完整清单后在原生表单批准，已通过操作者驱动的隔离／恢复验收。
-默认仍用终端批准；新通道的模型自主维护尚待验收。
+审阅完整清单后在原生表单批准；已通过[真实模型71根合成任务验收](docs/reports/test-report-maintenance-0.3.0.md#model-host-confirmation-2026-11-15)：
+模型保存明确目标计划，获准后执行、查询，控制器独立核验并恢复。默认仍用终端批准。
 
-已发布基线 **[0.2.9](docs/releases/release-notes-0.2.9.md)** 改善清理前的盘点体验：先看目录概况，
+版本 **[0.2.9](docs/releases/release-notes-0.2.9.md)** 改善了清理前的盘点体验：先看目录概况，
 再计量指定范围，Cleanup Copilot 和 MCP 都可使用；既有计划扫描也减少了重复的
 文件属性检查和 Git 查询。这些观察不授予删除许可，执行仍需另外生成计划、审阅并确认。
 使用方式见[目录概况与计量](docs/guides/cleanup-plan.md#directory-overview-and-measurement-029)。
@@ -111,8 +118,8 @@ Core 需要 Python 3.9+ 和 Git。示例采用 POSIX Shell；原生桥接和可�
 
 | 版本 | 状态 |
 |---|---|
-| [0.3.0](docs/releases/release-notes-0.3.0.md) | 未发布的源码候选版本，tag、GitHub Release 和 npm 发布尚未执行 |
-| [0.2.9](docs/releases/release-notes-0.2.9.md) | 已发布基线；安装前核实下方精确版本渠道 |
+| [0.3.0](docs/releases/release-notes-0.3.0.md) | 保存清理任务、操作者批准与 Agent 执行分离、可选 Codex 原生表单；安装前核实下方精确版本渠道 |
+| [0.2.9](docs/releases/release-notes-0.2.9.md) | 较早版本：Cleanup 目录概况、计量和扫描提速 |
 | [0.2.8](docs/releases/release-notes-0.2.8.md) | 较早版本：MCP 接入诊断与恢复验证 |
 | [0.2.7](docs/releases/release-notes-0.2.7.md) | 历史版本，包含 Cleanup、删除限制与本地 MCP 工具 |
 | [0.2.6](docs/releases/release-notes-0.2.6.md) | 历史已发布版本，包含 Kimi 反馈与宿主兼容性更新 |
@@ -121,20 +128,20 @@ Core 需要 Python 3.9+ 和 Git。示例采用 POSIX Shell；原生桥接和可�
 | [0.2.4-hotfix.1](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.4-hotfix.1) | 显式选择的回收站保护回补；npm `hotfix` |
 | [0.2.5-rc3](docs/releases/release-notes-0.2.5-rc3.md) | 已发布预发布版，包含 RC1／RC2 维护；npm `rc` |
 
-安装 0.2.9 前，请通过精确版本的
-[GitHub Release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.9)和
-[npm 版本页](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.9)确认可用性，
+安装 0.3.0 前，请通过精确版本的
+[GitHub Release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.3.0)和
+[npm 版本页](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.3.0)确认可用性，
 checkout 或 manifest 本身不代表包已可安装。
 
-若该版本尚不可用，请按[版本说明](docs/releases/release-notes-0.2.9.md)使用经复核的
+若该版本尚不可用，请按[版本说明](docs/releases/release-notes-0.3.0.md)使用经复核的
 源码或本地构建 tarball。版本化测试和包核验保留各自检查点。
 自 0.2.7 引入的[准入限制](docs/guides/deletion-limits.md)可能拒绝此前可执行的删除，
-这些限制在 0.2.9 中继续生效。
+这些限制在 0.3.0 中继续生效。
 
 确认精确版本可用后，可安装到用户选定的长期目录：
 
 ```sh
-npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.9
+npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.3.0
 ```
 
 包根目录是
@@ -226,9 +233,9 @@ python3 -c 'print("config: sk-proj-" + "AbCdEf0123456789GhIjKl")' |
 
 让负责接入的 Agent 使用[通用提示词](docs/guides/agent-setup-prompt.md)和
 [适配指南](adapters/INTEGRATION.md)，按实际安装版本配置。MCP 承担主动维护，
-已验证的阻塞 hook／插件检查它覆盖的原生调用。0.3.0 开发源码另有
-[Skill 安装更新入口](docs/guides/skill-installation.md)，已发布 0.2.9 不含该安装器。
-四宿主为开发维护目标，各自的验收状态单独记录。
+已验证的阻塞 hook／插件检查它覆盖的原生调用。0.3.0 还提供
+[Skill 安装更新入口](docs/guides/skill-installation.md)，0.2.9 不含该安装器。
+四宿主为接入维护目标，各自的验收状态单独记录。
 
 下表记录所测源码、宿主版本和工具路径；其他组合需要另行验证。
 
@@ -237,7 +244,7 @@ python3 -c 'print("config: sk-proj-" + "AbCdEf0123456789GhIjKl")' |
 | Claude Code | 2.1.311 已连接并发现开发版十工具；模型维护延期，新版 hook 未验证。原生 Bash 拦截保留 2.1.270／2.1.273 的脚本宿主证据。[验收状态](docs/reports/test-report-maintenance-0.3.0.md#host-acceptance) · [接入](adapters/claude/README.md) |
 | Kimi Code | 2.3.0 已完成普通维护及新批准 MCP 执行；后续当前源码试次完成原生 Bash 拦截、保存计划、操作者批准、原会话执行及独立恢复。Stop、缺失／超时 hook 保留各自边界。[验收状态](docs/reports/test-report-maintenance-0.3.0.md#host-acceptance) · [接入](adapters/kimi-code/README.md) |
 | DSH | 0.2.0-rc.2 已通过修复后原根启动及新批准 MCP 执行；后续原生试次被 PRoot 上不可用的 OS 沙箱阻塞，独立零模型本地对照通过。[验收状态](docs/reports/test-report-maintenance-0.3.0.md#host-acceptance) · [兼容范围](docs/design/dsh-compatibility.md) · [接入](adapters/dsh/README.md) |
-| Codex | 0.165.0 已通过新批准的 71 根批量和真实缓存任务，隔离副本及恢复均由控制器独立核验；原生 Shell／编辑器拦截另需证据。[当前验收](docs/reports/test-report-maintenance-0.3.0.md#host-acceptance) · [早期试次](docs/guides/mcp.md#codex-01650-with-published-027) |
+| Codex | 0.165.0 已通过新批准的 71 根批量、真实缓存任务及可选原生表单的模型任务，隔离副本及恢复均由控制器独立核验；原生 Shell／编辑器拦截另需证据。[当前验收](docs/reports/test-report-maintenance-0.3.0.md#host-acceptance) · [早期试次](docs/guides/mcp.md#codex-01650-with-published-027) |
 | 其他宿主 | 推荐官方 Agent 按当前版本完成本地接入，并验证确实阻止执行后再声明原生拦截。没有阻塞 hook 时，Skill／CLI／MCP 仍属于协作式使用。[适配指南](adapters/INTEGRATION.md) |
 
 精确版本、试验与缺口统一见[完整能力矩阵](docs/guides/harness-capabilities.md)。

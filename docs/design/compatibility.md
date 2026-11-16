@@ -6,7 +6,8 @@ may not, per release class.
 
 The active **0.3.0 maintenance scope** adds reviewed-task execution and
 queries. Its [acceptance table](../reports/test-report-maintenance-0.3.0.md)
-records passed checks and remaining gates; it is not yet a published artifact.
+records passed checks and remaining gates. Check the exact release and package
+links in the [0.3.0 notes](../releases/release-notes-0.3.0.md) before installation.
 Historical sections below retain their original release decisions. Their
 paused 0.3.0 references concern the earlier disclosure-authorization research,
 not this maintenance scope.
@@ -66,7 +67,9 @@ The maintainer selected 0.2.9 through the new bounded decision below;
 earlier patch-version exceptions do not authorize it. The paused 0.3.0
 research roadmap is a separate scope decision and is not resumed.
 
-## Skill installation (0.3.0 development, unreleased)
+<a id="skill-installation-030-development-unreleased"></a>
+
+## Skill installation (0.3.0)
 
 This checkout adds `install_skill.py` / `agent-guard-install-skill` and a
 real-path bootstrap for delete-guard scripts. The helper defaults to a plan;
@@ -86,7 +89,9 @@ installation, final candidate checks, version alignment and publication remain s
 
 ## The adapter contract (frozen surface)
 
-### Saved target proposals (0.3.0 development, unreleased)
+<a id="saved-target-proposals-030-development-unreleased"></a>
+
+### Saved target proposals (0.3.0)
 
 Cleanup adds `--target`, `--targets-file`, `--discard-targets`, `--save-plan`
 and `--from-plan`. Target mode scopes traversal and tracked Git facts to the
@@ -106,7 +111,9 @@ Runtime, save/read/refresh, legacy-plan and source-change checks have recorded
 results. Literal observation does not expand the existing execution API's
 filename support; some glob-metacharacter names, including `[`, still refuse.
 
-### Approved cleanup tasks (0.3.0 development, unreleased)
+<a id="approved-cleanup-tasks-030-development-unreleased"></a>
+
+### Approved cleanup tasks (0.3.0)
 
 `--from-plan ID --approve` obtains operator-terminal confirmation and returns
 a task ID without deleting source data. `--task ID` reads status, and
@@ -138,7 +145,9 @@ on Codex, DSH and Kimi; Codex also passed a single-root real cache task with
 independent recovery. Its earlier host usage-limit block remains recorded.
 Claude model work is deferred.
 
-### Fixed MCP storage (0.3.0 development, unreleased)
+<a id="fixed-mcp-storage-030-development-unreleased"></a>
+
+### Fixed MCP storage (0.3.0)
 
 Trusted startup `--trash-root` selects a stable absolute quarantine; omitted,
 it retains `WORKSPACE/.agent-trash`. The explicit path is resolved once at
@@ -159,9 +168,11 @@ the latter does not certify every application layout. A later original-root
 DSH headless startup and approved MCP batch also passed, separately from native-plugin evidence.
 See [storage and limits](../guides/mcp.md#select-a-fixed-quarantine-directory-030-development).
 
-### MCP maintenance tasks (0.3.0 development, unreleased)
+<a id="mcp-maintenance-tasks-030-development-unreleased"></a>
 
-Three additive tools bring this checkout's MCP contract to ten:
+### MCP maintenance tasks (0.3.0)
+
+Three additive tools bring this checkout's default MCP contract to ten:
 `cleanup_plan`, `cleanup_execute`, `cleanup_task_status`. Published 0.2.9
 retains seven; update doctor and server from the same installation. No SDK,
 protocol version, configuration or recovery migration is introduced, and the
@@ -172,8 +183,14 @@ It defaults to zero writes; explicit saving retains the CLI proposal and
 selection. Saved-ID viewing with read controls does not refresh. Valid incomplete plans
 return `ok: true, partial: true` with the original CLI exit code. The plan
 tool's read-only annotation is false because it can save metadata. Status
-is read-only, and approved execution accepts only a task ID. MCP does not
-provide approval, tokens, budget identities, force restore or GC execution.
+is read-only, and approved execution accepts only a task ID. Terminal approval
+is the default. An operator-enabled
+[Codex confirmation channel](../guides/mcp.md#host-confirmation-030-development)
+adds an eleventh tool, `cleanup_request_approval(saved_plan_id)`, which asks
+the host to confirm the saved selection and reuses Core issuance after an
+explicit operator reply. Neither flow accepts model-supplied approval
+booleans/tokens or budget identities; force restore and GC execution remain
+outside MCP.
 
 The development feedback refinement distinguishes known Git tracking from
 missing discard evidence and unavailable Git facts. Categories, selection
@@ -189,11 +206,15 @@ failures preserve CLI evidence; missing responses retain the requested task
 ID and query guidance. Existing calls retain their 120-second deadline; task
 execution has a separate 300-second outer deadline for two inner groups.
 Timeouts do not imply rollback or safe automatic retry. doctor validates ten
-registrations/annotations and invokes only its original three read-only state
+registrations/annotations by default, or eleven with the Codex channel,
+and invokes only its original three read-only state
 queries. SDK/runtime and local approved execution have passed; three hosts
 completed ordinary model-backed MCP maintenance and completed-task replay.
 Codex/DSH/Kimi each first executed a new approved 71-root batch; Codex also
 completed a fresh-approved real cache task with controller recovery.
+The optional Codex channel also passed a
+[real-model native-form task](../reports/test-report-maintenance-0.3.0.md#model-host-confirmation-2026-11-15),
+with one confirmation, seven model MCP calls and independent recovery.
 Claude model work is deferred. The
 operator's Core approval and the client's tool permission are separate:
 follow the bounded setup in the MCP guide without changing tool annotations
@@ -205,7 +226,9 @@ DSH's sandboxed profile was environment-blocked while its isolated local
 control passed. Broader native paths retain their separate evidence limits.
 See [arguments and handoff](../guides/mcp.md#reviewed-maintenance-tasks-030-development).
 
-### Maintenance output views (0.3.0 development, unreleased)
+<a id="maintenance-output-views-030-development-unreleased"></a>
+
+### Maintenance output views (0.3.0)
 
 Shared Core projections add `cleanup_view/v1` for overviews/detail pages and
 `maintenance_summary/v1` for execution summaries. Views are generated after
@@ -240,7 +263,9 @@ See [views, fields and compatibility](../guides/maintenance-output.md).
 Runtime/view/legacy-output and recorded transport checks have passed. These
 bounded observations do not establish a general token or speed reduction.
 
-### Unified read-only queries (0.3.0 development, unreleased)
+<a id="unified-read-only-queries-030-development-unreleased"></a>
+
+### Unified read-only queries (0.3.0)
 
 The version scope now ships CLI/JSON/MCP queries; GUI/web/TUI applications
 and operation panels are deferred. `workspace_query/v1` is a separate bounded
@@ -272,7 +297,9 @@ Runtime, bounded-read and rendering checks passed in the recorded POSIX
 environment, alongside bounded model-host overview reads. Other platforms,
 native interception and final artifact validation remain separate.
 
-### Dry-run admission (0.3.0 development, unreleased)
+<a id="dry-run-admission-030-development-unreleased"></a>
+
+### Dry-run admission (0.3.0)
 
 `safe_delete --dry-run` gains an additive `admission` projection and next-step
 guidance. Its original policy verdict, outcome and exit codes remain: current

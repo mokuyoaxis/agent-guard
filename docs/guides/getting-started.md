@@ -10,18 +10,12 @@ Agent Guard 提供恢复保护、外发检测和用户控制的行为验测。�
 
 ## Select the package root
 
-The [0.3.0 candidate](../releases/release-notes-0.3.0.md) adds saved selections,
+This guide covers [0.3.0](../releases/release-notes-0.3.0.md): saved selections,
 operator-approved task execution and query, optional quarantine for
-regenerable artifacts, and linked Skill installation. Its local manifest is
-aligned to 0.3.0; publication is still pending. Use a reviewed checkout or
-checked local archive for that candidate. The registry example below keeps
-the published 0.2.9 baseline until the exact new version is available.
-
-This guide covers [0.2.9](../releases/release-notes-0.2.9.md), with read-only
-Cleanup inventory and measurement, faster plan scans, MCP connection
-diagnosis and the existing deletion/recovery tools. Confirm the
-exact [GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.9)
-and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.9)
+regenerable artifacts, and linked Skill installation. It retains 0.2.9's
+read-only Cleanup inventory, measurement and faster scans. Confirm the
+exact [GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.3.0)
+and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.3.0)
 are available before installing from the registry. A checkout or manifest
 does not establish publication or the current npm `latest` channel.
 
@@ -34,7 +28,7 @@ backports quarantine protection onto the stable line.
 Once the exact version is available, use a user-selected stable prefix:
 
 ```sh
-npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.2.9
+npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.3.0
 ```
 
 The package root is
@@ -50,7 +44,7 @@ If that version is unavailable, use a reviewed source checkout or a checked
 local tarball. Install the tarball into a separate prefix:
 
 ```sh
-npm install --offline --ignore-scripts --legacy-peer-deps --no-audit --no-fund --prefix /absolute/path/to/agent-guard-review /absolute/path/to/mokuyoaxis-agent-guard-0.2.9.tgz
+npm install --offline --ignore-scripts --legacy-peer-deps --no-audit --no-fund --prefix /absolute/path/to/agent-guard-review /absolute/path/to/mokuyoaxis-agent-guard-0.3.0.tgz
 ```
 
 The review package root is
@@ -96,12 +90,12 @@ for Codex, DSH, Claude Code, Kimi Code and local adaptation of other hosts.
 The four-host list is the 0.3.0 maintenance target; actual tested coverage
 still comes from the [capability matrix](harness-capabilities.md).
 
-Keep the complete installation. This development checkout adds a preview-first
+Keep the complete installation. Version 0.3.0 adds a preview-first
 [Skill installer](skill-installation.md) that links `skills/delete-guard`
 into the selected host directory and preserves an old Skill during updates.
-Published 0.2.9 has no `install_skill.py`; its existing complete-package CLI
-and MCP entrypoints remain available. Check actual files before following
-development-only instructions.
+Version 0.2.9 has no `install_skill.py`; its existing complete-package CLI
+and MCP entrypoints remain available. Check the selected version before
+following the installer instructions.
 
 The [development acceptance table](../reports/test-report-maintenance-0.3.0.md)
 records passed local installation/workflow checks and bounded MCP host tasks.
@@ -159,6 +153,11 @@ synthetic records in temporary storage. `feedback.model_delivery` remains
 - **Recovery:** use the [delete Skill](../../skills/delete-guard/SKILL.md).
   Valuable content relocates; provably regenerable artifacts may delete
   directly. Inspect txids/state after errors, including force-restore backups.
+  For a reviewed batch, [save the explicit targets](cleanup-plan.md#saved-explicit-target-plans-030-development),
+  have the operator approve once, then let the agent execute/query its task ID.
+  Use [MCP tasks](mcp.md#reviewed-maintenance-tasks-030-development) for the same
+  handoff, with terminal approval by default or the operator-enabled
+  [Codex native form](mcp.md#host-confirmation-030-development).
 - **Disclosure:** use the [exfil Skill](../../skills/exfil-guard/SKILL.md).
   A checker plan is not completed redaction. The payload owner applies the
   plan, controls emission and owns any egress audit.
