@@ -94,9 +94,9 @@ are documented separately for [Exfil-guard](../skills/exfil-guard/SKILL.md) and
 [Delete-guard](../skills/delete-guard/SKILL.md); the [Guard-lab guide](lab/guard-lab.md)
 describes the user-controlled experiment CLI.
 
-We currently focus on DSH and Kimi Code. Claude Code's adapter and past
-reports remain available; testing new Claude versions is paused. For other
-hosts, ask the official agent to follow the
+Maintained integrations cover Codex, DSH, Claude Code and Kimi Code. Check the
+capability matrix for exact tested versions and paths. Claude Code's real-model
+maintenance check remains deferred. Other hosts can ask their agent to follow the
 [integration requirements](../adapters/INTEGRATION.md) and configure Agent Guard locally.
 
 ## Design
@@ -113,6 +113,7 @@ hosts, ask the official agent to follow the
 |---|---|
 | [Guard Lab guide](lab/guard-lab.md) | 操作流程、信道、L0/L1/L2 语义与限制 |
 | [Blue-team calibration](lab/blue-team-calibration.md) | 可从 checkout／包运行的四种零模型控制 |
+| [Maintenance walkthrough](research/maintenance-2026-11/reproduce.md) | 使用现有 CLI 的新合成维护任务；批准、执行与恢复分工及核对范围 |
 | [Clean task](lab/tasks/guard-lab-clean-task.md) | 干净对照任务模板 |
 | [Injection trial task](lab/tasks/guard-lab-trial-task.md) | 提示注入试次任务模板 |
 | [Native-read trial task](lab/tasks/guard-lab-read-trial-task.md) | 原生读取脱敏任务模板 |
@@ -129,6 +130,9 @@ trial needs an effective unguarded baseline before a matched comparison.
 覆盖分别说明。Lab 小规模推进，欢迎 fork、PR 与独立复现；公开资料不包含诱导载荷
 或私有运行原件。
 
+十一月的[维护任务与回执判读](research/maintenance-2026-11/README.md)单列一项获准维护任务和六个静态判读成员，
+保留装配问题、无改善差异和问法限制，并提供[结构化摘要](research/maintenance-2026-11/results.json)与独立示例。
+
 ## Reports
 
 Each report preserves its original version, configuration, result and limits.
@@ -138,6 +142,7 @@ coverage rather than treating every historical result as current acceptance.
 | Document / 文档 | Scope / 范围 |
 |---|---|
 | [Blue-team Lab, October 2026](reports/blue-team-lab-2026-10.md) | 来源／发送授权／任务效用与失败的去敏阶段摘要；不升级正式证据等级 |
+| [Maintenance and receipt reading, November 2026](research/maintenance-2026-11/README.md) | 维护闭环与小样本判读分别记录；自用受控试验，不作外部反馈或总体成功率 |
 | [0.2.3 contract review](reports/test-report-release-readiness-0.2.3.md) | 发布前契约复核与 DSH 原生验收 |
 | [0.2.4 official Flash / PTC](reports/test-report-dsh-0.2.4-ptc.md) | 实模主／子代理碰撞拒绝；原始主 PTC 任务失败与独立收尾分别记录 |
 | [Claude Code harness](reports/test-report-claude-code-harness.md) | 脚本模型驱动的真实宿主 hook 验证 |

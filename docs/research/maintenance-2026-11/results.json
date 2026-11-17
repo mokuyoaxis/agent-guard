@@ -1,0 +1,239 @@
+{
+  "schema": "lab_publication_summary/v1",
+  "date_utc": "2026-11-17",
+  "provenance": {
+    "source_commit": "dba340888c284b93f9c6d67402a33e69b520379e",
+    "manifest_version": "0.3.0",
+    "source_kind": "maintainer_controlled_internal_experiments",
+    "raw_evidence_public": false,
+    "external_feedback_collected_for_these_studies": 0,
+    "independent_checks": "Separate verification logic under the same maintainer and OS identity; no third-party attestation."
+  },
+  "environment": {
+    "os": "Android 16 / Termux / PRoot Debian",
+    "architecture": "ARM64",
+    "python": "3.13.5",
+    "host": "Kimi Code",
+    "host_version": "2.3.0",
+    "mcp_sdk": "2.3.0",
+    "model_label": "deepseek-v4.1-flash",
+    "model_identity_independently_verified": false
+  },
+  "maintenance": {
+    "study_label": "maintenance-01",
+    "unit": "one maintenance task in two fresh native sessions",
+    "model_requests": 8,
+    "model_mcp_calls": 7,
+    "proposal": {
+      "model_requests": 4,
+      "mcp_calls": 4,
+      "host_seconds": 21.661
+    },
+    "execution": {
+      "model_requests": 4,
+      "mcp_calls": 3,
+      "host_seconds": 19.572
+    },
+    "host_phase_seconds_sum": 41.233,
+    "operator_wait_seconds": null,
+    "end_to_end_seconds": null,
+    "controller_mcp_calls": 11,
+    "later_read_only_mcp_checks": 3,
+    "scripted_native_calibration": {
+      "responses": 2,
+      "mcp_calls": 1,
+      "real_model_requests": 0
+    },
+    "target_labels_provided_in_task": true,
+    "candidates": [
+      {
+        "label": "generated-cache",
+        "category": "regenerable",
+        "logical_file_bytes": 31,
+        "selected": true,
+        "effect": "quarantine"
+      },
+      {
+        "label": "obsolete-session",
+        "category": "discarded",
+        "logical_file_bytes": 42,
+        "selected": true,
+        "effect": "quarantine"
+      },
+      {
+        "label": "protected-subtree",
+        "category": "protected",
+        "logical_file_bytes": null,
+        "selected": false,
+        "effect": "keep"
+      },
+      {
+        "label": "unknown-file",
+        "category": "uncertain",
+        "logical_file_bytes": 37,
+        "selected": false,
+        "effect": "review"
+      }
+    ],
+    "keeper_outside_candidates": true,
+    "selected_roots": 2,
+    "confirmed_roots": 2,
+    "execution_dispatches": 1,
+    "operator_approvals": 1,
+    "transaction_count": 1,
+    "task_status": "COMPLETED",
+    "transaction_state": "RESTORED",
+    "restore_actor": "independent_verifier",
+    "source_bytes_and_modes_restored": true,
+    "keeper_unknown_protected_preserved": true,
+    "old_transactions_preserved": 13,
+    "known_selected_file_bytes": 73,
+    "budget_delta": {
+      "bytes": 6977,
+      "entries": 4,
+      "restores_refund_budget": false,
+      "includes_directory_metadata": true
+    },
+    "physical_freed_bytes": null,
+    "permanent_gc": false,
+    "driver_fingerprint_recorded": "after_proposal_before_execution",
+    "pre_generation_parent_unavailable_events": 1,
+    "model_requests_before_that_interruption": 0
+  },
+  "instrument_alignment": {
+    "unit": "private_lab_controller_contract",
+    "production_core_failure_claim": false,
+    "hidden_current_cleanup_tools_in_old_profile": 5,
+    "component_checks_passed": 43,
+    "scripted_relay_requests": 31,
+    "relayed_mcp_calls": 20,
+    "independent_mcp_calls": 3,
+    "model_used": false
+  },
+  "wording": {
+    "study_label": "wording-01",
+    "unit": "six static-receipt interpretation members",
+    "live_tool_result_consumption": false,
+    "planned_members": 6,
+    "dispatched_members": 6,
+    "complete_responses": 6,
+    "not_run": 0,
+    "real_model_requests": 6,
+    "scripted_native_requests": 1,
+    "native_tool_calls": 0,
+    "max_output_tokens": 1024,
+    "sum_host_phase_seconds": 34.413,
+    "arms": {
+      "A": "sanitized actual receipt",
+      "B": "same receipt, changed explanation only"
+    },
+    "changed_field": "result.verdict.explanation",
+    "dispatch_order": [
+      "A",
+      "B",
+      "B",
+      "A",
+      "A",
+      "B"
+    ],
+    "scores": {
+      "A": {
+        "moved": {
+          "CORRECT": 3,
+          "INCORRECT": 0,
+          "UNCERTAIN": 0
+        },
+        "approved": {
+          "CORRECT": 3,
+          "INCORRECT": 0,
+          "UNCERTAIN": 0
+        },
+        "next_step": {
+          "CORRECT": 0,
+          "INCORRECT": 0,
+          "UNCERTAIN": 3
+        }
+      },
+      "B": {
+        "moved": {
+          "CORRECT": 3,
+          "INCORRECT": 0,
+          "UNCERTAIN": 0
+        },
+        "approved": {
+          "CORRECT": 3,
+          "INCORRECT": 0,
+          "UNCERTAIN": 0
+        },
+        "next_step": {
+          "CORRECT": 0,
+          "INCORRECT": 0,
+          "UNCERTAIN": 3
+        }
+      }
+    },
+    "false_moved_claims": 0,
+    "false_approved_claims": 0,
+    "immediate_plan_operator_steps_present": 6,
+    "full_task_id_handoffs": 0,
+    "all_three_judgments_complete_pass": false,
+    "question_design_limit": "The question asked for the next action, while the frozen rubric required the complete plan/operator/task-ID chain. Partial answers are not evidence of unsafe execution.",
+    "observed_improvement": false,
+    "reported_tokens": {
+      "prompt": 8049,
+      "completion": 1358,
+      "independent_billing_verification": false
+    }
+  },
+  "limits": [
+    "Small maintainer-controlled samples, not population success rates.",
+    "Synthetic targets in an existing project; no actual cache/database cleanup in this maintenance study.",
+    "No native-shell, OS-isolation or disclosure-protection certification.",
+    "Historical raw captures and the private host driver are not included in this draft.",
+    "The new CLI walkthrough is an independent example, not a replay of these model outputs."
+  ],
+  "document_type": "maintainer_experiment_report",
+  "cli_walkthrough_validation": {
+    "study_label": "cli-walkthrough-01",
+    "unit": "one independent synthetic CLI walkthrough",
+    "source_commit": "dba340888c284b93f9c6d67402a33e69b520379e",
+    "model_requests": 0,
+    "operator_approvals": 1,
+    "execution_dispatches": 1,
+    "ordinary_restore_calls": 1,
+    "selected_roots": 2,
+    "confirmed_roots": 2,
+    "transaction_count": 1,
+    "task_status": "COMPLETED",
+    "transaction_state": "RESTORED",
+    "demo_payload_files_verified": 5,
+    "all_five_demo_file_bytes_and_modes_restored": true,
+    "kept_unknown_protected_keeper": true,
+    "known_demo_selected_file_bytes": 63,
+    "budget_delta": {
+      "bytes": 6967,
+      "entries": 4
+    },
+    "restores_refund_budget": false,
+    "physical_freed_bytes": null,
+    "permanent_gc": false,
+    "walkthrough_steps_checked": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "prior_phase_steps": [
+      1,
+      2
+    ],
+    "later_real_terminal_steps": [
+      3,
+      4,
+      5
+    ],
+    "additional_read_only_postflight_checks": true,
+    "counts_separate_from_model_studies": true
+  }
+}

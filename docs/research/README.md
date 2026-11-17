@@ -1,7 +1,7 @@
 # 防守研究 / Blue-team research
 
 这里公开 Agent Guard 自身受控实验和实现评审的整理稿，重点是防护设计、证据采集、
-授权边界、正常任务效用与失败诊断。资料截至 2026-10-13，属于持续推进的实验研究。
+授权边界、正常任务效用与失败诊断。资料更新至 2026-11-17，各阶段保留实际试验日期。
 
 These notes publish defensive methods and bounded observations from our own
 controlled experiments. They describe provenance, disclosure permissions,
@@ -10,6 +10,9 @@ examples and the historical real-model observations have different scopes.
 
 | 文档 | 主要内容 |
 |---|---|
+| [维护任务与回执判读](maintenance-2026-11/README.md) | 一项获准维护闭环、装配失配，以及六个静态判读成员的无改善差异与限制 |
+| [维护实验摘要](maintenance-2026-11/results.json) | 模型、脚本化校准和独立核验分开计数；保留未知与部分结果 |
+| [新的合成任务复验](maintenance-2026-11/reproduce.md) | 使用现有 CLI 走计划、操作者批准、执行与恢复；实际核对范围见文内说明 |
 | [数据流观察](dataflow-observability.md) | 区分读取、上下文导入、发送与接收，解释观察盲区 |
 | [正文发送授权](content-authorization.md) | 本地读取与模型发送的独立许可、来源绑定和固定通知 |
 | [父子代理来源](delegation-provenance.md) | 派生返回、接收者许可、实际呈现与历史再次消费 |
