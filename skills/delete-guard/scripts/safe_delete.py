@@ -195,6 +195,16 @@ def main() -> int:
     if args.quarantine:
         result["quarantine"] = True
 
+    if args.dry_run:
+        if verdict.decision == policy.DECISION_RELOCATE:
+            result["verdict"]["explanation"] = (
+                "Preview only: targets would be relocated to quarantine; "
+                "nothing has been moved.")
+        elif verdict.code == policy.CODE_ALLOW_REGENERABLE:
+            result["verdict"]["explanation"] = (
+                "Preview only: regenerable targets would be deleted directly; "
+                "nothing has been deleted.")
+
     def record(entry, required=False):
         """Append audit after safe layout setup.
 

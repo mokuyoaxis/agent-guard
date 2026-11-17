@@ -178,6 +178,8 @@ class MaintenanceWorkflowTests(RepoFixture):
         report = json.loads(result.stdout)
         self.assertEqual(report["admission"]["status"], "REQUIRES_APPROVAL")
         self.assertEqual(report["admission"]["code"], "BLOCK_DELETE_BATCH_CONFIRM")
+        self.assertIn("would be relocated", report["verdict"]["explanation"])
+        self.assertIn("nothing has been moved", report["verdict"]["explanation"])
         self.assertEqual(admission.describe(self.root, self.trash)["used_bytes"], 0)
         self.assertEqual(Path(path).read_text(), "0123456789")
         # A legacy advisory audit is permitted; the target itself stays intact.

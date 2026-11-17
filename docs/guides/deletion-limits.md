@@ -30,6 +30,13 @@ the same information in terminal output. It is absent from published 0.2.9.
 The existing `verdict` remains the policy projection; `admission` describes
 the current execution checks, with the first refusal in their normal order.
 
+In the current checkout, relocation and regenerable-deletion previews use
+conditional explanations: targets would be moved or deleted, and no such
+action has happened. This wording correction is newer than published 0.3.0;
+older copies can use completed-tense explanations even in a dry-run. Read
+`dry_run`, the execution summary and `admission` together; the policy code
+does not prove execution or approval.
+
 | `admission.status` | Meaning |
 |---|---|
 | `READY` | Current shared admission checks pass; execution must recheck |

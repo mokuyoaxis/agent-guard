@@ -144,6 +144,10 @@ class DeletionEntrypointTests(RepoFixture):
         self.write("valuable", "original")
         status, result = self.run_cli("safe_delete.py", "--json", "--dry-run", "valuable")
         self.assertEqual(status, 0, result)
+        self.assertIn("would be relocated", result["verdict"]["explanation"])
+        self.assertIn("nothing has been moved", result["verdict"]["explanation"])
+        self.assertEqual(Path(self.root, "valuable").read_text(), "original")
+        self.assertNotIn("txid", result)
         self.assertFalse(Path(self.root, ".agent-trash/admission.json").exists())
         self.assertEqual(self.delete("valuable")[0], 0)
 
