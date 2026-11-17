@@ -2,6 +2,22 @@
 
 <a id="current-unreleased-scope"></a>
 
+## Release automation maintenance (unversioned)
+
+The next maintenance change renders release-note links against the selected
+tag without editing their source, then independently checks the published
+GitHub/npm versions, intended channel and archive bytes. Bounded read-only
+polling distinguishes unavailable data, read errors and content mismatches;
+fixed summaries and attempt evidence survive failed verification.
+
+These repository helpers do not change package version 0.3.0 or publish a new
+release. Installation, model/MCP runtime and cryptographic signature audits
+retain their separate scope. See the [release workflow](../guides/release-process.md).
+
+Usage guides, Skill instructions and adapter summaries now describe the
+released 0.3.0 features consistently. Historical checks keep their original
+dates and scope, and existing section links remain available.
+
 ## 0.3.0 maintenance workflow
 
 The maintenance workflow connects review to execution: save an explicit

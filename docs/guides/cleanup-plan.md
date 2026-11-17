@@ -14,7 +14,7 @@ layout or Git exclude rules. It also suppresses project bytecode creation.
 Planning does not call `safe_delete --dry-run`, whose metadata side effects
 remain documented in the [policy reference](../../skills/delete-guard/references/policy.md#assessment-and-dry-run-side-effects).
 
-The 0.3.0 development checkout adds [overviews, detail pages and execution summaries](maintenance-output.md).
+Version 0.3.0 adds [overviews, detail pages and execution summaries](maintenance-output.md).
 Text planning defaults to an overview; `--json` retains full output unless
 `--view summary|details` is explicitly selected. Saved reads accept display
 filters without changing the selected targets. Confirmation still prints
@@ -22,7 +22,9 @@ the entire selection. These additions are absent from published 0.2.9;
 runtime checks and bounded host observations are recorded in the
 [maintenance acceptance](../reports/test-report-maintenance-0.3.0.md).
 
-## Require quarantine (0.3.0 development)
+<a id="require-quarantine-030-development"></a>
+
+## Require quarantine (0.3.0)
 
 For authorized cleanup that must remain recoverable, add `--quarantine`
 while creating the plan. Proven regenerable artifacts keep their category,
@@ -57,7 +59,9 @@ Restore remains transaction-level, including when the transaction contains a
 whole cache directory. Keep an independently authorized single-file recovery
 test in its own transaction when that is the required scope.
 
-## Saved explicit-target plans (0.3.0 development)
+<a id="saved-explicit-target-plans-030-development"></a>
+
+## Saved explicit-target plans (0.3.0)
 
 This checkout adds literal-target planning and saved proposals. Published
 0.2.9 does not include these flags. Save/read/refresh, source-change refusal
@@ -129,7 +133,7 @@ semantics. The store belongs to the already-protected configuration subtree;
 it adds no quarantine, debit or approval. Inputs and saved JSON have a 16 MiB
 read/write bound. The store may not use directory links.
 
-The 0.3.0 development reason-text refinement can change a plan fingerprint:
+The 0.3.0 reason-text refinement can change a plan fingerprint:
 reasons are part of the reviewed plan. Older snapshots remain readable, but
 an affected proposal stops at the existing refresh check. Review and save a
 new proposal, then obtain a new operator approval when required. Do not edit
@@ -163,7 +167,9 @@ still go through safe_delete and existing limits. The convenience command
 creates and executes the same kind of task. The original full-workspace
 `--execute --plan-id ID --select PATH` workflow retains its per-row behavior.
 
-## Operator-approved tasks (0.3.0 development)
+<a id="operator-approved-tasks-030-development"></a>
+
+## Operator-approved tasks (0.3.0)
 
 `--from-plan ID --approve` requires both stdin and stderr to be terminals.
 The operator reviews the selection and types `APPROVE`. The command creates

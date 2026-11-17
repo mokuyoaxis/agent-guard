@@ -1,8 +1,8 @@
 # Deletion limits / 删除准入与预算
 
 These limits are introduced in **0.2.7** and are absent from 0.2.6. The
-separate disclosure-authorization research remains paused. The 0.3.0 maintenance
-preview described below is an unreleased development change. Versioned validation and exact-version
+separate disclosure-authorization research remains paused. The maintenance
+preview described below is included in 0.3.0. Versioned validation and exact-version
 availability checks are tracked in the [0.2.7 notes](../releases/release-notes-0.2.7.md);
 the following results retain their earlier deletion-hardening checkpoint,
 which used 0.2.6 package metadata rather than the final 0.2.7 artifact.
@@ -21,7 +21,9 @@ is limited to the observed root Bash hook and optional Stop, not other tools
 or subagents. Historical Cleanup/release evidence keeps its original scope;
 the earlier npm timeout remains unexplained and did not recur in these runs.
 
-## Dry-run admission preview (0.3.0 development)
+<a id="dry-run-admission-preview-030-development"></a>
+
+## Dry-run admission preview (0.3.0)
 
 This checkout adds `admission` to `safe_delete --dry-run` JSON and displays
 the same information in terminal output. It is absent from published 0.2.9.
@@ -62,7 +64,7 @@ execution command uses the observed literal targets, with glob characters
 escaped for the existing CLI. It does not automatically execute them.
 
 Batch refusals now point to [saved explicit-target proposals](cleanup-plan.md#saved-explicit-target-plans-030-development)
-in this development checkout. The generated command lists the observed
+in 0.3.0. The generated command lists the observed
 literal roots and uses `--save-plan`; it does not declare them discarded.
 After confirming discardability, add `--discard-targets` or individual
 `--discard` declarations, inspect the stored selection and use `--from-plan ID --approve`
@@ -75,10 +77,12 @@ changes identity, answers confirmation or purges recovery copies.
 
 Runtime, no-debit/grant-preservation and CLI/MCP regressions passed in the
 [maintenance verification](../reports/test-report-maintenance-0.3.0.md).
-The older counts above retain their separate source checkpoint; final
-release-candidate regression and untested host paths remain separate gates.
+The older counts above retain their separate source checkpoint; 0.3.0
+regression results and untested host paths are recorded separately.
 
-## Quarantine-only requests (0.3.0 development)
+<a id="quarantine-only-requests-030-development"></a>
+
+## Quarantine-only requests (0.3.0)
 
 Use `safe_delete --quarantine` or create a Cleanup plan with `--quarantine`
 when authorized cleanup must preserve recovery copies even for proven
@@ -96,7 +100,7 @@ See [saved choice and execution](cleanup-plan.md#require-quarantine-030-developm
 
 ## Configuration and defaults
 
-In the development checkout, capacity inspection resolves a linked quarantine
+In 0.3.0, capacity inspection resolves a linked quarantine
 root to its physical directory before measuring occupancy. Links among the
 deletion targets remain opaque entries. This correction is absent from older
 installed copies; selecting an external bucket does not update their code.
@@ -203,7 +207,9 @@ Git reset/restore/checkout snapshots also use their separate Git storage,
 outside this quarantine budget. This change adds no new coverage or bound
 for those paths; Git snapshot storage can still grow.
 
-## Approved-task accounting (0.3.0 development)
+<a id="approved-task-accounting-030-development"></a>
+
+## Approved-task accounting (0.3.0)
 
 The [saved-plan task workflow](cleanup-plan.md#operator-approved-tasks-030-development)
 separates operator approval from an agent's execution. Approval alone does
@@ -225,8 +231,9 @@ per-root effect, so a quarantine plan cannot later use the regenerable-delete
 or housekeeping path. No threshold is relaxed and no identity changes.
 Query `cleanup --task ID --json` after a partial or unknown result; a repeated
 execute never resumes a claimed task. Additional work requires reviewing a
-fresh proposal for unresolved roots. This development flow is absent from
-published 0.2.9 and has not yet completed runtime validation.
+fresh proposal for unresolved roots. This workflow is included in 0.3.0 and
+absent from 0.2.9. Runtime and bounded host checks are recorded in the
+[maintenance acceptance](../reports/test-report-maintenance-0.3.0.md).
 
 ## Status and operator recovery
 

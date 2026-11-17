@@ -20,7 +20,7 @@ Version 0.2.8 retains the original five tools. The new read-only workflow
 and its separate partial-result contract are described
 [below](#cleanup-observations-029).
 
-The **0.3.0 development checkout** adds reviewed maintenance tasks through
+Version **0.3.0** adds reviewed maintenance tasks through
 `cleanup_plan`, `cleanup_execute` and `cleanup_task_status`, for ten tools by
 default. An operator-enabled Codex confirmation channel adds an eleventh
 tool; see [host confirmation](#host-confirmation-030-development).
@@ -29,10 +29,10 @@ acceptance are recorded separately; tool discovery alone does not prove a
 model completed an approved task or a native hook intercepted an operation.
 See [the task workflow](#reviewed-maintenance-tasks-030-development).
 The [maintenance acceptance](../reports/test-report-maintenance-0.3.0.md)
-records local approved execution, three hosts' ordinary model-backed tasks,
-DSH/Kimi fresh-approved execution, Claude's connected/deferred status and
-Codex's earlier usage-limit block before business calls, and the separate
-2026-11-14 single-root real-cache execution with controller recovery.
+records local approved execution, bounded Codex/DSH/Kimi model-backed tasks,
+fresh-approved batch execution and Codex's opt-in native-form trial. Claude's
+model work remains deferred. Earlier usage-limit blocks and timeouts retain
+their original results, separately from later successful trials.
 The same development scope also adds `status(view=overview)` for
 [bounded metadata queries](read-only-query.md), keeping the default ten-tool set and
 legacy default status result. CLI/JSON/MCP queries are the current interface;
@@ -97,7 +97,9 @@ development checkout** also accepts a trusted startup `--trash-root` for a
 fixed quarantine directory; published 0.2.9 does not have this option. Ambient
 quarantine and deletion-policy environment overrides are still ignored.
 
-### Select a fixed quarantine directory (0.3.0 development)
+<a id="select-a-fixed-quarantine-directory-030-development"></a>
+
+### Select a fixed quarantine directory (0.3.0)
 
 For a workspace whose owning application expects a strict directory layout,
 select a dedicated stable bucket outside that application-managed tree:
@@ -201,7 +203,7 @@ The checks cover:
 2. A classic `2025-06-18` stdio handshake, the `agent-guard` service identity
    and a service version matching the doctor's package version.
 3. The expected tools and query annotations for this installation: five in
-   0.2.8, seven in published 0.2.9, ten by default in the 0.3.0 development checkout,
+   0.2.8, seven in 0.2.9, ten by default in 0.3.0,
    or eleven with the matching `--approval-channel codex` option.
    The plan tool is annotated as writable because it can explicitly save;
    task status is read-only. Use doctor and server
@@ -274,12 +276,12 @@ or atomic rollback. Final candidate results are recorded in the
 | `gc_plan` | none | Preview the existing transaction GC plan; never execute it |
 | `cleanup_discover` (0.2.9) | optional literal directory `scopes`, `max_entries` (1–10000), `max_depth` (1–4) | Bounded read-only overview; no executable plan |
 | `cleanup_measure` (0.2.9) | required directory `scopes`, optional `max_entries` (1–20000), `max_depth` (1–32) | Read-only metadata measurement; protected whole sizes stay unknown |
-| `cleanup_plan` (0.3.0 dev) | literal `targets` with declarations/limits, `save` and optional `quarantine`, or `saved_plan_id`; optional output view/detail controls | Default overview; explicit saving stores metadata and requested effects; saved reads do not refresh sources |
-| `cleanup_execute` (0.3.0 dev) | operator-approved `task_id`, optional `view: full` | Default receipt summary; never sign an approval or resume a claimed task |
-| `cleanup_task_status` (0.3.0 dev) | `task_id`, optional view/detail controls | Default durable summary; no inventory, budget debit or retry |
-| `cleanup_request_approval` (0.3.0 dev, opt-in) | `saved_plan_id` only | Ask the selected Codex host for confirmation; reuse a durable receipt, never delete targets |
+| `cleanup_plan` (0.3.0) | literal `targets` with declarations/limits, `save` and optional `quarantine`, or `saved_plan_id`; optional output view/detail controls | Default overview; explicit saving stores metadata and requested effects; saved reads do not refresh sources |
+| `cleanup_execute` (0.3.0) | operator-approved `task_id`, optional `view: full` | Default receipt summary; never sign an approval or resume a claimed task |
+| `cleanup_task_status` (0.3.0) | `task_id`, optional view/detail controls | Default durable summary; no inventory, budget debit or retry |
+| `cleanup_request_approval` (0.3.0, opt-in) | `saved_plan_id` only | Ask the selected Codex host for confirmation; reuse a durable receipt, never delete targets |
 
-For recoverable cleanup in the **0.3.0 development checkout**, use
+For recoverable cleanup in **0.3.0**, use
 `safe_delete` with `quarantine: true`, or create a proposal such as:
 
 ```json
@@ -296,7 +298,7 @@ coordinate application cache locks or free disk space by itself. It is absent
 from published 0.2.9; use matching updated CLI/server processes and reconnect
 existing clients after updating. See [quarantine-only plans](cleanup-plan.md#require-quarantine-030-development).
 
-In the **0.3.0 development checkout**, `safe_delete` with `dry_run: true`
+In **0.3.0**, `safe_delete` with `dry_run: true`
 also returns `result.admission`, including current admission/approval status
 and supported next steps. This preserves the existing safe_delete arguments;
 the three task tools above are separate additions. `ok: true` still means
@@ -339,8 +341,8 @@ cannot be used as an alternate permanent-GC interface. `gc_plan` is a preview
 restriction of this adapter, not a new claim that the existing GC CLI requires
 a terminal or human confirmation.
 
-The direct safe_delete tool still refuses unapproved large batches. In this
-development checkout use the [saved-plan task workflow](#reviewed-maintenance-tasks-030-development);
+The direct safe_delete tool still refuses unapproved large batches. In 0.3.0,
+use the [saved-plan task workflow](#reviewed-maintenance-tasks-030-development);
 older versions use the [reviewed terminal workflow](cleanup-plan.md#confirm-and-execute).
 A model-provided `confirm=true`, client tool annotation or
 permissive auto-approval setting does not replace that workflow. Restore
@@ -354,8 +356,9 @@ after a client timeout or disconnection. The existing recovery, concurrency
 and same-UID boundaries remain; this server is not an OS sandbox.
 
 <a id="host-confirmation-030-development"></a>
+<a id="host-confirmation-030-development-opt-in"></a>
 
-## Host confirmation (0.3.0 development, opt-in)
+## Host confirmation (0.3.0, opt-in)
 
 The default remains ten tools and operator-terminal approval. To use the
 Codex host form, the **operator** adds `--approval-channel codex` to this
@@ -575,7 +578,9 @@ without shell calls or MCP launch overrides. See the
 [registration acceptance](../reports/test-report-maintenance-0.3.0.md#project-scoped-codex-mcp-registration-2026-11-13)
 for the separate protocol-client recovery check and remaining host limits.
 
-## Reviewed maintenance tasks (0.3.0 development)
+<a id="reviewed-maintenance-tasks-030-development"></a>
+
+## Reviewed maintenance tasks (0.3.0)
 
 Guard's operator approval and the MCP client's permission to call a writing
 tool are separate gates. A valid task does not override the client's policy.
@@ -752,7 +757,7 @@ below retain their original scope.
 
 1. Confirm the interpreter starts the server and the client discovers the
    tools for that installation: five in 0.2.8, seven in published 0.2.9,
-   ten in the 0.3.0 development checkout.
+   ten by default in 0.3.0, or eleven with the opt-in Codex confirmation channel.
    Check stderr when a dependency or executable cannot
    be found, and reconnect after changing the selected installation.
 2. Call `status`, `transactions` and `gc_plan` in a disposable project; confirm

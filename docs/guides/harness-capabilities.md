@@ -124,7 +124,7 @@ checks a selected service through handshake and read-only calls. Its PASS
 does not establish host connection, model use or native interception; those
 remain separate evidence levels.
 
-The 0.3.0 development checkout adds `cleanup_plan`, `cleanup_execute` and
+Version 0.3.0 adds `cleanup_plan`, `cleanup_execute` and
 `cleanup_task_status`, reusing the same approved task records as CLI.
 Terminal approval is the default; the optional
 [Codex confirmation channel](mcp.md#host-confirmation-030-development) adds
@@ -140,7 +140,7 @@ seven model MCP calls for one saved 71-root synthetic plan, one operator
 confirmation and one execution, followed by independently verified MCP recovery.
 These results do not extend the native-hook evidence above. See the
 [current MCP host table](../reports/test-report-maintenance-0.3.0.md#host-acceptance).
-See [the development task contract](mcp.md#reviewed-maintenance-tasks-030-development).
+See [the task contract](mcp.md#reviewed-maintenance-tasks-030-development).
 
 Version 0.2.9 adds the read-only `cleanup_discover` and `cleanup_measure`
 tools. Local source checks include real-project stdio observations and one

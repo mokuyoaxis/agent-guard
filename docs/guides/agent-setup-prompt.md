@@ -56,7 +56,7 @@ MCP 连接不证明原生 Shell／脚本／编辑器受保护；没有验证阻�
 操作者批准与 agent 执行分开。遵循该安装现有的批准入口；没有实际批准通路
 时拒绝 ASK，不由 agent 自填 approved／confirm、分配 PTY 或代填终端确认。
 观察结果不是执行许可。检查所选安装实际提供的工具，不假定旧版具有新入口。
-0.3.0 开发中提供 cleanup_plan、cleanup_execute、cleanup_task_status；先计划，
+0.3.0 提供 cleanup_plan、cleanup_execute、cleanup_task_status；先计划，
 显式 save 才写提议。已有 saved_plan_id 可只读查看；执行只接受操作者获准的
 task_id，不接受 approved／confirm 或 token。默认十工具没有批准入口。
 若操作者明确选择可信 Codex 交互通道，可在服务启动参数加入
@@ -130,7 +130,7 @@ Core 已作出删除策略判决，也不能自动放宽沙箱或换工具执行
 | Claude Code | [Bash hook reference](../../adapters/claude/README.md); new-version acceptance is pending |
 | Kimi Code | [Bash hook and optional feedback](../../adapters/kimi-code/README.md), plus the shared [MCP tools](mcp.md) |
 
-The directory-link helper is a development addition absent from published
+The directory-link helper is included in 0.3.0 and absent from
 0.2.9. Check for the actual file before using it. The four-host maintenance
 target does not replace the precise tested-version matrix or certify agent-
 generated bridges. Setup and verification can be handed off separately.

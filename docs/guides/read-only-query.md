@@ -1,6 +1,6 @@
 # Unified read-only queries / 统一只读查询
 
-This is **0.3.0 development work**, absent from published 0.2.9. Runtime
+These queries are included in **0.3.0** and absent from 0.2.9. Runtime
 checks cover bounded metadata reads, no writes/Git/payload traversal, partial
 data, terminal formatting and CLI/MCP use in the recorded POSIX environment.
 Other platforms and native hooks are not certified by these checks; see

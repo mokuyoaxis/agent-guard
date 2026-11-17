@@ -85,7 +85,7 @@ and verify that normal maintenance is not processed twice.
 - **Client supports MCP:** the [local MCP adapter](../docs/guides/mcp.md), introduced in 0.2.7,
   exposes explicit safe_delete, ordinary restore, transaction/status queries
   and GC preview. Configure its optional SDK and fixed workspace separately.
-  The 0.3.0 development service also accepts an operator-selected absolute
+  The 0.3.0 service also accepts an operator-selected absolute
   `--trash-root`; keep it stable with the approval/session binding. This is
   startup configuration, never a tool argument, and does not migrate old data.
   Say `MCP tools only` unless a separate blocking hook has been verified;
@@ -95,7 +95,7 @@ and verify that normal maintenance is not processed twice.
   `cleanup_measure`; published 0.2.8 does not include them. Inspect their
   coverage/size fields and `partial` status rather than treating a successful
   observation as a complete scan or deletion approval.
-  The 0.3.0 development checkout adds `cleanup_plan`, `cleanup_execute` and
+  Version 0.3.0 adds `cleanup_plan`, `cleanup_execute` and
   `cleanup_task_status`: use the fixed binding, obtain operator CLI approval,
   then execute/query the returned task ID. The default ten-tool set has no
   approval tool or model-supplied grant. An operator-selected

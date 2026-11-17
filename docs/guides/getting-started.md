@@ -97,7 +97,7 @@ Version 0.2.9 has no `install_skill.py`; its existing complete-package CLI
 and MCP entrypoints remain available. Check the selected version before
 following the installer instructions.
 
-The [development acceptance table](../reports/test-report-maintenance-0.3.0.md)
+The [maintenance acceptance table](../reports/test-report-maintenance-0.3.0.md)
 records passed local installation/workflow checks and bounded MCP host tasks.
 Use the [upgrade checklist](skill-installation.md#upgrade-a-development-installation)
 to keep the selected complete package, outstanding task binding and MCP

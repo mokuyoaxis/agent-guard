@@ -1,10 +1,9 @@
 # Maintenance overviews, details and result summaries
 
-These output views are **0.3.0 development changes**, absent from published
-0.2.9. Runtime, output/legacy regressions and package checks have passed at
-recorded development checkpoints. Three hosts also read task details and
-replayed an already completed task; fresh approved first execution in each
-host and final release-artifact checks remain separate. See
+These output views are included in **0.3.0** and absent from 0.2.9.
+Runtime, output/legacy regressions and package checks passed at the recorded
+checkpoints. Codex, DSH and Kimi also completed fresh operator-approved tasks;
+each host's evidence retains its exact version, environment and scope. See
 [acceptance and limits](../reports/test-report-maintenance-0.3.0.md).
 
 The shared Core output layer serves CLI and MCP. It reads existing plans
@@ -28,7 +27,7 @@ The default MCP set remains ten tools; operator-enabled
 [Codex host confirmation](mcp.md#host-confirmation-030-development) adds an
 eleventh tool without changing these output views. The original seven MCP operations retain
 their default behavior and full CLI results, with additive execution summaries
-for safe_delete, restore and GC preview. The development safe_delete entry
+for safe_delete, restore and GC preview. The 0.3.0 safe_delete entry
 adds the optional quarantine choice above. Restore/GC have no general retained
 receipt-detail endpoint yet, so default text preserves their full rows.
 The legacy full-workspace execute flow likewise preserves its per-row receipts

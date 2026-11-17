@@ -87,6 +87,7 @@ ALLOW_NOOP 覆盖边界及准确 GC 用法；纳入 0.2.5。
 | [Trash locations](guides/trash-index.md) | 0.2.4 的只读位置查询、Agent／前端共享 JSON 契约 |
 | [Audit metadata](guides/audit-metadata.md) | RC2 引入的字段投影、会话关联、GC／status 契约与保留边界 |
 | [Publishing from ephemeral environments](guides/publishing-from-ephemeral-environments.md) | 临时环境中的 GitHub 发布操作参考 |
+| [Release workflow](guides/release-process.md) | 未发布维护：固定版本发行说明链接、发布后只读核验、结果与证据范围 |
 
 Adapter setup remains in [adapters/](../adapters/INTEGRATION.md). Skill contracts
 are documented separately for [Exfil-guard](../skills/exfil-guard/SKILL.md) and
@@ -166,7 +167,7 @@ coverage rather than treating every historical result as current acceptance.
 | [0.2.8](releases/release-notes-0.2.8.md) | MCP 接入诊断、真实协议中断验证、安装与验收边界 |
 | [0.2.7](releases/release-notes-0.2.7.md) | Cleanup、删除准入与MCP的版本范围、升级影响和准备阶段验证 |
 | [0.2.6](releases/release-notes-0.2.6.md) | 正式版范围、升级影响与验收；Kimi 反馈／doctor、DSH 预检与版本扩展 |
-| [Changes and maintenance details](releases/unreleased.md) | 0.3.0 范围与本地验证；其后保留0.2.9、0.2.8、0.2.7及更早维护历史 |
+| [Changes and maintenance details](releases/unreleased.md) | 未发布维护改动、0.3.0 范围及按检查点记录的验证；其后保留0.2.9、0.2.8、0.2.7及更早维护历史 |
 | [0.2.5](releases/release-notes-0.2.5.md) | 正式版范围；累计 RC 维护、明确反馈与升级影响 |
 | [0.2.4-hotfix.1](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.4-hotfix.1) | 已发布的稳定线回收站保护回补；不含完整 RC 累计内容 |
 | [0.2.5-rc3](releases/release-notes-0.2.5-rc3.md) | 已发布的研究／文档预发布版与零模型示例 |

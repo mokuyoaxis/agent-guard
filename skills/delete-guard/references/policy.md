@@ -46,7 +46,7 @@ See [status and cleanup feedback](../../../docs/guides/recovery-feedback.md).
 
 ### Assessment and dry-run side effects
 
-The 0.3.0 development checkout adds an independent `admission` snapshot to
+Version 0.3.0 adds an independent `admission` snapshot to
 `safe_delete --dry-run`. It reuses execution checks without a lock, debit,
 approval consumption or reservation. Policy verdicts and dry-run exit codes
 retain the table's meaning: an admission refusal can accompany preview exit 0,

@@ -4,6 +4,7 @@ from pathlib import Path
 import shlex
 import subprocess
 import sys
+import tempfile
 import textwrap
 import unittest
 
@@ -129,6 +130,42 @@ class ReleaseGateTests(unittest.TestCase):
         self.assertIn("tests.test_mcp_approval", command[4:])
         self.assertLess(job.index(install), job.index(run))
         self.assertNotIn("continue-on-error:", job)
+
+    def test_real_notes_preparation_command_renders_without_changing_the_source(self):
+        block = step_block(self.workflow, "Prepare tag-pinned release notes")
+        command = textwrap.dedent(block.split("        run: |\n", 1)[1])
+        notes = ROOT / "docs/releases/release-notes-0.3.0.md"
+        before = notes.read_bytes()
+        with tempfile.TemporaryDirectory() as directory:
+            environment = dict(os.environ, GITHUB_REF_NAME="0.3.0",
+                               GITHUB_REPOSITORY="mokuyoaxis/agent-guard", RUNNER_TEMP=directory)
+            result = subprocess.run(["bash", "-e", "-c", command], cwd=ROOT, env=environment,
+                                    capture_output=True, text=True, timeout=15)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            rendered = (Path(directory) / "agent-guard-release-notes.md").read_text()
+            self.assertEqual(rendered.count("/blob/0.3.0/docs/"), 4)
+            self.assertNotIn("](../", rendered)
+        self.assertEqual(notes.read_bytes(), before)
+
+    def test_publication_verification_follows_publish_and_preserves_failed_evidence(self):
+        names = ("Prepare tag-pinned release notes", "Run release tests",
+                 "Create GitHub Release and attach the npm artifact", "Publish the same tarball to npm",
+                 "Verify published artifacts", "Preserve release verification evidence")
+        positions = [self.workflow.index("      - name: " + name + "\n") for name in names]
+        self.assertEqual(positions, sorted(positions))
+        upload = step_block(self.workflow, names[2])
+        self.assertIn('NOTES="$RUNNER_TEMP/agent-guard-release-notes.md"', upload)
+        verify = step_block(self.workflow, "Verify published artifacts")
+        self.assertIn("verify_release.py", verify)
+        self.assertIn('--tarball "$TARBALL"', verify)
+        self.assertIn('--summary "$GITHUB_STEP_SUMMARY"', verify)
+        self.assertNotIn("continue-on-error", verify)
+        self.assertNotIn("        if:", verify)
+        self.assertNotIn("NPM_TOKEN", verify)
+        evidence = step_block(self.workflow, "Preserve release verification evidence")
+        self.assertIn("if: always()", evidence)
+        self.assertIn("actions/upload-artifact@", evidence)
+        self.assertIn("agent-guard-release-verification/", evidence)
 
     def test_missing_sdk_fails_release_gate(self):
         result = self.run_gate("missing")

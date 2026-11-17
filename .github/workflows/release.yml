@@ -84,6 +84,13 @@ jobs:
       - name: Select stable, release-candidate or hotfix channels
         run: python .github/scripts/release_channel.py "$GITHUB_REF_NAME" >>"$GITHUB_ENV"
 
+      - name: Prepare tag-pinned release notes
+        run: |
+          python .github/scripts/release_notes.py \
+            --repository "$GITHUB_REPOSITORY" \
+            --version "$GITHUB_REF_NAME" \
+            --output "$RUNNER_TEMP/agent-guard-release-notes.md"
+
       - name: Verify npm credential
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -149,7 +156,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          NOTES="docs/releases/release-notes-${GITHUB_REF_NAME}.md"
+          NOTES="$RUNNER_TEMP/agent-guard-release-notes.md"
           if [ ! -f "$NOTES" ]; then
             echo "::error::missing release notes: $NOTES"
             exit 1
@@ -198,3 +205,28 @@ jobs:
               --tag "$NPM_DIST_TAG" \
               --provenance
           fi
+
+      - name: Verify published artifacts
+        id: verify_release
+        timeout-minutes: 20
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python .github/scripts/verify_release.py \
+            --repository "$GITHUB_REPOSITORY" \
+            --version "$GITHUB_REF_NAME" \
+            --commit "$(git rev-parse HEAD)" \
+            --tarball "$TARBALL" \
+            --notes "$RUNNER_TEMP/agent-guard-release-notes.md" \
+            --output-dir "$RUNNER_TEMP/agent-guard-release-verification" \
+            --summary "$GITHUB_STEP_SUMMARY"
+
+      - name: Preserve release verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-verification-${{ github.ref_name }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/agent-guard-release-notes.md
+            ${{ runner.temp }}/agent-guard-release-verification/
+          if-no-files-found: warn

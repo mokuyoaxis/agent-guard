@@ -1,12 +1,12 @@
 # Skill installation and updates / Skill 安装与更新
 
-The installer and real-path bootstrap below are **0.3.0 development changes**,
-not additions to the published 0.2.9 package. Runtime, link/update and package
+The installer and real-path bootstrap below are included in **0.3.0** and
+absent from 0.2.9. Runtime, link/update and package
 smoke checks passed in owned POSIX locations; existing global Skills were not
 automatically migrated. See the [acceptance scope](../reports/test-report-maintenance-0.3.0.md).
-The current candidate manifest is aligned to 0.3.0; publication remains
-pending. Earlier development archives used 0.2.9 metadata, so inspect the
-selected installation's actual files rather than relying on that version alone.
+Version 0.3.0 is published; see the [release notes](../releases/release-notes-0.3.0.md).
+Earlier development archives used 0.2.9 metadata, so inspect the selected
+installation's actual files rather than relying on that version alone.
 
 Delete-guard depends on the shared `core/` directory. Keep the complete
 checkout or npm package, then link its `skills/delete-guard` directory into
@@ -67,11 +67,13 @@ python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/cleanup.py --j
 The first command observes directories; the second proposes a plan. Neither
 is execution approval. Existing reviewed-plan and terminal-confirmation
 requirements remain in force. Registering a Skill does not configure an MCP
-service or approve a task. The development package's separate
+service or approve a task. The 0.3.0 package's separate
 [MCP task tools](mcp.md#reviewed-maintenance-tasks-030-development) reuse the same
 CLI/Core. See [Cleanup](cleanup-plan.md).
 
-## Upgrade a development installation
+<a id="upgrade-a-development-installation"></a>
+
+## Upgrade an installation
 
 1. Select a reviewed complete package root at a stable path. Check its actual
    installer and tool flags; identical version text does not establish
@@ -90,7 +92,7 @@ CLI/Core. See [Cleanup](cleanup-plan.md).
 Use owned synthetic files to verify the selected entrypoints. A successful
 installation, connection and native-hook enforcement are separate results;
 see [MCP storage](mcp.md#select-a-fixed-quarantine-directory-030-development)
-and the [remaining acceptance gates](../reports/test-report-maintenance-0.3.0.md#remaining-acceptance-and-release-work).
+and the [recorded acceptance and limits](../reports/test-report-maintenance-0.3.0.md#remaining-acceptance-and-release-work).
 
 ## Scope and rollback
 

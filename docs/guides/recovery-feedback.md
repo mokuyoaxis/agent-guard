@@ -7,7 +7,7 @@ or the recovery format.
 The final Kimi section describes the additions in
 [0.2.6](../releases/release-notes-0.2.6.md).
 
-The 0.3.0 development checkout adds a shared
+Version 0.3.0 adds a shared
 [receipt-derived execution summary](maintenance-output.md#fixed-execution-summaries)
 for safe_delete, Cleanup, restore and GC. Full JSON retains the old fields
 and adds `execution_summary`; text restore/GC prints that summary before
@@ -66,7 +66,7 @@ output remain denials. Static `CHECKER_*` diagnostics distinguish these
 failures from a Core policy refusal without copying private command text or
 raw process errors into adapter logs.
 
-In the 0.3.0 development checkout, a known executor error with code
+In 0.3.0, a known executor error with code
 `SANDBOX_UNAVAILABLE` gets an explicit sandbox-backend explanation while
 retaining `CHECKER_EXECUTION_FAILED` / `STATUS_EXECUTION_FAILED`. It is an
 execution-environment failure, not a Core deletion-policy verdict. Inspect

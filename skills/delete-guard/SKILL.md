@@ -14,7 +14,9 @@ Version **0.2.7** adds the Cleanup proposals and deletion admission described
 below; 0.2.6 lacks these additions. See the
 [0.2.7 scope, upgrade impact and exact-version availability checks](../../docs/releases/release-notes-0.2.7.md).
 
-## Installation and updates (0.3.0 development)
+<a id="installation-and-updates-030-development"></a>
+
+## Installation and updates (0.3.0)
 
 Keep this Skill inside a complete Agent Guard installation and register a
 directory link to it. The shared Core and all scripts, including Cleanup,
@@ -69,7 +71,7 @@ python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/restore.py '<t
 python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/status.py
 ```
 
-In the 0.3.0 development checkout, text status defaults to a bounded read-only
+In 0.3.0, text status defaults to a bounded read-only
 overview with current-budget task IDs, transaction metadata and budget bars.
 Use `--view overview --json` or MCP `status` with `view: overview` for the
 same data. Default JSON/MCP status remains legacy full. Occupancy/capacity
@@ -107,7 +109,9 @@ application-managed cache consistency separately. See
 [observation limits](../../docs/guides/cleanup-plan.md#directory-overview-and-measurement-unreleased)
 and [MCP semantics](../../docs/guides/mcp.md#cleanup-observations-unreleased).
 
-## Require quarantine (0.3.0 development)
+<a id="require-quarantine-030-development"></a>
+
+## Require quarantine (0.3.0)
 
 When authorized cleanup requires recovery, use `safe_delete.py --quarantine`
 (also with `--dry-run`) or add `--quarantine` while creating a Cleanup plan.
@@ -129,7 +133,7 @@ restore an arbitrary file inside a multi-file transaction. See
 
 ## Cleanup proposals (0.2.7)
 
-The 0.3.0 development checkout can retain an explicit batch without repeating
+Version 0.3.0 can retain an explicit batch without repeating
 its declaration and selection on execution:
 
 ```sh
@@ -155,7 +159,7 @@ a PTY, auto-answer confirmation or call internal approval functions. These
 flags are absent from published 0.2.9. See
 [saved target plans](../../docs/guides/cleanup-plan.md#saved-explicit-target-plans-030-development).
 
-If the selected installation actually exposes the 0.3.0 development MCP
+If the selected installation actually exposes the 0.3.0 MCP
 tools, use `cleanup_plan` with literal `targets`; only `save: true` stores
 a proposal. `saved_plan_id` alone reads it without refresh. Follow the
 returned operator command and `binding` for the default terminal workflow.
@@ -175,7 +179,7 @@ a grant token or a new identity. Local runtime and bounded MCP-host results
 are recorded in the [maintenance acceptance](../../docs/reports/test-report-maintenance-0.3.0.md);
 the flow is absent from published 0.2.9. See [MCP task handoff](../../docs/guides/mcp.md#reviewed-maintenance-tasks-030-development).
 
-The development cleanup MCP tools default to an overview. Use `view: details`
+The 0.3.0 cleanup MCP tools default to an overview. Use `view: details`
 on saved plan/task queries for bounded rows (50 by default, at most 200),
 or `view: full` for the full public result. Filters affect display only;
 they never alter the approved selection. Cleanup plan/task text defaults to summaries,
@@ -209,7 +213,7 @@ native host tool or human-identity guarantee. See the
 
 ## Deletion admission (0.2.7)
 
-In the 0.3.0 development checkout, `safe_delete --dry-run` also reports
+In 0.3.0, `safe_delete --dry-run` also reports
 `admission` separately from the policy `verdict`. Read its current status,
 approval requirement and `next_step`; exit 0 only means the preview completed.
 `READY` is a snapshot, not reserved budget or execution permission. The check

@@ -1,6 +1,6 @@
 # Kimi Code adapter
 
-The unreleased [0.3.0 acceptance](../../docs/reports/test-report-maintenance-0.3.0.md#host-acceptance)
+The [0.3.0 acceptance](../../docs/reports/test-report-maintenance-0.3.0.md#host-acceptance)
 records ordinary model-backed MCP maintenance and first execution of a new
 operator-approved batch on Kimi Code 2.3.0 in a trusted synthetic workspace.
 Those explicit-tool trials are separate from native Bash/Stop coverage.

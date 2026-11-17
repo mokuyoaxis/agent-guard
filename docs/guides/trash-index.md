@@ -8,7 +8,7 @@ contents or changing storage. The published 0.2.3 artifact does not include it.
 用户可直接查看，Agent 可解释同一份结果，未来前端
 可复用相同函数／JSON。当前不提供页面或操作服务，索引地址不代表清理授权。
 
-0.3.0 开发中的[统一只读查询](read-only-query.md)复用本模块检查当前明确隔离区，
+0.3.0 的[统一只读查询](read-only-query.md)复用本模块检查当前明确隔离区，
 提供任务／事务／预算的 CLI、JSON 和 MCP 概览；不执行跨项目搜索或载荷计量。
 本页原位置索引参数和输出保留，界面面板独立延期；新概览运行仍待集中验证。
 

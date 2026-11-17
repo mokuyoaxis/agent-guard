@@ -1,9 +1,13 @@
 # Maintenance acceptance / 维护任务验收（0.3.0 development）
 
-Checkpoint: **2026-11-15 UTC**. This report describes the unreleased **0.3.0
-candidate**. The current manifest is aligned to 0.3.0; earlier development
-artifacts below used 0.2.9 metadata. Neither identifies a published 0.3.0
-artifact. The workflow belongs to **Delete-guard**, with **Guard-lab**
+Version **0.3.0** was published on 2026-11-16; see the
+[release notes](../releases/release-notes-0.3.0.md). The dated results below
+retain their original pre-release checkpoints and validation limits.
+
+Checkpoint: **2026-11-15 UTC**. This report records **0.3.0 pre-release
+acceptance**. Earlier development artifacts used 0.2.9 metadata; those
+archives do not identify the published 0.3.0 artifact.
+The workflow belongs to **Delete-guard**, with **Guard-lab**
 providing controlled verification. Exfil-guard's production scope is unchanged.
 
 The intended workflow is: propose explicit targets, save the selection,
