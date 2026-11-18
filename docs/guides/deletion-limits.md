@@ -112,8 +112,14 @@ root to its physical directory before measuring occupancy. Links among the
 deletion targets remain opaque entries. This correction is absent from older
 installed copies; selecting an external bucket does not update their code.
 
-The optional workspace file `.agent-guard/delete-policy.json` overrides the
-defaults below. An absent file uses defaults without creating configuration.
+Delete-guard reads one policy per workspace root, normally the root of a
+Git repository or worktree. Applications and libraries in the same workspace
+share that policy. A process bound to a workspace uses that root.
+
+Core supplies the built-in defaults below. To set a repository's limits, use
+`.agent-guard/delete-policy.json` at its workspace root. The fields in that file
+override the built-in values for that workspace. Omitted fields use the
+built-in values, so a workspace can use defaults without a policy file.
 The configuration directory is always protected. Unknown or duplicate keys,
 invalid JSON, unreadable configuration and invalid values block new deletion.
 
@@ -151,6 +157,57 @@ Protection covers named and physical locations, descendants and deletion of
 an ancestor that would remove a protected path. It precedes regenerable and
 quarantine-housekeeping exemptions. Cleanup's `--protect` remains an extra
 invocation-only planning option; use the configuration for shared protection.
+
+<a id="configure-workspace-limits"></a>
+
+### Operator limit settings (unreleased)
+
+Use `agent-guard-delete-policy` from the current checkout's package to inspect
+or change limits for one workspace. From source, run
+`python3 skills/delete-guard/scripts/delete_policy.py` with the same arguments.
+
+```sh
+agent-guard-delete-policy show
+agent-guard-delete-policy set session_max_bytes=2GiB --preview
+```
+
+`show` lists the selected workspace, effective values and built-in defaults.
+In `--json` output, each field's `source` is `workspace` for an explicit
+override or `default` for a built-in value. Use `--root PATH` to select an
+existing workspace explicitly. Otherwise the command uses the current binding
+or discovers the root from the current directory. For current usage, run
+`agent-guard-status --view overview` in the same workspace and session.
+
+`set` changes the fields you name. Byte fields accept integer bytes or sizes
+such as `512MiB`, `1.5GiB` and `2GB`. With a space, quote the whole
+assignment, as in `'session_max_bytes=2 GiB'`. Use `KiB` through `TiB` for
+powers of 1024 and `KB` through `TB` for powers of 1000. Sizes must resolve to
+whole bytes. Entry counts, operation counts and seconds take integers.
+
+Use `--preview` with `set` or `reset-limits` to see the proposed diff without
+writing. Preview JSON marks `mode` as `preview` and includes
+`requires_confirmation`, `effective_policy_changed` and the before/after
+values in `changes`. Byte values in JSON and on disk stay exact integers.
+
+With the Delete-guard Skill loaded, you can ask the agent to prepare a change
+in plain language. For example, ask to set the current project's session
+deletion budget to 2 GiB. The agent can inspect the settings and show the
+preview. To apply the change, the operator runs the command in their terminal
+without `--preview`. Review the current workspace and diff, then type
+`APPLY` to save or press Enter to cancel. The writer requires a regular,
+unlinked policy path. Repair invalid policy JSON in its source file before
+applying an update.
+
+`reset-limits` removes the numeric overrides for the selected workspace.
+Those fields return to the built-in defaults. Run
+`agent-guard-delete-policy reset-limits --preview` to review the change.
+The workspace keeps its `protected_paths`, cumulative usage, recorded rate
+events and recovery transactions. The effective window length determines
+which recorded events count. An effective policy change can make a pending
+Cleanup task report `CONFIG_CHANGED`. Review and approve the selection under
+the current policy before executing it. Use the separate
+[operator budget reset](#status-and-operator-recovery)
+when you intend to clear current-session accounting.
 
 ## Accounting and execution
 

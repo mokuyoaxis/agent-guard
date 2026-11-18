@@ -65,6 +65,11 @@ Cleanup Copilot, deletion limits and the current MCP tools/doctor belong to
 [recovery-audit](skills/recovery-audit/SKILL.md) supplies an auxiliary workflow
 for reconstructing a workspace and auditing recovery after an incident.
 
+**Delete-guard limits apply per workspace root.** Applications and libraries
+in the same workspace share its policy. Set repository-specific limits in
+`.agent-guard/delete-policy.json` at that root. Omitted limits use Agent
+Guard's built-in defaults. See [workspace configuration](docs/guides/deletion-limits.md#configuration-and-defaults).
+
 A Skill supplies instructions; it does not intercept tool calls. Automatic
 protection depends on an active, compatible host hook and its covered tools.
 The optional local MCP adapter provides explicit tools and does not intercept

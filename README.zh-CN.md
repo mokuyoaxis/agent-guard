@@ -55,6 +55,10 @@ Cleanup Copilot、删除限制以及当前 MCP 工具／doctor 均归属 **Delet
 Core 与适配器提供共享基础设施；[recovery-audit](skills/recovery-audit/SKILL.md)
 提供事故后的工作区重建与恢复审计辅助流程。
 
+**Delete-guard 的额度按工作区根目录配置。** 同一工作区里的应用和库共用一份
+策略。仓库可在根目录的 `.agent-guard/delete-policy.json` 设置自己的额度，
+未设置的字段沿用 Agent Guard 的内置默认值。见[工作区配置](docs/guides/deletion-limits.md#configuration-and-defaults)。
+
 Skill 提供操作纪律，不会自行拦截工具调用。自动保护依赖宿主实际加载了
 兼容 hook，且调用位于其覆盖范围内。Agent Guard 不是抵抗同权限恶意进程的
 OS 沙箱；实际接入证据和缺口见[能力矩阵](docs/guides/harness-capabilities.md)。

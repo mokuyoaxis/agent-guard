@@ -1,6 +1,6 @@
 """Local deletion limits and protected paths; advisory against same-UID edits.
 
-The optional JSON file is read only. Missing configuration uses documented
+Admission reads the optional JSON file. Missing configuration uses documented
 defaults; malformed configuration never silently disables protection.
 """
 from __future__ import annotations
@@ -9,6 +9,7 @@ from dataclasses import asdict, dataclass, field
 import hashlib
 import json
 import os
+from pathlib import Path
 import stat
 from typing import List, Optional
 
@@ -38,6 +39,9 @@ class DeleteConfig:
 
     def fingerprint(self) -> str:
         return fingerprint(self)
+
+
+LIMIT_FIELDS = tuple(name for name in DeleteConfig.__dataclass_fields__ if name != "protected_paths")
 
 
 def _inside(path: str, root: str) -> bool:
@@ -74,9 +78,12 @@ def _unique_object(pairs):
     return result
 
 
-def load_config(workspace: str) -> DeleteConfig:
-    """Read the optional workspace policy, rejecting malformed known fields."""
-    path = os.path.join(os.path.abspath(workspace), CONFIG_DIRECTORY, CONFIG_NAME)
+def config_path(workspace: str) -> Path:
+    return Path(os.path.abspath(workspace)) / CONFIG_DIRECTORY / CONFIG_NAME
+
+
+def read_config_bytes(path: Path) -> Optional[bytes]:
+    """Read a bounded snapshot, distinguishing a missing file from an empty one."""
     try:
         # A FIFO must not block even briefly before we can classify it. Check
         # the opened descriptor, rather than stat-then-open with a race.
@@ -91,11 +98,24 @@ def load_config(workspace: str) -> DeleteConfig:
     except FileNotFoundError as exc:
         if os.path.lexists(path):
             raise DeleteConfigError("deletion configuration is an unreadable link") from exc
-        return DeleteConfig()
+        return None
     except OSError as exc:
         raise DeleteConfigError("cannot read deletion configuration") from exc
     if len(raw) > MAX_CONFIG_BYTES:
         raise DeleteConfigError("deletion configuration exceeds the size limit")
+    return raw
+
+
+def validate_limit(name: str, value: int) -> None:
+    minimum = 0 if name.endswith("_bytes") else 1
+    if type(value) is not int or not minimum <= value <= MAX_INTEGER:
+        raise DeleteConfigError(f"{name} must be an integer from {minimum} to {MAX_INTEGER}")
+
+
+def parse_config(raw: Optional[bytes], workspace: str) -> tuple[dict, DeleteConfig]:
+    """Keep explicit values for the operator CLI and normalize the Core policy."""
+    if raw is None:
+        return {}, DeleteConfig()
     try:
         data = json.loads(raw.decode("utf-8"), object_pairs_hook=_unique_object)
     except (UnicodeError, json.JSONDecodeError, RecursionError) as exc:
@@ -112,10 +132,14 @@ def load_config(workspace: str) -> DeleteConfig:
                 raise DeleteConfigError("protected_paths must be a list of literal paths")
             values[name] = sorted(set(_declaration(item, workspace) for item in value))
         else:
-            minimum = 0 if name.endswith("_bytes") else 1
-            if type(value) is not int or not minimum <= value <= MAX_INTEGER:
-                raise DeleteConfigError("deletion limits require bounded integers; only byte limits may be zero")
-    return DeleteConfig(**values)
+            validate_limit(name, value)
+    return data, DeleteConfig(**values)
+
+
+def load_config(workspace: str) -> DeleteConfig:
+    """Read the optional workspace policy, rejecting malformed known fields."""
+    _, config = parse_config(read_config_bytes(config_path(workspace)), workspace)
+    return config
 
 
 def fingerprint(config: DeleteConfig) -> str:

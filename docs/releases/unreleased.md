@@ -2,6 +2,17 @@
 
 <a id="current-unreleased-scope"></a>
 
+## Delete-guard workspace limit settings
+
+The operator CLI `agent-guard-delete-policy` shows effective values and
+built-in defaults, previews changes, and sets or restores limits for one
+workspace. Byte fields accept sizes such as `2GiB`. The Delete-guard Skill
+can prepare the preview from a user's request. The operator reviews and
+confirms the write in their terminal. Restoring defaults preserves protected
+paths, usage and recovery records.
+The existing budget reset remains a separate action. See
+[operator limit settings](../guides/deletion-limits.md#configure-workspace-limits).
+
 ## Release automation maintenance (unversioned)
 
 The next maintenance change renders release-note links against the selected

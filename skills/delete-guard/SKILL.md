@@ -6,6 +6,7 @@ description: >-
   operations (clean, reset --hard, restore, force push) inside a workspace.
   Routes supported operations through quarantine or Git snapshots, and
   explains how to stop safely when compensation or policy blocks you.
+  Also use for viewing or changing a workspace's Delete-guard limits.
 ---
 
 # delete-guard
@@ -223,10 +224,12 @@ may still write metadata. Published 0.2.9 lacks this projection; see
 
 Covered deletion paths now share persistent session byte/entry budgets,
 short-window rate/repeated-target-set limits and quarantine capacity admission.
-The optional workspace `.agent-guard/delete-policy.json` configures limits
-and protected paths; its directory and admission control files are protected.
-Protection wins over artifact and housekeeping exemptions. Missing configuration
-uses defaults; malformed configuration or state blocks new admission.
+The optional `.agent-guard/delete-policy.json` at the workspace root stores
+limit overrides and additional protected paths. Applications and libraries
+bound to that root share the policy. Core supplies defaults for omitted
+fields. The configuration directory and admission control files are protected.
+Protection wins over artifact and housekeeping exemptions. Malformed
+configuration or state blocks new admission.
 
 Defaults are 5 GiB/100000 entries for quarantine admission, 1 GiB/10000
 entries per persistent session, 60 operations per 60 seconds, five repeated
@@ -252,6 +255,33 @@ Do not supply this acknowledgement on the user's behalf. Reset does not free
 storage or change limits; normal restore and explicit GC remain separate.
 Portable state and TTY remain advisory against same-UID processes. See
 [defaults, accounting and limits](../../docs/guides/deletion-limits.md).
+
+### Workspace limit settings (unreleased)
+
+A user can ask to set a limit in plain language, such as “set this project's
+session deletion budget to 2 GiB.” Use `agent-guard-delete-policy` or the
+selected installation's `scripts/delete_policy.py`. The
+[settings guide](../../docs/guides/deletion-limits.md#configure-workspace-limits)
+maps user terms to fields and units.
+
+1. Identify the workspace root and pass it explicitly with `--root PATH`.
+   Use `show --json` for effective limits and their sources. Treat a requested
+   repository limit as an override for that root. Report usage from the same
+   workspace and session when available. Clarify an ambiguous scope, limit
+   or unit before proposing a change.
+2. Preview the requested change with `set session_max_bytes=2GiB --preview --json`,
+   or use `reset-limits --preview --json` for defaults. Show the workspace,
+   before/after values in readable units and any need to review pending Cleanup
+   approvals. If the preview has no changes, report the current settings.
+3. Give the operator the same command without `--preview` for their terminal.
+   The CLI shows the current diff and the operator types `APPLY` to save.
+   Leave the confirmation and write to the operator. Use read-only
+   `show` to check the saved result after they apply it.
+
+Restoring defaults removes numeric overrides for the selected workspace.
+It preserves protected paths, session accounting and recovery records.
+After a limit refusal, inspect the current status and explain which limit
+applied. Propose a settings change when the user asks to change it.
 
 ## If you run `rm` / destructive git anyway
 
