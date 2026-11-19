@@ -1,13 +1,8 @@
 # Unified read-only queries / 统一只读查询
 
-These queries are included in **0.3.0** and absent from 0.2.9. Runtime
-checks cover bounded metadata reads, no writes/Git/payload traversal, partial
-data, terminal formatting and CLI/MCP use in the recorded POSIX environment.
-Other platforms and native hooks are not certified by these checks; see
-[maintenance acceptance](../reports/test-report-maintenance-0.3.0.md).
-The version scope uses CLI/JSON/MCP
-queries; GUI, web/TUI applications and interactive operation panels are
-deferred independently.
+Before executing cleanup or after an interrupted batch, operators and agents often need a quick read-only picture of recent tasks and remaining session deletion budget (scoped to the current session budget), alongside active quarantine transactions (read from the selected quarantine bucket, which may include other participating sessions)—without pulling unbounded legacy audit logs or scanning source directories. Both `status.py` and the MCP `status` tool provide this bounded overview (`0.3.0+`; absent from `0.2.9`) without modifying files, invoking Git, or traversing payloads.
+
+CLI, JSON, and MCP are the supported query interfaces (no GUI or interactive control panel is included). 在 CLI 文本或显式 `--view overview`（以及 MCP `status(view="overview")`）下，任务与额度按当前工作区及会话预算筛选，近期事务按所选隔离区读取（可能包含同一隔离区下的其他会话，并不授予跨预算执行权限），同时保留原有完整 `--json` 输出以保持兼容。See [maintenance acceptance](../reports/test-report-maintenance-0.3.0.md) for verified POSIX test scope.
 
 ## CLI and MCP
 

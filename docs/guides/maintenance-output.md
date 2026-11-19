@@ -1,15 +1,8 @@
 # Maintenance overviews, details and result summaries
 
-These output views are included in **0.3.0** and absent from 0.2.9.
-Runtime, output/legacy regressions and package checks passed at the recorded
-checkpoints. Codex, DSH and Kimi also completed fresh operator-approved tasks;
-each host's evidence retains its exact version, environment and scope. See
-[acceptance and limits](../reports/test-report-maintenance-0.3.0.md).
+Large cleanup batches can cover hundreds or thousands of candidate paths, which quickly overwhelms both terminal output and agent context windows if printed raw on every call. Agent Guard formats Cleanup proposals, `safe_delete` receipts, `restore`, and `gc` through a shared Core output layer (`0.3.0+`; absent from `0.2.9`) so operators and agents can inspect structured **overviews** first, paginate **details** when needed, and read receipt-derived **execution summaries** after mutations.
 
-The shared Core output layer serves CLI and MCP. It reads existing plans
-and public receipts, without rescanning sources or changing plan IDs,
-selection, approvals, admission or execution. Operator confirmation still
-prints the full selected list and revalidates it before approval/execution.
+Reading these views inspects stored plans and public receipts without rescanning workspace files or changing plan IDs, admission state, or approvals. For operator authorization, terminal confirmation (`--approve`) prints and revalidates the complete selected list directly, whereas the optional [Codex host form](mcp.md#host-confirmation-030-development) displays summary counts, logical size estimates, workspace, and the `host_approval.review.file` path so the operator can open the exported complete Markdown list, review the selected targets, and confirm in the form (Core revalidates before issuing the task in both flows). Runtime checks and host acceptance are recorded in [maintenance acceptance](../reports/test-report-maintenance-0.3.0.md).
 
 ## Choose the amount of detail
 

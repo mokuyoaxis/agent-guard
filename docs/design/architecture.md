@@ -2,28 +2,19 @@
 
 ## Positioning
 
-agent-guard is **Agent Reliability Infrastructure** with three main
-capabilities: Exfil-guard checks text for disclosure risks, Delete-guard
-preserves recovery paths for supported destructive operations, and Guard-lab
-provides controlled experiments with bounded evidence. The
-[threat model](threat-model.md) describes the trust and coverage limits.
+**agent-guard** is **Agent Reliability Infrastructure** structured around three modules backed by a shared Python Core: **Exfil-guard** (pre-emission disclosure checks), **Delete-guard** (recoverable destructive operations and bounded cleanup), and **Guard-lab** (controlled behavioral verification). The [threat model](threat-model.md) defines the shared-privilege trust assumptions and boundaries.
 
-The shared Core, Decision Protocol, Skills and Lab CLI define these workflows.
-Adapters connect them to host-native hooks or explicit tools. DSH, Claude
-Code, Codex and other hosts have separate compatibility and coverage evidence;
-see the [capability matrix](../guides/harness-capabilities.md).
+Core components, the Decision Protocol, Skills, and the Lab CLI establish the contract; thin adapters wire those primitives into host hooks (`PreToolUse`, DSH plugin) or explicit MCP tools. Host compatibility and verified coverage are tracked per target in the [harness capability matrix](../guides/harness-capabilities.md).
 
 ## Three functional areas
 
-| Main capability | Functions and implementation | Contract and guides |
+| Module | Responsibilities & Core modules | Guides & contracts |
 |---|---|---|
-| **Exfil-guard** | Text detection/redaction in `core/redaction.py`, disclosure decisions in `core/policy.py`, and safe config views in `core/safe_view.py` | [Exfil-guard Skill](../../skills/exfil-guard/SKILL.md) |
-| **Delete-guard** | Classification, authorization, recovery and audit; Cleanup Copilot includes read-only inventory/measurement and delegates reviewed execution to `safe_delete`; MCP exposes explicit tools while its doctor performs read-only state queries | [Delete-guard Skill](../../skills/delete-guard/SKILL.md) · [Cleanup](../guides/cleanup-plan.md) · [Limits](../guides/deletion-limits.md) · [MCP](../guides/mcp.md) |
-| **Guard-lab** | `guard_lab.py` and `core/lab.py` provide a user-controlled diagnostic plane: calibration, declared-channel observation and matched comparisons | [Lab workflow and evidence](../lab/guard-lab.md) |
+| **Exfil-guard** | Credential/path scanning and redaction (`core/redaction.py`), disclosure decisions (`core/policy.py`), and scalar-free config inspection (`core/safe_view.py`) | [Exfil-guard Skill](../../skills/exfil-guard/SKILL.md) |
+| **Delete-guard** | Command classification, admission & authorization, recovery, and audit; Cleanup Copilot (read-only inventory/measurement plus reviewed task handoff to `safe_delete`); explicit local MCP tools and read-only doctor checks | [Delete-guard Skill](../../skills/delete-guard/SKILL.md) · [Cleanup](../guides/cleanup-plan.md) · [Limits](../guides/deletion-limits.md) · [MCP](../guides/mcp.md) |
+| **Guard-lab** | User-controlled diagnostic plane (`guard_lab.py`, `core/lab.py`) for zero-model calibration, declared-channel observation, and matched comparisons | [Lab guide](../lab/guard-lab.md) |
 
-Core and adapters provide shared infrastructure. The
-[recovery-audit Skill](../../skills/recovery-audit/SKILL.md) supplies an auxiliary
-workflow for reconstructing workspaces and auditing incident recovery.
+Core and adapters act as shared infrastructure across these areas. [recovery-audit](../../skills/recovery-audit/SKILL.md) provides a separate workflow for reconstructing workspaces after an incident.
 
 <a id="the-four-pillars-and-where-they-live"></a>
 
@@ -31,23 +22,18 @@ workflow for reconstructing workspaces and auditing incident recovery.
 
 | Pillar | Question it answers | Component |
 |---|---|---|
-| Scope | Where may the agent act? | `core/classifier.py` (boundary facts) + `core/policy.py` (rules 3-6) |
+| Scope | Where may the agent act? | `core/classifier.py` (boundary facts) + `core/policy.py` (rules 3–6) |
 | Recoverability | If wrong, how do we come back? | `core/recovery.py` (relocate / snapshot / restore) |
-| Authorization | Who decides what? | `core/policy.py` (mode state machine) |
+| Authorization | Who decides what? | `core/policy.py` (mode state machine & admission) |
 | Auditability | What actually happened? | `core/audit.py` + `.agent-trash/*.jsonl` |
 
-Release 0.2.5-rc2 introduced a shared
-[audit metadata projection](../guides/audit-metadata.md) on append and legacy
-read, with opaque session correlation. Recovery manifests retain exact paths;
-authorization state and required audit durability remain separate contracts.
+Audit appends and legacy reads project a shared [audit metadata schema](../guides/audit-metadata.md) with opaque session correlation, while recovery manifests keep exact paths separate from authorization state and audit durability.
 
-A fifth, cross-cutting rule governs all four:
+A fifth, cross-cutting rule governs all four pillars:
 
 > **Uncertainty increases restriction** (fail closed).
 
-Anything the classifier cannot resolve statically - shell variables, command
-substitution, unbalanced quotes, indirect shells, stdin-fed target lists -
-becomes a BLOCK verdict, never a guess.
+Whenever Delete-guard recognizes a supported destructive command (or encounters unparseable shell syntax) and cannot statically determine its targets or effects—such as unresolved shell variables, command substitution, unbalanced quotes, indirect shells, or stdin-fed target lists—it fails closed to `BLOCK` rather than guessing; unrecognized benign commands without destructive patterns still return `ALLOW_NOOP`.
 
 ## Data flow: supported delete-guard shell path
 
@@ -340,83 +326,22 @@ order of value:
    skill and the "prefer safe_delete" rule. Interception without prompting
    causes friction; prompting without interception is advisory only.
 
-## Delivery status and design directions
+## Implementation status and design directions
 
-Version [0.2.9](../releases/release-notes-0.2.9.md) adds read-only directory
-observations and two MCP tools, speeds up existing planning, and corrects
-the normal-corpus test boundary. The original five operations and mutation
-contracts remain in place. The version decision is recorded in
-[compatibility](compatibility.md#029-cleanup-maintenance-decision).
+Core enforcement primitives, cleanup planning, and controlled Lab calibration are implemented and tracked per release tag—see [compatibility](compatibility.md) and [0.3.0 release notes](../releases/release-notes-0.3.0.md) for versioned contracts and upgrade rules, and [changes and maintenance details](../releases/unreleased.md) for current post-release work on `main`.
 
-Version [0.2.8](../releases/release-notes-0.2.8.md) adds MCP connection
-diagnosis and protocol-interruption validation. The existing five tools,
-deletion policy and recovery format
-retain their contracts. Direct-service diagnosis, actual-host connection,
-model use and native interception have separate evidence requirements.
+### Shipped foundation and active boundaries
 
-Version [0.2.7](../releases/release-notes-0.2.7.md) introduced reviewed Cleanup
-plans, shared deletion admission and optional local MCP tools. Confirm
-availability through the exact GitHub release and npm
-version links in those notes; a source version does not establish publication.
-Earlier stable 0.2.6/0.2.5, opt-in 0.2.4-hotfix.1 and prerelease 0.2.5-rc3
-retain their separate artifacts and evidence.
-Version 0.2.5 retains RC recovery, shared audit,
-observer maintenance and [defensive research](../research/README.md), plus
-clearer local startup/status and retained-storage feedback. Private research
-methods do not add a general authorization service or production enforcement
-point. Those historical versions retain their RC deletion rules and execution routes.
-See [release notes](../releases/release-notes-0.2.7.md) and
-[compatibility](compatibility.md) for behaviour and validation boundaries.
-Release [0.2.6](../releases/release-notes-0.2.6.md) adds
-optional Kimi Stop feedback, its doctor checks and Lab preflight diagnostics.
-It also adds reviewed DSH alpha.4 default deletion and Kimi 2.3.0 Bash compatibility.
-That 0.2.6 maintenance did not change Core policy. Version 0.2.7 adds the
-bounded deletion-admission rules and upgrade-visible refusals recorded in
-the [compatibility contract](compatibility.md#027-bounded-maintainer-selected-exception).
-Historical scope and delivery limits remain in the
-[maintenance details](../releases/unreleased.md).
+- **Core v1 (`Delete-guard` & `Exfil-guard`):** Filesystem relocation and Git snapshot compensations on Linux/macOS, durable relocation intents, explicit retention/GC policies, fail-closed assessment, session-correlated audit projection, bounded deletion admission (capacity, budgets, rate/repeat limits, protected paths), Cleanup Copilot (`--discover`, `--measure`, reviewed batch tasks), and the optional local MCP adapter.
+- **Windows shell dialects (`core/dialects.py`, Phases 1–3a):**
+  - *Pure logic & differential coverage (Phases 1–2):* `cmd` and PowerShell lexers, destructive-vocabulary mapping, `-WhatIf`/`-Recurse`/`-Force`/`-Confirm` handling, fail-closed checks on variables/subexpressions/piped targets, and hook payload dialect forwarding tests (`tests/test_dialects.py`, `tests/test_dialect_phase2.py`).
+  - *Windows Core CI (Phase 3a):* Blocking `windows-latest` job validating `cmd`/PowerShell parsing and disposable-fixture recovery via direct argv/bytes invocation.
+  - *Remaining Phase 3 gap:* Live end-to-end execution through real `cmd`/PowerShell host harnesses, host-driven dialect selection, privileged symlinks, broader UNC/device paths, and full-suite Windows portability still require separate host evidence.
+- **Offline `guard-lab` MVP:** Disposable synthetic fixtures, zero-token calibration controls, bounded IPv4-loopback observation, marker scanning, hash-chained evidence, and fail-inconclusive reporting. General file-read telemetry, external callbacks, real-model rating, and universal model-call blocking remain outside the MVP scope.
 
-The milestones below describe historical delivery and future design scope,
-not a committed schedule or a guarantee that new compensation types need no
-architecture changes.
+### Future design directions
 
-- V1 (this repo): delete-guard skill, fs + git compensations, Linux/macOS.
-- v0.1.1: durable relocation intents, explicit retention/GC policy, quoted
-  Git-path safety, fail-closed compensation, clean audit preflight,
-  transaction lifecycle state, and adapter smoke coverage.
-- V1.x: broader model/harness conformance matrix.
-  - **Windows shell dialects - Phase 1 (done, `core/dialects.py`).** Pure
-    logic: cmd and PowerShell lexers, destructive-vocabulary mapping,
-    alias subset, `-WhatIf`/`-Recurse`/`-Force`/`-Confirm` semantics, and
-    fail-closed handling of variables, subexpressions, piped target sets
-    and nested hosts. Unit-tested on Linux CI; POSIX stays the default
-    lexical grammar. Since `0.2.3-rc1`, the shared safety floor can turn a
-    previously invisible cross-vocabulary mismatch into a target-free
-    refusal without guessing another shell's targets.
-  - **Phase 2 (done at the pure-logic/adapter-test level).** Differential
-    and regression suites (`tests/test_dialects.py`,
-    `tests/test_dialect_phase2.py`) cover further cmd/PowerShell spellings,
-    option aliases and fail-closed edge cases. Hook payload dialect forwarding
-    has adapter tests; this is not a Windows host execution claim.
-  - **Phase 3a (shipped since `0.2.3-rc1`).** A blocking `windows-latest` Core
-    job covers the Issue #7 dialect-mismatch and separator regressions,
-    deterministic cmd/PowerShell facts, and recovery inside disposable
-    fixtures. The job uses Python argv/bytes so a surrounding shell cannot
-    rewrite the evidence.
-  - **Phase 3 remains incomplete.** Real cmd/PowerShell execution through
-    each harness, host-selected dialect wiring, privileged symlink cases,
-    broader UNC/device paths and full-suite portability still require
-    separate evidence. A focused Core runner is not a universal Windows E2E
-    claim.
-- Offline `guard-lab` MVP, introduced in `0.2.3-rc2` and shipped in `0.2.3`: disposable
-  synthetic fixtures, zero-token controls, a bounded loopback observer,
-  explicit-output marker scanning, chained evidence, and fail-inconclusive
-  reports. General file-read visibility, remote callbacks, real-model rating,
-  and universal model-call blocking are deliberately outside this MVP.
-- V2: `git-guard` skill (remote ref protection with lease semantics);
-  adapter hardening (host-side mode storage, tamper-evident audit).
-- V3+: `database-guard` (compensations = transaction / backup /
-  point-in-time recovery), `cloud-guard` (snapshot / state capture). The
-  Guard answers "may this happen"; the Compensation Engine answers "how do
-  we come back". These remain design directions requiring separate scope and
-  implementation decisions.
+These architectural extensions represent future directions rather than a committed schedule:
+
+- **V2 (`git-guard` & adapter hardening):** Remote ref protection with lease semantics, host-side mode storage outside the agent's writable workspace, and tamper-evident audit export.
+- **V3+ (`database-guard`, `cloud-guard`):** Extending the separation between *Guard* ("may this happen?") and *Compensation Engine* ("how do we recover state?") to transactional database and cloud-infrastructure mutations via backups, point-in-time recovery, and snapshots.

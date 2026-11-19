@@ -12,33 +12,12 @@ reuse the shared MCP service for explicit maintenance, and add a synchronous
 blocking hook/plugin for the native calls it supports. The project maintains
 the shared Core, CLI/Decision Protocol, MCP and thin host adapters.
 
-The **0.3.0 maintenance targets are Codex, DSH, Claude Code and Kimi Code**.
-Existing evidence remains version- and tool-specific; this target does not
-declare new-version acceptance or native interception for all four. Other
-hosts create only the bridge/configuration needed locally, within the user's
-authorized scope. Call shared Core rather than copying its policy. A local
-setup does not extend the project's tested-version list.
+**Supported targets & local setup:** The `0.3.0` maintenance targets are **Codex, DSH, Claude Code, and Kimi Code** (check the [0.3.0 acceptance report](../docs/reports/test-report-maintenance-0.3.0.md) for current MCP runs, deferred Claude model checks, and native-hook limits—test results from one host do not imply coverage on another). On any other host, create only the minimal local bridge/configuration within the user's authorized scope, always delegating policy to shared Core rather than copying rules.
 
-The [maintenance acceptance table](../docs/reports/test-report-maintenance-0.3.0.md)
-distinguishes passed local/ordinary MCP tasks, fresh-approved 71-root batches
-on Codex/DSH/Kimi, Codex's real cache task and controller recovery, deferred
-Claude model work and native-hook evidence. Broader native coverage remains
-unverified.
-Reproduce the needed path in the selected installation rather than treating
-another environment's result as activation evidence.
+Keep the complete installation at a stable path and link `skills/delete-guard` via the [Skill installation flow](../docs/guides/skill-installation.md) when present; copying `SKILL.md` alone omits Core, and registering a Skill does not enable MCP or hooks.
 
-Keep the complete installation and use the development
-[Skill installation/update flow](../docs/guides/skill-installation.md) where
-the helper is present. Copying only `skills/delete-guard` omits Core and can
-leave Cleanup or instructions stale. The helper registers a Skill; it does
-not enable MCP or hooks.
-
-**Instructions for the AI agent doing the setup:** Read this guide before
-editing settings or writing a bridge, including when an adapter already
-exists. Then read the relevant Skill contracts and adapter guide, inspect the
-installed host, and check its official hook documentation. Complete the
-checks below and report their actual results; a copied configuration is not
-an acceptance result. Reuse Core rather than duplicating its policy rules.
+> [!IMPORTANT]
+> **Instructions for the setup agent:** Read this checklist, the target Skill contracts, and the host's adapter guide before modifying settings or writing a bridge (even if an adapter already exists). Verify the live host version and official hook docs, complete the checks below, and report *observed* coverage only—a copied config or passing doctor check is not live enforcement.
 
 ## 1. Identify the actual boundary
 
@@ -82,33 +61,11 @@ and verify that normal maintenance is not processed twice.
 - **No verified blocking event:** use the [Skills](../skills) and explicit
   CLI cooperatively. Say `Skill/CLI only`; do not claim native interception.
   A hook limited to some tools does not cover other tools or hidden uploads.
-- **Client supports MCP:** the [local MCP adapter](../docs/guides/mcp.md), introduced in 0.2.7,
-  exposes explicit safe_delete, ordinary restore, transaction/status queries
-  and GC preview. Configure its optional SDK and fixed workspace separately.
-  The 0.3.0 service also accepts an operator-selected absolute
-  `--trash-root`; keep it stable with the approval/session binding. This is
-  startup configuration, never a tool argument, and does not migrate old data.
-  Say `MCP tools only` unless a separate blocking hook has been verified;
-  registering tools does not intercept shell, script or editor operations.
-  This path adds no force restore, GC execution or model-approved budget reset.
-  Version 0.2.9 also offers read-only `cleanup_discover` and
-  `cleanup_measure`; published 0.2.8 does not include them. Inspect their
-  coverage/size fields and `partial` status rather than treating a successful
-  observation as a complete scan or deletion approval.
-  Version 0.3.0 adds `cleanup_plan`, `cleanup_execute` and
-  `cleanup_task_status`: use the fixed binding, obtain operator CLI approval,
-  then execute/query the returned task ID. The default ten-tool set has no
-  approval tool or model-supplied grant. An operator-selected
-  `--approval-channel codex` adds `cleanup_request_approval(saved_plan_id)`:
-  review the complete exported list and use the host form; never auto-answer
-  it or enable that channel on the operator's behalf. Durable request/task
-  queries handle response loss without re-prompting or reissuing. See
-  [confirmation scope](../docs/guides/mcp.md#host-confirmation-030-development).
-  The default ten-tool set and local workflow have runtime
-  evidence, with bounded Codex/Kimi/DSH model tasks, each host's fresh-approved
-  71-root batch and Codex's real cache task with controller recovery.
-  Claude model work is deferred. New native-hook paths still need separate acceptance.
-  Older five/seven-tool evidence retains its scope.
+- **Client supports MCP:** The [local MCP adapter](../docs/guides/mcp.md) (`0.2.7+`, read-only `cleanup_discover`/`cleanup_measure` in `0.2.9+`, reviewed task tools `cleanup_plan`/`cleanup_execute`/`cleanup_task_status` in `0.3.0+`) exposes explicit workspace-bound maintenance and restore tools over stdio. Configure its optional SDK and fixed workspace separately (with optional startup `--trash-root` in `0.3.0+`; never expose storage location as a tool argument or expect automatic migration).
+  - Say `MCP tools only` unless a separate blocking hook is verified—MCP does not intercept native shell, script, or editor calls, and adds no `--force` restore, GC execution, or autonomous budget reset.
+  - On `cleanup_discover` / `cleanup_measure`, check coverage/size fields and `partial` status instead of treating observation as deletion approval.
+  - For reviewed tasks (`0.3.0+`), obtain operator CLI approval before calling execution tools (an operator-enabled `--approval-channel codex` adds `cleanup_request_approval(saved_plan_id)` to prompt via a host form—never auto-answer it or enable it without operator consent; see [confirmation scope](../docs/guides/mcp.md#host-confirmation-030-development)).
+  - Acceptance evidence covers Codex/DSH/Kimi approved MCP batches and Codex's cache task; Claude model work remains deferred, and native hooks require separate validation ([acceptance report](../docs/reports/test-report-maintenance-0.3.0.md)).
 
 Core `ASK` must reach a real human-approval path or become a refusal for that
 call. It must never silently become allow. Treat malformed payloads and

@@ -1,103 +1,55 @@
 # Documentation / 文档导航
 
-Start with [getting started](guides/getting-started.md) for installation and
-setup. The three main capabilities are **Exfil-guard**, **Delete-guard** and
-**Guard-lab**. Use the
-[harness capability matrix](guides/harness-capabilities.md) for observed coverage
-and the [architecture](design/architecture.md) for the shared Core.
+Start with [Getting started](guides/getting-started.md) for installation and agent setup, or browse directly by capability and architecture area below.
 
-| Main capability / 主要功能 | Included functions and guides / 下属功能与指南 |
+先看[入门指南](guides/getting-started.md)完成安装与接入，再按能力模块、系统设计或实测证据查阅对应文档。
+
+## By capability / 按能力模块
+
+| Capability / 能力模块 | Included guides & contracts / 包含指南与契约 |
 |---|---|
-| **Exfil-guard** | [Text checks and redaction](../skills/exfil-guard/SKILL.md) · [Safe config view](../skills/exfil-guard/SKILL.md#safe-config-view) |
-| **Delete-guard** | [Recoverable deletion](../skills/delete-guard/SKILL.md) · [Cleanup Copilot](guides/cleanup-plan.md) · [Deletion limits](guides/deletion-limits.md) · [Recovery and GC](guides/recovery-feedback.md) · [MCP tools](guides/mcp.md) · [MCP doctor (0.2.8)](guides/mcp.md#diagnose-a-local-service-028) |
-| **Guard-lab** | [Controlled experiments and evidence](lab/guard-lab.md) · [Four zero-model controls](lab/blue-team-calibration.md) · [Defensive research](research/README.md) |
+| **Delete-guard** | [Recoverable deletion](../skills/delete-guard/SKILL.md) · [Cleanup Copilot](guides/cleanup-plan.md) · [Deletion limits](guides/deletion-limits.md) · [Recovery & GC](guides/recovery-feedback.md) · [MCP tools](guides/mcp.md) · [MCP doctor](guides/mcp.md#diagnose-a-local-service-028) |
+| **Exfil-guard** | [Text inspection & redaction](../skills/exfil-guard/SKILL.md) · [Detection rules](../skills/exfil-guard/references/rules.md) · [Safe config view](../skills/exfil-guard/SKILL.md#safe-config-view) |
+| **Guard-lab** | [Controlled experiments & evidence](lab/guard-lab.md) · [Four zero-model controls](lab/blue-team-calibration.md) · [Defensive research](research/README.md) |
 
-Cleanup Copilot, deletion admission and the current MCP tools/doctor are
-Delete-guard functions. [Recovery-audit](../skills/recovery-audit/SKILL.md)
-is an auxiliary incident-recovery workflow.
-
-The [0.3.0 maintenance workflow](releases/release-notes-0.3.0.md) has a separate
-[maintenance acceptance](reports/test-report-maintenance-0.3.0.md) recording
-local workflow checks, Codex/DSH/Kimi freshly approved 71-root MCP tasks, Claude's
-deferred model check, storage verification and remaining release gates.
-The optional Codex native form also passed a real-model task with independent
-recovery. Version-specific evidence stays separate from package availability.
-
-Version [0.2.9](releases/release-notes-0.2.9.md) adds read-only Cleanup
-inventory and selected-scope measurement through CLI and MCP, faster plan
-scans and a repository-corpus test fix. The earlier
-[0.2.8](releases/release-notes-0.2.8.md) adds MCP diagnosis and recovery validation.
-Before installing 0.3.0,
-check the exact [GitHub release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.3.0)
-and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.3.0)
-for availability. A checkout or manifest does not establish publication or
-the current npm `latest` channel.
-The opt-in `rc` line remains [0.2.5-rc3](releases/release-notes-0.2.5-rc3.md), and `hotfix` is the
-opt-in [0.2.4-hotfix.1](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.4-hotfix.1)
-quarantine protection backport. The [getting-started guide](guides/getting-started.md)
-explains exact-version and local-package installation.
-
-The earlier published [0.2.6](releases/release-notes-0.2.6.md) covers Kimi Stop feedback,
-its doctor checks, Kimi 2.3.0 root-Bash compatibility, DSH Lab preflight
-diagnostics and alpha.4 default deletion compatibility. Existing 0.2.5 installations
-need an upgrade to acquire those additions; see its [version notes](releases/release-notes-0.2.6.md).
-
-先看入门指南，再按 Exfil-guard、Delete-guard、Guard-lab 三大功能选择入口。
-Cleanup、删除限制与当前 MCP 工具／doctor 归入 Delete-guard。测试报告按所测版本与配置保留；发布记录、
-历史设计和外部案例各自归档，不能据此扩展当前产品的承诺。
-
-0.2.9 新增[目录概况与计量](guides/cleanup-plan.md#directory-overview-and-measurement-029)
-及两个[只读 MCP 工具](guides/mcp.md#cleanup-observations-unreleased)，仍归属 Cleanup Copilot；
-0.2.8 不含这些新增能力。[变更摘要](releases/unreleased.md#current-unreleased-scope)
-汇总当前范围与验证，历史失败和各版发行记录在其后保留。
+Core and host adapters provide shared infrastructure, while [recovery-audit](../skills/recovery-audit/SKILL.md) covers post-incident workspace reconstruction.
 
 | Category / 分类 | Contents / 内容 |
 |---|---|
-| [Guides](#guides) / 使用指南 | 宿主接入证据、漂移检查、维护者发布指南 |
-| [Design](#design) / 架构与契约 | 当前架构、威胁模型与兼容契约 |
-| [Lab](#lab) / 防守验测 | 校准流程、任务模板及历史候选参考 |
-| [Research](#research) / 防守研究 | 来源、发送授权、父子代理与正常任务评分 |
-| [Reports](#reports) / 测试报告 | 按宿主、版本和观察范围记录的证据 |
-| [Releases](#releases) / 发布记录 | 正式版与预览版各自的范围 |
-| [History](#history) / 历史设计与经验 | 早期设计、实现教训和事故探索 |
+| [Guides](#guides) / 使用指南 | 安装接入、Cleanup、删除预算、MCP 服务、宿主能力矩阵与漂移检查 |
+| [Design](#design) / 架构与契约 | 系统架构、威胁模型与兼容契约 |
+| [Lab](#lab) / 防守验测 | 校准流程、任务模板与示例 |
+| [Research](#research) / 防守研究 | 来源、发送授权、父子代理与任务效用研究 |
+| [Reports](#reports) / 测试报告 | 按宿主与版本记录的实测证据与已知缺口 |
+| [Releases](#releases) / 发布记录 | `0.3.0` 与各历史发行说明（当前主线维护见[变更摘要](releases/unreleased.md)） |
+| [History](#history) / 历史设计与经验 | 早期设计方案、实现教训与事故记录 |
 
 ## Guides
 
-当前源码中的[状态与清理反馈](guides/recovery-feedback.md)说明本地 Python／Hook／宿主验证的区别、
-ALLOW_NOOP 覆盖边界及准确 GC 用法；纳入 0.2.5。
-
 | Document / 文档 | Scope / 范围 |
 |---|---|
-| [Getting started](guides/getting-started.md) | 安装路径、Agent 接入提示词与最短验证流程 |
-| [Agent setup prompt](guides/agent-setup-prompt.md) | 四宿主维护目标与其他宿主自助适配；MCP／hook／Skill 分工及真实状态交接 |
-| [Skill installation and updates](guides/skill-installation.md) | 0.3.0：完整包目录链接、Core 定位、Cleanup 入口、预览与保留旧安装 |
-| [Status and cleanup feedback](guides/recovery-feedback.md) | Python／插件状态、ALLOW_NOOP、保留空间与手动 GC |
-| [Cleanup Copilot](guides/cleanup-plan.md) | Delete-guard，0.2.7：零写入计划、四类候选、大小与显式确认执行 |
-| [Directory overview and measurement](guides/cleanup-plan.md#directory-overview-and-measurement-029) | Delete-guard，0.2.9：先概况、再按范围发现／计量；没有执行许可 |
-| [Deletion limits](guides/deletion-limits.md) | Delete-guard，0.2.7：隔离容量、会话预算、频率、保护路径与批量确认 |
-| [Local MCP tools](guides/mcp.md) | Delete-guard，0.2.7：本地 stdio 安全删除、普通恢复、事务／状态和 GC 预览；不替代 hook |
-| [Read-only cleanup MCP](guides/mcp.md#cleanup-observations-029) | Delete-guard，0.2.9：cleanup_discover／cleanup_measure、固定工作区与部分观察状态 |
-| [Reviewed maintenance MCP](guides/mcp.md#reviewed-maintenance-tasks-030-development) | Delete-guard，0.3.0：保存计划、操作者批准交接、按task执行／查询及可选Codex原生表单；已有本地与限定宿主实跑 |
-| [Maintenance output](guides/maintenance-output.md) | Delete-guard，0.3.0：人／agent共享概况、只读分页详情与执行摘要；计量／未知分开 |
-| [Unified read-only query](guides/read-only-query.md) | Delete-guard，0.3.0：任务／隔离事务／预算统一查询与终端概览；无前端面板 |
-| [0.3.0 maintenance acceptance](reports/test-report-maintenance-0.3.0.md) | 已通过／待补测／延期：本地闭环、安装、MCP／宿主、外置桶和最终发布缺口 |
-| [MCP diagnosis](guides/mcp.md#diagnose-a-local-service-028) | Delete-guard，0.2.8：选定本地服务的依赖、握手、工作区绑定与只读调用检查 |
-| [Harness capabilities](guides/harness-capabilities.md) | 当前接入范围、证据等级与未验证路径 |
-| [Host drift](guides/host-drift.md) | 宿主版本、配置与本地基线检查 |
-| [Trash locations](guides/trash-index.md) | 0.2.4 的只读位置查询、Agent／前端共享 JSON 契约 |
-| [Audit metadata](guides/audit-metadata.md) | RC2 引入的字段投影、会话关联、GC／status 契约与保留边界 |
+| [Getting started](guides/getting-started.md) | 安装包选择、Agent 接入提示词与无害校验 |
+| [Agent setup prompt](guides/agent-setup-prompt.md) | Codex / DSH / Claude Code / Kimi Code 通用接入提示词与职责分工 |
+| [Skill installation & updates](guides/skill-installation.md) | `0.3.0`：预览优先的 Skill 目录链接、Core 定位与版本升级核对 |
+| [Harness capabilities](guides/harness-capabilities.md) | 各宿主当前接入状态、证据等级（`CLI` → `Enforcement observed`）与未验证路径 |
+| [Host drift](guides/host-drift.md) | 宿主版本、配置指纹与本地基线预检 |
+| [Cleanup Copilot](guides/cleanup-plan.md) | 零写入盘点计划、四类候选分类与显式确认清理 |
+| [Directory overview & measurement](guides/cleanup-plan.md#directory-overview-and-measurement-029) | 先看目录概况再按范围计量；只读观察不授予执行许可 |
+| [Deletion limits](guides/deletion-limits.md) | 隔离容量、会话预算、频率/重复限制、保护路径与批量确认 |
+| [Status & cleanup feedback](guides/recovery-feedback.md) | 本地 Python / 插件状态区分、`ALLOW_NOOP` 边界、保留空间与手动 GC |
+| [Local MCP tools](guides/mcp.md) | 本地 stdio 安全删除、恢复、事务查询与 GC 预览（显式工具，不替代 hook） |
+| [Read-only cleanup MCP](guides/mcp.md#cleanup-observations-029) | `cleanup_discover` / `cleanup_measure`、固定工作区与部分观察状态 |
+| [Reviewed maintenance MCP](guides/mcp.md#reviewed-maintenance-tasks-030-development) | `0.3.0`：保存清单、操作者批准交接、任务执行/查询及可选 Codex 原生表单 |
+| [Maintenance output](guides/maintenance-output.md) | 人与 Agent 共享概况、只读分页详情与执行摘要格式 |
+| [Unified read-only query](guides/read-only-query.md) | 任务、隔离事务与预算的统一终端概览与 JSON 查询 |
+| [0.3.0 maintenance acceptance](reports/test-report-maintenance-0.3.0.md) | `0.3.0` 本地闭环、安装、MCP/宿主验收详情与延期项（含 Claude 模型检查） |
+| [MCP diagnosis](guides/mcp.md#diagnose-a-local-service-028) | 本地 MCP 服务依赖、握手、工作区绑定与只读调用检查（`doctor.py mcp`） |
+| [Trash locations](guides/trash-index.md) | 只读隔离区位置与共享 JSON 查询契约 |
+| [Audit metadata](guides/audit-metadata.md) | 共享审计字段投影、不透明会话关联与保留边界 |
 | [Publishing from ephemeral environments](guides/publishing-from-ephemeral-environments.md) | 临时环境中的 GitHub 发布操作参考 |
-| [Release workflow](guides/release-process.md) | 未发布维护：固定版本发行说明链接、发布后只读核验、结果与证据范围 |
+| [Release workflow](guides/release-process.md) | 维护者发布流程：发行说明渲染与发布后只读核验 |
 
-Adapter setup remains in [adapters/](../adapters/INTEGRATION.md). Skill contracts
-are documented separately for [Exfil-guard](../skills/exfil-guard/SKILL.md) and
-[Delete-guard](../skills/delete-guard/SKILL.md); the [Guard-lab guide](lab/guard-lab.md)
-describes the user-controlled experiment CLI.
-
-Maintained integrations cover Codex, DSH, Claude Code and Kimi Code. Check the
-capability matrix for exact tested versions and paths. Claude Code's real-model
-maintenance check remains deferred. Other hosts can ask their agent to follow the
-[integration requirements](../adapters/INTEGRATION.md) and configure Agent Guard locally.
+Host-specific setup lives under [adapters/](../adapters/INTEGRATION.md), targeting Codex, DSH, Claude Code, and Kimi Code (see the [0.3.0 acceptance report](reports/test-report-maintenance-0.3.0.md) and [capability matrix](guides/harness-capabilities.md) for verified coverage and open gaps such as Claude's deferred model run). Other hosts can adapt Agent Guard locally against the integration contract.
 
 ## Design
 

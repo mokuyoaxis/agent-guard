@@ -48,13 +48,7 @@ only bounded loopback observation. Explicit live-host/model tests can contact
 the configured provider through the host and consume quota; they are separate
 from local command checks and require a selected experiment scope.
 
-Recovery manifests, CLI diagnostics and historical audit records can contain
-exact paths or other private text. Writer minimization introduced in RC1 and
-the shared projection introduced in RC2 remain in 0.2.5;
-they do not make every
-output or old record secret-free. The exfil text
-CLIs return decisions/plans or sanitized stdout; they do not automatically
-persist egress audit events. Review and redact evidence before sharing it.
+Recovery manifests, CLI diagnostics, and historical audit records can contain exact paths or other private text. Audit writer minimization and the shared metadata projection limit routine output in current releases (`0.2.5+`), though they do not make every output or legacy record secret-free. The exfil text CLIs return decisions/plans or sanitized stdout and do not automatically persist egress audit events. Always review and redact evidence before sharing it.
 
 The [public blue-team research](docs/research/README.md) shares sanitized
 methods and aggregate observations. Raw sessions, private configuration and

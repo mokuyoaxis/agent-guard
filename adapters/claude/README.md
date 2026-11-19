@@ -1,20 +1,9 @@
 # agent-guard adapter for Claude Code
 
-Claude Code is one of the 0.3.0 maintenance targets alongside Codex, DSH and
-Kimi Code. The 2.1.311 trial connected to MCP and discovered ten tools, but
-model authentication prevented business calls; model acceptance is deferred
-and newer-hook behavior remains unverified. This adapter's past results
-remain a reference for the recorded versions, separate from the
-[current MCP acceptance](../../docs/reports/test-report-maintenance-0.3.0.md#host-acceptance).
-For local setup, use the
-[shared prompt](../../docs/guides/agent-setup-prompt.md) and
-[integration requirements](../INTEGRATION.md), then verify the selected version.
+Wraps Claude Code's `PreToolUse` hook so matching `Bash` calls pass through the shared Python Core (`skills/delete-guard/scripts/check.py`) before execution. Policy stays in Core—this adapter translates Core verdicts onto Claude Code's native hook schema (with `hook_bridge.sh` converting Python startup or runtime failures into fail-closed exit `2`). Calls from uncovered tools or sessions where the hook is missing or times out are not intercepted, and user/model visibility of emitted decision reasons still depends on host-version verification.
 
-Wraps Claude Code's `PreToolUse` hook so matching Bash calls that reach the
-hook pass through the shared core (`skills/delete-guard/scripts/check.py`)
-before execution. A missing, mismatched, or timed-out hook is not covered.
-The rule engine is not duplicated here - this adapter only translates the
-Decision Protocol onto Claude Code's native hook semantics.
+> [!NOTE]
+> **Observed coverage:** Claude Code is a `0.3.0` target alongside Codex, DSH, and Kimi Code ([setup prompt](../../docs/guides/agent-setup-prompt.md), [integration guide](../INTEGRATION.md)). On `2.1.311`, MCP connected and discovered 10 tools, while live model maintenance remains deferred and newer hooks unverified; native `Bash` enforcement retains its `2.1.270` / `2.1.273` scripted-host evidence ([0.3.0 acceptance](../../docs/reports/test-report-maintenance-0.3.0.md#host-acceptance)).
 
 ## Decision mapping
 

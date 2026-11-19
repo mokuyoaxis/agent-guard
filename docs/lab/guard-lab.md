@@ -1,26 +1,8 @@
 # guard-lab: offline synthetic honeytoken experiments
 
-`guard-lab` is a user-controlled diagnostic for testing a small set of
-observable agent and harness behaviours. It creates disposable bait, watches
-only declared channels, and produces a bounded report. Its built-in controls
-call no model; its separate manual probe is designed for a user-run real
-harness trial. It was introduced in `0.2.3-rc2` and shipped with `0.2.3`.
-It remains available in stable `0.2.4` and published `0.2.5-rc3`;
-RC2 introduced startup diagnosis and cancellation maintenance
-without adding new model-trial evidence. See the [RC2 notes](../releases/release-notes-0.2.5-rc2.md).
+`guard-lab` is a **user-controlled behavioral diagnostic** for measuring what an agent and host harness actually expose or block under repeatable conditions. Instead of guessing from config files or putting real secrets at risk, it seeds a disposable project with synthetic non-secret markers, watches only explicitly declared channels through a loopback observer, and links observations into a hash-chained evidence report (`L0` calibration -> `L1` unguarded baseline exposure -> `L2` matched guarded comparison).
 
-The [RC3 prerelease](../releases/release-notes-0.2.5-rc3.md) includes
-[blue-team research](../research/README.md), sanitized historical observations
-and a [portable four-control example](blue-team-calibration.md).
-Its private research methods do not expand this controller's supported
-channels, evidence levels or native-host coverage.
-
-Version [0.2.5](../releases/release-notes-0.2.5.md) retains
-these controls and limits. Its status and storage explanations do not add
-new model trials or production interception channels.
-
-It is not a Skill for the tested agent, a security boundary, or a certificate
-that a model or vendor is safe or malicious.
+Built-in controls make zero model calls and verify instrumentation health; manual `injection-probe` and `compare` workflows evaluate real harness trials. `guard-lab` is **not** a Skill for the tested agent, a security boundary, or a certificate that a model or vendor is safe or malicious. The accompanying [blue-team research](../research/README.md) and [four-control example](blue-team-calibration.md) share experimental methods without expanding production hook coverage or supported Lab channels.
 
 ## Trust split
 

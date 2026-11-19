@@ -1,43 +1,11 @@
 # Harness capability and evidence matrix
 
-This matrix records [0.3.0](../releases/release-notes-0.3.0.md)
-and earlier versioned evidence separately. Confirm exact-version availability
-through the release and package links in its notes. A source version does not
-establish publication.
-Published prerelease, checked on 2026-10-19:
-[0.2.5-rc3](../releases/release-notes-0.2.5-rc3.md).
-Rows below retain their tested source/host versions and do not automatically
-certify a later release. Local regression or package checks are separate from
-new native-host/model evidence.
+Host interception varies significantly across coding-agent tools, versions, and subagent runners. This matrix tracks verified integration coverage **per host, version, entry mechanism, `ASK` mapping, highest observed evidence level, and known gaps**—rather than extrapolating across unverified updates.
 
-Earlier release [0.2.6](../releases/release-notes-0.2.6.md) adds optional Kimi Stop
-feedback, separate doctor checks, DSH Lab diagnostics, alpha.4 default
-deletion compatibility and Kimi 2.3.0 root-Bash compatibility. These additions
-are absent from 0.2.5. See its [version notes](../releases/release-notes-0.2.6.md).
+Agent Guard's Python Core and CLIs are harness-neutral. Running a Skill or CLI inside a host does **not** mean that host intercepts tool calls automatically, and an adapter returning `BLOCK` in unit tests does **not** establish that the host blocked execution. For unlisted hosts, follow the [self-adaptation checklist](../../adapters/INTEGRATION.md) and leave native-interception claims `UNVERIFIED` until observed directly.
 
-The new [research notes](../research/README.md) describe bounded private
-experiments; their disclosure/delegation methods do not change the supported
-production coverage in this matrix.
-
-The Python Core and CLI are harness-neutral. A Skill or CLI being usable in a
-host does **not** mean that host intercepts tool calls, and an adapter returning
-`BLOCK` does **not** by itself prove the host prevented execution.
-For an unlisted host, use the [self-adaptation guide](../../adapters/INTEGRATION.md)
-and keep its native-interception status `UNVERIFIED` until independently tested.
-
-The 0.3.0 maintenance workflow targets Codex, DSH, Claude Code and Kimi Code,
-using the shared [setup prompt](agent-setup-prompt.md). Its
-[maintenance acceptance](../reports/test-report-maintenance-0.3.0.md) now records
-local runtime checks and three model hosts' explicit MCP tasks; Claude model
-acceptance is deferred. Fresh approved 71-root batches passed on Codex,
-DSH and Kimi; Codex also passed a single-root real cache task. Independent
-controllers verified recovery copies and restored the data. Codex's earlier
-usage-limit block remains a separate historical attempt. These are explicit MCP operations. A later
-current-source trial observed Kimi root-Bash blocking, MCP planning, operator
-approval, original-session execution and independent recovery. DSH's sandboxed native path was
-environment-blocked, with a separate zero-model local control passing.
-The rows below retain their actual native source/version evidence.
-Other hosts use local adaptation and report each tested path separately.
+> [!NOTE]
+> **Release & research scope:** Each row below applies only to its recorded source and host versions (for example, `0.2.6` adds optional Kimi Stop feedback, DSH `0.2.1-alpha.4` deletion support, and Kimi `2.3.0` Bash coverage; `0.3.0` targets **Codex, DSH, Claude Code, and Kimi Code** via the [setup prompt](agent-setup-prompt.md)). In [0.3.0 acceptance](../reports/test-report-maintenance-0.3.0.md), approved 71-root MCP batches passed on Codex, DSH, and Kimi (plus a Codex cache task and Kimi native-Bash->MCP handoff), DSH's sandboxed native run hit a PRoot OS-sandbox block (zero-model local control passed), and Claude Code's live model run remains deferred. Experimental [blue-team research](../research/README.md) does not expand supported production coverage.
 
 ## Evidence levels
 

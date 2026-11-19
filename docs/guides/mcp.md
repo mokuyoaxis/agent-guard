@@ -1,47 +1,11 @@
 # Local MCP tools / 本地 MCP 工具
 
-This adapter is introduced in **0.2.7** and is absent from 0.2.6. The separate
-disclosure-authorization research remains paused. The historical
-protocol/package records and three real Kimi Code trials below belong to the earlier
-2026-10-28 source checkpoint with 0.2.6 package metadata, including a failed
-first full run. They do not certify the new versioned artifact. See the
-[0.2.7 notes](../releases/release-notes-0.2.7.md) for versioned validation and
-exact-version availability checks.
-Configuration examples are not host acceptance.
+The local stdio MCP server gives a coding-agent client structured, workspace-bound tools for Delete-guard workflows—covering **direct recoverable deletion & restore** (`safe_delete`, `restore`, `transactions`, `status`, `gc_plan`), **read-only cleanup inventory** (`cleanup_discover`, `cleanup_measure`), and **reviewed batch task execution & queries** (`cleanup_plan`, `cleanup_execute`, `cleanup_task_status`, plus optional Codex confirmation when enabled by the operator). Binding the workspace, session budget, and optional startup `--trash-root` at launch prevents model tool arguments from switching buckets or bypassing limits.
 
-Version **0.2.8** adds [local MCP diagnosis](#diagnose-a-local-service-028)
-and protocol-interruption validation; see the
-[0.2.8 scope and validation status](../releases/release-notes-0.2.8.md).
-The later [Codex 0.165.0 acceptance](#codex-01650-with-published-027) below used
-the published 0.2.7 package and is separate from both development checkpoints.
+**Core boundary:** Registering MCP tools does **not** intercept native shell `rm`, custom scripts, or editor deletions that bypass the server. Keep a compatible host blocking hook active wherever automatic interception of native tool calls is required.
 
-Version **0.2.9** adds `cleanup_discover` and `cleanup_measure`.
-Version 0.2.8 retains the original five tools. The new read-only workflow
-and its separate partial-result contract are described
-[below](#cleanup-observations-029).
-
-Version **0.3.0** adds reviewed maintenance tasks through
-`cleanup_plan`, `cleanup_execute` and `cleanup_task_status`, for ten tools by
-default. An operator-enabled Codex confirmation channel adds an eleventh
-tool; see [host confirmation](#host-confirmation-030-development).
-These additions are absent from published 0.2.9. Runtime and host
-acceptance are recorded separately; tool discovery alone does not prove a
-model completed an approved task or a native hook intercepted an operation.
-See [the task workflow](#reviewed-maintenance-tasks-030-development).
-The [maintenance acceptance](../reports/test-report-maintenance-0.3.0.md)
-records local approved execution, bounded Codex/DSH/Kimi model-backed tasks,
-fresh-approved batch execution and Codex's opt-in native-form trial. Claude's
-model work remains deferred. Earlier usage-limit blocks and timeouts retain
-their original results, separately from later successful trials.
-The same development scope also adds `status(view=overview)` for
-[bounded metadata queries](read-only-query.md), keeping the default ten-tool set and
-legacy default status result. CLI/JSON/MCP queries are the current interface;
-frontend and operation panels are deferred.
-
-MCP gives a supporting coding-agent client an explicit way to use the existing
-safe deletion and recovery operations. It does **not** intercept shell `rm`,
-scripts, editor deletion or tools that bypass this server. Keep a compatible
-blocking hook for the paths where automatic interception is required.
+> [!NOTE]
+> **Version scope & test evidence:** Base MCP deletion/recovery/status tools arrived in `0.2.7`, [`doctor mcp`](#diagnose-a-local-service-028) in `0.2.8`, read-only [`cleanup_discover` / `cleanup_measure`](#cleanup-observations-029) in `0.2.9`, and reviewed task workflows ([`cleanup_plan` / `cleanup_execute` / `cleanup_task_status`](#reviewed-maintenance-tasks-030-development), [`status(view=overview)`](read-only-query.md), plus an optional 11th [Codex confirmation tool](#host-confirmation-030-development)) in **`0.3.0`**. Tool discovery alone does not prove task completion or host enforcement; see the [0.3.0 acceptance report](../reports/test-report-maintenance-0.3.0.md) and [0.2.7 release notes](../releases/release-notes-0.2.7.md) for recorded runs and deferred Claude model checks.
 
 ## Install the optional adapter
 
@@ -383,10 +347,11 @@ responses; see the [official App Server contract](https://learn.chatgpt.com/docs
    of the **whole saved snapshot**. It includes the requested roots, full
    selection, every candidate's path, category, effect, logical size and reason.
    `view: details` remains available for bounded reads; filters never alter selection.
-2. Have the operator review that complete file, then call
-   `cleanup_request_approval` with only the `saved_plan_id`. The native form
-   shows selected-root and effect counts, logical size estimates, workspace
-   and the complete-list location. It defaults to **暂不批准** and
+2. Call `cleanup_request_approval` with only `saved_plan_id`, and have the operator
+   open the exported complete file (`host_approval.review.file`), inspect the
+   selected targets, and then confirm through the native form (the form itself
+   displays selected-root and effect counts, logical size estimates, workspace,
+   and that complete-list location). It defaults to **暂不批准** and
    `reviewed: false`. Issuance requires `action: accept` with exactly
    `{"decision":"仅批准本次","reviewed":true}`. Accept alone, a tool permission,
    a missing review declaration, decline or cancel never issues a task.

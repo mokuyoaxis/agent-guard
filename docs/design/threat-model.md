@@ -1,27 +1,17 @@
 # agent-guard threat model
 
-## Honest positioning
+## Trust assumptions and scope
 
-agent-guard assumes the agent runs with the **same OS privileges as the
-guard**. Under that assumption a *determined* adversary can always find a
-bypass. Therefore:
+**agent-guard assumes the agent runs with the same OS privileges as the guard.** Under that shared-privilege model, a determined adversary executing arbitrary code under the same user account can always find a bypass. Accordingly, agent-guard is built as **reliability infrastructure** against operational mistakes—misjudged context, mis-expanded globs, wrong working directories, or hallucinated targets—not as an OS containment boundary.
 
-- agent-guard is **reliability infrastructure**, not a security boundary.
-  It defends against *mistakes*: misjudged context, mis-expanded commands,
-  wrong working directory and hallucinated paths. It does not cover every
-  cause of data loss or every destructive operation.
-- You may claim: recovery for supported valuable deletions, explicit audit
-  contracts for observed calls, graded authorization discipline, and reduced
-  blast radius of common accidents. Regenerable artifacts may be deleted
-  directly; best-effort audit and bypassed calls are not complete visibility.
-- You must NOT claim: sandboxing, containment of malicious agents,
-  prevention of determined bypass.
+| In scope (what you can rely on) | Out of scope (what requires OS containment) |
+|---|---|
+| Deterministic quarantine and Git snapshots for supported destructive commands | Sandboxing or containing a malicious same-UID process |
+| Bounded admission rules (quarantine capacity, session budgets, rate/repeat limits, protected paths) | Preventing determined bypasses via custom scripts or direct syscalls |
+| Explicit, structured verdicts and append-only local audit trails for observed calls | Guaranteeing unbypassable telemetry or complete visibility across bypassed paths |
+| Safe redaction of documented credential shapes and host-identifying paths on inspected channels | Legal hold, cryptographic deletion certificates, or authenticated human identity |
 
-Version **0.2.7** adds the bounded deletion-admission and optional MCP surfaces
-below. Confirm package availability through the exact GitHub release and npm
-version links in the [version notes](../releases/release-notes-0.2.7.md).
-This version does not add legal hold,
-directory retention or deletion certificates, or resume the 0.3.0 plan.
+Regenerable, Git-ignored artifacts may still be deleted directly unless an operator explicitly requires quarantine (e.g., via Cleanup `--quarantine`). Versioned release scope and acceptance records live in the [release notes](../releases/release-notes-0.3.0.md) and [0.3.0 acceptance report](../reports/test-report-maintenance-0.3.0.md).
 
 ## Assets
 
@@ -40,53 +30,22 @@ directory retention or deletion certificates, or resume the 0.3.0 plan.
 | 5 | Symlink confusion (delete link vs target, trailing slash dereference) | Lexical boundary analysis; link relocation preserves the link; realpath recorded | Low |
 | 6 | TOCTOU between classification and execution | Checks and moves are not atomic. Native hooks run Core before handing control back to host execution; there is no promised maximum gap | Concurrent changes can invalidate facts or affect later execution. Atomic isolation remains unimplemented |
 | 7 | Destructive restore | Relocation destinations and sources are checked against the workspace and their quarantine transaction. IDs and directory locations are validated; leaf symlinks retain their semantics. Human `--force` preserves an occupant through a separate relocation transaction before replacement; failed preservation stops that item | Checks and moves are not atomic against concurrent changes. Cross-filesystem failures may leave a partial destination or backup; inspect the filesystem and reported transaction IDs. Preserved versions add storage use and follow existing explicit GC |
-| 8 | Quarantine bloat turns `.agent-trash` into a liability (exfil via packaging, disk exhaustion) | Existing `.gitignore` or `.git/info/exclude`; size/status and explicit GC. Version 0.2.7 adds cross-process capacity admission, persistent session budgets, rate/repeat limits and confirmed large batches | Logical admission is not an OS quota. Audit, directory metadata and unrelated writers can still grow storage; failures/restores do not refund session charges; GC stays explicit. Same-UID configuration/state/session changes remain possible |
-| 9 | Agent deletes configured evidence or resets its own deletion budget | Shared protection in 0.2.7 covers configured paths and ancestors before artifact/housekeeping exemptions; configuration and admission control files are protected. CLI budget reset requires terminal acknowledgement | Portable protection and TTY are not independent authority against same-UID processes; no authenticated human guarantee |
+| 8 | Quarantine bloat turns `.agent-trash` into a liability (exfil via packaging, disk exhaustion) | `.gitignore` / `.git/info/exclude`, status/GC commands, plus `0.2.7+` cross-process capacity admission, persistent session budgets, rate/repeat limits, and batch confirmation | Logical admission is not an OS quota. Audit, directory metadata, and unrelated writers can still grow storage; failures/restores do not refund session charges; GC stays explicit; same-UID tampering remains possible |
+| 9 | Agent deletes configured evidence or resets its own deletion budget | Shared path protection (`0.2.7+`) guards configured paths, ancestors, config, and admission control files before artifact/housekeeping exemptions; CLI budget reset requires terminal acknowledgement | Portable protection and TTY prompts are not independent authority against same-UID processes; no authenticated human guarantee |
 
-The 0.2.7 admission rules are described in the
-[deletion limits guide](../guides/deletion-limits.md), including measured
-three-run, package and real Kimi validation and its platform/tool limits.
-The published 0.2.6 baseline has only the existing soft retention/GC mechanism.
+Full configuration defaults and edge-case semantics for deletion budgets and protected paths are documented in the [deletion limits guide](../guides/deletion-limits.md) (deployments pinned to `0.2.6` or earlier retain only soft retention and manual GC).
 
 ## Optional local MCP boundary
 
-The 0.2.7 [MCP adapter](../guides/mcp.md) offers explicit tools under one
-startup-bound workspace and stable budget identity. It reuses the CLI policy,
-audit and recovery paths; tool arguments cannot change the binding or enable
-force restore, GC execution, budget reset or Cleanup approval. Safe-delete
-quarantine targets are refused to keep that API from becoming a permanent-GC
-shortcut. Tool annotations and client approval settings are hints, not server
-authorization or authenticated human identity.
-Startup session selection controls both existing CLI authorization mode and
-deletion budget; omission uses legacy CLI state and the shared default bucket.
-Saved restrictions are reused only with the same workspace, quarantine and
-session. The caller's native-session restrictions or in-memory veto are not
-automatically transferred; those require trusted host-side bridging.
+The [local MCP adapter](../guides/mcp.md) exposes explicit maintenance and query tools bound at startup to a single workspace root and stable session/budget identity:
 
-This service does not intercept shell/script/editor operations that bypass
-its tools. Same-UID processes can still edit state or launch another service.
-Client cancellation, disconnects and timeouts do not prove rollback or lack
-of mutation; inspect recovery transactions before retrying. Results may
-contain local paths and metadata and are not a general disclosure-sanitization
-channel. The optional SDK adds its own dependency surface; a local stdio
-server exposes no network listener.
+- **Reuse of Core protections:** MCP tool handlers route through the same CLI policy, admission, recovery, and audit paths. Tool arguments cannot alter the startup binding or invoke `--force` restore, GC execution, budget reset, or autonomous Cleanup approval.
+- **No quarantine-purge shortcut:** Targets inside quarantine are refused by `safe_delete` so MCP calls cannot turn into an unapproved permanent purge.
+- **Explicit surface and confirmation boundary:** Generic MCP client tool annotations and generic client permission prompts remain advisory UI hints, not Core authorization. When an operator explicitly enables `--approval-channel codex`, `cleanup_request_approval(saved_plan_id)` presents summary counts, logical size estimates, workspace, and the path to the complete exported list (`host_approval.review.file`), and a conforming host acceptance reply (`action: accept` with the required review confirmation payload) triggers Core to revalidate the saved selection and issue a task approval. Even on that operator-selected trusted host channel, `human_verified` stays `false`—same-UID clients or consent-altering hooks remain out of the server's trust boundary, and human identity is not independently attested. The MCP server never intercepts shell, script, or editor operations that bypass its tools, and same-UID processes can still modify local state or spawn an unguarded process.
+- **State and session isolation:** Startup session flags govern both mode and deletion budget bucket (omission uses legacy CLI state and the default bucket). Restrictions remain scoped to a matching `(workspace, quarantine, session)` tuple and do not inherit a host harness's in-memory vetoes unless bridged by the host.
+- **Failure semantics and output scope:** Client cancellations, disconnects, or timeouts do not guarantee rollback or zero disk mutation—always inspect recorded transactions before retrying. Tool responses return local metadata and paths rather than sanitized prose; the optional MCP SDK adds its own dependency footprint, though a local stdio server opens no network listener.
 
-The local 2026-10-28 candidate's first full run had one unresolved observer
-READY-startup error; the second passed 1123 Python cases and both Node groups
-without failures, errors, skips or timeouts. A 154-file offline installation
-and three real Kimi 2.3.0 root-MCP trials passed. These observations do not
-establish a timeout fix, remote-CI success, native Windows/macOS/shared-storage
-compatibility or live Claude/Cursor/Codex support. See the guide for the full
-failure history, optional-SDK test skips and measured scope; older hook and
-release evidence remains separate.
-Those are pre-version-alignment observations. The subsequent 0.2.7 candidate
-passed 1129 Python cases and both Node groups without failures, errors, skips
-or timeouts; its 155-file offline package passed installed MCP checks with
-matching 0.2.7 service identity. See the
-[versioned validation record](../releases/release-notes-0.2.7.md#validation-status).
-This is local protocol/package evidence, with no new real-model trial or
-expanded host/platform coverage. The 2026-10-29 local preparation checkpoint
-did not include remote CI or publication.
+For protocol validation history and host-by-host MCP test coverage, see the [MCP guide](../guides/mcp.md), the [0.2.7 validation record](../releases/release-notes-0.2.7.md#validation-status), and the [0.3.0 acceptance report](../reports/test-report-maintenance-0.3.0.md).
 
 ## guard-lab diagnostic boundary
 

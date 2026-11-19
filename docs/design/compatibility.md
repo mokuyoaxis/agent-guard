@@ -1,47 +1,24 @@
 # Compatibility contract
 
 agent-guard's promise is recoverability. A promise is only as good as its
-stability over time - this page states exactly what may change and what
-may not, per release class.
+stability over time—this document defines what may change and what may not per
+release class.
 
-The active **0.3.0 maintenance scope** adds reviewed-task execution and
-queries. Its [acceptance table](../reports/test-report-maintenance-0.3.0.md)
-records passed checks and remaining gates. Check the exact release and package
-links in the [0.3.0 notes](../releases/release-notes-0.3.0.md) before installation.
-Historical sections below retain their original release decisions. Their
-paused 0.3.0 references concern the earlier disclosure-authorization research,
-not this maintenance scope.
+<details>
+<summary>Active release baselines &amp; bounded maintainer exceptions (0.2.4 – 0.3.0)</summary>
 
-Version [0.2.9](../releases/release-notes-0.2.9.md) adds read-only Cleanup
-inventory and measurement, faster planning and a repository-corpus test fix.
-Version [0.2.8](../releases/release-notes-0.2.8.md) adds diagnosis and
-reliability maintenance to the published
-[0.2.7](../releases/release-notes-0.2.7.md) baseline. Use exact GitHub release
-and npm version links to confirm availability; a version in source or a local
-tarball does not establish publication.
-Earlier release [0.2.6](../releases/release-notes-0.2.6.md) carries cumulative
-RC maintenance and the feedback/diagnostic additions below. The opt-in
-prerelease [0.2.5-rc3](../releases/release-notes-0.2.5-rc3.md), earlier stable
-0.2.5 and the
-[0.2.4-hotfix.1](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.4-hotfix.1)
-quarantine protection backport retain their separate artifacts. Versioned
-sections retain the origin and preparation labels of changes introduced by
-earlier releases.
+| Release | Contract scope & notes |
+|---|---|
+| **[0.3.0](../releases/release-notes-0.3.0.md)** | Reviewed cleanup task execution/queries, optional quarantine mode, Skill symlink installer (`install_skill.py`), optional Codex native confirmation tool. Acceptance/deferred host work recorded in [test-report-maintenance-0.3.0.md](../reports/test-report-maintenance-0.3.0.md) |
+| **[0.2.9](../releases/release-notes-0.2.9.md)** | Bounded maintainer decision adding read-only Cleanup discovery/measurement schemas (`cleanup_discover`, `cleanup_measure`) and faster scans without altering mutation/policy contracts |
+| **[0.2.8](../releases/release-notes-0.2.8.md)** | Local MCP service diagnostics (`doctor mcp`) and interruption-recovery validation |
+| **[0.2.7](../releases/release-notes-0.2.7.md)** | Bounded maintainer decision introducing Cleanup Copilot, shared deletion admission (capacity, budgets, rate/repeat limits, protected paths), and explicit local MCP tools |
+| **[0.2.6](../releases/release-notes-0.2.6.md)** · **[0.2.5](../releases/release-notes-0.2.5.md)** | Kimi Stop feedback/doctor checks, DSH `alpha.4` deletion profile, Kimi `2.3.0` Bash profile, explicit storage/GC/`ALLOW_NOOP` feedback |
+| **[0.2.5-rc3](../releases/release-notes-0.2.5-rc3.md)** · **[0.2.4-hotfix.1](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.4-hotfix.1)** | Opt-in prerelease with [blue-team research](../research/README.md) (research methods do not extend the Decision Protocol or native hook contracts) and stable-line quarantine control-path backport |
 
-The maintainer selected **0.2.7** for Cleanup Copilot, deletion admission and
-optional MCP tools. The bounded versioning decision is recorded below; the
-separate disclosure-authorization research remained paused at that checkpoint.
-The later **0.2.8** selection is independently scoped to MCP diagnosis and
-reliability maintenance, as recorded below; earlier exceptions do not grant
-permission to change unrelated policy under a patch number.
-The **0.2.9** selection has its own bounded decision for the Cleanup
-observation interfaces and accompanying performance/test maintenance below.
+Note: Earlier references below to a paused "0.3.0 research roadmap" refer to the separate experimental disclosure-authorization track, not the `0.3.0` maintenance workflow.
 
-RC3 publishes defensive research and an example around the existing four
-zero-model controls. Experimental disclosure labels and private delegation
-methods are not additions to the Decision Protocol or native-hook contract.
-No production dependency, policy verdict or storage/configuration migration
-is introduced by the research documentation.
+</details>
 
 <a id="unreleased-cleanup-observation-additions"></a>
 
@@ -71,21 +48,22 @@ research roadmap is a separate scope decision and is not resumed.
 
 ## Skill installation (0.3.0)
 
-This checkout adds `install_skill.py` / `agent-guard-install-skill` and a
-real-path bootstrap for delete-guard scripts. The helper defaults to a plan;
-`--execute --target PATH` registers the selected complete package's Skill
-directory link, retaining a previous Skill outside the search directory.
-It does not edit host settings, reset budgets or change recovery formats.
-The installer and its new bin entry are absent from published 0.2.9.
+Version **0.3.0** adds `install_skill.py` / `agent-guard-install-skill` and a
+real-path bootstrap for delete-guard scripts (absent from `0.2.9`). The helper
+defaults to preview mode; `--execute --target PATH` creates a symlink for the
+selected complete package while moving any previous Skill outside the search
+directory. It does not edit host settings, reset budgets, or change recovery
+formats.
 
 Script startup resolves symlinks before locating the package Core. A detached
-Skill without Core exits 1 with installation guidance rather than exposing
-the import traceback; it does not search the workspace or use another Core.
-New [setup instructions](../guides/agent-setup-prompt.md) distinguish the
-four-host maintenance target from measured support and MCP from native hooks.
-Runtime/link/update and package smoke checks passed in owned POSIX locations;
-global installations were not automatically updated. Native Windows link
-installation, final candidate checks, version alignment and publication remain separate.
+Skill without Core exits `1` with installation guidance rather than exposing
+an import traceback; it never searches the workspace or loads an unrelated Core.
+Setup instructions distinguish the four-host maintenance targets from verified
+coverage and MCP from native hooks ([setup prompt](../guides/agent-setup-prompt.md)).
+POSIX runtime, link/update, and package smoke checks are recorded in the
+[0.3.0 acceptance report](../reports/test-report-maintenance-0.3.0.md); existing
+global installations are not updated automatically, and native Windows symlink
+installation remains unverified.
 
 ## The adapter contract (frozen surface)
 

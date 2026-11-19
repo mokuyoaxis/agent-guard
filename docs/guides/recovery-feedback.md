@@ -1,27 +1,11 @@
 # Reading guard status and cleanup results
 
-The CLI/DSH feedback below is included in
-[0.2.5](../releases/release-notes-0.2.5.md).
-They do not change deletion policy, wildcard handling, retention thresholds,
-or the recovery format.
-The final Kimi section describes the additions in
-[0.2.6](../releases/release-notes-0.2.6.md).
+Clear operational feedback helps operators and coding agents tell three things apart: whether local adapter wiring initialized properly, what a guard verdict actually proves, and whether quarantined recovery copies still occupy disk. This guide covers status diagnostics (`agent_guard_status`, `doctor`), what `ALLOW_NOOP` does and does not guarantee, quarantine storage notices and manual GC, and optional Kimi Stop recovery feedback.
 
-Version 0.3.0 adds a shared
-[receipt-derived execution summary](maintenance-output.md#fixed-execution-summaries)
-for safe_delete, Cleanup, restore and GC. Full JSON retains the old fields
-and adds `execution_summary`; text restore/GC prints that summary before
-retaining the original detailed rows. Explicit `--view summary` omits rows;
-capture full output in the original call rather than rerunning to fetch it.
-Missing receipts stay unknown,
-GC inventory is labeled best effort, and no summary claims measured physical
-space release. These changes are absent from published 0.2.9. Their runtime
-and output checks passed in the
-[frozen-candidate acceptance](../reports/test-report-maintenance-0.3.0.md#regression-and-package-checkpoints).
-It also adds [read-only workspace queries](read-only-query.md): plain text
-status groups budgets, tasks and transactions in a terminal overview, while
-default `--json` preserves the legacy full result. Missing measurements and
-partial metadata remain explicit; no frontend or operation panel is included.
+> [!NOTE]
+> **Version scope:** Core CLI/DSH storage and `ALLOW_NOOP` diagnostics landed in `0.2.5`, Kimi Stop feedback in `0.2.6`, and receipt-derived [execution summaries](maintenance-output.md#fixed-execution-summaries) plus bounded [`status` overviews](read-only-query.md) (`--view overview`, preserving legacy `--json` defaults without adding a UI panel) in **`0.3.0`**. See [maintenance acceptance](../reports/test-report-maintenance-0.3.0.md#regression-and-package-checkpoints) for recorded checks.
+>
+> **Reading `0.3.0` summaries:** Explicit `--view summary` omits per-row receipt details (capture full output on the initial call if you need row-level records rather than re-running a mutation), missing receipts remain labeled unknown, GC inventory is best effort, and summaries never claim unmeasured physical disk space reclaimed.
 
 ## What the status establishes
 

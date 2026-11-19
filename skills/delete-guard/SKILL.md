@@ -11,53 +11,18 @@ description: >-
 
 # delete-guard
 
-Version **0.2.7** adds the Cleanup proposals and deletion admission described
-below; 0.2.6 lacks these additions. See the
-[0.2.7 scope, upgrade impact and exact-version availability checks](../../docs/releases/release-notes-0.2.7.md).
+You operate inside a workspace where irreversible destruction is not a default capability. This skill defines the deletion discipline the guard enforces and how to work within it productively.
 
-<a id="installation-and-updates-030-development"></a>
+## The four pillars
 
-## Installation and updates (0.3.0)
-
-Keep this Skill inside a complete Agent Guard installation and register a
-directory link to it. The shared Core and all scripts, including Cleanup,
-then come from the same package. This checkout adds a preview-first helper:
-
-```sh
-python3 /absolute/path/to/agent-guard/install_skill.py --target /absolute/path/to/host-skills/delete-guard --json
-```
-
-Review the selected installation and target, then add `--execute` within the
-authorized configuration scope. A previous Skill is retained outside the
-host's Skill search directory; updating uses the same command. The host's
-Skill directory must be selected for its actual version and scope.
-
-The helper is not in published 0.2.9. Do not copy this directory alone,
-copy Core into the host, or patch PYTHONPATH to compensate for a partial
-installation. If a selected older package lacks the helper, use its scripts
-from the complete package root. See [installation and updates](../../docs/guides/skill-installation.md).
-Skill registration does not configure hooks or MCP; use the
-[setup prompt](../../docs/guides/agent-setup-prompt.md) for that separate task.
-
-You operate inside a workspace where irreversible destruction is not a
-default capability. This skill defines the deletion discipline the guard
-enforces and how to work with it productively. The four pillars:
-
-- **Scope** - you act inside the workspace; the workspace root, `.git`, and
-  everything outside are never yours to delete.
-- **Recoverability** - supported valuable deletions relocate to the selected
-  quarantine with a manifest; supported Git overwrites snapshot tracked state.
-  Provably regenerable, ignored artifacts may be deleted directly.
-- **Authorization** - a human decides permission boundaries. You can be
-  *downgraded* to RESTRICTED mode; you can never promote yourself back.
-- **Auditability** - supported writers record decision/recovery metadata in
-  JSONL according to their CLI contract. Mutation intents must be durable;
-  assessment/blocked audit may be best effort, and early no-op paths may not
-  write an audit. Calls outside the covered path are not automatically visible.
+- **Scope** - act inside the workspace; the workspace root, `.git`, and everything outside are never yours to delete.
+- **Recoverability** - supported valuable deletions relocate to the selected quarantine with a manifest; supported Git overwrites snapshot tracked state. Provably regenerable, ignored artifacts may be deleted directly (unless quarantine is explicitly requested).
+- **Authorization** - a human decides permission boundaries. You can be *downgraded* to `RESTRICTED` mode; you can never promote yourself back.
+- **Auditability** - supported writers record decision/recovery metadata in JSONL according to their CLI contract. Mutation intents must be durable; assessment/blocked audit may be best effort, and early no-op paths may not write an audit. Calls outside the covered path are not automatically visible.
 
 ## The one rule
 
-**Prefer `safe_delete` over `rm`.** It applies the guard's recovery policy.
+**Prefer `safe_delete` over `rm`.** It applies the guard's recovery policy:
 
 ```bash
 # delete explicit targets; valuable content is quarantined:
@@ -72,17 +37,21 @@ python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/restore.py '<t
 python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/status.py
 ```
 
-In 0.3.0, text status defaults to a bounded read-only
-overview with current-budget task IDs, transaction metadata and budget bars.
-Use `--view overview --json` or MCP `status` with `view: overview` for the
-same data. Default JSON/MCP status remains legacy full. Occupancy/capacity
-GC is not measured by overview, task rows do not validate grants, and partial
-coverage is not absence. Follow task IDs for existing detail queries; no GUI
-or operation panel is part of this version. See [query scope](../../docs/guides/read-only-query.md).
+In `0.3.0+`, text `status.py` defaults to a bounded read-only overview showing current-budget task IDs, transaction metadata, and budget bars (use `--view overview --json` or MCP `status(view="overview")`; default JSON/MCP `status` preserves legacy full output). Overview queries do not measure capacity GC or validate grants, and partial coverage is not absence—query individual task IDs for full details (see [query scope](../../docs/guides/read-only-query.md)).
 
-Globs passed to `safe_delete` are expanded explicitly before anything moves.
-That is why `safe_delete '*.log'` works while `rm *.log` is blocked: the
-guard refuses opaque target sets, not cleanup work.
+Globs passed to `safe_delete` are expanded explicitly before anything moves, which is why `safe_delete '*.log'` works while `rm *.log` is blocked: the guard refuses opaque target sets, not cleanup work.
+
+<a id="installation-and-updates-030-development"></a>
+
+## Installation and updates (0.3.0)
+
+Keep this Skill inside a complete Agent Guard installation (`0.2.7+` includes Cleanup proposals and deletion admission; see [0.2.7 release notes](../../docs/releases/release-notes-0.2.7.md)) and register a directory symlink rather than copying `SKILL.md` alone. In `0.3.0+`, preview and link using:
+
+```sh
+python3 /absolute/path/to/agent-guard/install_skill.py --target /absolute/path/to/host-skills/delete-guard --json
+```
+
+Review the selected package root and target, then add `--execute` within your authorized scope (an older Skill is backed up outside the host's Skill search directory; `0.2.9` and earlier lack this installer, so call scripts directly from the complete package root instead of copying `core/` or patching `PYTHONPATH`). Registering a Skill does not configure hooks or MCP—use the [setup prompt](../../docs/guides/agent-setup-prompt.md) and [installation guide](../../docs/guides/skill-installation.md) for host wiring.
 
 <a id="read-only-cleanup-inventory-unreleased-checkout"></a>
 

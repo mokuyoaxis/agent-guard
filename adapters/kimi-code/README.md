@@ -1,53 +1,12 @@
 # Kimi Code adapter
 
-The [0.3.0 acceptance](../../docs/reports/test-report-maintenance-0.3.0.md#host-acceptance)
-records ordinary model-backed MCP maintenance and first execution of a new
-operator-approved batch on Kimi Code 2.3.0 in a trusted synthetic workspace.
-Those explicit-tool trials are separate from native Bash/Stop coverage.
-A [2026-11-12 current-checkout trial](../../docs/reports/test-report-maintenance-0.3.0.md#native-interception-to-mcp-handoff-2026-11-12)
-observed a real-model root Bash block, saved MCP plan, operator-terminal
-approval, original-session execution of 71 roots and independent MCP recovery.
-An extra plan save remains a recorded instruction-limit deviation. Native and MCP session budgets are not
-automatically aligned. Stop and broader paths retain their recorded scope.
+`PreToolUse` interception for [Kimi Code CLI](https://github.com/MoonshotAI/kimi-code), backed by the shared Core and Claude Code adapter mapping. Kimi Code's external hook system (`packages/agent-core-v2/src/features/externalHooks`) is field-compatible with Claude Code's hook payloads, so `pre_tool_use.py` delegates to `../claude/pre_tool_use.py` with one conservative safeguard: Core `ASK` is mapped to a hard refusal whenever the host cannot enforce an interactive approval path.
 
-PreToolUse interception for [Kimi Code CLI](https://github.com/MoonshotAI/kimi-code),
-built on the shared Core and Claude Code adapter with one conservative
-host-specific difference: Core `ASK` is mapped to a hard refusal rather than
-being allowed when the host cannot enforce an approval.
-Kimi Code ships an external-hook system
-(`packages/agent-core-v2/src/features/externalHooks`) whose event names,
-payload field names and decision contract are field-compatible with Claude
-Code's hooks, so `pre_tool_use.py` here delegates to
-`../claude/pre_tool_use.py` instead of reimplementing the mapping.
-
-Verified against **@moonshot-ai/kimi-code 0.42.0, 2.1.1 and 2.3.0**. The detailed
-contract comparison below was established against 0.42.0; the 2.1.1 trials
-independently observed authenticated root `Bash` blocks through the same
-exit-2 hook path on an OAuth official model and a second configured model
-route. Connection details and private route identifiers are omitted. See the
-[bounded report](../../docs/reports/test-report-kimi-code-block.md).
-
-Version 0.2.6 adds exact **2.3.0** after eight prompt-CLI and eight
-ACP root-Bash trials with fixed loopback responses, including BLOCK, ASK
-refusal, Python startup failure, recovery and Stop delivery. ACP hooks ran
-in the session workspace even when the server started elsewhere. There were
-no external model calls. See the [2.3.0 evidence and limits](../../docs/reports/test-report-kimi-code-block.md#kimi-230-acceptance).
-This does not extend subagent, other-tool or real-model claims; the separate
-[Lab helper](harness/README.md) remains pinned to 2.1.1. Published 0.2.5 keeps
-its earlier tested-version list.
-
-This README describes [0.2.6](../../docs/releases/release-notes-0.2.6.md).
-The optional Stop helper, doctor checks and setup guidance ship in this version;
-see the [maintenance details](../../docs/releases/unreleased.md).
-Version 0.2.5 retains its recorded scope. Upgrade the selected installation
-before configuring Stop.
-
-For the separate honeytoken experiment, see the
-[guard-lab pair and local follow-up](../../docs/reports/test-report-kimi-guard-lab.md).
-Its recorded tool-channel exposure and matched guarded observation are distinct
-from native Bash interception. A local doctor pass does not rerun that pair.
-Use the [private capture/review helper](harness/README.md) to repeat the Lab
-workflow with a pinned executable and separate role-channel scans.
+> [!NOTE]
+> **Verified versions & boundaries:**
+> - **Native Bash hooks (`0.42.0`, `2.1.1`, `2.3.0`):** `0.42.0` / `2.1.1` verified exit-2 `Bash` blocking ([bounded report](../../docs/reports/test-report-kimi-code-block.md)); `0.2.6+` adds Kimi **`2.3.0`** (16 prompt-CLI and ACP root-`Bash` loopback trials without external model calls) plus optional [Stop recovery feedback](#optional-recovery-feedback-unreleased-checkout-addition) and doctor checks. Subagents, other tools, and hook-absence/timeout paths retain their recorded limits.
+> - **MCP + native handoff (`0.3.0`):** Kimi `2.3.0` completed MCP maintenance ([acceptance](../../docs/reports/test-report-maintenance-0.3.0.md#host-acceptance)), and the [2026-11-12 handoff trial](../../docs/reports/test-report-maintenance-0.3.0.md#native-interception-to-mcp-handoff-2026-11-12) observed a live root `Bash` block -> saved MCP plan -> terminal approval -> original-session 71-root execution and independent recovery (noting native vs. MCP session budgets are not auto-aligned).
+> - **Guard-lab experiments:** Separate honeytoken pairs ([Lab report](../../docs/reports/test-report-kimi-guard-lab.md)) and the [private capture/review helper](harness/README.md) remain pinned to `2.1.1`; a local `doctor` pass does not rerun them.
 
 ## Contract (what was checked, not assumed)
 

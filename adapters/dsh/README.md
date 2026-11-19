@@ -1,76 +1,22 @@
 # agent-guard adapter for DeepSeek Harness
 
-DSH integration shipped as a `dsh-plugin` bundle in the Agent Guard package.
-This adapter maps the Decision Protocol onto DSH's native mechanisms and
-delegates deletion verdicts to the shared Python core
-(`skills/delete-guard/scripts/check.py`).
-The opt-in text-read prototype reuses the existing Core exfil policy through
-a bounded local worker. Both ship inside this package.
+DSH integration ships as a `dsh-plugin` bundle inside the Agent Guard package. It maps the Decision Protocol onto DSH's native lifecycle hooks, delegates deletion verdicts to shared Python Core (`skills/delete-guard/scripts/check.py`), and includes an opt-in bounded worker for native text-read redaction.
 
-The [0.3.0 MCP maintenance checks](../../docs/reports/test-report-maintenance-0.3.0.md#host-acceptance)
-include DSH 0.2.0-rc.2 with isolated persistence, then original-root headless
-startup and a fresh operator-approved batch after bucket repair. Cleaning the
-session-storage root can conflict with its strict layout when a local
-quarantine contains JSONL metadata. Select a stable external bucket using
-the 0.3.0 [MCP storage option](../../docs/guides/mcp.md#select-a-fixed-quarantine-directory-030-development);
-an existing bucket needs separately reviewed handling. These explicit-tool
-checks do not revalidate this native plugin or every session layout.
-
-A later [native handoff trial](../../docs/reports/test-report-maintenance-0.3.0.md#native-interception-to-mcp-handoff-2026-11-12)
-loaded the current plugin but hit `SANDBOX_UNAVAILABLE` in the caller's
-`workspace-write` executor on this PRoot host. The checker could not start,
-so the native call was denied. A separate actual-SDK local-executor control
-passed six zero-model checks; it does not validate the sandboxed profile.
-
-The 0.3.0 feedback update recognizes the executor's exact
-`SANDBOX_UNAVAILABLE` error code in checker/status failures and reports the
-unavailable sandbox backend explicitly. It keeps `CHECKER_EXECUTION_FAILED`
-and `STATUS_EXECUTION_FAILED`, the existing denial and the caller's policy.
-Inspect the host backend with the operator; this diagnostic supplies no Core
-deletion-policy verdict. Raw exception details are not copied into this hint.
-
-The [0.2.3 contract review](../../docs/reports/test-report-release-readiness-0.2.3.md)
-verifies the default deletion path on `0.2.0-rc.2` and `0.1.5-rc.1`, and
-the opt-in read path on the reviewed new local and sandbox filesystem providers.
-Those are the published 0.2.5 host declarations. Lab preflight accepts both and
-binds their native formats separately; unsupported session shapes remain
-inconclusive. A running Web service's plugin inventory does not validate this
-checkout or its agent scope. The [initial upgrade check](../../docs/reports/test-report-dsh-0.2-upgrade.md)
-retains the earlier failures and correction history.
+> [!NOTE]
+> **Native plugin vs. MCP evidence & host limits:**
+> - **Admitted DSH versions:** Native deletion interception explicitly admits `0.1.5-rc.1`, `0.2.0-rc.2` ([0.2.3 contract review](../../docs/reports/test-report-release-readiness-0.2.3.md)), and `0.2.1-alpha.4` in `0.2.6+` ([0.2.6 release notes](../../docs/releases/release-notes-0.2.6.md), [alpha.4 report](../../docs/reports/test-report-dsh-alpha4.md)). Optional native text-read protection and Lab capture keep their `0.1.5-rc.1` / `0.2.0-rc.2` boundary; see [DSH compatibility](../../docs/design/dsh-compatibility.md).
+> - **PRoot / OS-sandbox feedback (`0.3.0`):** A [native handoff trial](../../docs/reports/test-report-maintenance-0.3.0.md#native-interception-to-mcp-handoff-2026-11-12) hit `SANDBOX_UNAVAILABLE` in DSH's `workspace-write` executor on PRoot, denying the call fail-closed; `0.3.0` surfaces this backend error explicitly alongside `CHECKER_EXECUTION_FAILED` / `STATUS_EXECUTION_FAILED` without falling back to an unconfined executor.
+> - **MCP storage with DSH session trees (`0.3.0`):** When running [explicit MCP maintenance](../../docs/reports/test-report-maintenance-0.3.0.md#host-acceptance), placing `.agent-trash` inside DSH's strict session-storage tree can conflict with JSONL layout assumptions—configure an external bucket via `--trash-root` ([MCP storage](../../docs/guides/mcp.md#select-a-fixed-quarantine-directory-030-development)).
 
 ## Install
 
-The [0.2.6 release](../../docs/releases/release-notes-0.2.6.md) retains the
-startup/status diagnostics below and adds DSH `0.2.1-alpha.4` for default
-deletion interception. Optional native read keeps its separate boundary.
-Install the exact stable version:
+Install the exact Agent Guard release matching your tested DSH compatibility profile (`Python 3.9+` and `Git` must already be available; installing the plugin leaves the optional text-read guard off by default):
 
 ```bash
-dsh plugin --profile 'your-profile' add @mokuyoaxis/agent-guard@0.2.6
+dsh plugin --profile 'your-profile' add @mokuyoaxis/agent-guard@0.3.0
 ```
 
-Use an exact package version whose host contract matches your DSH installation.
-The package ships prebuilt JavaScript and its Python Core; Python 3.9+ and
-Git must already be available. Installation does not enable the optional
-text-read guard.
-
-As checked on 2026-10-19, the published opt-in versions are
-`@mokuyoaxis/agent-guard@0.2.4-hotfix.1` for the stable-line quarantine fix and
-`@mokuyoaxis/agent-guard@0.2.5-rc3` for the cumulative prerelease.
-Versioned [GitHub](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.6)
-and [npm](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.6)
-receipts establish 0.2.6 availability. A reviewed checkout or tarball is also
-usable as described in [getting started](../../docs/guides/getting-started.md).
-
-Version [0.2.6](../../docs/releases/release-notes-0.2.6.md) adds
-Lab version/config preflight diagnostics and admits `0.2.1-alpha.4` for the default deletion
-adapter, alongside `0.1.5-rc.1` and `0.2.0-rc.2`. It retains the existing
-interception and recovery logic. Alpha.4 is not admitted for optional native
-read protection or Lab. See [DSH compatibility](../../docs/design/dsh-compatibility.md)
-for the exact declarations and [native validation](../../docs/reports/test-report-dsh-alpha4.md)
-for the evidence. Upgrade an existing 0.2.5 installation to obtain these additions.
-See the [Lab runner](harness/README.md)
-for the separate preflight diagnostic fields.
+See [getting started](../../docs/guides/getting-started.md) for tarball or source-checkout installation and [DSH compatibility](../../docs/design/dsh-compatibility.md) for exact version matching (`@mokuyoaxis/agent-guard@0.2.6` and `0.2.5-rc3` / `0.2.4-hotfix.1` remain available for pinned legacy setups). For Lab preflight diagnostics on supported hosts, see the [Lab runner](harness/README.md).
 
 ## What gets registered
 
@@ -85,12 +31,7 @@ for the separate preflight diagnostic fields.
 
 ## Startup and status diagnostics
 
-Version 0.2.5 runs `python3 check.py --help`
-before contributing the Hook/tools. This tests Python and imports in the
-plugin process, without assessing a command or writing guard metadata.
-Missing dependencies or a failed/timed-out startup check produce an explicit
-initialization error instead of a log-only disabled adapter. The local check
-has a 10-second timeout; the existing command-check timeout remains unchanged.
+Before registering tools and hooks, the plugin runs `python3 check.py --help` to verify Python and Core imports inside the plugin process without evaluating any command or writing metadata. Missing dependencies or a failed/timed-out startup check (10s limit) produce an explicit initialization error (`GUARD_STARTUP_FAILED` or `READ_GUARD_STARTUP_REFUSED`) rather than silently disabling enforcement.
 
 Startup success says that the listener was registered, while live host
 interception remains `UNVERIFIED`. `agent_guard_status.adapter` reports that

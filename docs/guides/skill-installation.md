@@ -1,18 +1,11 @@
 # Skill installation and updates / Skill 安装与更新
 
-The installer and real-path bootstrap below are included in **0.3.0** and
-absent from 0.2.9. Runtime, link/update and package
-smoke checks passed in owned POSIX locations; existing global Skills were not
-automatically migrated. See the [acceptance scope](../reports/test-report-maintenance-0.3.0.md).
-Version 0.3.0 is published; see the [release notes](../releases/release-notes-0.3.0.md).
-Earlier development archives used 0.2.9 metadata, so inspect the selected
-installation's actual files rather than relying on that version alone.
+Delete-guard depends on the shared `core/` directory. Rather than copying `SKILL.md` in isolation, keep the complete package checkout or npm installation at a stable path and link `skills/delete-guard` into your host's Skill directory. Keeping a symlink ensures `SKILL.md`, Core scripts, and Cleanup entrypoints stay pinned to the exact same release without duplicating policy code or patching `PYTHONPATH`.
 
-Delete-guard depends on the shared `core/` directory. Keep the complete
-checkout or npm package, then link its `skills/delete-guard` directory into
-the host's selected Skill directory. This keeps `SKILL.md`, Core and Cleanup
-on the same installation. Copying only the Skill does not create a standalone
-package.
+通过将完整包目录中的 `skills/delete-guard` 软链接到宿主 Skill 目录，可保证指引文档、Core 核心与 Cleanup 脚本始终指向同一版本，避免零散复制导致依赖缺失。
+
+> [!NOTE]
+> The symlink installer (`install_skill.py`) and real-path Core bootstrap were introduced in [**0.3.0**](../releases/release-notes-0.3.0.md) (absent from `0.2.9`). Installing or updating a Skill link does not automatically migrate existing global Skills, host settings, or older development archives (see [acceptance scope](../reports/test-report-maintenance-0.3.0.md)).
 
 ## Install or update
 

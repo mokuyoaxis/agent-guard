@@ -1,26 +1,11 @@
 # Cleanup Copilot / 工作区清理计划
 
-Cleanup Copilot is introduced in **0.2.7** and is absent from 0.2.6. Run the
-Python script from the selected package or reviewed checkout; the package
-also exposes `agent-guard-cleanup`. The shared
-[deletion admission rules](deletion-limits.md) also apply when executing it.
-See the [0.2.7 notes](../releases/release-notes-0.2.7.md) for upgrade effects,
-versioned validation and exact-version availability checks. Source/package
-metadata alone does not establish publication.
+Cleanup Copilot (`cleanup.py` / `agent-guard-cleanup`) helps you clean stale build artifacts, caches, and obsolete workspace targets safely by separating **inventory planning**, **human review & approval**, and **guarded execution**. It classifies scanned targets into four explicit categories (separating provably regenerable Git-ignored artifacts from valuable or uncertain paths) and routes every approved deletion through `safe_delete` and your workspace's [deletion admission limits](deletion-limits.md).
 
-Cleanup Copilot scans workspace metadata and proposes concrete cleanup
-targets. The default command writes no files, audit records, quarantine
-layout or Git exclude rules. It also suppresses project bytecode creation.
-Planning does not call `safe_delete --dry-run`, whose metadata side effects
-remain documented in the [policy reference](../../skills/delete-guard/references/policy.md#assessment-and-dry-run-side-effects).
+During **default planning and discovery**, Cleanup Copilot inspects workspace metadata strictly **read-only**—it does not modify source files, write audit or quarantine metadata, create Git excludes, or emit Python bytecode (unlike advisory `safe_delete --dry-run`, whose metadata side effects are documented in the [policy reference](../../skills/delete-guard/references/policy.md#assessment-and-dry-run-side-effects)). Persisting a proposal with `--save-plan` writes `.agent-guard/cleanup-plans/<saved-plan-id>.json`, and confirming it with `--approve` writes task control metadata under `.agent-guard/cleanup-tasks/<task-id>.json`; neither step moves workspace files or debits session deletion budgets until execution.
 
-Version 0.3.0 adds [overviews, detail pages and execution summaries](maintenance-output.md).
-Text planning defaults to an overview; `--json` retains full output unless
-`--view summary|details` is explicitly selected. Saved reads accept display
-filters without changing the selected targets. Confirmation still prints
-the entire selection. These additions are absent from published 0.2.9;
-runtime checks and bounded host observations are recorded in the
-[maintenance acceptance](../reports/test-report-maintenance-0.3.0.md).
+> [!NOTE]
+> Cleanup Copilot arrived in `0.2.7` (absent from `0.2.6`), adding read-only directory discovery/measurement (`--discover`, `--measure`) in `0.2.9`, and saved target plans, `--quarantine` preservation requests, operator-approved task IDs, and [overview/detail output views](maintenance-output.md) in **`0.3.0`**. Default text planning prints an overview (`--json` retains full fields unless `--view summary|details` is set); terminal confirmation still prints and revalidates the complete selection before execution. See the [0.3.0 acceptance report](../reports/test-report-maintenance-0.3.0.md).
 
 <a id="require-quarantine-030-development"></a>
 
@@ -63,10 +48,7 @@ test in its own transaction when that is the required scope.
 
 ## Saved explicit-target plans (0.3.0)
 
-This checkout adds literal-target planning and saved proposals. Published
-0.2.9 does not include these flags. Save/read/refresh, source-change refusal
-and execution have local runtime evidence; host-specific gaps remain in the
-[acceptance table](../reports/test-report-maintenance-0.3.0.md).
+Version **0.3.0** supports literal-target planning and saved proposals (absent from `0.2.9`). Saving a proposal freezes the exact target selection, planned effects, and `--quarantine` / `--discard` choices under a stable plan ID—so the operator can review and approve the batch once, and the agent can then execute or query the resulting task without re-scanning the workspace or rebuilding long `safe_delete` commands by hand. Save/read/refresh, source-change refusal, and execution have local runtime coverage; host-specific gaps remain recorded in the [acceptance table](../reports/test-report-maintenance-0.3.0.md).
 
 For a short list, repeat `--target PATH`. For a large batch, provide a JSON
 array such as `["sessions/old-1.jsonl", "sessions/old-directory"]`:
