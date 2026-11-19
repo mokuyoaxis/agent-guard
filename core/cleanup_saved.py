@@ -114,7 +114,10 @@ def refresh_saved_plan(saved):
     fresh = plan_cleanup(previous["workspace"], targets=previous["targets"],
                          **previous["options"])
     if fresh["plan_id"] != previous["plan_id"]:
-        raise ValueError("saved plan changed; review and save a fresh proposal")
+        raise ValueError(
+            "saved plan changed. If cleanup is still needed, preview the same targets again and save a fresh proposal. "
+            "Have the operator review and approve it, then execute using the newly issued task_id."
+        )
     if not saved["selection"]:
         raise ValueError("saved proposal has no selection; review the targets and save a new selectable proposal")
     selected = select_entries(fresh, saved["selection"], previous["plan_id"])

@@ -231,6 +231,10 @@ it never resumes, even after a crash. Inspect transactions and source state
 first, then propose remaining targets for new review and approval. A task-state
 write failure reports the task ID and uncertainty; do not blindly rerun it.
 
+If a task stops because the saved plan changed and cleanup is still needed,
+preview the same targets again and save a fresh proposal. Have the operator
+review and approve the new proposal, then execute using its new `task_id`.
+
 These CLI additions are absent from published 0.2.9. Local acceptance includes
 one real operator-approved 71-root task; mixed effects and failure cases also
 have unit regression evidence. DSH and Kimi also first executed their own

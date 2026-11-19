@@ -285,6 +285,28 @@ class MaintenanceWorkflowTests(RepoFixture):
                 self.assertTrue((Path(self.root) / name).exists())
         self.assertEqual(admission.describe(self.root, self.trash)["used_entries"], 0)
 
+    def test_changed_source_reports_fresh_proposal_and_approval_to_mcp_and_cli(self):
+        self.write("old.txt", "before")
+        task_id = self.approved_fixture("old.txt")["task_id"]
+        source = Path(self.write("old.txt", "refreshed contents"))
+
+        reply = Operations(self.root).call("cleanup_execute", {"task_id": task_id})
+        self.assertEqual(reply["exit_code"], 2, reply)
+        result = reply["result"]
+        self.assertEqual(result["status"], "STOPPED")
+        self.assertEqual(result["counts"]["confirmed"], 0)
+        self.assertEqual(result["counts"]["not_dispatched"], 1)
+        self.assertIsNone(result["next_step"]["execute_argv"])
+        guidance, = result["execution_summary"]["issues"]
+        self.assertIn("preview the same targets again and save a fresh proposal", guidance)
+        self.assertIn("Have the operator review and approve it", guidance)
+        self.assertIn("newly issued task_id", guidance)
+
+        observed = self.invoke("cleanup", "--task", task_id)
+        self.assertEqual(observed.returncode, 0, observed.stderr)
+        self.assertIn(guidance, observed.stdout)
+        self.assertEqual(source.read_text(), "refreshed contents")
+
     def test_overview_and_task_views_are_readonly_and_hide_private_approval(self):
         self.write("old.txt")
         task = self.approved_fixture("old.txt")

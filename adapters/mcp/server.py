@@ -59,7 +59,9 @@ TOOL_DEFINITIONS = {
         "required": ["paths"], "read_only": False, "destructive": True,
     },
     "restore": {
-        "description": "Restore one transaction returned by transactions, without overwriting an existing occupant. No force option. Restoration does not refund deletion budget. Inspect the returned per-item result and filesystem after partial errors.",
+        "description": ("Restore one transaction returned by transactions, without overwriting an existing occupant. "
+                        "No force option. Ordinary restore leaves deletion budget usage unchanged. "
+                        "Inspect the returned per-item result and filesystem after partial errors."),
         "properties": {"txid": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"}},
         "required": ["txid"], "read_only": False, "destructive": False,
     },

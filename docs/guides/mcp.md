@@ -248,8 +248,8 @@ has committed but before its response arrives. It does not roll the files or
 budget back. Stop automatic mutation retries, reconnect to the same reviewed
 workspace/quarantine/session identity, then inspect `status` and `transactions`.
 Check the source and recovery payload before restoring the actual returned or
-listed transaction. Ordinary restoration still refuses an existing occupant
-and does not refund the deletion budget.
+listed transaction. Ordinary restore leaves deletion budget usage unchanged
+and refuses to overwrite an existing occupant.
 
 If evidence is incomplete or an operation may still be running, preserve it
 and resolve the process/transaction state before another mutation. An absent
