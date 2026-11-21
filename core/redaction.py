@@ -123,6 +123,13 @@ def merge_spans(spans: Sequence[SpanSpec]) -> List[SpanSpec]:
         kept.append(span)
     return kept
 
+
+def verdict_rows(spans, verdicts):
+    """Safe public span metadata for an assessed payload."""
+    return [{**span.safe(), "context": span.context.partition("=")[0],
+             "decision": verdict.decision, "code": verdict.code}
+            for span, verdict in zip(spans, verdicts)]
+
 # --------------------------------------------------- placeholder allowlist
 
 # Design 5.1: the static allowlist. In-repo and versioned, so a deployment

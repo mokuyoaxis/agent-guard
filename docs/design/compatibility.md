@@ -253,12 +253,10 @@ existing `--json`, explicit `--tail` and MCP status default to the legacy
 full result. Explicit `--view full` also retains that behavior.
 
 The MCP status tool adds `view: overview/full` and overview-only `limit`
-(1–50, default 10). Existing tail/default semantics and other tool schemas
-are retained; the default service stays at ten tools. The separately enabled
-[Codex confirmation channel](../guides/mcp.md#host-confirmation-030-development)
-adds an eleventh tool without changing those query defaults. Valid partial overview results
-use `ok: true, partial: true` with CLI exit 1. Doctor still performs only its
-original three state calls, without certifying the new overview path.
+(1–50, default 10). Published `0.3.1` has ten default tools. The development
+checkout adds three Exfil tools. The separately enabled Codex confirmation
+channel adds one. Valid partial overview results use `ok: true, partial: true`
+with CLI exit 1. [MCP tool contracts](../guides/mcp.md#exfil-guard-tools)
 
 Bounded task listing uses the same validation as direct task reads and
 filters the current budget/quarantine before projecting public fields. The

@@ -66,6 +66,9 @@ and verify that normal maintenance is not processed twice.
   - On `cleanup_discover` / `cleanup_measure`, check coverage/size fields and `partial` status instead of treating observation as deletion approval.
   - For reviewed tasks (`0.3.0+`), obtain operator CLI approval before calling execution tools (an operator-enabled `--approval-channel codex` adds `cleanup_request_approval(saved_plan_id)` to prompt via a host form—never auto-answer it or enable it without operator consent; see [confirmation scope](../docs/guides/mcp.md#host-confirmation-030-development)).
   - Acceptance evidence covers Codex/DSH/Kimi approved MCP batches and Codex's cache task; Claude model work remains deferred, and native hooks require separate validation ([acceptance report](../docs/reports/test-report-maintenance-0.3.0.md)).
+- The development checkout adds [explicit Exfil MCP tools](../docs/guides/mcp.md#exfil-guard-tools)
+  for config views and draft checks. Repositories can also opt into
+  [local Git hooks](git/README.md) for staged text and commit messages.
 
 Core `ASK` must reach a real human-approval path or become a refusal for that
 call. It must never silently become allow. Treat malformed payloads and

@@ -23,9 +23,12 @@ SERVER = ROOT / "adapters/mcp/server.py"
 SDK_VERSION = "2.3.0"
 PROTOCOL_VERSION = "2025-06-18"
 TOOLS = frozenset(("safe_delete", "restore", "transactions", "status", "gc_plan", "cleanup_discover", "cleanup_measure",
-                   "cleanup_plan", "cleanup_execute", "cleanup_task_status"))
-READ_ONLY = ("status", "transactions", "gc_plan")
-READ_ONLY_TOOLS = frozenset(READ_ONLY) | {"cleanup_discover", "cleanup_measure", "cleanup_task_status"}
+                   "cleanup_plan", "cleanup_execute", "cleanup_task_status",
+                   "config_safe_view", "exfil_check", "exfil_sanitize"))
+READ_ONLY_PROBES = {"status": {"tail": 0}, "transactions": {}, "gc_plan": {},
+                    "exfil_check": {"text": "agent-guard doctor probe", "channel": "file-write"}}
+READ_ONLY_TOOLS = frozenset(READ_ONLY_PROBES) | {"cleanup_discover", "cleanup_measure", "cleanup_task_status",
+                                               "config_safe_view", "exfil_sanitize"}
 MAX_MESSAGE_BYTES = 2 * 1024 * 1024
 
 PROBLEMS = {
@@ -307,10 +310,10 @@ def diagnose(python, workspace, *, server=None, trash_root=None, timeout=30, app
                     raise _Failure("MCP_DOCTOR_TOOLS")
             report["tools"] = sorted(expected_tools)
             report["checks"].append({"stage": stage, "status": "PASS"})
-            for name in READ_ONLY:
+            for name, arguments in READ_ONLY_PROBES.items():
                 stage = name
                 result = _tool_result(connection.request("tools/call", {
-                    "name": name, "arguments": {"tail": 0} if name == "status" else {}}), name)
+                    "name": name, "arguments": arguments}), name)
                 if name == "status":
                     if (result.get("workspace") != str(selected)
                             or result.get("trash_root") != selected_trash):
@@ -322,6 +325,9 @@ def diagnose(python, workspace, *, server=None, trash_root=None, timeout=30, app
                 elif name == "transactions" and not isinstance(result.get("transactions"), list):
                     raise _Failure("MCP_DOCTOR_QUERY")
                 elif name == "gc_plan" and (result.get("mode") != "plan" or not isinstance(result.get("eligible"), list)):
+                    raise _Failure("MCP_DOCTOR_QUERY")
+                elif name == "exfil_check" and (result.get("decision") != "ALLOW"
+                                               or result.get("audit") != {"enabled": False, "recorded": False}):
                     raise _Failure("MCP_DOCTOR_QUERY")
                 report["checks"].append({"stage": stage, "status": "PASS"})
             report.update(status="PASS", stage="complete", code="MCP_DOCTOR_READY",

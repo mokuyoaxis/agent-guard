@@ -1,15 +1,35 @@
 """Shared, bounded CLI input and host-side context resolution."""
 from __future__ import annotations
 
+import argparse
 import os
 import sys
 import time
 
-from core import policy, redaction
+from core import exfil_audit, policy, redaction
 from core.classifier import discover_workspace
 
 
 DEFAULT_STDIN_TIMEOUT_SEC = 10.0
+
+
+class InvalidArguments(ValueError):
+    pass
+
+
+class SafeArgumentParser(argparse.ArgumentParser):
+    def error(self, _message):
+        if "--json" in sys.argv[1:]:
+            raise InvalidArguments("invalid arguments")
+        super().error("invalid arguments")
+
+
+def audit_result(result, tool, phase, started, flag):
+    receipt = exfil_audit.record(result["workspace"], tool, phase, result,
+                                 started=started, active=exfil_audit.enabled(flag))
+    result["audit"] = receipt
+    if "error" in receipt:
+        print(exfil_audit.WRITE_WARNING, file=sys.stderr)
 
 
 def emit_exemption_diagnostics(info):
@@ -113,7 +133,5 @@ def resolve_context(workspace=None, mode=None):
     if workspace is None:
         workspace = discover_workspace(os.getcwd())
     if mode is None:
-        trash_root = os.environ.get(
-            "AGENT_GUARD_TRASH", os.path.join(workspace, ".agent-trash"))
-        mode = policy.load_mode(trash_root)["mode"]
+        mode = policy.load_mode(exfil_audit.trash_root(workspace))["mode"]
     return workspace, mode

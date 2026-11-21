@@ -2,7 +2,20 @@
 
 <a id="current-unreleased-scope"></a>
 
-The maintenance sections below ship in **[0.3.1](release-notes-0.3.1.md)**
+## Exfil-guard development changes
+
+- Inspect TOML configuration structure with Python 3.11+ using the same
+  value-free view as JSON and dotenv. Older Python runtimes refuse TOML
+  before reading it. [Safe config view](../../skills/exfil-guard/SKILL.md#safe-config-view)
+- Opt into metadata-only Exfil audit records. `sanitize.py --json` returns a
+  structured result, withholding text and plan on refusals. [Audit metadata](../guides/audit-metadata.md#opt-in-exfil-audit)
+- Use the three Exfil-guard MCP tools for config inspection and draft checks.
+  Git repositories can separately enable local checks for staged text and
+  commit messages. [MCP tools](../guides/mcp.md#exfil-guard-tools) · [Git hooks](../../adapters/git/README.md)
+
+## Published maintenance history
+
+The next three maintenance sections ship in **[0.3.1](release-notes-0.3.1.md)**
 (absent from published `0.3.0`). Before registry installation, verify the exact
 [GitHub Release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.3.1)
 and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.3.1).

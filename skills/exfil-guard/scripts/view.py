@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Show a value-free view of an explicitly selected JSON or dotenv config."""
+"""Show a value-free view of an explicitly selected JSON, dotenv or TOML config."""
 from __future__ import annotations
 
 import argparse
@@ -7,6 +7,7 @@ import json
 import os
 import sys
 
+sys.dont_write_bytecode = True
 import _bootstrap  # noqa: F401
 
 from core import classifier, safe_view
@@ -14,7 +15,7 @@ from core import classifier, safe_view
 
 class SafeArgumentParser(argparse.ArgumentParser):
     def error(self, _message):
-        raise safe_view.SafeViewError("INVALID_ARGUMENT", "invalid arguments")
+        raise safe_view.SafeViewError("INVALID_ARGUMENT")
 
 
 def main() -> int:
@@ -23,7 +24,7 @@ def main() -> int:
     parser.add_argument("--workspace", default=None,
                         help="workspace root (default: discovered from cwd)")
     parser.add_argument("--format", dest="format_name", default="auto",
-                        choices=("auto", "json", "dotenv"))
+                        choices=safe_view.FORMATS)
     try:
         args = parser.parse_args()
         workspace = args.workspace or classifier.discover_workspace(os.getcwd())

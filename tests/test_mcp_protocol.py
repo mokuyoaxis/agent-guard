@@ -10,6 +10,8 @@ import tempfile
 import threading
 import unittest
 
+from core import redaction, safe_view
+from tests.test_exfil_audit import SECRET
 
 ROOT = Path(__file__).resolve().parents[1]
 SERVER = ROOT / "adapters/mcp/server.py"
@@ -19,7 +21,7 @@ SDK_AVAILABLE = bool(os.environ.get("AGENT_GUARD_MCP_PYTHON") or importlib.util.
 
 class Connection:
     def __init__(self, workspace, *, trash_root=None, session=None, approval_channel=None,
-                 capabilities=None, elicitation_handler=None):
+                 capabilities=None, elicitation_handler=None, audit_exfil=False):
         self.stderr = tempfile.TemporaryFile()
         env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
         command = [MCP_PYTHON, "-B", str(SERVER), "--workspace", str(workspace)]
@@ -29,6 +31,8 @@ class Connection:
             command += ["--session", session]
         if approval_channel is not None:
             command += ["--approval-channel", approval_channel]
+        if audit_exfil:
+            command.append("--audit-exfil")
         self.child = subprocess.Popen(command,
                                       stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                       stderr=self.stderr, env=env, text=True, encoding="utf-8")
@@ -148,13 +152,69 @@ class McpProtocolTests(unittest.TestCase):
         tools = connection.request("tools/list", {})["result"]["tools"]
         self.assertEqual({row["name"] for row in tools},
                          {"safe_delete", "restore", "transactions", "status", "gc_plan", "cleanup_discover", "cleanup_measure",
-                          "cleanup_plan", "cleanup_execute", "cleanup_task_status"})
+                          "cleanup_plan", "cleanup_execute", "cleanup_task_status",
+                          "config_safe_view", "exfil_check", "exfil_sanitize"})
         for tool in tools:
             self.assertFalse(tool["inputSchema"]["additionalProperties"])
             self.assertFalse(tool["annotations"]["openWorldHint"])
             self.assertEqual(tool["annotations"]["readOnlyHint"],
-                             tool["name"] in ("status", "transactions", "gc_plan", "cleanup_discover", "cleanup_measure", "cleanup_task_status"))
+                             tool["name"] in ("status", "transactions", "gc_plan", "cleanup_discover", "cleanup_measure",
+                                              "cleanup_task_status", "config_safe_view", "exfil_check", "exfil_sanitize"))
         self.assertTrue(next(row for row in tools if row["name"] == "safe_delete")["annotations"]["destructiveHint"])
+        by_name = {tool["name"]: tool for tool in tools}
+        for name in ("exfil_check", "exfil_sanitize"):
+            schema = by_name[name]["inputSchema"]
+            self.assertEqual(schema["properties"]["channel"]["enum"], sorted(redaction.CHANNELS))
+            self.assertEqual(set(schema["required"]), {"text", "channel"})
+            self.assertFalse(by_name[name]["annotations"]["destructiveHint"])
+
+    def test_exfil_tools_withhold_values_and_refusals_across_real_stdio(self):
+        (self.workspace / "-config.json").write_text(json.dumps({"credential": SECRET}), encoding="utf-8")
+        (self.workspace / "config.toml").write_text('access = "' + SECRET + '"\n', encoding="utf-8")
+        connection = self.start()
+        view = self.content(connection.call("config_safe_view", path="-config.json"))
+        self.assertTrue(view["ok"], view)
+        self.assertEqual(view["result"]["view"]["fields"]["credential"], {"type": "string", "state": "set"})
+        toml = self.content(connection.call("config_safe_view", path="config.toml"))
+        self.assertEqual(toml["ok"], safe_view.tomllib is not None)
+        if safe_view.tomllib is None:
+            self.assertEqual(toml["result"]["code"], "UNSUPPORTED_RUNTIME")
+        missing = self.content(connection.call("config_safe_view", path=SECRET + ".json"))
+        self.assertEqual(missing["result"]["code"], "UNSAFE_FILE")
+        invalid = self.content(connection.call("exfil_check", text=SECRET, channel=SECRET))
+        self.assertEqual(invalid["error"]["code"], "MCP_INVALID_ARGUMENTS")
+        check = self.content(connection.call("exfil_check", text=SECRET, channel="issue-body"))
+        self.assertTrue(check["ok"])
+        self.assertEqual(check["result"]["decision"], "SANITIZE")
+        self.assertIn("Redaction is required", check["notice"])
+        rewritten = self.content(connection.call("exfil_sanitize", text=SECRET, channel="issue-body"))
+        self.assertEqual(rewritten["result"]["text"], "ghp_<REDACTED>")
+        for channel, status in (("shell-stdout", 3), ("git-commit-message", 2)):
+            denied = self.content(connection.call("exfil_sanitize", text=SECRET, channel=channel))
+            self.assertEqual(denied["exit_code"], status)
+            self.assertEqual((denied["result"]["text"], denied["result"]["redaction_plan"]), ("", []))
+            self.assertNotIn(SECRET, json.dumps(denied))
+        self.assertNotIn(SECRET, json.dumps((view, toml, missing, invalid, check, rewritten)))
+        self.assertFalse((self.workspace / ".agent-trash").exists())
+
+    def test_startup_audit_writes_only_bound_bucket_and_annotation_changes(self):
+        with tempfile.TemporaryDirectory() as bucket:
+            connection = Connection(self.workspace, trash_root=bucket, audit_exfil=True, session="owned-session")
+            try:
+                tools = connection.request("tools/list", {})["result"]["tools"]
+                by_name = {tool["name"]: tool["annotations"] for tool in tools}
+                self.assertTrue(by_name["config_safe_view"]["readOnlyHint"])
+                for name in ("exfil_check", "exfil_sanitize"):
+                    self.assertFalse(by_name[name]["readOnlyHint"])
+                    self.assertFalse(by_name[name]["destructiveHint"])
+                    result = self.content(connection.call(name, text=SECRET, channel="file-write"))
+                    self.assertTrue(result["result"]["audit"]["recorded"])
+                log = Path(bucket, "audit.jsonl").read_text()
+                self.assertNotIn(SECRET, log)
+                self.assertFalse((self.workspace / ".agent-trash").exists())
+                self.assertEqual(len(list(Path(bucket).iterdir())), 1)
+            finally:
+                connection.close()
 
     def test_read_only_tools_do_not_initialize_workspace_state(self):
         connection = self.start()

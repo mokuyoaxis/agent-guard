@@ -122,7 +122,7 @@ class McpDoctorBoundaryTests(unittest.TestCase):
             workspace = sys.argv[-1]
             requests = pathlib.Path(REQUESTS)
             names = ["safe_delete", "restore", "transactions", "status", "gc_plan", "cleanup_discover", "cleanup_measure",
-                     "cleanup_plan", "cleanup_execute", "cleanup_task_status"]
+                     "cleanup_plan", "cleanup_execute", "cleanup_task_status", "config_safe_view", "exfil_check", "exfil_sanitize"]
             for line in sys.stdin:
                 request = json.loads(line)
                 with requests.open("a") as stream:
@@ -152,7 +152,8 @@ class McpDoctorBoundaryTests(unittest.TestCase):
                         result["protocolVersion"] = "PRIVATE-MARKER-protocol"
                 elif method == "tools/list":
                     result = {"tools": [{"name": name, "annotations": {
-                        "readOnlyHint": name in ("status", "transactions", "gc_plan", "cleanup_discover", "cleanup_measure", "cleanup_task_status")}}
+                        "readOnlyHint": name in ("status", "transactions", "gc_plan", "cleanup_discover", "cleanup_measure",
+                                                 "cleanup_task_status", "config_safe_view", "exfil_check", "exfil_sanitize")}}
                         for name in names]}
                     if mode == "tools":
                         result["tools"][0]["name"] = "PRIVATE-MARKER-tool"
@@ -169,6 +170,8 @@ class McpDoctorBoundaryTests(unittest.TestCase):
                             body["delete_admission"] = {"status": "BLOCKED", "reason": "PRIVATE-MARKER-admission"}
                     elif name == "transactions":
                         body = {"transactions": [{"txid": "PRIVATE-MARKER-txid"}]}
+                    elif name == "exfil_check":
+                        body = {"decision": "ALLOW", "audit": {"enabled": False, "recorded": False}}
                     else:
                         body = {"mode": "plan", "eligible": []}
                     structured = {"tool": name, "ok": True, "exit_code": 0, "result": body}
@@ -201,7 +204,7 @@ class McpDoctorBoundaryTests(unittest.TestCase):
                 self.assertEqual(result["code"], expected, result)
                 self.assertNotIn("PRIVATE-MARKER", json.dumps(result) + mcp_doctor.render(result))
 
-    def test_only_three_read_only_calls_are_sent_and_private_results_are_projected_out(self):
+    def test_safe_read_only_probes_are_sent_and_private_results_are_projected_out(self):
         result = self.diagnose_peer("stderr")
         self.assertEqual(result["status"], "PASS", result)
         self.assertGreater(result["diagnostic_stderr_bytes"], 0)
@@ -209,7 +212,8 @@ class McpDoctorBoundaryTests(unittest.TestCase):
         calls = [row["params"] for row in requests if row["method"] == "tools/call"]
         self.assertEqual(calls, [{"name": "status", "arguments": {"tail": 0}},
                                  {"name": "transactions", "arguments": {}},
-                                 {"name": "gc_plan", "arguments": {}}])
+                                 {"name": "gc_plan", "arguments": {}},
+                                 {"name": "exfil_check", "arguments": {"text": "agent-guard doctor probe", "channel": "file-write"}}])
         self.assertEqual(result["host_connection"], "UNVERIFIED")
         self.assertEqual(result["model_delivery"], "UNVERIFIED")
         self.assertNotIn("PRIVATE-MARKER", json.dumps(result) + mcp_doctor.render(result))
@@ -266,7 +270,7 @@ class McpDoctorProtocolTests(unittest.TestCase):
         self.assertEqual(self.inventory(), before)
         self.assertFalse((self.workspace / ".agent-trash").exists())
 
-    def test_real_opt_in_channel_checks_eleven_tools_without_requesting_confirmation(self):
+    def test_real_opt_in_channel_checks_fourteen_tools_without_requesting_confirmation(self):
         before = self.inventory()
         proc = subprocess.run([sys.executable, "-B", str(ROOT / "doctor.py"), "mcp",
                                "--python", MCP_PYTHON, "--workspace", str(self.workspace),

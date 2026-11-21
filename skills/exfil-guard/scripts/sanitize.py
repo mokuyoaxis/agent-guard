@@ -26,18 +26,20 @@ the current scan; they are never an authorization to bypass its verdict.
 """
 from __future__ import annotations
 
-import argparse
 import json
 import os
 import re
 import sys
+import time
 
+sys.dont_write_bytecode = True
 import _bootstrap  # noqa: F401
 
 from core import policy, redaction
 from core.redaction import get_channel, scan_text
-from _payload import (PayloadTooLarge, StdinIdle, emit_exemption_diagnostics,
-                      read_bounded_text, read_payload, resolve_context)
+from _payload import (InvalidArguments, PayloadTooLarge, SafeArgumentParser, StdinIdle,
+                      audit_result, emit_exemption_diagnostics, read_bounded_text,
+                      read_payload, resolve_context)
 
 REDACTED = "<REDACTED>"
 PATH_PLACEHOLDER = "<PATH>"
@@ -132,45 +134,59 @@ def _checked_plan(text, plan, derived):
     return expected
 
 
-def sanitize_text(text: str, channel_name: str, workspace=None,
-                  plan=None) -> dict:
+class Unscannable(RuntimeError):
+    """A scan or the rewritten payload could not be certified."""
+
+
+def _scan(text, channel, workspace, exemption):
+    try:
+        result = scan_text(text, channel=channel.name, workspace=workspace, exemption=exemption)
+    except (OSError, ValueError, RuntimeError):
+        raise Unscannable("payload could not be scanned") from None
+    if not result.scanned:
+        raise Unscannable("payload could not be scanned")
+    return result
+
+
+def sanitize_text(text: str, channel_name: str, workspace=None, plan=None) -> dict:
     """Scan + decide + apply, in one call (the library form)."""
     channel = get_channel(channel_name)
     if channel is None:
         raise ValueError("unknown egress channel")
     workspace, mode = resolve_context(workspace)
+    return _sanitize(text, channel, workspace, mode, plan)
+
+
+def _sanitize(text, channel, workspace, mode, plan, *, structured=False):
     exemption = redaction.load_exemption(workspace)
-    scan = scan_text(text, channel=channel_name, workspace=workspace,
-                     exemption=exemption)
-    if not scan.scanned:
-        raise RuntimeError("payload could not be scanned")
+    scan = _scan(text, channel, workspace, exemption)
     ctx = policy.PolicyContext(workspace=workspace or "", trash_root="",
                                base_dir=workspace or "",
                                mode=mode)
     verdicts = policy.decide_spans(scan.spans, ctx=ctx, channel=channel)
-    decision = (policy.worst(verdicts).decision if verdicts else
-                policy.DECISION_ALLOW)
+    top = policy.worst(verdicts) if verdicts else policy.Verdict(policy.DECISION_ALLOW, policy.CODE_ALLOW_NOOP)
     derived = [plan_for_span(span, channel)
                for span, verdict in zip(scan.spans, verdicts)
                if verdict.decision == policy.DECISION_SANITIZE]
-    if decision not in (policy.DECISION_ALLOW, policy.DECISION_SANITIZE):
-        return {"text": "", "plan": derived, "decision": decision,
-                "exemption": exemption.safe()}
+    result = {"text": "", "plan": derived, "decision": top.decision, "code": top.code,
+              "spans": redaction.verdict_rows(scan.spans, verdicts), "exemption": exemption.safe(),
+              "exempted": scan.exempted}
+    if top.decision not in (policy.DECISION_ALLOW, policy.DECISION_SANITIZE):
+        return result
     applied = derived if plan is None else _checked_plan(text, plan, derived)
     rewritten = apply_plan(text, applied)
-    checked = scan_text(rewritten, channel=channel_name, workspace=workspace,
-                        exemption=exemption)
-    if not checked.scanned:
-        raise RuntimeError("sanitized payload could not be scanned")
+    checked = _scan(rewritten, channel, workspace, exemption)
     remaining = policy.decide_spans(checked.spans, ctx=ctx, channel=channel)
     if remaining and policy.worst(remaining).decision != policy.DECISION_ALLOW:
-        raise RuntimeError("sanitized payload did not pass verification")
-    return {
-        "text": rewritten,
-        "plan": applied,
-        "decision": decision,
-        "exemption": exemption.safe(),
-    }
+        raise Unscannable("sanitized payload did not pass verification")
+    if structured and checked.exempted:
+        # A policy exemption is not permission to return a known secret to
+        # a JSON consumer, including a model using the MCP tool.
+        unfiltered = _scan(rewritten, channel, workspace, redaction.Exemption())
+        if any(span.family == redaction.FAMILY_SECRET for span in unfiltered.spans):
+            return {**result, "decision": policy.DECISION_BLOCK,
+                    "code": policy.CODE_BLOCK_OUTPUT_UNSCANNABLE, "plan": []}
+    return {**result, "text": rewritten, "plan": applied}
 
 
 def _unique_object(pairs):
@@ -192,41 +208,76 @@ def _read_plan(filename):
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__)
+    started = time.monotonic()
+    ap = SafeArgumentParser(description=__doc__)
     ap.add_argument("--channel", default=os.environ.get(
         "AGENT_GUARD_EXFIL_CHANNEL", "file-write"))
     ap.add_argument("--workspace", default=None)
     ap.add_argument("--plan", default=None,
                     help="read an explicit plan (JSON) instead of deriving "
                          "one; useful for replaying a check_span verdict")
-    ap.add_argument("--dry-run", action="store_true", dest="dry_run",
-                    help="print the plan, not the sanitized text")
-    args = ap.parse_args()
-
+    output = ap.add_mutually_exclusive_group()
+    output.add_argument("--dry-run", action="store_true", help="print the plan, not the sanitized text")
+    output.add_argument("--json", action="store_true", help="return a structured result and safe diagnostics")
+    ap.add_argument("--audit", action="store_true", help="record decision metadata in the shared audit log")
     try:
-        workspace, _ = resolve_context(args.workspace)
+        args = ap.parse_args()
+    except InvalidArguments:
+        return _fail("invalid arguments", True)
+
+    workspace, mode = resolve_context(args.workspace)
+    channel = get_channel(args.channel)
+    out = {"channel": channel.name if channel else None, "workspace": workspace, "mode": mode}
+    try:
         text = read_payload()
+        out["size_bytes"] = len(text.encode("utf-8"))
+        if channel is None:
+            raise Unscannable("unknown egress channel")
         plan = _read_plan(args.plan) if args.plan else None
-        result = sanitize_text(text, args.channel, workspace, plan)
-    except PayloadTooLarge:
-        print("sanitize: BLOCK [BLOCK_OUTPUT_UNSCANNABLE] input exceeds cap",
-              file=sys.stderr)
-        return 2
+        result = _sanitize(text, channel, workspace, mode, plan, structured=args.json)
+    except (PayloadTooLarge, Unscannable) as exc:
+        exit_code = 2 if args.json or isinstance(exc, PayloadTooLarge) else 1
+        out.update(decision=policy.DECISION_BLOCK, code=policy.CODE_BLOCK_OUTPUT_UNSCANNABLE,
+                   text="", spans=[], redaction_plan=[], exemption=None, exit=exit_code)
+        audit_result(out, "exfil_sanitize", "complete", started, args.audit)
+        if args.json:
+            print(json.dumps(out, ensure_ascii=True))
+        elif exit_code == 1:
+            return _fail("payload or plan validation failed", False)
+        else:
+            print("sanitize: BLOCK [BLOCK_OUTPUT_UNSCANNABLE] input exceeds cap", file=sys.stderr)
+        return exit_code
     except StdinIdle:
-        print("sanitize: no payload arrived on stdin within the wait", file=sys.stderr)
-        return 1
-    except (OSError, UnicodeError, ValueError, RuntimeError):
-        print("sanitize: payload or plan validation failed", file=sys.stderr)
-        return 1
+        return _fail("no payload arrived on stdin within the wait", args.json)
+    except (OSError, UnicodeError, ValueError, RecursionError):
+        return _fail("payload or plan validation failed", args.json)
+    exit_code = {policy.DECISION_BLOCK: 2, policy.DECISION_ASK: 3}.get(result["decision"], 0)
+    out.update(result)
+    out["redaction_plan"] = out.pop("plan")
+    out["exit"] = exit_code
+    if exit_code:
+        out.update(text="", redaction_plan=[])
+    audit_result(out, "exfil_sanitize", "complete", started, args.audit)
+    if args.json:
+        print(json.dumps(out, ensure_ascii=True))
+        return exit_code
     emit_exemption_diagnostics(result["exemption"])
-    if result["decision"] in (policy.DECISION_BLOCK, policy.DECISION_ASK):
+    if exit_code:
         print("sanitize: " + result["decision"] + " payload withheld", file=sys.stderr)
-        return 2 if result["decision"] == policy.DECISION_BLOCK else 3
+        return exit_code
     if args.dry_run:
         print(json.dumps(result["plan"], ensure_ascii=False, indent=2))
         return 0
     sys.stdout.write(result["text"])
     return 0
+
+
+def _fail(message, as_json):
+    if as_json:
+        print(json.dumps({"error": message, "exit": 1}))
+    else:
+        print("sanitize: " + message, file=sys.stderr)
+    return 1
 
 
 if __name__ == "__main__":

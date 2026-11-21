@@ -30,6 +30,7 @@ _COUNTS = frozenset({
     "target_count", "moved_count", "skipped_count", "restored_count",
     "conflict_count", "error_count", "missing_count", "moved", "skipped",
     "enumerated", "start", "end", "length",
+    "span_count", "redacted_count", "exempted_count", "omitted_span_count", "size_bytes",
 })
 _IDENTIFIERS = frozenset({"txid", "check_id", "plan_id"})
 _ID_LISTS = frozenset({"txids", "backup_txids", "purged", "missing"})
@@ -66,11 +67,12 @@ def _enums():
         "event": frozenset({
             "check", "ask", "decision", "advisory", "intent", "outcome",
             "enforce-block", "enforce-intent", "enforce-error", "enforce-proceed",
-            "restore", "gc-intent", "gc", "delete-budget-reset",
+            "restore", "gc-intent", "gc", "delete-budget-reset", "exfil-span",
         }) | {"exfil-" + decision.lower() for decision in decisions},
         "decision": decisions, "action": decisions | {"PURGED"},
         "code": frozenset(policy.EXPLANATIONS),
-        "tool": frozenset({"safe_delete", "check", "restore", "gc"}),
+        "tool": frozenset({"safe_delete", "check", "restore", "gc", "exfil_check",
+                           "exfil_sanitize", "git_pre_commit", "git_commit_msg"}),
         "phase": frozenset({"advisory", "intent", "complete"}),
         "outcome": frozenset({
             "relocated to quarantine", "deleted directly (provably regenerable)",

@@ -3,7 +3,7 @@ name: exfil-guard
 description: >-
   Disclosure discipline for AI agents. Use before text leaves the machine:
   writing files, sending model requests, posting forge comments, committing or
-  pushing, or when inspecting a JSON/dotenv config without exposing its values.
+  pushing, or when inspecting a JSON, dotenv or TOML config without exposing values.
   Scans payloads for credentials and host-identifying paths, and offers an
   explicit read-only, value-free config view.
 ---
@@ -23,8 +23,8 @@ leave?". The four pillars, restated for egress:
 - **Authorization** - `NORMAL`/`RESTRICTED` is reused. Do not weaken the
   user's rules or exemptions. Workspace configuration remains writable by
   same-UID processes; its location is not a security boundary.
-- **Auditability** - trusted callers can persist safe rule ids, offsets and
-  lengths. The text CLIs do not automatically append an egress audit.
+- **Auditability** - `--audit` opts into metadata-only decision records in
+  the development checkout. The text CLIs write no audit by default.
   Matched bytes or hashes of low-entropy secrets must not be recorded.
 
 ## The one rule
@@ -41,35 +41,47 @@ python3 <repo>/skills/exfil-guard/scripts/check_span.py --channel llm-request --
 python3 <repo>/skills/exfil-guard/scripts/sanitize.py --channel file-write < draft.md
 ```
 
-`check_span.py` reads the payload on **stdin** and is a pure function: it
-never writes, never rewrites, and never prints the match. Exit codes are the
+`check_span.py` reads the payload on **stdin** and returns verdicts and plans.
+It prints only match metadata. Exit codes are the
 contract: `0` allow/sanitize, `2` block, `3` ask, `1` error.
 
 `sanitize.py` uses the same exit codes and emits no payload on ASK/BLOCK or
 error. Both CLIs bound stdin while reading (4 MiB by default), support UTF-8,
 and resolve the same default workspace/host-side mode. The first-byte wait is
 bounded; it is not a deadline for a producer that has already started writing.
+On the development checkout, `sanitize.py --json` returns the decision, safe
+spans, plan, text and audit receipt. On `ASK` or `BLOCK`, `text` is empty and
+the plan is `[]`. `--dry-run` remains a plan-only output mode. Enable auditing
+with `--audit` or `AGENT_GUARD_EXFIL_AUDIT=1`. [Audit metadata](../../docs/guides/audit-metadata.md#opt-in-exfil-audit)
 
 ## Safe config view
 
-When you need to learn a JSON or dotenv config's shape, use the explicit
-read-only view instead of printing the file:
+Use the explicit read-only view to inspect JSON, dotenv or TOML structures.
 
 ```bash
 python3 <repo>/skills/exfil-guard/scripts/view.py --workspace <workspace> .env
 python3 <repo>/skills/exfil-guard/scripts/view.py --workspace <workspace> config.json
+python3 <repo>/skills/exfil-guard/scripts/view.py --workspace <workspace> config.toml
 ```
 
 The argument is a workspace-relative path. The JSON result contains field
 names, types, and `set`/`empty` states, **never scalar values**. Known
 secret-shaped field names are hidden too; arbitrary field names are not a
-proof of secrecy. The view accepts only small, valid UTF-8 JSON and a strict
-single-line dotenv subset. It refuses symlinks, hardlinks, special files,
+proof of secrecy. Use small, valid UTF-8 files and the supported single-line
+dotenv subset. TOML on the development checkout requires Python 3.11+.
+Earlier runtimes report `UNSUPPORTED_RUNTIME` before opening a TOML input.
+The view refuses symlinks, hardlinks, special files,
 unsafe paths, and unsupported platforms instead of falling back to a raw
 read. Exit `0` means a view was produced; `2` means refused; `1` is an
 internal error. Do not write the value-free view back over the original
 config: it is diagnostic output, not an editable copy. This CLI does not
 intercept a harness's ordinary file-read tool.
+
+The development MCP server exposes `config_safe_view`, `exfil_check`, and
+`exfil_sanitize`. Use the config view for a file before its values enter model
+context. The text tools assess drafts on an explicit channel, and do not send
+them. Git projects can separately enable the local `pre-commit` and `commit-msg`
+checks. [MCP Exfil tools](../../docs/guides/mcp.md#exfil-guard-tools) · [Git hooks](../../adapters/git/README.md)
 
 ## What you can receive
 

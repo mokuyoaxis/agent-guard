@@ -1,6 +1,6 @@
 # Local MCP tools / 本地 MCP 工具
 
-The local stdio MCP server gives a coding-agent client structured, workspace-bound tools for Delete-guard workflows—covering **direct recoverable deletion & restore** (`safe_delete`, `restore`, `transactions`, `status`, `gc_plan`), **read-only cleanup inventory** (`cleanup_discover`, `cleanup_measure`), and **reviewed batch task execution & queries** (`cleanup_plan`, `cleanup_execute`, `cleanup_task_status`, plus optional Codex confirmation when enabled by the operator). Binding the workspace, session budget, and optional startup `--trash-root` at launch prevents model tool arguments from switching buckets or bypassing limits.
+The local stdio MCP server gives a coding-agent client structured, workspace-bound tools for Delete-guard workflows—covering **direct recoverable deletion & restore** (`safe_delete`, `restore`, `transactions`, `status`, `gc_plan`), **read-only cleanup inventory** (`cleanup_discover`, `cleanup_measure`), and **reviewed batch task execution & queries** (`cleanup_plan`, `cleanup_execute`, `cleanup_task_status`, plus optional Codex confirmation when enabled by the operator). The development checkout adds [three Exfil-guard tools](#exfil-guard-tools). Binding the workspace, session budget, and optional startup `--trash-root` at launch prevents model tool arguments from switching buckets or bypassing limits.
 
 **Core boundary:** Registering MCP tools does **not** intercept native shell `rm`, custom scripts, or editor deletions that bypass the server. Keep a compatible host blocking hook active wherever automatic interception of native tool calls is required.
 
@@ -150,9 +150,8 @@ client configuration. `--timeout` bounds the diagnostic checks in seconds
 (default 30; accepted range 5–120). Closing the service process can add up to
 three seconds of process waits and one second of reader-thread waiting beyond that deadline.
 
-For a development service using custom storage, pass the same `--trash-root`
-to the doctor. It validates that binding and still calls only the original
-three read-only tools; it neither creates nor migrates the selected bucket:
+For a service using custom storage, pass the same `--trash-root` to doctor.
+It validates the binding through read-only calls and leaves the bucket intact.
 
 ```sh
 python3 -B /absolute/path/to/agent-guard/doctor.py mcp \
@@ -324,7 +323,7 @@ and same-UID boundaries remain; this server is not an OS sandbox.
 
 ## Host confirmation (0.3.0, opt-in)
 
-The default remains ten tools and operator-terminal approval. To use the
+The default is operator-terminal approval. To use the
 Codex host form, the **operator** adds `--approval-channel codex` to this
 server's startup arguments. Keep the existing workspace, quarantine and
 session binding, and reconnect the client. For example:
@@ -392,12 +391,36 @@ local control files and the existing TTY workflow do not isolate malicious
 same-UID clients. Claude, DSH and Kimi approval bridges are not enabled by
 this Codex option; their existing terminal workflow remains available.
 
-`doctor mcp --approval-channel codex` checks eleven tools with the same
-workspace/storage options. It still invokes only status, transactions and
-GC preview: host confirmation remains `UNVERIFIED`, and diagnosis creates
-neither review/request files nor approvals. Protocol tests with scripted
+The development `doctor mcp --approval-channel codex` checks fourteen tools
+with the same workspace and storage options. It probes status, transactions,
+GC preview and a benign Exfil check with auditing disabled. Host confirmation
+remains `UNVERIFIED` and diagnosis creates no approval metadata. Protocol tests with scripted
 answers are distinct from real operator/frontend acceptance; see the
 [maintenance report](../reports/test-report-maintenance-0.3.0.md).
+
+## Exfil-guard tools
+
+The development server exposes thirteen tools by default and fourteen with
+Codex confirmation. Exfil tools use the same startup workspace, quarantine,
+and session. `config_safe_view` is read-only. The text tools do not write by
+default. Their bodies travel to the local CLI over stdin.
+
+| Tool | Arguments | Result |
+|---|---|---|
+| `config_safe_view` | Workspace-relative `path`, optional `format` (`auto`, `json`, `dotenv`, `toml`) | Keys, types and value states. TOML needs Python 3.11+. A refusal returns a fixed `code` and `message`. |
+| `exfil_check` | `text`, actual egress `channel`, optional workspace-relative `path` for exemptions | Safe metadata and redaction plan. `ok: true` with `SANITIZE` requires a rewrite before sending. |
+| `exfil_sanitize` | `text` and actual egress `channel` | Allowed or rewritten text after verification. `ASK` and `BLOCK` return `ok: false` and empty text. |
+
+Text is limited to 4 MiB of UTF-8 and the allowed channels are listed in the
+tool schema. Rewrites accept no path, mode or plan overrides. Use the config
+view before any secret value reaches the model. Checking or rewriting a
+draft cannot remove secrets already in the model's context. The tools do not
+intercept other shell, editor or network actions.
+
+The operator can add `--audit-exfil` at startup. Check and sanitize then
+append decision metadata to the bound quarantine log and advertise that side
+effect with `readOnlyHint: false`. The config view stays read-only. Doctor
+always launches its own audit-disabled probe. [Audit metadata](audit-metadata.md#opt-in-exfil-audit)
 
 <a id="cleanup-observations-unreleased"></a>
 
@@ -707,9 +730,8 @@ For a timed-out saving plan call, `may_have_changed` concerns proposal metadata,
 not source deletion. Task/control files and tool results contain private paths;
 neither their raw contents nor grant tokens belong in public reports.
 
-doctor checks all ten registrations and their read-only annotations, then
-still calls only `status`, `transactions` and `gc_plan`. It does not invent
-a task, save a plan, approve or execute one. Runtime/SDK/host checks for this
+Doctor checks the registrations and their read-only annotations for the
+selected installation. It sends read-only probes. Runtime/SDK/host checks for this
 new flow include a real operator-approved 71-root protocol-client execution,
 and three model hosts' ordinary maintenance plus completed-task reads/replay.
 Codex, DSH and Kimi have since first executed separate new operator-approved
@@ -722,7 +744,8 @@ below retain their original scope.
 
 1. Confirm the interpreter starts the server and the client discovers the
    tools for that installation: five in 0.2.8, seven in published 0.2.9,
-   ten by default in 0.3.0, or eleven with the opt-in Codex confirmation channel.
+   ten by default in published 0.3.0 and 0.3.1, and thirteen in the development
+   checkout. Codex confirmation adds one tool when enabled.
    Check stderr when a dependency or executable cannot
    be found, and reconnect after changing the selected installation.
 2. Call `status`, `transactions` and `gc_plan` in a disposable project; confirm

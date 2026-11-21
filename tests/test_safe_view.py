@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from core import safe_view
 
@@ -25,6 +26,69 @@ def run_view(workspace, path, *options):
 
 
 class SafeViewTests(unittest.TestCase):
+    def test_toml_structure_values_and_sensitive_keys(self):
+        source = f'''"{SECRET}" = "{LOW_ENTROPY_SECRET}"
+"key with spaces" = "hidden"
+flags.enabled = true
+aliases = ["", "{SECRET}"]
+limits = {{ ratio = inf, other = nan, value = 23 }}
+timestamp = 2025-06-07T12:34:56Z
+calendar = 2025-06-07
+clock = 12:34:56
+[[servers]]
+name = """line one
+{LOW_ENTROPY_SECRET}"""
+'''
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp, "config.TOML")
+            target.write_text(source, encoding="utf-8")
+            proc = run_view(tmp, target.name)
+            self.assertEqual(source, target.read_text(encoding="utf-8"))
+            for secret in (SECRET, LOW_ENTROPY_SECRET, "12:34:56", "2025-06-07", "key with spaces"):
+                self.assertNotIn(secret, proc.stdout + proc.stderr)
+            if safe_view.tomllib is None:
+                self.assertEqual(proc.returncode, 2)
+                self.assertEqual(proc.stdout, "")
+                self.assertEqual(json.loads(proc.stderr)["code"], "UNSUPPORTED_RUNTIME")
+                return
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            result = json.loads(proc.stdout)
+            self.assertEqual(result["format"], "toml")
+            fields = result["view"]["fields"]
+            self.assertTrue({"<hidden-key-1>", "<hidden-key-2>"} <= fields.keys())
+            self.assertEqual(fields["flags"]["fields"]["enabled"], {"type": "boolean", "state": "set"})
+            self.assertEqual(fields["aliases"]["items"][0], {"type": "string", "state": "empty"})
+            for key in ("ratio", "other", "value"):
+                self.assertEqual(fields["limits"]["fields"][key], {"type": "number", "state": "set"})
+            for key, kind in (("timestamp", "datetime"), ("calendar", "date"), ("clock", "time")):
+                self.assertEqual(fields[key], {"type": kind, "state": "set"})
+            self.assertEqual(fields["servers"]["items"][0]["fields"]["name"]["type"], "string")
+
+    def test_toml_invalid_values_depth_and_node_errors_are_fixed(self):
+        cases = ((f'auth = "{SECRET}"\nauth = "again"\n', "INVALID_FORMAT"),
+                 (f'broken = "{SECRET}\n', "INVALID_FORMAT"),
+                 ("x = " + "[" * 17 + "0" + "]" * 17, "STRUCTURE_TOO_DEEP"),
+                 ("x = [" + "0," * safe_view.MAX_VIEW_NODES + "]", "STRUCTURE_TOO_LARGE"))
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp, "config.txt")
+            for text, code in cases:
+                with self.subTest(code=code):
+                    target.write_text(text, encoding="utf-8")
+                    proc = run_view(tmp, target.name, "--format", "toml")
+                    self.assertEqual(proc.returncode, 2)
+                    self.assertEqual(proc.stdout, "")
+                    self.assertNotIn(SECRET, proc.stderr)
+                    expected = "UNSUPPORTED_RUNTIME" if safe_view.tomllib is None else code
+                    self.assertEqual(json.loads(proc.stderr)["code"], expected)
+
+    def test_toml_older_runtime_refuses_before_read_and_checks_path_first(self):
+        with mock.patch.object(safe_view, "tomllib", None), mock.patch.object(safe_view, "_read_regular_file") as read:
+            for path, code in (("../config.toml", "INVALID_PATH"), ("config.toml", "UNSUPPORTED_RUNTIME")):
+                with self.assertRaises(safe_view.SafeViewError) as caught:
+                    safe_view.read_view("unused", path)
+                self.assertEqual(caught.exception.code, code)
+            read.assert_not_called()
+
     def test_json_structure_hides_every_scalar_and_preserves_file(self):
         with tempfile.TemporaryDirectory() as tmp:
             source = json.dumps({"auth": {"token": SECRET,

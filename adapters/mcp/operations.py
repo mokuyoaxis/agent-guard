@@ -17,13 +17,18 @@ import threading
 
 from core.cleanup_views import read_options
 from core.operation_summary import unavailable_summary
+from core import policy, redaction, safe_view
 
 ROOT = Path(__file__).resolve().parents[2]
-SCRIPTS = ROOT / "skills" / "delete-guard" / "scripts"
+DELETE_SCRIPTS = ROOT / "skills" / "delete-guard" / "scripts"
+EXFIL_SCRIPTS = ROOT / "skills" / "exfil-guard" / "scripts"
+EXFIL_PAYLOAD_TOOLS = frozenset({"exfil_check", "exfil_sanitize"})
+EXFIL_TOOLS = EXFIL_PAYLOAD_TOOLS | {"config_safe_view"}
 GROUP_TOOLS = frozenset(("cleanup_discover", "cleanup_measure"))
 TASK_TOOLS = frozenset(("cleanup_execute", "cleanup_task_status"))
 APPROVAL_TOOL = "cleanup_request_approval"
-TOOLS = frozenset(("safe_delete", "restore", "transactions", "status", "gc_plan", "cleanup_plan", APPROVAL_TOOL)) | GROUP_TOOLS | TASK_TOOLS
+TOOLS = (frozenset(("safe_delete", "restore", "transactions", "status", "gc_plan", "cleanup_plan", APPROVAL_TOOL))
+         | GROUP_TOOLS | TASK_TOOLS | EXFIL_TOOLS)
 MAX_PATHS = 1000
 TXID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*\Z")
 PLAN_ID_RE = re.compile(r"[0-9a-f]{64}\Z")
@@ -77,7 +82,7 @@ class Operations:
     """
 
     def __init__(self, workspace, *, trash_root=None, session=None, timeout=120, task_timeout=300,
-                 approval_channel="terminal"):
+                 approval_channel="terminal", audit_exfil=False):
         selected = Path(workspace).resolve(strict=True)
         if not selected.is_dir() or selected.parent == selected:
             raise ValueError("MCP workspace must be an existing non-root directory")
@@ -91,6 +96,7 @@ class Operations:
         if approval_channel not in ("terminal", "codex"):
             raise ValueError("MCP approval channel must be terminal or codex")
         self.approval_channel = approval_channel
+        self.audit_exfil = audit_exfil
         self.timeout = timeout
         # A task may use two 120-second safe_delete groups plus preflight.
         # Keep the outer dispatcher deadline distinct from a single CLI call.
@@ -121,10 +127,32 @@ class Operations:
                                     "view", "category", "path", "offset", "limit"},
                    APPROVAL_TOOL: {"saved_plan_id"},
                    "cleanup_execute": {"task_id", "view"},
-                   "cleanup_task_status": {"task_id", "view", "state", "path", "offset", "limit"}}[name]
+                   "cleanup_task_status": {"task_id", "view", "state", "path", "offset", "limit"},
+                   "config_safe_view": {"path", "format"}, "exfil_check": {"text", "channel", "path"},
+                   "exfil_sanitize": {"text", "channel"}}[name]
         if set(arguments) - allowed:
             raise InvalidArguments("unsupported tool argument")
         result = dict(arguments)
+        if name in EXFIL_TOOLS:
+            if name == "config_safe_view" or "path" in result:
+                path = result.get("path")
+                try:
+                    if not isinstance(path, str):
+                        raise safe_view.SafeViewError("INVALID_PATH")
+                    safe_view._components(path)
+                except safe_view.SafeViewError as exc:
+                    raise InvalidArguments(exc.message) from None
+            if name == "config_safe_view":
+                result.setdefault("format", "auto")
+                if result["format"] not in safe_view.FORMATS:
+                    raise InvalidArguments("unsupported config format")
+            else:
+                channel = result.get("channel")
+                if not isinstance(channel, str) or channel not in redaction.CHANNELS:
+                    raise InvalidArguments("channel must be a supported egress channel")
+                if not isinstance(result.get("text"), str):
+                    raise InvalidArguments("text must be a string")
+            return result
         if name == "cleanup_plan" or name in TASK_TOOLS:
             if any(result[key] is None for key in VIEW_FIELDS if key in result):
                 raise InvalidArguments("omit unused read controls; null is not a declared view/filter/page value")
@@ -253,9 +281,32 @@ class Operations:
             raise InvalidArguments("host approval requires the MCP request context, not a direct operation call")
         mutating = (name in ("restore", "cleanup_execute")
                     or (name == "safe_delete" and not args["dry_run"])
-                    or (name == "cleanup_plan" and args.get("save", False)))
+                    or (name == "cleanup_plan" and args.get("save", False))
+                    or (name in EXFIL_PAYLOAD_TOOLS and self.audit_exfil))
         task_id = args["task_id"] if name in TASK_TOOLS else None
-        if name == "safe_delete":
+        scripts = DELETE_SCRIPTS
+        stdin = {"stdin": subprocess.DEVNULL}
+        if name == "config_safe_view":
+            scripts = EXFIL_SCRIPTS
+            command = ["view.py", "--format", args["format"], "--", args["path"]]
+        elif name in EXFIL_PAYLOAD_TOOLS:
+            scripts = EXFIL_SCRIPTS
+            command = ["check_span.py" if name == "exfil_check" else "sanitize.py",
+                       "--json", "--channel", args["channel"]]
+            if "path" in args:
+                command.append("--path=" + args["path"])
+            if self.audit_exfil:
+                command.append("--audit")
+            payload = args["text"]
+            cap = redaction.DEFAULT_MAX_SCAN_BYTES
+            try:
+                if len(payload) > cap or len(payload.encode("utf-8")) > cap:
+                    # Feed the CLI one byte over its cap to retain the block and audit path.
+                    payload = "x" * (cap + 1)
+            except UnicodeEncodeError:
+                raise InvalidArguments("text must be valid UTF-8") from None
+            stdin = {"input": payload}
+        elif name == "safe_delete":
             paths = [os.path.normpath(os.path.join(self.workspace, path)) for path in args["paths"]]
             if self._quarantine_overlap(paths):
                 return self._failure(name, "MCP_QUARANTINE_PROTECTED",
@@ -312,11 +363,11 @@ class Operations:
         # Keep existing calls serialized. Task status reads atomically
         # replaced receipts and must not wait behind its own long execution.
         # No call changes process cwd/environment; writers share Core admission.
-        with (nullcontext() if name == "cleanup_task_status" or
+        with (nullcontext() if name in EXFIL_TOOLS or name == "cleanup_task_status" or
               (name == "status" and args["view"] == "overview") else self._lock):
             try:
-                child = subprocess.run([sys.executable, "-B", str(SCRIPTS / command[0]), *command[1:]],
-                                       cwd=self.workspace, env=self._env, stdin=subprocess.DEVNULL,
+                child = subprocess.run([sys.executable, "-B", str(scripts / command[0]), *command[1:]],
+                                       cwd=self.workspace, env=self._env, **stdin,
                                        capture_output=True, text=True, encoding="utf-8", errors="strict",
                                        timeout=self.task_timeout if name == "cleanup_execute" else self.timeout,
                                        shell=False)
@@ -332,7 +383,8 @@ class Operations:
                                      "CLI output is not valid UTF-8; inspect recovery state before retrying",
                                      may_have_changed=mutating, task_id=task_id)
         try:
-            result = json.loads(child.stdout)
+            use_stderr = name == "config_safe_view" and child.returncode == 2
+            result = json.loads(child.stderr if use_stderr else child.stdout)
         except (ValueError, RecursionError):
             return self._failure(name, "MCP_CLI_PROTOCOL_ERROR",
                                  "CLI did not return a JSON object; inspect recovery state before retrying",
@@ -341,6 +393,8 @@ class Operations:
             return self._failure(name, "MCP_CLI_PROTOCOL_ERROR",
                                  "CLI did not return a JSON object; inspect recovery state before retrying",
                                  exit_code=child.returncode, may_have_changed=mutating, task_id=task_id)
+        if name in EXFIL_TOOLS:
+            return self._exfil_response(name, child.returncode, result, mutating)
         if name == "status" and args["view"] == "overview" and child.returncode in (0, 1):
             if (result.get("schema") != "workspace_query/v1" or result.get("workspace") != self.workspace
                     or result.get("trash_root") != self.trash_root or type(result.get("complete")) is not bool):
@@ -389,6 +443,36 @@ class Operations:
             response["task_id"] = task_id
             if name == "cleanup_execute" and result.get("status") != "COMPLETED":
                 response["query"] = {"name": "cleanup_task_status", "arguments": {"task_id": task_id}}
+        return response
+
+    def _exfil_response(self, name, code, result, mutating):
+        valid = False
+        if name == "config_safe_view":
+            if code == 0:
+                valid = (result.get("status") == "ok" and result.get("format") in safe_view.FORMATS[1:]
+                         and isinstance(result.get("view"), dict))
+            elif code == 2:
+                kind, message = result.get("code"), result.get("message")
+                if isinstance(kind, str) and isinstance(message, str) and result.get("status") == "error":
+                    valid = (message in safe_view.INVALID_FORMAT_MESSAGES if kind == "INVALID_FORMAT"
+                             else safe_view.ERROR_MESSAGES.get(kind) == message)
+                if valid:
+                    result = {"status": "error", "code": kind, "message": message}
+        else:
+            expected = {0: {"ALLOW", "SANITIZE"}, 2: {"BLOCK"}, 3: {"ASK"}}
+            decision = result.get("decision")
+            valid = (isinstance(decision, str) and decision in expected.get(code, ())
+                     and result.get("workspace") == self.workspace and result.get("exit") == code
+                     and isinstance(result.get("code"), str) and result["code"] in policy.EXPLANATIONS)
+            if valid and name == "exfil_sanitize":
+                valid = (isinstance(result.get("text"), str) if code == 0 else
+                         result.get("text") == "" and result.get("redaction_plan") == [])
+        if not valid:
+            return self._failure(name, "MCP_CLI_PROTOCOL_ERROR", "Unexpected Exfil-guard response",
+                                 exit_code=code, may_have_changed=mutating)
+        response = {"tool": name, "ok": code == 0, "exit_code": code, "result": result}
+        if name == "exfil_check" and result["decision"] == "SANITIZE":
+            response["notice"] = "Redaction is required. Use exfil_sanitize before sending the text."
         return response
 
     def host_approval(self, action, saved_id, *internal_values):

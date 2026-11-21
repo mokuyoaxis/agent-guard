@@ -9,8 +9,8 @@ resolution, its compensation phase). A text payload has a different input, a
 smaller decision set (no RELOCATE/SNAPSHOT - the guard cannot rewrite what
 it did not write) and no compensation phase at all.
 
-It is a pure function of its input: it never mutates the payload and never
-writes a file, so "apply the plan" stays the caller's decision. The output
+It never mutates the payload. Pass --audit to record decision metadata.
+Applying the plan stays the caller's decision. The output
 carries offsets, rule ids and placeholders - **never the matched bytes** -
 which is why `--json` output is safe to paste into a CI log.
 
@@ -27,11 +27,12 @@ Exit codes: 0 ALLOW/SANITIZE (advisory ok) | 2 BLOCK | 3 ASK | 1 ERROR.
 """
 from __future__ import annotations
 
-import argparse
 import json
 import os
 import sys
+import time
 
+sys.dont_write_bytecode = True
 import _bootstrap  # noqa: F401
 
 from core import redaction
@@ -39,8 +40,8 @@ from core.redaction import (
     CHANNELS, UNREACHABLE_CHANNELS, get_channel, scan_text,
 )
 from core import policy
-from _payload import (PayloadTooLarge, StdinIdle, emit_exemption_diagnostics,
-                      read_payload, resolve_context)
+from _payload import (InvalidArguments, PayloadTooLarge, SafeArgumentParser, StdinIdle,
+                      audit_result, emit_exemption_diagnostics, read_payload, resolve_context)
 
 
 def build_redaction_plan(spans, decisions, channel) -> list:
@@ -55,7 +56,8 @@ def build_redaction_plan(spans, decisions, channel) -> list:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__)
+    started = time.monotonic()
+    ap = SafeArgumentParser(description=__doc__)
     ap.add_argument("--channel", default=os.environ.get(
         "AGENT_GUARD_EXFIL_CHANNEL", "file-write"),
         help="egress channel: " + ", ".join(sorted(CHANNELS)))
@@ -64,12 +66,16 @@ def main() -> int:
                          "or discovery from cwd)")
     ap.add_argument("--mode", default=None, choices=["NORMAL", "RESTRICTED"])
     ap.add_argument("--json", action="store_true", dest="as_json")
+    ap.add_argument("--audit", action="store_true", help="record decision metadata in the shared audit log")
     ap.add_argument("--max-bytes", type=int, default=None,
                     help="override the scan size cap")
     ap.add_argument("--path", default=None,
                     help="path the payload will be written to; enables the "
                          "repo-local exemption file for that path")
-    args = ap.parse_args()
+    try:
+        args = ap.parse_args()
+    except InvalidArguments:
+        return _fail("invalid arguments", True)
 
     workspace, mode = resolve_context(args.workspace, args.mode)
 
@@ -77,7 +83,7 @@ def main() -> int:
     channel = get_channel(channel_name)
 
     out = {
-        "channel": channel_name,
+        "channel": channel.name if channel else None,
         "channel_known": channel is not None,
         "channel_rewritable": bool(channel and channel.rewritable),
         "channel_persistence": channel.persistence if channel else None,
@@ -90,7 +96,7 @@ def main() -> int:
     except PayloadTooLarge:
         out.update(scanned=False, reason="payload exceeds scan cap")
         return _emit(out, policy.DECISION_BLOCK,
-                     policy.CODE_BLOCK_OUTPUT_UNSCANNABLE, [], [], args, 2)
+                     policy.CODE_BLOCK_OUTPUT_UNSCANNABLE, [], [], args, 2, started)
     except StdinIdle as exc:
         return _fail(str(exc), args.as_json)
     except (OSError, UnicodeError, ValueError):
@@ -106,21 +112,25 @@ def main() -> int:
         else:
             out["reason"] = ("unknown egress channel; expected one of: "
                              + ", ".join(sorted(CHANNELS)))
+        out["scanned"] = False
         return _emit(out, policy.DECISION_BLOCK,
-                     policy.CODE_BLOCK_OUTPUT_UNSCANNABLE, [], [], args, 2)
+                     policy.CODE_BLOCK_OUTPUT_UNSCANNABLE, [], [], args, 2, started)
 
-    scan = scan_text(text, channel=channel_name, workspace=workspace,
-                     max_bytes=args.max_bytes, path=args.path)
+    try:
+        scan = scan_text(text, channel=channel_name, workspace=workspace,
+                         max_bytes=args.max_bytes, path=args.path)
+    except (OSError, ValueError, RuntimeError):
+        out.update(scanned=False, reason="payload could not be scanned")
+        return _emit(out, policy.DECISION_BLOCK,
+                     policy.CODE_BLOCK_OUTPUT_UNSCANNABLE, [], [], args, 2, started)
     out["scanned"] = scan.scanned
     out["exempted"] = scan.exempted
     if scan.exemption_info:
         out["exemption"] = scan.exemption_info
-    if args.path:
-        out["path"] = args.path
     if not scan.scanned:
-        out["reason"] = scan.error
+        out["reason"] = "payload could not be scanned"
         return _emit(out, policy.DECISION_BLOCK,
-                     policy.CODE_BLOCK_OUTPUT_UNSCANNABLE, [], [], args, 2)
+                     policy.CODE_BLOCK_OUTPUT_UNSCANNABLE, [], [], args, 2, started)
 
     ctx = policy.PolicyContext(workspace=workspace, trash_root="",
                               base_dir=workspace, mode=mode)
@@ -133,21 +143,14 @@ def main() -> int:
                           policy.CODE_ALLOW_NOOP,
                           explanation="No secret or host path matched."))
 
-    spans_out = []
-    for span, verdict in zip(scan.spans, verdicts):
-        record = span.safe()
-        record["decision"] = verdict.decision
-        record["code"] = verdict.code
-        spans_out.append(record)
-
     plan = build_redaction_plan(scan.spans, verdicts, channel)
     exit_code = {policy.DECISION_BLOCK: 2, policy.DECISION_ASK: 3}.get(
         top.decision, 0)
-    return _emit(out, top.decision, top.code, spans_out, plan, args, exit_code,
-                 top)
+    return _emit(out, top.decision, top.code, redaction.verdict_rows(scan.spans, verdicts),
+                 plan, args, exit_code, started, top)
 
 
-def _emit(out, decision, code, spans, plan, args, exit_code,
+def _emit(out, decision, code, spans, plan, args, exit_code, started,
           top=None) -> int:
     out["decision"] = decision
     out["code"] = code
@@ -157,12 +160,13 @@ def _emit(out, decision, code, spans, plan, args, exit_code,
     out["spans"] = spans
     out["redaction_plan"] = plan
     out["exit"] = exit_code
+    audit_result(out, "exfil_check", "advisory", started, args.audit)
     if args.as_json:
         print(json.dumps(out, ensure_ascii=False, indent=2))
     else:
         emit_exemption_diagnostics(out.get("exemption", {}))
         print(f"{decision} [{code}] {len(spans)} span(s) on "
-              f"channel {out.get('channel')}")
+              f"channel {out['channel'] or '<unknown>'}")
         if out.get("explanation"):
             print(f"  {out['explanation']}")
         for span in spans:

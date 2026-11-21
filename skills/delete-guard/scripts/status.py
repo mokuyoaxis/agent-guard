@@ -271,7 +271,7 @@ def audit_tail(trash_root, n):
 
 
 DECISION_EVENTS = {"check", "enforce-block", "enforce-proceed", "ask",
-                   "decision"}
+                   "decision", "exfil-allow", "exfil-sanitize", "exfil-ask", "exfil-block"}
 
 
 def decision_stats(trash_root):

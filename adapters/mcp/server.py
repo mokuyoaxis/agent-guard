@@ -13,6 +13,9 @@ sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+from core.redaction import CHANNELS
+from core.safe_view import FORMATS
+
 SDK_VERSION = "2.3.0"
 INSTRUCTIONS = (
     "Use these tools for explicit filesystem maintenance in the server's fixed workspace. "
@@ -31,7 +34,10 @@ INSTRUCTIONS = (
     "intercept other shell or editor operations."
     " Use cleanup_discover for a bounded directory overview and cleanup_measure for explicit scopes. "
     "Their observations never grant execution permission. A successful call with partial=true "
-    "still has incomplete coverage or unknown whole sizes; inspect those fields and use exact scopes."
+    "still has incomplete coverage or unknown whole sizes; inspect those fields and use exact scopes. "
+    "Use config_safe_view to inspect configuration structure without reading values into context. "
+    "Use exfil_check or exfil_sanitize with the actual outbound channel before sending draft text. "
+    "If exfil_check returns SANITIZE, apply redaction before sending. Neither text tool sends the payload."
 )
 
 HOST_APPROVAL_INSTRUCTIONS = (
@@ -50,6 +56,23 @@ APPROVAL_FORM = {"type": "object", "properties": {
     "required": ["decision", "reviewed"]}
 
 TOOL_DEFINITIONS = {
+    "config_safe_view": {
+        "description": "Read a workspace-relative JSON, dotenv or TOML config as keys, types and set/empty states. Values stay local. TOML requires Python 3.11 or newer.",
+        "properties": {"path": {"type": "string", "minLength": 1},
+                       "format": {"type": "string", "enum": list(FORMATS), "default": "auto"}},
+        "required": ["path"], "read_only": True, "destructive": False,
+    },
+    "exfil_check": {
+        "description": "Assess a draft for the explicit egress channel. Results carry scan metadata. SANITIZE requires a rewrite before sending. Optional path is the relative destination for workspace exemptions.",
+        "properties": {"text": {"type": "string"}, "channel": {"type": "string", "enum": sorted(CHANNELS)},
+                       "path": {"type": "string", "minLength": 1}},
+        "required": ["text", "channel"], "read_only": True, "destructive": False,
+    },
+    "exfil_sanitize": {
+        "description": "Return permitted text or rewrite it and check it again for the explicit egress channel. ASK and BLOCK withhold the text. Passing a draft to this tool does not remove it from existing model context.",
+        "properties": {"text": {"type": "string"}, "channel": {"type": "string", "enum": sorted(CHANNELS)}},
+        "required": ["text", "channel"], "read_only": True, "destructive": False,
+    },
     "safe_delete": {
         "description": "Delete explicit literal paths using existing guard policy, budgets and audit. Ordinary files are quarantined with a recovery transaction; proven ignored regenerable artifacts may be permanently removed. Set quarantine=true to require quarantine for this request, including regenerable artifacts; failure never falls back to direct deletion or GC. No shell or glob expansion. Quarantine targets are refused. For large batches use cleanup_plan, operator CLI approval, then cleanup_execute(task_id). A dry_run includes result.admission with current limits/approval status and supported next steps; ok=true reports preview completion, not execution approval.",
         "properties": {"paths": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1, "maxItems": 1000},
@@ -148,6 +171,7 @@ def create_server(operations):
     import anyio
     import mcp_types as types
     from mcp.server import Server
+    from adapters.mcp.operations import EXFIL_PAYLOAD_TOOLS
 
     definitions = {name: value for name, value in TOOL_DEFINITIONS.items()
                    if name != "cleanup_request_approval" or operations.approval_channel == "codex"}
@@ -163,7 +187,8 @@ def create_server(operations):
                for name, value in definitions.items()}
     tools = [types.Tool(
         name=name, description=value["description"], input_schema=schemas[name],
-        annotations=types.ToolAnnotations(read_only_hint=value["read_only"],
+        annotations=types.ToolAnnotations(read_only_hint=(value["read_only"] and
+                                                          not (operations.audit_exfil and name in EXFIL_PAYLOAD_TOOLS)),
                                           destructive_hint=value["destructive"],
                                           idempotent_hint=False, open_world_hint=False))
         for name, value in definitions.items()]
@@ -266,12 +291,14 @@ def main(argv=None):
     parser.add_argument("--session", help="Trusted stable budget identity; omitted uses the shared CLI bucket")
     parser.add_argument("--approval-channel", choices=("terminal", "codex"), default="terminal",
                         help="Operator-selected confirmation channel; codex enables host form requests. Default: terminal")
+    parser.add_argument("--audit-exfil", action="store_true",
+                        help="Record Exfil check and rewrite decisions in the selected quarantine audit log")
     args = parser.parse_args(argv)
     from adapters.mcp.operations import Operations
 
     try:
         operations = Operations(args.workspace, trash_root=args.trash_root, session=args.session,
-                                approval_channel=args.approval_channel)
+                                approval_channel=args.approval_channel, audit_exfil=args.audit_exfil)
     except (ValueError, OSError) as exc:
         parser.error(str(exc))
     try:

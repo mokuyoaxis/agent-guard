@@ -34,6 +34,14 @@ scan facts, not to a byte-identical input fingerprint. The library returns empty
 checker retains its explicit mode/path overrides, which are not authorization
 for the sanitizer. Input and plan files are bounded UTF-8 text.
 
+In the development checkout, `sanitize.py --json` returns the structured
+result. `ASK` and `BLOCK` return an empty `text` and `redaction_plan: []`.
+Invalid arguments or plans return a fixed error and exit 1. `--dry-run` and
+`--json` are separate output modes. The JSON path withholds a payload if a
+known secret remains only because of a configured exemption. The plain-text
+CLI retains its existing exemption behavior, and the sanitizer accepts
+neither `--mode` nor `--path`.
+
 ## Reason codes
 
 | Code | Decision | Meaning |
@@ -303,17 +311,15 @@ corpus.
 
 ## Audit record shape
 
-This is a safe record shape for a trusted integration that chooses to persist
-egress evidence. `check_span.py` and `sanitize.py` do not automatically append
-these events, and cannot observe a caller declining a plan. It is not a claim
-that every egress decision has a durable record. Since RC2, shared audit
-projects supported metadata on append/read, including opaque session
-correlation and value-free source-key context. See the
-[shared audit contract](../../../docs/guides/audit-metadata.md); direct reads of
-old log bytes and other output channels remain outside that projection.
+In the development checkout, enable metadata-only records on `check_span.py`
+and `sanitize.py` with `--audit` or `AGENT_GUARD_EXFIL_AUDIT=1`. Each decision
+has one summary and up to 64 span records. The checker records an advisory
+decision. The sanitizer records whether it produced a permitted result.
+Actual transmission and a caller discarding a plan remain unobserved.
+[Shared audit contract](../../../docs/guides/audit-metadata.md#opt-in-exfil-audit)
 
 ```json
-{"event":"exfil-sanitize","rule_id":"secret/openai-key",
+{"event":"exfil-span","rule_id":"secret/openai-key",
  "confidence":"deterministic","channel":"file-write",
  "family":"secret","span":[104,151],"length":47,
  "exempted":false,"plan_id":"…","ts":"…","session":"…"}

@@ -22,7 +22,7 @@ fields: unsupported names, free text and malformed values are omitted.
 | `session` | Deterministic `sha256:<digest>` of a supplied identity; no raw username/hostname fallback |
 | `compensations` | Strategy/status labels, transaction correlation, counts and a validated Git SHA (or `null`); nested payloads are omitted |
 | `plan_reasons` | Transaction correlation mapped to `age`/`capacity` |
-| Optional exfil records | Built-in rule/channel/family/confidence labels, numeric offsets/length, `span` and `exempted`; `key=<source name>` context becomes `key` |
+| Optional Exfil records | Built-in rule/channel/family/confidence labels, numeric offsets and length, `span` and `exempted`. `key=<source name>` context becomes `key` |
 | Command/error/reasons | Only the existing `<redacted>` command marker, static `compensation failed` diagnostic and empty reasons list can remain |
 
 The full field/label set is in [core/audit.py](../../core/audit.py). Supporting
@@ -34,6 +34,29 @@ payload bodies. It is not a general recursive text sanitizer.
 the last `n` object records in bounded memory. Non-positive `n` returns an
 empty list without reading the file. It still scans the file for positive
 limits; unreadable files and invalid UTF-8 are not silently certified clean.
+
+## Opt-in Exfil audit
+
+The development checkout writes egress audit records when the operator adds
+`--audit` to `check_span.py`, `sanitize.py` or a Git hook, or sets
+`AGENT_GUARD_EXFIL_AUDIT=1` (`true` and `yes` also work). The MCP server uses
+its own trusted `--audit-exfil` startup flag. It ignores the ambient flag and
+never accepts it in tool arguments. [MCP Exfil tools](mcp.md#exfil-guard-tools)
+
+The writer appends to `audit.jsonl` in the selected quarantine. It creates
+only the parent directory and log and refuses a linked or nonregular final
+file. Each decision has an `exfil-allow`, `exfil-sanitize`, `exfil-ask` or
+`exfil-block` summary. Each `exfil-span` detail uses the same generated
+`check_id`. At most 64 spans are logged, with the remainder counted as
+`omitted_span_count`. `size_bytes` is present for a fully read input and is
+omitted on early cutoff. The log contains neither payload bytes, target paths,
+nor hashes of matched values. Git `pre-commit` records blocked entries and one
+overall summary. The workspace `status --json` counts decision summaries.
+
+An `audit` receipt reports whether the write was enabled and recorded. A
+write failure produces `AUDIT_WRITE_FAILED` and leaves the current decision
+and exit code in effect. A recorded decision describes a scan or rewrite.
+Transmission remains outside its scope.
 
 ## Correlation and visible status
 
