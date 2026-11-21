@@ -13,6 +13,12 @@ paths, usage and recovery records.
 The existing budget reset remains a separate action. See
 [operator limit settings](../guides/deletion-limits.md#configure-workspace-limits).
 
+`install_skill.py` also checks and reports `scripts/delete_policy.py` for
+`delete-guard`, supports optional `--skill exfil-guard` and
+`--skill recovery-audit` links with the same preview/backup rules, and
+`skills/exfil-guard/scripts/_bootstrap.py` resolves Core through its real path.
+See [Skill installation](../guides/skill-installation.md).
+
 ## Release automation maintenance (unversioned)
 
 The next maintenance change renders release-note links against the selected

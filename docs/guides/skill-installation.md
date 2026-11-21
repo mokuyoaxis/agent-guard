@@ -10,8 +10,9 @@ Delete-guard depends on the shared `core/` directory. Rather than copying `SKILL
 ## Install or update
 
 Select the full package root and a Skill target supported by the actual host
-version. The target must end in `delete-guard`; the helper does not guess a
-host-wide configuration location.
+version. The helper defaults to `delete-guard` and also accepts `--skill exfil-guard`
+or `--skill recovery-audit` on `main` (post-`0.3.0`); the target directory name must
+match the selected Skill, and the helper does not guess a host-wide configuration location.
 
 ```sh
 # Preview only; creates no directory or link.
@@ -19,12 +20,15 @@ python3 /absolute/path/to/agent-guard/install_skill.py --target /absolute/path/t
 
 # Apply the reviewed target within the user's authorized scope.
 python3 /absolute/path/to/agent-guard/install_skill.py --target /absolute/path/to/host-skills/delete-guard --execute
+
+# Optional: link exfil-guard or recovery-audit with the same preview/backup contract.
+python3 /absolute/path/to/agent-guard/install_skill.py --skill exfil-guard --target /absolute/path/to/host-skills/exfil-guard --json
 ```
 
 The checkout also registers `agent-guard-install-skill` as an npm bin entry.
 It requires no additional Python package. Existing directories must contain
 `SKILL.md`; unrelated targets are refused. An existing Skill directory or
-link moves to `.agent-guard-skill-backups/delete-guard-<UTC timestamp>` beside
+link moves to `.agent-guard-skill-backups/<skill-name>-<UTC timestamp>` beside
 the host's Skill directory before the new link is created. Keeping backups
 outside that search directory avoids registering a second stale Skill.
 The plan gives the exact backup path; backups have no automatic rotation.
@@ -48,8 +52,9 @@ package Core. A missing Core produces installation guidance rather than a
 bare `ModuleNotFoundError`. It does not search the workspace for arbitrary
 modules or create another copy of Core.
 
-After registration, the selected Skill contains `scripts/safe_delete.py`,
-`scripts/cleanup.py`, `scripts/restore.py` and `scripts/status.py`. The helper's
+After registration, the linked `delete-guard` Skill contains `scripts/safe_delete.py`,
+`scripts/cleanup.py`, `scripts/delete_policy.py`, `scripts/restore.py` and `scripts/status.py`
+(and linked `exfil-guard` resolves Core through its real path too). The helper's
 JSON lists those paths. You can also call the complete installation directly:
 
 ```sh

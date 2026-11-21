@@ -1,7 +1,13 @@
 """Installation preview and recovery, using owned Skill targets only."""
+from contextlib import redirect_stdout
 import errno
+import io
+import json
 import os
 from pathlib import Path
+import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -23,7 +29,12 @@ class SkillInstallationTests(unittest.TestCase):
 
     def test_preview_creates_nothing_and_same_install_is_idempotent(self):
         plan = install_skill.installation_plan(str(self.target))
+        self.assertEqual(plan["skill"], "delete-guard")
         self.assertEqual(plan["action"], "link")
+        self.assertEqual(
+            set(plan["entrypoints"]),
+            {"safe_delete", "cleanup", "delete_policy", "restore", "status"},
+        )
         self.assertFalse(self.target.parent.exists())
         install_skill.execute_plan(plan)
         self.assertTrue(self.target.is_symlink())
@@ -71,6 +82,65 @@ class SkillInstallationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "not an existing Skill"):
             install_skill.installation_plan(str(self.target))
         self.assertEqual((self.target / "important.txt").read_bytes(), b"unrelated")
+
+    def test_delete_guard_requires_delete_policy_script(self):
+        self.assertIn("scripts/delete_policy.py", install_skill.REQUIRED)
+        self.assertTrue((install_skill.SKILL / "scripts/delete_policy.py").is_file())
+
+    def test_exfil_guard_link_resolves_core_and_detached_copy_explains_setup(self):
+        exfil_target = self.directory / "host-skills/exfil-guard"
+        stdout = io.StringIO()
+        with redirect_stdout(stdout):
+            code = install_skill.main(["--skill", "exfil-guard", "--target", str(exfil_target)])
+        self.assertEqual(code, 0)
+        self.assertIn("--skill exfil-guard", stdout.getvalue())
+        self.assertFalse(exfil_target.parent.exists())
+
+        plan = install_skill.installation_plan(str(exfil_target), skill="exfil-guard")
+        self.assertEqual(plan["skill"], "exfil-guard")
+        self.assertEqual(set(plan["entrypoints"]), {"check_span", "sanitize", "view"})
+        install_skill.execute_plan(plan)
+        self.assertTrue(exfil_target.is_symlink())
+
+        completed = subprocess.run(
+            [sys.executable, "-B", plan["entrypoints"]["check_span"], "--channel", "file-write", "--json"],
+            input="ordinary text\n",
+            cwd=self.directory,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(json.loads(completed.stdout)["decision"], "ALLOW")
+
+        detached = self.directory / "detached/exfil-guard"
+        shutil.copytree(install_skill.ROOT / "skills/exfil-guard", detached)
+        failed = subprocess.run(
+            [sys.executable, "-B", str(detached / "scripts/check_span.py"), "--help"],
+            cwd=self.directory,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        self.assertNotEqual(failed.returncode, 0)
+        self.assertIn("shared Core not found", failed.stderr)
+        self.assertIn("--skill exfil-guard", failed.stderr)
+
+    def test_recovery_audit_link_and_target_name_mismatch_refusal(self):
+        recovery_target = self.directory / "host-skills/recovery-audit"
+        plan = install_skill.installation_plan(str(recovery_target), skill="recovery-audit")
+        self.assertEqual(plan["skill"], "recovery-audit")
+        self.assertEqual(plan["entrypoints"], {})
+        install_skill.execute_plan(plan)
+        self.assertTrue(recovery_target.is_symlink())
+        self.assertEqual(
+            recovery_target.resolve(),
+            (install_skill.ROOT / "skills/recovery-audit").resolve(),
+        )
+        with self.assertRaisesRegex(ValueError, "exfil-guard Skill directory"):
+            install_skill.installation_plan(str(self.target), skill="exfil-guard")
+        with self.assertRaisesRegex(ValueError, "unsupported Skill"):
+            install_skill.installation_plan(str(self.target), skill="unknown-skill")
 
 
 if __name__ == "__main__":
