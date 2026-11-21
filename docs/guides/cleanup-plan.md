@@ -136,6 +136,10 @@ read, not that it is current or complete. Generation still exits 1 for an
 incomplete scan, 2 for refusal. To change targets, options or selection,
 create a new proposal; do not combine `--from-plan` with override flags.
 
+On the development branch, `--from-plan` and `--task` also accept a unique
+lowercase ID prefix. If several records match, use a longer prefix or the
+full ID. Files, JSON output and MCP calls use the complete identifiers.
+
 Approval reloads the stored request and rescans **only its targets** before
 confirmation and once again afterward; task execution checks it again.
 Source metadata, classification, Git
@@ -159,6 +163,16 @@ approval/control metadata and returns a `task_id`; it does not move or delete
 source files or debit session counters. An agent must never allocate a PTY,
 answer confirmation, or call internal approval functions for the operator.
 Terminal confirmation is a cooperative workflow, not human authentication.
+
+On the development branch, the review lists permanent deletions first and
+quarantine moves second. Paths preserve readable Unicode and escape terminal
+controls. Sizes include the human-readable value and exact logical bytes.
+For more than 20 selected roots, the terminal groups paths by their top-level
+directory and supplies the full owner-read-only list under
+`.agent-guard/cleanup-reviews/`. Press Enter to display every selected row and
+then enter the confirmation token. The review file contains private paths.
+Workspace-wide execution places its review in a private temporary directory
+outside the scanned tree so the plan fingerprint can be checked again.
 
 The approval lasts **600 seconds** and binds the saved selection, workspace,
 quarantine, session, configuration, source metadata and planned effects.
@@ -474,6 +488,18 @@ fingerprints, so older baselines can become `DRIFTED`; review and validate
 before writing a new baseline at a new path.
 
 ## 中文摘要
+
+0.3.0 新增保存明确目标计划（`--target`／`--targets-file` 配合 `--save-plan`）、
+强制要求隔离（`--quarantine`）以及操作者批准任务（`--from-plan ID --approve`
+与 `--task ID --execute`），将操作者终端审核与 Agent 执行解耦；审批有效期 600 秒，
+不绕过保护路径、预算或容量上限。开发分支进一步优化了终端确认与 CLI 交接：确认屏
+将永久删除置顶、隔离移动次之，并同时显示可读路径、可读容量与精确逻辑字节；选中超过
+20 根时先展示顶层目录汇总并生成仅属主可读的完整清单文件（保存计划写入
+`.agent-guard/cleanup-reviews/`，旧全工作区执行写入扫描树外的私有临时目录），
+按 Enter 展开全部条目后再输入 `APPROVE` 或 `EXECUTE`；CLI 的 `--from-plan` 与
+`--task` 支持唯一小写十六进制前缀（歧义即拒绝，落盘、JSON 与 MCP 仍使用完整 ID）；
+多目标 dry-run 命中批量确认时，引导使用 MCP `cleanup_plan(save=true)` 或
+`--targets-file` 并在 `--json` 中提供精确路径数组。
 
 0.2.9 新增 `--discover` 目录概况、`--measure --scope PATH` 指定范围计量，
 并提供对应的 `cleanup_discover`／`cleanup_measure` MCP 工具；已发布 0.2.8

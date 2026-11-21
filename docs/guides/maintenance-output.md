@@ -2,7 +2,7 @@
 
 Large cleanup batches can cover hundreds or thousands of candidate paths, which quickly overwhelms both terminal output and agent context windows if printed raw on every call. Agent Guard formats Cleanup proposals, `safe_delete` receipts, `restore`, and `gc` through a shared Core output layer (`0.3.0+`; absent from `0.2.9`) so operators and agents can inspect structured **overviews** first, paginate **details** when needed, and read receipt-derived **execution summaries** after mutations.
 
-Reading these views inspects stored plans and public receipts without rescanning workspace files or changing plan IDs, admission state, or approvals. For operator authorization, terminal confirmation (`--approve`) prints and revalidates the complete selected list directly, whereas the optional [Codex host form](mcp.md#host-confirmation-030-development) displays summary counts, logical size estimates, workspace, and the `host_approval.review.file` path so the operator can open the exported complete Markdown list, review the selected targets, and confirm in the form (Core revalidates before issuing the task in both flows). Runtime checks and host acceptance are recorded in [maintenance acceptance](../reports/test-report-maintenance-0.3.0.md).
+Reading these views inspects stored plans and public receipts without rescanning workspace files or changing plan IDs, admission state, or approvals. For operator authorization, terminal confirmation (`--approve` / `--execute`) prints and revalidates the complete selected list directly—on the development branch, listing permanent deletions before quarantine moves with readable paths and exact logical bytes, and for more than 20 selected roots opening with a top-level directory summary plus a complete owner-read-only list (under `.agent-guard/cleanup-reviews/`, or a private temporary directory outside the workspace for full-workspace execution) that expands every row on Enter before accepting `APPROVE` or `EXECUTE`—whereas the optional [Codex host form](mcp.md#host-confirmation-030-development) displays summary counts, logical size estimates, workspace, and the `host_approval.review.file` path so the operator can open the exported complete Markdown list, review the selected targets, and confirm in the form (Core revalidates before issuing the task in both flows). Runtime checks and host acceptance are recorded in [maintenance acceptance](../reports/test-report-maintenance-0.3.0.md).
 
 ## Choose the amount of detail
 
@@ -12,8 +12,8 @@ Reading these views inspects stored plans and public receipts without rescanning
 | Legacy workspace execution text | Summary followed by per-row receipts | Explicit `--view summary` omits detailed rows |
 | Cleanup `--json` | `full`, retaining existing fields | `summary`, `details` |
 | New cleanup MCP tools | `summary` | plan/status: `details` or `full`; execute: `full` |
-| Restore/GC text CLI | Summary followed by full original rows | Explicit `--view summary` omits detailed rows |
-| Restore/GC `--json` | Full original fields plus `execution_summary` | `--view summary` |
+| Restore/GC text CLI | Summary followed by full original rows (dev branch: `gc.py --task`/`--txid` previews show `Selected transaction IDs`) | Explicit `--view summary` omits detailed rows |
+| Restore/GC `--json` | Full original fields plus `execution_summary` (and `selected_txids` / `task_id` on selected GC previews) | `--view summary` |
 | safe_delete | Existing fields/text plus `execution_summary` or its formatted text | Optional 0.3.0 `--quarantine` / MCP `quarantine: true` for recovery, including regenerable artifacts |
 
 The default MCP set remains ten tools; operator-enabled

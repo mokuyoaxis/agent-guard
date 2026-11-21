@@ -19,14 +19,14 @@ class UserFeedbackTests(RepoFixture):
             [sys.executable, str(SCRIPTS / script), *args], cwd=self.root,
             capture_output=True, text=True, timeout=30)
 
-    def assert_gc_guidance(self, result):
+    def assert_gc_guidance(self, result, *, txid=None):
         commands = result["gc"]
         prefix = [sys.executable, str(SCRIPTS / "gc.py")]
-        self.assertEqual(shlex.split(commands["plan_command"]), prefix)
+        self.assertEqual(shlex.split(commands["plan_command"]), prefix + (["--txid", txid] if txid else []))
         self.assertEqual(shlex.split(commands["purge_eligible_command"]),
                          prefix + ["--execute", "--all-eligible"])
         self.assertEqual(shlex.split(commands["purge_transaction_command"]),
-                         prefix + ["--execute", "--txid", "<txid>"])
+                         prefix + ["--execute", "--txid", txid or "<txid>"])
         self.assertIn("same working directory", commands["note"])
 
     def test_unrecognized_commands_keep_noop_with_honest_explanation(self):
@@ -58,13 +58,15 @@ class UserFeedbackTests(RepoFixture):
         report = json.loads(proc.stdout)
         self.assertEqual(report["verdict"]["decision"], "RELOCATE")
         self.assertIn("still use disk space", report["storage_notice"])
-        self.assert_gc_guidance(report)
+        self.assert_gc_guidance(report, txid=report["txid"])
         manifest = Path(self.root, ".agent-trash/manifest.jsonl")
         before = manifest.read_bytes()
         plan = subprocess.run(shlex.split(report["gc"]["plan_command"]) + ["--json"],
                               cwd=self.root, capture_output=True, text=True, timeout=30)
         self.assertEqual(plan.returncode, 0, plan.stderr)
-        self.assertEqual(json.loads(plan.stdout)["mode"], "plan")
+        result = json.loads(plan.stdout)
+        self.assertEqual(result["mode"], "plan")
+        self.assertEqual(result["selected_txids"], [report["txid"]])
         self.assertEqual(manifest.read_bytes(), before)
         restored = self.cli("restore.py", report["txid"])
         self.assertEqual(restored.returncode, 0, restored.stderr)
@@ -105,8 +107,8 @@ class UserFeedbackTests(RepoFixture):
         report = json.loads(proc.stdout)
         self.assertEqual(report["decision"], "ALLOW")
         self.assertIn("still use disk space", report["storage_notice"])
-        self.assert_gc_guidance(report)
         txid = report["compensations"][0]["txid"]
+        self.assert_gc_guidance(report, txid=txid)
         self.assertEqual(self.cli("restore.py", txid).returncode, 0)
         self.assertTrue(Path(self.root, "valuable.txt").is_file())
 
@@ -120,6 +122,7 @@ class UserFeedbackTests(RepoFixture):
         self.assertEqual(report["compensations"][0]["status"], "partial")
         self.assertIn("still use disk space", report["storage_notice"])
         txid = report["compensations"][0]["txid"]
+        self.assert_gc_guidance(report, txid=txid)
         self.assertEqual(self.cli("restore.py", txid).returncode, 0)
         self.assertEqual(Path(self.root, "valuable.txt").read_text(), "recover")
 

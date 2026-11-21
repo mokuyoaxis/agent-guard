@@ -122,6 +122,18 @@ Review the plan and selected transactions before choosing a purge. A manual
 5-GiB thresholds do not run GC automatically. `--execute` alone selects
 nothing; GC does not prune Git stash snapshots.
 
+On the development branch, single-transaction relocation receipts include an
+exact `--txid` in their GC preview and purge commands. You can also supply a
+unique transaction prefix to `gc.py`. If several transactions match, supply a
+longer prefix or the full ID.
+
+To work from a Cleanup task receipt, run `gc.py --task ID` first, then add
+`--execute` to purge the selected recovery copies. Use the same workspace,
+quarantine and session as the task. `ID` can be a unique task prefix. This
+selects the task's completed quarantine receipts with matching transaction
+records and skips previously purged transactions. An unresolved task or
+incomplete quarantine receipt requires inspection before explicit selection.
+
 ## Kimi: tool success and recovery feedback
 
 In the sampled Kimi 0.42.0, 2.1.1 and 2.3.0 paths, successful PreToolUse recovery

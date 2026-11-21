@@ -229,6 +229,25 @@ class GcExecuteCliTests(RepoFixture):
                      if r.get("event") == "gc"]
         self.assertEqual(gc_events[-1]["purged"], [txid])
 
+    def test_prefix_is_ambiguous_until_exact_or_unique(self):
+        engine = RecoveryEngine(self.root)
+        exact, longer = "fixture-tx", "fixture-tx-extra"
+        for path, txid in (("first.txt", exact), ("second.txt", longer)):
+            self.write(path, "owned fixture")
+            engine.relocate(specs_for(engine, [path]), txid=txid)
+        ambiguous = run("gc.py", "--execute", "--txid", "fixture-", cwd=self.root)
+        self.assertEqual(ambiguous.returncode, 1, ambiguous.stdout)
+        self.assertIn("ambiguous transaction ID prefix", ambiguous.stderr)
+        self.assertTrue(all(Path(self.root, ".agent-trash", txid).is_dir() for txid in (exact, longer)))
+        self.assertFalse(Path(self.root, ".agent-trash", AUDIT_NAME).exists())
+        preview = run("gc.py", "--json", "--txid", exact, cwd=self.root)
+        self.assertEqual(preview.returncode, 0, preview.stderr)
+        self.assertEqual(json.loads(preview.stdout)["selected_txids"], [exact])
+        purge = run("gc.py", "--json", "--execute", "--txid", "fixture-tx-e", cwd=self.root)
+        self.assertEqual(purge.returncode, 0, purge.stderr)
+        self.assertEqual(json.loads(purge.stdout)["purged"], [longer])
+        self.assertTrue(Path(self.root, ".agent-trash", exact).is_dir())
+
     def test_execute_audit_record_survives_unknown_txid(self):
         txid = self.quarantine()
         proc = run("gc.py", "--execute", "--txid", txid,

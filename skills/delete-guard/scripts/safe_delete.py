@@ -313,7 +313,7 @@ def main() -> int:
         result["skipped"] = report["skipped"]
         if report["moved"]:
             result["storage_notice"] = QUARANTINE_NOTICE
-            result["gc"] = gc_guidance(workspace, trash_root)
+            result["gc"] = gc_guidance(workspace, trash_root, txid=report["txid"])
         if report.get("storage_failure"):
             # Hard principle: capacity limits never downgrade to deletion.
             result["verdict"] = {

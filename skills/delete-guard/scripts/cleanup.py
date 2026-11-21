@@ -15,21 +15,26 @@ import sys
 sys.dont_write_bytecode = True
 
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
 import subprocess
+import tempfile
+from textwrap import indent
 
 import _bootstrap  # noqa: F401
 
 from core import classifier, recovery
 from core.cleanup import DEFAULT_MAX_DEPTH, DEFAULT_MAX_ENTRIES, plan_cleanup, select_entries
 from core.cleanup_groups import discover_groups, measure_groups
-from core.cleanup_saved import load_saved_plan, read_targets_file, refresh_saved_plan, save_plan
-from core.cleanup_tasks import TaskStateError, approve_task, execute_task, task_status
+from core.cleanup_review import FOLD_AFTER, format_review, review_path, write_review
+from core.cleanup_saved import load_saved_plan, read_targets_file, refresh_saved_plan, resolve_saved_plan_id, save_plan
+from core.cleanup_tasks import TaskStateError, approve_task, execute_task, resolve_task_id, task_status
 from core.cleanup_views import format_cleanup_view, plan_view, read_options, task_view
 from core.messages import print_gc_guidance, quarantine_command
 from core.operation_summary import execution_summary, format_execution_summary, unavailable_summary
+from core.query_text import _text
 
 
 LABELS = {"regenerable": "可再生 / regenerable", "discarded": "明确废弃 / discarded",
@@ -56,37 +61,54 @@ def print_groups(result):
     print(result["notice"])
 
 
-def print_plan(plan, *, stream=None, selected=None):
-    stream = stream or sys.stdout
-    print("Plan: " + plan["plan_id"], file=stream)
-    print("Workspace: " + json.dumps(plan["workspace"], ensure_ascii=True), file=stream)
-    print("Complete: " + str(plan["complete"]), file=stream)
+def print_plan(plan):
+    print("Plan: " + plan["plan_id"])
+    print("Workspace: " + json.dumps(plan["workspace"], ensure_ascii=True))
+    print("Complete: " + str(plan["complete"]))
     if plan["options"].get("quarantine", False):
-        print("Quarantine requested: includes regenerable artifacts; no direct deletion.", file=stream)
-    print(plan["size_notice"], file=stream)
-    rows = plan["entries"] if selected is None else selected
+        print("Quarantine requested: includes regenerable artifacts; no direct deletion.")
+    print(plan["size_notice"])
     for category, label in LABELS.items():
-        print("\n" + label + ":", file=stream)
-        for row in rows:
+        print("\n" + label + ":")
+        for row in plan["entries"]:
             if row["category"] != category:
                 continue
             size = "unknown" if row["size_bytes"] is None else str(row["size_bytes"]) + " B"
             print("  " + json.dumps(row["path"], ensure_ascii=True)
-                  + " | " + size + " | " + row["effect"] + " | " + row["reason"], file=stream)
+                  + " | " + size + " | " + row["effect"] + " | " + row["reason"])
     for error in plan["errors"]:
-        print("Scan error: " + json.dumps(error), file=stream)
+        print("Scan error: " + json.dumps(error))
     for warning in plan["warnings"]:
-        print("Warning: " + warning, file=stream)
+        print("Warning: " + warning)
 
 
 def confirm(plan, selected, *, approve_only=False):
     if not sys.stdin.isatty() or not sys.stderr.isatty():
         raise ValueError("operator confirmation requires an interactive terminal; no --yes bypass is provided")
-    print_plan(plan, stream=sys.stderr, selected=selected)
+    full = format_review(plan, selected)
+    if len(selected) > FOLD_AFTER:
+        identifier = "terminal-" + hashlib.sha256(full.encode("utf-8")).hexdigest()
+        saved = plan.get("scope") == "targets"
+        if saved:
+            path = review_path(plan["workspace"], identifier)
+        else:
+            # The workspace-wide fingerprint includes the root's directory
+            # metadata. Write its review outside the scanned tree.
+            temp_root = os.path.realpath(tempfile.gettempdir())
+            if classifier.inside_path(temp_root, plan["workspace"]):
+                raise ValueError("set the temporary directory outside the workspace or save an explicit-target plan")
+            directory = Path(tempfile.mkdtemp(prefix="agent-guard-cleanup-review-", dir=temp_root))
+            path = directory / (identifier + ".md")
+        write_review(path, "# Cleanup review\n\n" + indent(full, "    ") + "\n", ignore_in_git=saved)
+        print(format_review(plan, selected, folded=True), file=sys.stderr)
+        print("\nComplete read-only list: " + _text(path), file=sys.stderr)
+        print("Press Enter to display the full list before confirming: ", end="", file=sys.stderr, flush=True)
+        if sys.stdin.readline() not in ("\n", "\r\n"):
+            return False
+    print(full, file=sys.stderr)
     token = "APPROVE" if approve_only else "EXECUTE"
-    print("\nDelete means permanent removal; quarantine retains recovery copies and disk usage.", file=sys.stderr)
     action = "approve later execution of" if approve_only else "execute"
-    print("Type " + token + " to " + action + " this selection: ", end="", file=sys.stderr, flush=True)
+    print("\nType " + token + " to " + action + " this selection: ", end="", file=sys.stderr, flush=True)
     return sys.stdin.readline().rstrip("\r\n") == token
 
 
@@ -229,8 +251,9 @@ def main(argv=None):
     source.add_argument("--targets-file", metavar="JSON",
                         help="JSON array of literal target paths below the same workspace")
     source.add_argument("--from-plan", metavar="ID",
-                        help="view, approve or execute a saved target proposal in this workspace")
-    source.add_argument("--task", metavar="ID", help="query an approved task, or attempt it once with --execute")
+                        help="view, approve or execute a saved proposal by ID or unique prefix")
+    source.add_argument("--task", metavar="ID",
+                        help="query a task by ID or unique prefix, or attempt it once with --execute")
     parser.add_argument("--discard-targets", action="store_true",
                         help="explicitly declare every provided target discarded; not approval")
     parser.add_argument("--save-plan", action="store_true",
@@ -273,7 +296,8 @@ def main(argv=None):
                     or args.save_plan or args.max_entries is not None or args.max_depth is not None or args.quarantine):
                 raise ValueError("tasks keep the approved request; query first, then review a new proposal for unresolved targets")
             root = args.root or classifier.discover_workspace(os.getcwd())
-            result = execute_task(root, args.task) if args.execute else task_status(root, args.task)
+            task_id = resolve_task_id(root, args.task)
+            result = execute_task(root, task_id) if args.execute else task_status(root, task_id)
             task_output(result, args.json, options=view_options)
             return result["exit"]
         if args.from_plan is not None:
@@ -281,7 +305,7 @@ def main(argv=None):
                     or args.save_plan or args.max_entries is not None or args.max_depth is not None or args.quarantine):
                 raise ValueError("saved proposals keep their targets, options and selection; create a new proposal to change them")
             root = args.root or classifier.discover_workspace(os.getcwd())
-            saved = load_saved_plan(root, args.from_plan)
+            saved = load_saved_plan(root, resolve_saved_plan_id(root, args.from_plan))
             if not args.execute and not args.approve:
                 saved_plan_output(saved, args.json, options=view_options)
                 return 0

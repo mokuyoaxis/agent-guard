@@ -185,6 +185,74 @@ class MaintenanceWorkflowTests(RepoFixture):
         # A legacy advisory audit is permitted; the target itself stays intact.
         self.assertEqual(before["old.txt"], self.snapshot()["old.txt"])
 
+    def test_dry_preview_for_multiple_targets_provides_a_literal_targets_file_payload(self):
+        paths = [self.write("old a.txt", "one"), self.write("-旧件.txt", "two")]
+        self.configure(batch_max_entries=1)
+        proc = self.invoke("safe_delete", "--dry-run", "--json", "--quarantine", "--", *paths)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        following = json.loads(proc.stdout)["admission"]["next_step"]
+        self.assertEqual(following["action"], "review_cleanup_plan")
+        self.assertEqual(following["targets_file"]["contents"], paths)
+        self.assertIn("cleanup_plan(save=true)", following["message"])
+        argv = following["commands"][0]["argv"]
+        self.assertEqual(argv[-2:], ["--targets-file", following["targets_file"]["placeholder"]])
+        self.assertIn("--quarantine", argv)
+        self.assertFalse(any(arg.startswith("--target=") for arg in argv))
+        self.assertEqual(admission.describe(self.root, self.trash)["used_bytes"], 0)
+        self.assertTrue(all(Path(path).exists() for path in paths))
+
+    def test_cli_prefixes_resolve_to_full_ids_and_refuse_ambiguity(self):
+        self.write("old.txt", "synthetic payload")
+        saved = self.save("old.txt")
+        task = cleanup_tasks.approve_task(saved)
+        for option, identifier, store, field in (
+                ("--from-plan", saved["saved_plan_id"], "cleanup-plans", "saved_plan_id"),
+                ("--task", task["task_id"], "cleanup-tasks", "task_id")):
+            prefix = identifier[:8]
+            proc = self.invoke("cleanup", option, prefix, "--json")
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertEqual(json.loads(proc.stdout)[field], identifier)
+            collision = prefix + ("0" if identifier[8] != "0" else "1") + identifier[9:]
+            self.write(f".agent-guard/{store}/{collision}.json", "{}")
+            before = self.snapshot()
+            proc = self.invoke("cleanup", option, prefix, "--json", "--execute")
+            self.assertEqual(proc.returncode, 2, proc.stderr)
+            self.assertIn("ambiguous", json.loads(proc.stdout)["error"])
+            self.assertEqual(self.snapshot(), before)
+            proc = self.invoke("cleanup", option, identifier, "--json")
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+
+    def test_gc_task_preview_and_execute_select_only_the_completed_task_receipt(self):
+        self.write("old.txt", "synthetic task payload")
+        self.write("keep.txt", "other recovery transaction")
+        task = self.approved_fixture("old.txt")
+        prefix = task["task_id"][:8]
+        unresolved = self.invoke("gc", "--execute", "--task", prefix)
+        self.assertEqual(unresolved.returncode, 1)
+        self.assertIn("unresolved", unresolved.stderr)
+        other_proc = self.invoke("safe_delete", "--json", "keep.txt")
+        self.assertEqual(other_proc.returncode, 0, other_proc.stderr)
+        other = json.loads(other_proc.stdout)
+        completed = cleanup_tasks.execute_task(self.root, task["task_id"])
+        self.assertEqual(completed["status"], "COMPLETED", completed)
+        receipt = completed["groups"][0]["receipt"]
+        txid = receipt["txid"]
+        before = self.snapshot()
+        preview = self.invoke("gc", "--task", prefix, "--json", "--view", "summary")
+        self.assertEqual(preview.returncode, 0, preview.stderr)
+        selection = json.loads(preview.stdout)
+        self.assertEqual(selection["task_id"], task["task_id"])
+        self.assertEqual(selection["selected_txids"], [txid])
+        self.assertEqual(self.snapshot(), before)
+        purge = self.invoke("gc", "--execute", "--task", prefix, "--json")
+        self.assertEqual(purge.returncode, 0, purge.stderr)
+        self.assertEqual(json.loads(purge.stdout)["purged"], [txid])
+        self.assertFalse(Path(receipt["moved"][0]["trash"]).exists())
+        self.assertEqual(Path(other["moved"][0]["trash"]).read_text(), "other recovery transaction")
+        self.assertEqual(recovery.RecoveryEngine(self.root).transactions()[txid]["state"], "PURGED")
+        entries = [json.loads(line) for line in Path(self.trash, "audit.jsonl").read_text().splitlines()]
+        self.assertEqual([e["txids"] for e in entries if e["event"] == "gc-intent"], [[txid]])
+
     def test_mixed_groups_share_one_rate_event_and_replay_never_dispatches(self):
         self.configure(rate_max_operations=1)
         paths = [self.write("-old name.txt", "normal"), self.write("dist/cache.bin", "generated")]
@@ -236,6 +304,11 @@ class MaintenanceWorkflowTests(RepoFixture):
         self.assertFalse((Path(self.root) / "old.txt").exists())
         overview = workspace_query(self.root)
         self.assertEqual(overview["transactions"]["states"], {"RESTORABLE": 1})
+        before = self.snapshot()
+        gc = self.invoke("gc", "--execute", "--task", task["task_id"])
+        self.assertEqual(gc.returncode, 1)
+        self.assertIn("cleanup task is unresolved", gc.stderr)
+        self.assertEqual(self.snapshot(), before)
         with mock.patch.object(cleanup_tasks.subprocess, "run", side_effect=AssertionError("must not retry")):
             self.assertEqual(cleanup_tasks.execute_task(self.root, task["task_id"])["status"], "UNKNOWN")
 

@@ -202,11 +202,13 @@ class ExternalQuarantineTests(RepoFixture):
             argv = shlex.split(commands[name])
             self.assertEqual(argv[:3], ["env", "AGENT_GUARD_WORKSPACE=" + self.root,
                                        "AGENT_GUARD_TRASH=" + str(self.bucket)])
+        txid = deleted["result"]["txid"]
+        self.assertEqual(shlex.split(commands["purge_transaction_command"])[-2:], ["--txid", txid])
         # Only the read-only plan is invoked; never run the purge instructions.
         plan = subprocess.run([*shlex.split(commands["plan_command"]), "--json"], cwd=self.parent,
                               capture_output=True, text=True, timeout=30)
         self.assertEqual(plan.returncode, 0, plan.stderr)
-        self.assertEqual(json.loads(plan.stdout)["mode"], "plan")
+        self.assertEqual(json.loads(plan.stdout)["selected_txids"], [txid])
         self.assertFalse(Path(self.root, ".agent-trash").exists())
 
     def test_invalid_server_storage_is_rejected_before_optional_sdk(self):

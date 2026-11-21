@@ -66,6 +66,12 @@ for inspecting the window/loop. Quarantine housekeeping directs the caller
 to a GC preview. No guidance automatically resets state, splits batches,
 changes identity, answers confirmation or purges recovery copies.
 
+On the development branch, a multi-target request requiring approval points
+to MCP `cleanup_plan(save=true)` or to `cleanup.py --targets-file`. The
+dry-run JSON includes the exact literal array at
+`admission.next_step.targets_file.contents`. Write that array to a JSON file
+and replace the command's `<targets.json>` placeholder with its path.
+
 Runtime, no-debit/grant-preservation and CLI/MCP regressions passed in the
 [maintenance verification](../reports/test-report-maintenance-0.3.0.md).
 The older counts above retain their separate source checkpoint; 0.3.0

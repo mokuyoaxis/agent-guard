@@ -171,7 +171,8 @@ def main() -> int:
                     and item.get("moved", 0) > 0]
         if retained:
             out["storage_notice"] = QUARANTINE_NOTICE
-            out["gc"] = gc_guidance()
+            out["gc"] = gc_guidance(workspace, trash_root,
+                                    txid=retained[0]["txid"] if len(retained) == 1 else None)
         if args.as_json:
             print(json.dumps(out, ensure_ascii=False, indent=2))
         else:

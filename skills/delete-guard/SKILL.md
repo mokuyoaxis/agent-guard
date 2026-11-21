@@ -129,6 +129,15 @@ a PTY, auto-answer confirmation or call internal approval functions. These
 flags are absent from published 0.2.9. See
 [saved target plans](../../docs/guides/cleanup-plan.md#saved-explicit-target-plans-030-development).
 
+On the development branch, CLI `--from-plan` and `--task` also accept a unique
+lowercase ID prefix (ambiguous prefixes fail closed; files, JSON output and MCP
+calls keep complete IDs). Terminal review prints permanent deletions before
+quarantine moves with readable paths and exact logical bytes; selections with
+more than 20 roots open with a top-level directory summary and a complete
+owner-read-only review file (`.agent-guard/cleanup-reviews/`, or a private
+temporary directory outside the workspace for full-workspace execution), then
+require pressing Enter to expand every row before typing `APPROVE` or `EXECUTE`.
+
 If the selected installation actually exposes the 0.3.0 MCP
 tools, use `cleanup_plan` with literal `targets`; only `save: true` stores
 a proposal. `saved_plan_id` alone reads it without refresh. Follow the
@@ -190,6 +199,10 @@ approval requirement and `next_step`; exit 0 only means the preview completed.
 does not debit budget or consume approval, while existing dry-run auditing
 may still write metadata. Published 0.2.9 lacks this projection; see
 [preview fields and limits](../../docs/guides/deletion-limits.md#dry-run-admission-preview-030-development).
+On the development branch, multi-target `BLOCK_DELETE_BATCH_CONFIRM` guidance
+points to MCP `cleanup_plan(save=true)` or `cleanup.py --targets-file` and
+supplies the literal path array in `admission.next_step.targets_file.contents`
+when `--json` is requested.
 
 Covered deletion paths now share persistent session byte/entry budgets,
 short-window rate/repeated-target-set limits and quarantine capacity admission.
@@ -304,7 +317,11 @@ After restoration, verify that a consumed relocation shows `RESTORED`.
 If the guard reports an internal, preflight, manifest, or compensation error,
 stop immediately. Inspect both the origin and `.agent-trash/`; never infer
 that an error means no filesystem change occurred. A durable
-`relocate-intent` can keep an interrupted relocation discoverable.
+`relocate-intent` can keep an interrupted relocation discoverable. On the
+development branch, `restore.py list`, `status` and MCP queries also report
+`manual_review_items` for failed relocations without a completion record; keep
+those files and journal entries for inspection, as ordinary restore refuses
+surviving unconfirmed copies.
 
 ## Assessment and preflight
 
@@ -334,7 +351,12 @@ In 0.2.5, deletion/status results explain
 retained storage and include GC commands. Moving files to quarantine keeps
 their data on disk. Review the plan before choosing `--execute --all-eligible`
 or a specific `--execute --txid`; use the same working directory and workspace/
-trash settings. Age/size thresholds do not perform automatic cleanup.
+trash settings. Age/size thresholds do not perform automatic cleanup. On the
+development branch, single-transaction relocation receipts include the exact
+`--txid` in their GC commands, `gc.py --txid` accepts a unique transaction
+prefix, and `gc.py --task ID` previews completed quarantine receipts from a
+Cleanup task (using the same workspace, quarantine and session; add `--execute`
+only after review, and inspect unresolved tasks or incomplete receipts first).
 
 `status.py` reports local recovery data and does not verify host activation.
 DSH's status tool separately reports the plugin process startup check and

@@ -20,6 +20,7 @@ import time
 from . import TRASH_DIRNAME, admission, recovery
 from .cleanup_saved import MAX_SAVED_BYTES, _read_json, load_saved_plan, refresh_saved_plan
 from .delete_config import CONFIG_DIRECTORY, fingerprint, load_config
+from .identifiers import resolve_record_id
 
 
 SCHEMA = "cleanup_task/v1"
@@ -40,6 +41,10 @@ def _store(workspace):
     if store.resolve() != store:
         raise ValueError("the task directory must not use directory links")
     return store
+
+
+def resolve_task_id(workspace, identifier):
+    return resolve_record_id(_store(workspace), identifier, 32, "cleanup task")
 
 
 def _path(workspace, task_id):

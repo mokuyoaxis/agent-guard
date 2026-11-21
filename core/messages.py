@@ -45,6 +45,7 @@ def deletion_guidance(preview, workspace, trash_root, cwd, paths, *, quarantine=
 
     code = preview["code"]
     commands = []
+    extra = {}
     deletion_options = ["--quarantine"] if quarantine else []
     if preview["status"] == "READY":
         action = "execute_request"
@@ -58,9 +59,17 @@ def deletion_guidance(preview, workspace, trash_root, cwd, paths, *, quarantine=
                    "Inspect the saved selection, then use --from-plan ID --approve in an operator terminal. "
                    "The agent can execute or query the returned --task ID without another terminal confirmation. "
                    "Saving does not approve execution; never answer confirmation on the user's behalf.")
+        if len(paths) > 1:
+            placeholder = "<targets.json>"
+            target_args = ["--targets-file", placeholder]
+            extra["targets_file"] = {"placeholder": placeholder, "contents": list(paths)}
+            message += (" Use MCP cleanup_plan(save=true) with the literal paths, or replace "
+                        "<targets.json> with a file containing the JSON array in next_step.targets_file.contents. "
+                        "Use --json to obtain that array.")
+        else:
+            target_args = ["--target=" + path for path in paths]
         commands.append(command("Propose and save exact targets; no deletion", "cleanup.py",
-                                ["--root", workspace, "--json", "--save-plan", *deletion_options,
-                                 *("--target=" + path for path in paths)]))
+                                ["--root", workspace, "--json", "--save-plan", *deletion_options, *target_args]))
     elif code == "ALLOW_NOOP":
         action = "none"
         message = "No matching existing targets require deletion."
@@ -81,7 +90,7 @@ def deletion_guidance(preview, workspace, trash_root, cwd, paths, *, quarantine=
             message = "Stop and inspect the reported policy, source or state problem. Preserve targets and control files."
         commands.append(command("Inspect status", "status.py", ["--json", "--tail", "0"]))
     return {"action": action, "message": message, "commands": commands,
-            "cwd": cwd, "workspace": workspace, "trash_root": trash_root,
+            "cwd": cwd, "workspace": workspace, "trash_root": trash_root, **extra,
             "binding_notice": "Keep the same workspace, quarantine and session settings. Command strings use POSIX quoting; argv is structured."}
 
 
@@ -103,20 +112,20 @@ def print_admission_preview(preview):
     print(following["binding_notice"])
 
 
-def gc_guidance(workspace=None, trash_root=None):
+def gc_guidance(workspace=None, trash_root=None, *, txid=None):
     script = Path(__file__).resolve().parent.parent / "skills/delete-guard/scripts/gc.py"
     command = [sys.executable, str(script)]
     if workspace is not None and trash_root is not None:
         command = quarantine_command(command, workspace, trash_root)
     return {
-        "plan_command": shlex.join(command),
+        "plan_command": shlex.join(command + (["--txid", txid] if txid else [])),
         "purge_eligible_command": shlex.join(
             command + ["--execute", "--all-eligible"]),
         "purge_transaction_command": shlex.join(
-            command + ["--execute", "--txid", "<txid>"]),
+            command + ["--execute", "--txid", txid or "<txid>"]),
         "note": "POSIX-shell commands. Review the plan first. Run from the same working directory "
-                "with the same AGENT_GUARD_WORKSPACE / AGENT_GUARD_TRASH settings. "
-                "Replace <txid> to select one transaction.",
+                "with the same AGENT_GUARD_WORKSPACE / AGENT_GUARD_TRASH settings."
+                + (" Replace <txid> to select one transaction." if txid is None else ""),
     }
 
 

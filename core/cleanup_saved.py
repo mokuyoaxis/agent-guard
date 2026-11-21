@@ -9,6 +9,7 @@ import stat
 
 from .cleanup import _digest, plan_cleanup, select_entries
 from .delete_config import CONFIG_DIRECTORY
+from .identifiers import resolve_record_id
 
 
 SCHEMA = "cleanup_saved_plan/v1"
@@ -21,6 +22,10 @@ def _store(workspace):
     if store.resolve() != store:
         raise ValueError("the saved-plan directory must not use directory links")
     return store
+
+
+def resolve_saved_plan_id(workspace, identifier):
+    return resolve_record_id(_store(workspace), identifier, 64, "saved plan")
 
 
 def _string_list(value):

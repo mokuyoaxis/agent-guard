@@ -23,6 +23,7 @@ sys.path.insert(0, str(ROOT))
 from core import admission, recovery
 from core.cleanup import _digest
 from core.cleanup_saved import _read_json, load_saved_plan, refresh_saved_plan
+from core.cleanup_review import review_path, write_review
 from core.cleanup_tasks import approve_task, task_status
 from core.cleanup_views import read_options, task_view
 from core.delete_config import CONFIG_DIRECTORY
@@ -97,7 +98,7 @@ def _write(path, record, *, creating=False):
 def _review(saved, *, create=False):
     """Export the whole saved snapshot, never a filtered or truncated page."""
     plan = saved["plan"]
-    path = _directory(plan["workspace"], "cleanup-reviews") / (saved["saved_plan_id"] + ".md")
+    path = review_path(plan["workspace"], saved["saved_plan_id"])
     selection = set(saved["selection"])
     selected = [row for row in plan["entries"] if row["path"] in selection]
     overview = {"selected_roots": len(selected),
@@ -119,20 +120,7 @@ def _review(saved, *, create=False):
                 "```json\n" + json.dumps(header, ensure_ascii=False, indent=2)
                 + "\n```\n\n## Complete candidate list\n\n```jsonl\n"
                 + "\n".join(json.dumps(row, ensure_ascii=False) for row in rows) + "\n```\n")
-        path.parent.mkdir(parents=True, exist_ok=True)
-        ignore = path.parent / ".gitignore"
-        if not os.path.lexists(ignore):
-            with ignore.open("x", encoding="utf-8") as output:
-                output.write("*\n")
-        if os.path.lexists(path):
-            if path.is_symlink() or path.read_text(encoding="utf-8") != text:
-                raise ValueError("saved review file changed; inspect it before requesting approval")
-        else:
-            descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o400)
-            with os.fdopen(descriptor, "w", encoding="utf-8") as output:
-                output.write(text)
-                output.flush()
-                os.fsync(output.fileno())
+        write_review(path, text)
     return {"file": str(path) if path.is_file() and not path.is_symlink() else None,
             "overview": overview,
             "details": {"name": "cleanup_plan", "arguments": {

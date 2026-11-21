@@ -10,7 +10,10 @@ from .messages import QUARANTINE_NOTICE
 
 def _text(value):
     # Preserve readable Unicode while escaping terminal controls/newlines.
-    return json.dumps(str(value), ensure_ascii=False)[1:-1]
+    escaped = json.dumps(str(value), ensure_ascii=False)[1:-1]
+    return "".join(json.dumps(char)[1:-1]
+                   if unicodedata.category(char) in {"Cc", "Cf", "Cs", "Zl", "Zp"} else char
+                   for char in escaped)
 
 
 def _width(value):

@@ -2,6 +2,21 @@
 
 <a id="current-unreleased-scope"></a>
 
+## Cleanup review and quarantine handoff
+
+Terminal review lists permanent deletions before quarantine moves, with exact
+logical bytes and readable paths. Large selections have a grouped preview and
+a complete read-only review file. The terminal displays every row before the
+operator enters the existing confirmation token. See the
+[Cleanup guide](../guides/cleanup-plan.md#operator-approved-tasks-030-development).
+
+CLI plan, task and GC transaction selectors accept unique ID prefixes.
+Multi-target approval guidance provides the literal array for `--targets-file`.
+Relocation receipts include their exact GC command, and `gc.py --task ID`
+previews retained transactions from a Cleanup task for explicit GC. See
+[admission guidance](../guides/deletion-limits.md#dry-run-admission-preview-030-development)
+and [quarantine feedback](../guides/recovery-feedback.md#moving-a-file-does-not-remove-its-recovery-copy).
+
 ## Delete-guard cross-filesystem recovery
 
 Cross-filesystem moves stage copies on the destination filesystem before

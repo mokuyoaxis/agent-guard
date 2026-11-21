@@ -677,16 +677,65 @@ runpy.run_path(sys.argv[0], run_name='__main__')
                          ["synthetic-first", "synthetic-partial"])
 
     def test_confirmation_requires_exact_token_and_escapes_names(self):
-        self.write("old.txt", "valuable")
-        plan = self.plan(discard=["old.txt"])
-        selected = select_entries(plan, ["old.txt"], plan["plan_id"])
+        name = "旧件\u009b\u202e.txt"
+        self.write(name, "v" * 1048576)
+        self.write("build/generated", "synthetic output")
+        plan = self.plan(discard=[name])
+        selected = select_entries(plan, [name, "build"], plan["plan_id"])
         for text, expected in (("yes\n", False), ("EXECUTE\n", True)):
             stdin, stderr = io.StringIO(text), io.StringIO()
             stdin.isatty = lambda: True
             stderr.isatty = lambda: True
             with mock.patch.object(cli.sys, "stdin", stdin), mock.patch.object(cli.sys, "stderr", stderr):
                 self.assertEqual(cli.confirm(plan, selected), expected)
-            self.assertIn("quarantine retains", stderr.getvalue())
+            screen = stderr.getvalue()
+            self.assertIn("旧件\\u009b\\u202e.txt", screen)
+            self.assertIn("1.0 MiB (1048576 B)", screen)
+            self.assertLess(screen.index("PERMANENT DELETE"), screen.index("MOVE TO QUARANTINE"))
+
+    def test_long_confirmation_requires_expansion_and_keeps_the_complete_read_only_list(self):
+        names = [f"旧件/文件-{index:02d}" for index in range(cli.FOLD_AFTER + 1)]
+        for name in names:
+            self.write(name, "synthetic payload")
+        plan = plan_cleanup(self.root, targets=names, discard=names)
+        selected = select_entries(plan, names, plan["plan_id"])
+        for text, expected in (("APPROVE\n", False), ("\nAPPROVE\n", True)):
+            stdin, stderr = io.StringIO(text), io.StringIO()
+            stdin.isatty = stderr.isatty = lambda: True
+            with mock.patch.object(cli.sys, "stdin", stdin), mock.patch.object(cli.sys, "stderr", stderr):
+                self.assertEqual(cli.confirm(plan, selected, approve_only=True), expected)
+            screen = stderr.getvalue()
+            self.assertIn('"旧件"  |  21 selected', screen)
+            for name in names:
+                self.assertEqual(name in screen, expected)
+            self.assertEqual("Type APPROVE" in screen, expected)
+            self.assertNotIn("PERMANENT DELETE", screen)
+        review, = Path(self.root, ".agent-guard/cleanup-reviews").glob("*.md")
+        self.assertFalse(review.stat().st_mode & 0o222)
+        exported = review.read_text(encoding="utf-8")
+        for name in names:
+            self.assertIn(name, exported)
+            self.assertTrue(Path(self.root, name).exists())
+        self.assertFalse(Path(self.root, ".agent-trash").exists())
+
+    def test_long_workspace_review_preserves_the_legacy_plan_fingerprint(self):
+        import tempfile
+
+        names = [f"old-{index:02d}" for index in range(cli.FOLD_AFTER + 1)]
+        for name in names:
+            self.write(name, "synthetic payload")
+        plan = self.plan(discard=names)
+        selected = select_entries(plan, names, plan["plan_id"])
+        stdin, stderr = io.StringIO("\nEXECUTE\n"), io.StringIO()
+        stdin.isatty = stderr.isatty = lambda: True
+        with tempfile.TemporaryDirectory() as temp_root:
+            with mock.patch.object(cli.tempfile, "gettempdir", return_value=temp_root), \
+                    mock.patch.object(cli.sys, "stdin", stdin), mock.patch.object(cli.sys, "stderr", stderr):
+                self.assertTrue(cli.confirm(plan, selected))
+            review, = Path(temp_root).glob("agent-guard-cleanup-review-*/*.md")
+            self.assertIn(cli._text(review.resolve()), stderr.getvalue())
+        self.assertEqual(self.plan(discard=names)["plan_id"], plan["plan_id"])
+        self.assertFalse(Path(self.root, ".agent-guard").exists())
 
     def test_child_launch_and_protocol_errors_stop_without_losing_prior_reports(self):
         self.write("old-a", "valuable")
