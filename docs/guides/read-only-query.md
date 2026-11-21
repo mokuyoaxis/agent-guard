@@ -97,7 +97,7 @@ effort: EMPTY is not verified absence, and RESTORABLE does not verify payload
 integrity, Git snapshot availability or authorization to restore. Partial
 coverage, budget errors and unmeasured space are not converted into zeroes.
 
-On the development branch, `manual_review_items` counts failed relocation
+In 0.3.1+, `manual_review_items` counts failed relocation
 paths without a matching completion record, per transaction and across the
 overview's transactions. These entries are excluded from `restorable_items`.
 The counts are null when manifest coverage is partial. The terminal overview

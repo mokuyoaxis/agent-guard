@@ -129,7 +129,7 @@ a PTY, auto-answer confirmation or call internal approval functions. These
 flags are absent from published 0.2.9. See
 [saved target plans](../../docs/guides/cleanup-plan.md#saved-explicit-target-plans-030-development).
 
-On the development branch, CLI `--from-plan` and `--task` also accept a unique
+In 0.3.1+, CLI `--from-plan` and `--task` also accept a unique
 lowercase ID prefix (ambiguous prefixes fail closed; files, JSON output and MCP
 calls keep complete IDs). Terminal review prints permanent deletions before
 quarantine moves with readable paths and exact logical bytes; selections with
@@ -199,7 +199,7 @@ approval requirement and `next_step`; exit 0 only means the preview completed.
 does not debit budget or consume approval, while existing dry-run auditing
 may still write metadata. Published 0.2.9 lacks this projection; see
 [preview fields and limits](../../docs/guides/deletion-limits.md#dry-run-admission-preview-030-development).
-On the development branch, multi-target `BLOCK_DELETE_BATCH_CONFIRM` guidance
+In 0.3.1+, multi-target `BLOCK_DELETE_BATCH_CONFIRM` guidance
 points to MCP `cleanup_plan(save=true)` or `cleanup.py --targets-file` and
 supplies the literal path array in `admission.next_step.targets_file.contents`
 when `--json` is requested.
@@ -238,7 +238,7 @@ storage or change limits; normal restore and explicit GC remain separate.
 Portable state and TTY remain advisory against same-UID processes. See
 [defaults, accounting and limits](../../docs/guides/deletion-limits.md).
 
-### Workspace limit settings (unreleased)
+### Workspace limit settings (0.3.1)
 
 A user can ask to set a limit in plain language, such as “set this project's
 session deletion budget to 2 GiB.” Use `agent-guard-delete-policy` or the
@@ -317,8 +317,8 @@ After restoration, verify that a consumed relocation shows `RESTORED`.
 If the guard reports an internal, preflight, manifest, or compensation error,
 stop immediately. Inspect both the origin and `.agent-trash/`; never infer
 that an error means no filesystem change occurred. A durable
-`relocate-intent` can keep an interrupted relocation discoverable. On the
-development branch, `restore.py list`, `status` and MCP queries also report
+`relocate-intent` can keep an interrupted relocation discoverable. In 0.3.1+,
+`restore.py list`, `status` and MCP queries also report
 `manual_review_items` for failed relocations without a completion record; keep
 those files and journal entries for inspection, as ordinary restore refuses
 surviving unconfirmed copies.
@@ -351,8 +351,8 @@ In 0.2.5, deletion/status results explain
 retained storage and include GC commands. Moving files to quarantine keeps
 their data on disk. Review the plan before choosing `--execute --all-eligible`
 or a specific `--execute --txid`; use the same working directory and workspace/
-trash settings. Age/size thresholds do not perform automatic cleanup. On the
-development branch, single-transaction relocation receipts include the exact
+trash settings. Age/size thresholds do not perform automatic cleanup. In 0.3.1+,
+single-transaction relocation receipts include the exact
 `--txid` in their GC commands, `gc.py --txid` accepts a unique transaction
 prefix, and `gc.py --task ID` previews completed quarantine receipts from a
 Cleanup task (using the same workspace, quarantine and session; add `--execute`

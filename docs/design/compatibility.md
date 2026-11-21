@@ -5,10 +5,11 @@ stability over time—this document defines what may change and what may not per
 release class.
 
 <details>
-<summary>Active release baselines &amp; bounded maintainer exceptions (0.2.4 – 0.3.0)</summary>
+<summary>Active release baselines &amp; bounded maintainer exceptions (0.2.4 – 0.3.1)</summary>
 
 | Release | Contract scope & notes |
 |---|---|
+| **[0.3.1](../releases/release-notes-0.3.1.md)** | Cleanup terminal review formatting/folding, unique CLI ID prefixes, multi-target `--targets-file` dry-run handoff, exact-`txid` and `gc.py --task` GC guidance, staged cross-filesystem recovery (`manual_review_items`), `agent-guard-delete-policy` CLI, three-Skill installer (`--skill exfil-guard`/`recovery-audit`), and tag-pinned release verification; zero policy or manifest migration |
 | **[0.3.0](../releases/release-notes-0.3.0.md)** | Reviewed cleanup task execution/queries, optional quarantine mode, Skill symlink installer (`install_skill.py`), optional Codex native confirmation tool. Acceptance/deferred host work recorded in [test-report-maintenance-0.3.0.md](../reports/test-report-maintenance-0.3.0.md) |
 | **[0.2.9](../releases/release-notes-0.2.9.md)** | Bounded maintainer decision adding read-only Cleanup discovery/measurement schemas (`cleanup_discover`, `cleanup_measure`) and faster scans without altering mutation/policy contracts |
 | **[0.2.8](../releases/release-notes-0.2.8.md)** | Local MCP service diagnostics (`doctor mcp`) and interruption-recovery validation |

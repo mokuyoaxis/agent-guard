@@ -7,7 +7,7 @@
   <a href="https://www.npmjs.com/package/@mokuyoaxis/agent-guard"><img src="https://img.shields.io/npm/v/%40mokuyoaxis%2Fagent-guard.svg" alt="npm stable"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/mokuyoaxis/agent-guard" alt="License"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&amp;logoColor=white" alt="Python 3.9+"></a>
-  <a href="docs/releases/release-notes-0.3.0.md"><img src="https://img.shields.io/badge/notes-0.3.0-5B6B7A" alt="0.3.0 notes"></a>
+  <a href="docs/releases/release-notes-0.3.1.md"><img src="https://img.shields.io/badge/notes-0.3.1-5B6B7A" alt="0.3.1 notes"></a>
 </p>
 
 <p align="center">
@@ -44,10 +44,10 @@ Core and adapters form shared infrastructure across all three modules. After an 
 
 Core requires **Python 3.9+** and **Git** (examples assume a POSIX shell). The optional local MCP server requires **Python 3.10+** and its separately installed [pinned MCP SDK](docs/guides/mcp.md).
 
-Install the current **`0.3.0`** release into a stable, user-owned prefix:
+Install the current **`0.3.1`** release into a stable, user-owned prefix:
 
 ```sh
-npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.3.0
+npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.3.1
 ```
 
 Your package root is `/absolute/path/to/agent-guard-install/node_modules/@mokuyoaxis/agent-guard` (keep the `@mokuyoaxis/` scope). You can also run directly from a Git checkout:
@@ -57,13 +57,14 @@ git clone https://github.com/mokuyoaxis/agent-guard.git
 cd agent-guard
 ```
 
-Verify exact publication details on [GitHub Releases (`0.3.0`)](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.3.0) or [npm (`0.3.0`)](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.3.0). See [Getting started](docs/guides/getting-started.md) for offline tarball installation, upgrades, and full dependency details (including Node 22 for the optional DSH read prototype and Python 3.11+ for Kimi TOML helpers).
+Verify exact publication details on [GitHub Releases (`0.3.1`)](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.3.1) or [npm (`0.3.1`)](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.3.1). See [Getting started](docs/guides/getting-started.md) for offline tarball installation, upgrades, and full dependency details (including Node 22 for the optional DSH read prototype and Python 3.11+ for Kimi TOML helpers).
 
 <details>
-<summary>Release history & alternate channels (0.2.4 – 0.3.0)</summary>
+<summary>Release history & alternate channels (0.2.4 – 0.3.1)</summary>
 
 | Release | Key additions |
 |---|---|
+| **[0.3.1](docs/releases/release-notes-0.3.1.md)** | Cleanup terminal review overhaul (permanent-first, readable/exact sizes, >20-root summary + read-only list), unique CLI ID prefixes, multi-target `--targets-file` handoff, exact-`txid` and `gc.py --task` GC guidance, staged cross-filesystem recovery & `manual_review_items`, `agent-guard-delete-policy` CLI, three-Skill installer |
 | **[0.3.0](docs/releases/release-notes-0.3.0.md)** | Reviewed maintenance workflow (saved target plans, single-step operator approval, agent task execution/query), optional quarantine requirement, linked Skill installer, optional Codex native confirmation form |
 | **[0.2.9](docs/releases/release-notes-0.2.9.md)** | Read-only Cleanup directory overview (`--discover`) and targeted measurement (`--measure`), two read-only MCP tools, faster plan scans |
 | **[0.2.8](docs/releases/release-notes-0.2.8.md)** | Local MCP service diagnostics (`doctor.py mcp`) and protocol-interruption recovery checks |
@@ -183,7 +184,7 @@ For ongoing configuration health, `doctor.py kimi|claude --probe` and `--check-d
 | [Threat model](docs/design/threat-model.md) | Trust assumptions, attack vectors, and security-boundary upgrade paths |
 | [Compatibility](docs/design/compatibility.md) | Adapter contracts, interface guarantees, and release rules |
 | [Blue-team research](docs/research/README.md) | Defensive methods, sanitized studies, and calibration baseline |
-| [0.3.0 release notes](docs/releases/release-notes-0.3.0.md) · [0.2.9 notes](docs/releases/release-notes-0.2.9.md) | Release summaries, upgrade impacts, and verification scope |
+| [0.3.1 release notes](docs/releases/release-notes-0.3.1.md) · [0.3.0 notes](docs/releases/release-notes-0.3.0.md) | Release summaries, upgrade impacts, and verification scope |
 
 ## Contributing
 

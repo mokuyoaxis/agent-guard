@@ -5,13 +5,13 @@ Delete-guard depends on the shared `core/` directory. Rather than copying `SKILL
 通过将完整包目录中的 `skills/delete-guard` 软链接到宿主 Skill 目录，可保证指引文档、Core 核心与 Cleanup 脚本始终指向同一版本，避免零散复制导致依赖缺失。
 
 > [!NOTE]
-> The symlink installer (`install_skill.py`) and real-path Core bootstrap were introduced in [**0.3.0**](../releases/release-notes-0.3.0.md) (absent from `0.2.9`). Installing or updating a Skill link does not automatically migrate existing global Skills, host settings, or older development archives (see [acceptance scope](../reports/test-report-maintenance-0.3.0.md)).
+> The symlink installer (`install_skill.py`) and real-path Core bootstrap were introduced in [**0.3.0**](../releases/release-notes-0.3.0.md) (absent from `0.2.9`), and extended in [**0.3.1**](../releases/release-notes-0.3.1.md) to support `--skill exfil-guard` / `--skill recovery-audit` and real-path Core bootstrap for `exfil-guard`. Installing or updating a Skill link does not automatically migrate existing global Skills, host settings, or older development archives (see [acceptance scope](../reports/test-report-maintenance-0.3.0.md)).
 
 ## Install or update
 
 Select the full package root and a Skill target supported by the actual host
 version. The helper defaults to `delete-guard` and also accepts `--skill exfil-guard`
-or `--skill recovery-audit` on `main` (post-`0.3.0`); the target directory name must
+or `--skill recovery-audit` in `0.3.1+`; the target directory name must
 match the selected Skill, and the helper does not guess a host-wide configuration location.
 
 ```sh

@@ -7,7 +7,7 @@
   <a href="https://www.npmjs.com/package/@mokuyoaxis/agent-guard"><img src="https://img.shields.io/npm/v/%40mokuyoaxis%2Fagent-guard.svg" alt="npm 稳定版"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/mokuyoaxis/agent-guard" alt="License"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&amp;logoColor=white" alt="Python 3.9+"></a>
-  <a href="docs/releases/release-notes-0.3.0.md"><img src="https://img.shields.io/badge/notes-0.3.0-5B6B7A" alt="0.3.0 说明"></a>
+  <a href="docs/releases/release-notes-0.3.1.md"><img src="https://img.shields.io/badge/notes-0.3.1-5B6B7A" alt="0.3.1 说明"></a>
 </p>
 
 <p align="center">
@@ -43,10 +43,10 @@ Core 与适配器构成上述模块的共享底座。若事故已经发生，可
 
 Core 需要 **Python 3.9+** 与 **Git**（示例默认使用 POSIX Shell）。可选本地 MCP 适配器需要 **Python 3.10+** 及单独安装的[固定版本 MCP SDK](docs/guides/mcp.md)。
 
-将当前稳定版 **`0.3.0`** 安装到长期保留的用户目录：
+将当前稳定版 **`0.3.1`** 安装到长期保留的用户目录：
 
 ```sh
-npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.3.0
+npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.3.1
 ```
 
 安装后的包根目录为 `/absolute/path/to/agent-guard-install/node_modules/@mokuyoaxis/agent-guard`（请保留 `@mokuyoaxis/` 作用域）。也可以直接使用源码仓库：
@@ -56,13 +56,14 @@ git clone https://github.com/mokuyoaxis/agent-guard.git
 cd agent-guard
 ```
 
-具体发行资产可在 [GitHub Release (`0.3.0`)](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.3.0) 与 [npm (`0.3.0`)](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.3.0) 查看。离线 tarball 安装、版本升级及扩展运行要求（如可选 DSH 读取原型需 Node 22、Kimi TOML 辅助需 Python 3.11+）见[入门指南](docs/guides/getting-started.md)。
+具体发行资产可在 [GitHub Release (`0.3.1`)](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.3.1) 与 [npm (`0.3.1`)](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.3.1) 查看。离线 tarball 安装、版本升级及扩展运行要求（如可选 DSH 读取原型需 Node 22、Kimi TOML 辅助需 Python 3.11+）见[入门指南](docs/guides/getting-started.md)。
 
 <details>
-<summary>版本演进与可选通道（0.2.4 – 0.3.0）</summary>
+<summary>版本演进与可选通道（0.2.4 – 0.3.1）</summary>
 
 | 版本 | 核心变更 |
 |---|---|
+| **[0.3.1](docs/releases/release-notes-0.3.1.md)** | Cleanup 终端确认屏重构（永久删除置顶、可读/精确容量、超 20 根目录汇总与只读清单）、CLI 唯一短前缀 ID、多目标 `--targets-file` 引导、精确 `txid` 与 `gc.py --task` 清理、跨文件系统暂存恢复与 `manual_review_items`、`agent-guard-delete-policy` 额度 CLI、三套 Skill 安装器 |
 | **[0.3.0](docs/releases/release-notes-0.3.0.md)** | 审核后批量维护工作流（保存明确目标计划、操作者单次批准、Agent 按任务 ID 执行与查询）、可选强制隔离、linked Skill 安装器、可选 Codex 原生确认表单 |
 | **[0.2.9](docs/releases/release-notes-0.2.9.md)** | Cleanup 只读目录概况（`--discover`）与选定范围计量（`--measure`）、两项只读 MCP 工具、计划扫描性能优化 |
 | **[0.2.8](docs/releases/release-notes-0.2.8.md)** | 本地 MCP 连接诊断（`doctor.py mcp`）与协议中断恢复核验 |
@@ -181,7 +182,7 @@ python3 docs/lab/examples/blue-team-calibration.py --output-dir "$blue_run/contr
 | [威胁模型](docs/design/threat-model.md) | 同权限假设、攻击面与向内核隔离演进的路径 |
 | [兼容契约](docs/design/compatibility.md) | 适配器接口约定与版本兼容边界 |
 | [蓝队研究](docs/research/README.md) | 防守实验方法、去敏报告与零模型校准基线 |
-| [0.3.0 发布说明](docs/releases/release-notes-0.3.0.md) · [0.2.9 说明](docs/releases/release-notes-0.2.9.md) | 版本功能汇总、升级影响与验收范围 |
+| [0.3.1 发布说明](docs/releases/release-notes-0.3.1.md) · [0.3.0 说明](docs/releases/release-notes-0.3.0.md) | 版本功能汇总、升级影响与验收范围 |
 
 ## 参与贡献
 

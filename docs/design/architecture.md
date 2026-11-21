@@ -261,7 +261,7 @@ FORBIDDEN (BLOCK, never askable).
    in a separate transaction. Preservation failure stops that item; the result
    lists preservation attempts in optional `backup_txids`. Quarantine roots,
    aliases and ancestor paths cannot themselves be moved for preservation.
-   On the development branch, cross-filesystem copies are staged next to
+   In 0.3.1+, cross-filesystem copies are staged next to
    the destination and renamed into place after copying completes.
    Relocation records the completed copy before clearing the source.
    An interruption can leave a complete copy and source data at both paths.
@@ -330,7 +330,7 @@ order of value:
 
 ## Implementation status and design directions
 
-Core enforcement primitives, cleanup planning, and controlled Lab calibration are implemented and tracked per release tag—see [compatibility](compatibility.md) and [0.3.0 release notes](../releases/release-notes-0.3.0.md) for versioned contracts and upgrade rules, and [changes and maintenance details](../releases/unreleased.md) for current post-release work on `main`.
+Core enforcement primitives, cleanup planning, and controlled Lab calibration are implemented and tracked per release tag—see [compatibility](compatibility.md), [0.3.1 release notes](../releases/release-notes-0.3.1.md), and [0.3.0 release notes](../releases/release-notes-0.3.0.md) for versioned contracts and upgrade rules, and [changes and maintenance details](../releases/unreleased.md) for maintenance history.
 
 ### Shipped foundation and active boundaries
 

@@ -21,7 +21,7 @@ Core and host adapters provide shared infrastructure, while [recovery-audit](../
 | [Lab](#lab) / 防守验测 | 校准流程、任务模板与示例 |
 | [Research](#research) / 防守研究 | 来源、发送授权、父子代理与任务效用研究 |
 | [Reports](#reports) / 测试报告 | 按宿主与版本记录的实测证据与已知缺口 |
-| [Releases](#releases) / 发布记录 | `0.3.0` 与各历史发行说明（当前主线维护见[变更摘要](releases/unreleased.md)） |
+| [Releases](#releases) / 发布记录 | `0.3.1` 与各历史发行说明（当前主线维护见[变更摘要](releases/unreleased.md)） |
 | [History](#history) / 历史设计与经验 | 早期设计方案、实现教训与事故记录 |
 
 ## Guides
@@ -119,6 +119,7 @@ coverage rather than treating every historical result as current acceptance.
 
 | Document / 文档 | Scope / 范围 |
 |---|---|
+| [0.3.1](releases/release-notes-0.3.1.md) | Cleanup 确认屏与短前缀、精确/任务 GC、跨文件系统暂存恢复、工作区额度设置 CLI 与三套 Skill 安装 |
 | [0.3.0](releases/release-notes-0.3.0.md) | 保存清理任务、批准与执行交接、Codex原生表单及升级边界；安装前核实精确版本渠道 |
 | [0.2.9](releases/release-notes-0.2.9.md) | 目录概况／计量、两只读 MCP 工具、扫描提速与语料门修复 |
 | [0.2.8](releases/release-notes-0.2.8.md) | MCP 接入诊断、真实协议中断验证、安装与验收边界 |

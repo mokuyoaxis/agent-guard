@@ -2,6 +2,11 @@
 
 <a id="current-unreleased-scope"></a>
 
+The maintenance sections below ship in **[0.3.1](release-notes-0.3.1.md)**
+(absent from published `0.3.0`). Before registry installation, verify the exact
+[GitHub Release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.3.1)
+and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.3.1).
+
 ## Cleanup review and quarantine handoff
 
 Terminal review lists permanent deletions before quarantine moves, with exact
@@ -45,15 +50,15 @@ The existing budget reset remains a separate action. See
 `skills/exfil-guard/scripts/_bootstrap.py` resolves Core through its real path.
 See [Skill installation](../guides/skill-installation.md).
 
-## Release automation maintenance (unversioned)
+## Release automation maintenance (0.3.1)
 
-The next maintenance change renders release-note links against the selected
+Release automation renders release-note links against the selected
 tag without editing their source, then independently checks the published
 GitHub/npm versions, intended channel and archive bytes. Bounded read-only
 polling distinguishes unavailable data, read errors and content mismatches;
 fixed summaries and attempt evidence survive failed verification.
 
-These repository helpers do not change package version 0.3.0 or publish a new
+These repository helpers do not by themselves authorize a tag or publish a new
 release. Installation, model/MCP runtime and cryptographic signature audits
 retain their separate scope. See the [release workflow](../guides/release-process.md).
 

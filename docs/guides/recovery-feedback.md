@@ -3,7 +3,7 @@
 Clear operational feedback helps operators and coding agents tell three things apart: whether local adapter wiring initialized properly, what a guard verdict actually proves, and whether quarantined recovery copies still occupy disk. This guide covers status diagnostics (`agent_guard_status`, `doctor`), what `ALLOW_NOOP` does and does not guarantee, quarantine storage notices and manual GC, and optional Kimi Stop recovery feedback.
 
 > [!NOTE]
-> **Version scope:** Core CLI/DSH storage and `ALLOW_NOOP` diagnostics landed in `0.2.5`, Kimi Stop feedback in `0.2.6`, and receipt-derived [execution summaries](maintenance-output.md#fixed-execution-summaries) plus bounded [`status` overviews](read-only-query.md) (`--view overview`, preserving legacy `--json` defaults without adding a UI panel) in **`0.3.0`**. See [maintenance acceptance](../reports/test-report-maintenance-0.3.0.md#regression-and-package-checkpoints) for recorded checks.
+> **Version scope:** Core CLI/DSH storage and `ALLOW_NOOP` diagnostics landed in `0.2.5`, Kimi Stop feedback in `0.2.6`, receipt-derived [execution summaries](maintenance-output.md#fixed-execution-summaries) plus bounded [`status` overviews](read-only-query.md) (`--view overview`, preserving legacy `--json` defaults without adding a UI panel) in **`0.3.0`**, and staged cross-filesystem recovery (`manual_review_items`), exact-`txid` GC commands, unique prefixes, and `gc.py --task ID` in **`0.3.1`**. See [maintenance acceptance](../reports/test-report-maintenance-0.3.0.md#regression-and-package-checkpoints) and [0.3.1 notes](../releases/release-notes-0.3.1.md) for recorded checks.
 >
 > **Reading `0.3.0` summaries:** Explicit `--view summary` omits per-row receipt details (capture full output on the initial call if you need row-level records rather than re-running a mutation), missing receipts remain labeled unknown, GC inventory is best effort, and summaries never claim unmeasured physical disk space reclaimed.
 
@@ -77,7 +77,7 @@ checks and `safe_delete` also report retained data after a partial relocation,
 including a storage failure after some files moved. The failed decision stays
 unchanged; both JSON and terminal output include the recovery transaction ID.
 
-On the development branch, a cross-filesystem relocation records the completed
+In 0.3.1+, a cross-filesystem relocation records the completed
 quarantine copy before it clears the source. A source-cleanup error reports a
 partial failure and the same transaction ID. A complete copy remains available
 for recovery, and ordinary restore checks for an occupant at the origin.
@@ -122,7 +122,7 @@ Review the plan and selected transactions before choosing a purge. A manual
 5-GiB thresholds do not run GC automatically. `--execute` alone selects
 nothing; GC does not prune Git stash snapshots.
 
-On the development branch, single-transaction relocation receipts include an
+In 0.3.1+, single-transaction relocation receipts include an
 exact `--txid` in their GC preview and purge commands. You can also supply a
 unique transaction prefix to `gc.py`. If several transactions match, supply a
 longer prefix or the full ID.

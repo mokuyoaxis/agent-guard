@@ -5,7 +5,7 @@ Cleanup Copilot (`cleanup.py` / `agent-guard-cleanup`) helps you clean stale bui
 During **default planning and discovery**, Cleanup Copilot inspects workspace metadata strictly **read-only**—it does not modify source files, write audit or quarantine metadata, create Git excludes, or emit Python bytecode (unlike advisory `safe_delete --dry-run`, whose metadata side effects are documented in the [policy reference](../../skills/delete-guard/references/policy.md#assessment-and-dry-run-side-effects)). Persisting a proposal with `--save-plan` writes `.agent-guard/cleanup-plans/<saved-plan-id>.json`, and confirming it with `--approve` writes task control metadata under `.agent-guard/cleanup-tasks/<task-id>.json`; neither step moves workspace files or debits session deletion budgets until execution.
 
 > [!NOTE]
-> Cleanup Copilot arrived in `0.2.7` (absent from `0.2.6`), adding read-only directory discovery/measurement (`--discover`, `--measure`) in `0.2.9`, and saved target plans, `--quarantine` preservation requests, operator-approved task IDs, and [overview/detail output views](maintenance-output.md) in **`0.3.0`**. Default text planning prints an overview (`--json` retains full fields unless `--view summary|details` is set); terminal confirmation still prints and revalidates the complete selection before execution. See the [0.3.0 acceptance report](../reports/test-report-maintenance-0.3.0.md).
+> Cleanup Copilot arrived in `0.2.7` (absent from `0.2.6`), adding read-only directory discovery/measurement (`--discover`, `--measure`) in `0.2.9`, saved target plans, `--quarantine` preservation requests, operator-approved task IDs, and [overview/detail output views](maintenance-output.md) in **`0.3.0`**, and upgraded terminal review formatting/folding plus unique CLI ID prefixes in **`0.3.1`**. Default text planning prints an overview (`--json` retains full fields unless `--view summary|details` is set); terminal confirmation still prints and revalidates the complete selection before execution. See the [0.3.0 acceptance report](../reports/test-report-maintenance-0.3.0.md) and [0.3.1 notes](../releases/release-notes-0.3.1.md).
 
 <a id="require-quarantine-030-development"></a>
 
@@ -136,7 +136,7 @@ read, not that it is current or complete. Generation still exits 1 for an
 incomplete scan, 2 for refusal. To change targets, options or selection,
 create a new proposal; do not combine `--from-plan` with override flags.
 
-On the development branch, `--from-plan` and `--task` also accept a unique
+In 0.3.1+, `--from-plan` and `--task` also accept a unique
 lowercase ID prefix. If several records match, use a longer prefix or the
 full ID. Files, JSON output and MCP calls use the complete identifiers.
 
@@ -164,7 +164,7 @@ source files or debit session counters. An agent must never allocate a PTY,
 answer confirmation, or call internal approval functions for the operator.
 Terminal confirmation is a cooperative workflow, not human authentication.
 
-On the development branch, the review lists permanent deletions first and
+In 0.3.1+, the review lists permanent deletions first and
 quarantine moves second. Paths preserve readable Unicode and escape terminal
 controls. Sizes include the human-readable value and exact logical bytes.
 For more than 20 selected roots, the terminal groups paths by their top-level
@@ -492,7 +492,7 @@ before writing a new baseline at a new path.
 0.3.0 新增保存明确目标计划（`--target`／`--targets-file` 配合 `--save-plan`）、
 强制要求隔离（`--quarantine`）以及操作者批准任务（`--from-plan ID --approve`
 与 `--task ID --execute`），将操作者终端审核与 Agent 执行解耦；审批有效期 600 秒，
-不绕过保护路径、预算或容量上限。开发分支进一步优化了终端确认与 CLI 交接：确认屏
+不绕过保护路径、预算或容量上限。0.3.1 进一步优化了终端确认与 CLI 交接：确认屏
 将永久删除置顶、隔离移动次之，并同时显示可读路径、可读容量与精确逻辑字节；选中超过
 20 根时先展示顶层目录汇总并生成仅属主可读的完整清单文件（保存计划写入
 `.agent-guard/cleanup-reviews/`，旧全工作区执行写入扫描树外的私有临时目录），

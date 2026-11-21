@@ -11,7 +11,7 @@ Delete-guard enforces shared execution-time admission controls across `safe_dele
 Limits apply per workspace root via `.agent-guard/delete-policy.json` (falling back to built-in defaults for omitted keys). 删除准入控制按工作区根目录生效，未显式设置的字段自动沿用内置默认值。
 
 > [!NOTE]
-> Shared deletion admission arrived in [**0.2.7**](../releases/release-notes-0.2.7.md) (deployments on `0.2.6` and earlier retain only soft retention and manual GC). Version [**0.3.0**](../releases/release-notes-0.3.0.md) adds dry-run `admission` previews, `--quarantine` preservation requests, and approved-task accounting; historical validation checkpoints and host test scope remain recorded in the [0.2.7 notes](../releases/release-notes-0.2.7.md) and [0.3.0 acceptance report](../reports/test-report-maintenance-0.3.0.md).
+> Shared deletion admission arrived in [**0.2.7**](../releases/release-notes-0.2.7.md) (deployments on `0.2.6` and earlier retain only soft retention and manual GC). Version [**0.3.0**](../releases/release-notes-0.3.0.md) adds dry-run `admission` previews, `--quarantine` preservation requests, and approved-task accounting, and [**0.3.1**](../releases/release-notes-0.3.1.md) adds `agent-guard-delete-policy`, conditional dry-run phrasing, and multi-target `--targets-file` handoff; historical validation checkpoints and host test scope remain recorded in the [0.2.7 notes](../releases/release-notes-0.2.7.md) and [0.3.0 acceptance report](../reports/test-report-maintenance-0.3.0.md).
 
 <a id="dry-run-admission-preview-030-development"></a>
 
@@ -19,7 +19,7 @@ Limits apply per workspace root via `.agent-guard/delete-policy.json` (falling b
 
 Version **0.3.0** adds `admission` to `safe_delete --dry-run` JSON and terminal output (absent from `0.2.9`). While `verdict` remains the static policy projection, `admission` evaluates live execution checks and reports the first applicable refusal in order.
 
-On `main` (post-`0.3.0` wording correction), relocation and regenerable-deletion previews use conditional phrasing—stating what *would* move or be deleted without implying that disk state changed; published `0.3.0` tarballs may still print past-tense phrasing during dry runs. Always read `dry_run`, the execution summary, and `admission` together: the policy code alone does not prove execution or approval.
+In `0.3.1+`, relocation and regenerable-deletion previews use conditional phrasing—stating what *would* move or be deleted without implying that disk state changed; published `0.3.0` tarballs may still print past-tense phrasing during dry runs. Always read `dry_run`, the execution summary, and `admission` together: the policy code alone does not prove execution or approval.
 
 | `admission.status` | Meaning |
 |---|---|
@@ -66,7 +66,7 @@ for inspecting the window/loop. Quarantine housekeeping directs the caller
 to a GC preview. No guidance automatically resets state, splits batches,
 changes identity, answers confirmation or purges recovery copies.
 
-On the development branch, a multi-target request requiring approval points
+In 0.3.1+, a multi-target request requiring approval points
 to MCP `cleanup_plan(save=true)` or to `cleanup.py --targets-file`. The
 dry-run JSON includes the exact literal array at
 `admission.next_step.targets_file.contents`. Write that array to a JSON file
@@ -150,9 +150,9 @@ invocation-only planning option; use the configuration for shared protection.
 
 <a id="configure-workspace-limits"></a>
 
-### Operator limit settings (unreleased)
+### Operator limit settings (0.3.1)
 
-Use `agent-guard-delete-policy` from the current checkout's package to inspect
+Use `agent-guard-delete-policy` (`0.3.1+`) to inspect
 or change limits for one workspace. From source, run
 `python3 skills/delete-guard/scripts/delete_policy.py` with the same arguments.
 
