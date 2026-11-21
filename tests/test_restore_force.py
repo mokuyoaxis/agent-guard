@@ -240,6 +240,10 @@ class ForceRestoreTests(unittest.TestCase):
         self.assertEqual(result["restored"], [])
         self.assert_current(origin)
         self.assert_old(source)
+        failed_backup = self.engine.transactions()[result["backup_txids"][0]]
+        self.assertEqual(failed_backup["state"], "FAILED")
+        self.assertEqual(failed_backup["manual_review_items"], 1)
+        self.assertEqual(failed_backup["restorable_items"], 0)
 
     def test_partial_cross_device_old_restore_keeps_both_complete_versions(self):
         origin, txid, source = self.conflict()
@@ -258,7 +262,7 @@ class ForceRestoreTests(unittest.TestCase):
                 mock.patch("core.recovery.shutil.copy2", side_effect=partial_copy):
             result = self.engine.restore(txid, force=True)
         self.assertFalse(result["ok"], result)
-        self.assertEqual(origin.read_text(), "partial")
+        self.assertFalse(origin.exists())
         self.assert_old(source)
         _, current = self.backup(result, txid)
         self.assert_current(current)
@@ -276,6 +280,11 @@ class ForceRestoreTests(unittest.TestCase):
 
         def partial_remove(path, *args, **kwargs):
             if path == str(origin):
+                completed = [record for record in self.engine.read_manifest()
+                             if record["type"] == "relocate" and record["txid"] != txid]
+                self.assertEqual(len(completed), 1)
+                self.assertEqual((Path(completed[0]["trash_path"]) / "second.txt").read_text(),
+                                 "second current file")
                 os.unlink(origin / "second.txt")
                 raise OSError(errno.EIO, "synthetic directory cleanup failure")
             return real_rmtree(path, *args, **kwargs)
@@ -285,9 +294,14 @@ class ForceRestoreTests(unittest.TestCase):
             result = self.engine.restore(txid, force=True)
         self.assertFalse(result["ok"], result)
         self.assert_old(source, "directory")
-        _, current = self.backup(result, txid)
+        backup_txid, current = self.backup(result, txid)
         self.assert_current(current, "directory")
         self.assertEqual((current / "second.txt").read_text(), "second current file")
+        backup = self.engine.transactions()[backup_txid]
+        self.assertEqual(backup["manual_review_items"], 0)
+        self.assertIn("source cleanup failed", backup["failures"][0]["reason"])
+        self.assertEqual(self.engine.restore(backup_txid)["conflicts"], [str(origin)])
+        self.assertTrue(current.is_dir())
 
     def test_reappearing_occupant_is_not_overwritten(self):
         origin, txid, source = self.conflict()

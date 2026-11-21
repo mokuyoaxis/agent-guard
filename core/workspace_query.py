@@ -198,6 +198,7 @@ def workspace_query(workspace, trash_root=None, *, limit=DEFAULT_LIMIT):
                "state": tx["state"] if manifest["complete"] else "UNKNOWN",
                "items": len(tx["items"]),
                "restorable_items": tx["restorable_items"] if manifest["complete"] else None,
+               "manual_review_items": tx["manual_review_items"] if manifest["complete"] else None,
                "age_candidate_hint": age_hint}
         rows.append(row)
         if age_hint:
@@ -212,6 +213,8 @@ def workspace_query(workspace, trash_root=None, *, limit=DEFAULT_LIMIT):
             "transactions": {"observed_count": len(rows), "returned": len(rows[:limit]),
                              "has_more": True if len(rows) > limit else False if manifest["complete"] else None,
                              "items": rows[:limit],
+                             "manual_review_items": sum(row["manual_review_items"] for row in rows)
+                             if manifest["complete"] else None,
                              "states": dict(Counter(row["state"] for row in rows)), "coverage": manifest,
                              "notice": "Existing Core best-effort reconciliation of recorded paths. EMPTY is not verified absence; path-probe errors, payload integrity, Git snapshot existence and restore permission are not established."},
             "storage": {"location": location, "measured": False, "logical_bytes": None,

@@ -22,7 +22,9 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import stat
 import subprocess
+import tempfile
 import time
 import errno
 import re
@@ -185,37 +187,63 @@ class RecoveryEngine:
     # -------------------------------------------------------------- move
 
     @staticmethod
-    def _move(src: str, dest: str) -> None:
-        """Move file/symlink/dir preserving symlink semantics.
+    def _move(src: str, dest: str) -> Optional[os.stat_result]:
+        """Rename or publish a complete copy of a file, directory or link.
 
-        Same-filesystem moves are plain renames. Cross-device fallbacks keep
-        symlinks as symlinks (never materialize what they point at).
+        Return the source metadata when a cross-device copy still needs
+        source cleanup. Relocation can journal the copy before removing the source.
         """
         try:
             os.rename(src, dest)
-            return
         except OSError as exc:
             if exc.errno in _STORAGE_ERRNOS:
                 raise StorageUnavailable(
                     f"quarantine storage unavailable: {exc}") from exc
             if exc.errno != errno.EXDEV:
                 raise
+        else:
+            return None
+
+        parent = os.path.dirname(dest)
         try:
-            if os.path.islink(src):
-                link_target = os.readlink(src)
-                os.symlink(link_target, dest)
-                os.unlink(src)
-            elif os.path.isdir(src):
-                shutil.copytree(src, dest, symlinks=True)
-                shutil.rmtree(src)
-            else:
-                shutil.copy2(src, dest)
-                os.unlink(src)
+            source = os.lstat(src)
+            staging = tempfile.mkdtemp(prefix=".agent-guard-stage-", dir=parent)
+            try:
+                staged = os.path.join(staging, "payload")
+                if stat.S_ISLNK(source.st_mode):
+                    os.symlink(os.readlink(src), staged)
+                elif stat.S_ISDIR(source.st_mode):
+                    shutil.copytree(src, staged, symlinks=True)
+                else:
+                    shutil.copy2(src, staged)
+                    with open(staged, "rb") as copied:
+                        os.fsync(copied.fileno())
+                if os.path.lexists(dest):
+                    raise FileExistsError(errno.EEXIST, "destination appeared while copying", dest)
+                os.rename(staged, dest)
+                if os.name == "posix":
+                    descriptor = os.open(parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+                    try:
+                        os.fsync(descriptor)
+                    finally:
+                        os.close(descriptor)
+            finally:
+                shutil.rmtree(staging, ignore_errors=True)
         except OSError as exc:
             if exc.errno in _STORAGE_ERRNOS:
                 raise StorageUnavailable(
                     f"quarantine storage unavailable: {exc}") from exc
             raise
+        return source
+
+    @staticmethod
+    def _remove_copied_source(src: str, source: os.stat_result) -> None:
+        if admission._signature(os.lstat(src)) != admission._signature(source):
+            raise OSError(errno.EBUSY, "source changed while copying", src)
+        if stat.S_ISDIR(source.st_mode):
+            shutil.rmtree(src)
+        else:
+            os.unlink(src)
 
     # ----------------------------------------------------------- relocate
 
@@ -280,34 +308,38 @@ class RecoveryEngine:
                     "reason": str(exc),
                 }])
                 continue
-            intent = {"type": "relocate-intent", "txid": txid,
-                      "origin_path": src, "trash_path": dest,
-                      "raw": spec.raw}
-            self._manifest_append([intent])
+            paths = {"txid": txid, "origin_path": src, "trash_path": dest}
+            self._manifest_append([{**paths, "type": "relocate-intent", "raw": spec.raw}])
             try:
                 os.makedirs(os.path.dirname(dest), exist_ok=True)
-                self._move(src, dest)
+                copied_source = self._move(src, dest)
             except StorageUnavailable:
                 # Hard principle: capacity limits never downgrade to
                 # permanent deletion. Abort; the failed target stays at its
                 # origin untouched; callers map this to BLOCK.
                 storage_failure = True
                 self._manifest_append([{
-                    "type": "relocate-failed", "txid": txid,
-                    "origin_path": src, "trash_path": dest,
+                    **paths, "type": "relocate-failed",
                     "reason": "storage unavailable",
                 }])
                 break
             except OSError as exc:
                 self._manifest_append([{
-                    "type": "relocate-failed", "txid": txid,
-                    "origin_path": src, "trash_path": dest,
+                    **paths, "type": "relocate-failed",
                     "reason": str(exc),
                 }])
                 raise
-            item = {"type": "relocate", "txid": txid,
-                    "origin_path": src, "trash_path": dest}
-            self._manifest_append([item])
+            # A complete copy is recoverable even if clearing the source
+            # fails. An interrupted completion write leaves only the intent.
+            self._manifest_append([{**paths, "type": "relocate"}])
+            if copied_source is not None:
+                try:
+                    self._remove_copied_source(src, copied_source)
+                except OSError as exc:
+                    reason = f"source cleanup failed after publishing the quarantine copy ({exc})"
+                    self._manifest_append([{**paths, "type": "relocate-failed", "reason": reason}])
+                    skipped.append({**entry_base, "reason": reason})
+                    break
             moved.append({"origin": src, "trash": dest})
         return {"txid": txid, "moved": moved, "skipped": skipped,
                 "storage_failure": storage_failure}
@@ -552,18 +584,23 @@ class RecoveryEngine:
             elif record.get("type") == "purged":
                 slot["purged"] = True
 
-        # If a move succeeded but its completion record could not be written,
-        # the durable intent plus filesystem state is sufficient to recover.
+        # An intent and an existing destination can recover a missing
+        # completion record. An explicit failure requires stronger evidence.
         for slot in out.values():
             completed = {
                 (item.get("origin_path"), item.get("trash_path"))
                 for item in slot["items"] if item.get("type") == "relocate"
             }
+            failed = {
+                (failure["origin_path"], failure["trash_path"])
+                for failure in slot.get("failures", ())
+                if all(isinstance(failure.get(field), str) for field in ("origin_path", "trash_path"))
+            }
             for intent in slot.pop("_intents", []):
                 key = (intent.get("origin_path"), intent.get("trash_path"))
-                if key in completed:
+                if key in completed or key in failed:
                     continue
-                origin, trash = key
+                _, trash = key
                 if trash and os.path.lexists(trash):
                     slot["items"].append({
                         **intent, "type": "relocate",
@@ -578,6 +615,9 @@ class RecoveryEngine:
                     # Stored stashes are deliberately retained after apply.
                     live_items += 1
             slot["restorable_items"] = live_items
+            unconfirmed = failed - completed if not slot.get("purged") else set()
+            slot["manual_review_items"] = len(unconfirmed)
+            slot["unconfirmed_payload_exists"] = any(os.path.lexists(trash) for _, trash in unconfirmed)
             restored = slot.get("last_restore", {})
             if slot.get("purged"):
                 slot["state"] = "PURGED"
@@ -662,9 +702,13 @@ class RecoveryEngine:
         restored: List[str] = []
         conflicts: List[str] = []
         errors: List[str] = []
+        items = tx["items"]
+        manual_review = tx["manual_review_items"]
+        if manual_review and (not items or tx["unconfirmed_payload_exists"]):
+            errors.append(f"manual review required for {manual_review} failed "
+                          "relocation item(s) without a completion record")
         backup_txids: List[str] = []
         known_txids = set(transactions)
-        items = tx["items"]
         try:
             self._restore_transaction_dir(txid)
         except (OSError, ValueError):
@@ -764,7 +808,9 @@ class RecoveryEngine:
                     parent = os.path.dirname(origin)
                     if parent:
                         os.makedirs(parent, exist_ok=True)
-                    self._move(trash, origin)
+                    copied_source = self._move(trash, origin)
+                    if copied_source is not None:
+                        self._remove_copied_source(trash, copied_source)
                     restored.append(origin)
                 except OSError as exc:
                     errors.append(f"{origin}: {exc}")
@@ -830,6 +876,7 @@ class RecoveryEngine:
             "restorable_items": sum(
                 tx.get("restorable_items", 0)
                 for tx in transactions.values()),
+            "manual_review_items": sum(tx["manual_review_items"] for tx in transactions.values()),
         }
 
     # ------------------------------------------------------ GC lifecycle

@@ -76,6 +76,20 @@ CLI JSON and displays the same information in terminal output. Enforced
 checks and `safe_delete` also report retained data after a partial relocation,
 including a storage failure after some files moved. The failed decision stays
 unchanged; both JSON and terminal output include the recovery transaction ID.
+
+On the development branch, a cross-filesystem relocation records the completed
+quarantine copy before it clears the source. A source-cleanup error reports a
+partial failure and the same transaction ID. A complete copy remains available
+for recovery, and ordinary restore checks for an occupant at the origin.
+
+`restore.py list`, `status`, and the corresponding MCP queries identify
+`manual_review_items`. These are failed relocation items whose path pair has
+no completion record, including old failures with surviving partial copies.
+Ordinary restore reports a failure when an unconfirmed copy remains. It can
+still recover other confirmed copies. When a failed item has no destination,
+restoring the confirmed items can succeed and the transaction listing keeps
+the failure visible. Keep the reported files and journal evidence available
+for inspection.
 A storage failure before any move does not claim retained data. Direct artifact
 deletion, a no-match result and a deletion dry-run do not claim a relocation.
 The DSH model-facing preview puts adapter/storage feedback before long

@@ -261,9 +261,11 @@ FORBIDDEN (BLOCK, never askable).
    in a separate transaction. Preservation failure stops that item; the result
    lists preservation attempts in optional `backup_txids`. Quarantine roots,
    aliases and ancestor paths cannot themselves be moved for preservation.
-   This is not an atomic restore: concurrent changes and cross-filesystem
-   failures may leave a partial destination, so inspect the reported paths
-   and transaction state before retrying.
+   On the development branch, cross-filesystem copies are staged next to
+   the destination and renamed into place after copying completes.
+   Relocation records the completed copy before clearing the source.
+   An interruption can leave a complete copy and source data at both paths.
+   Inspect the reported paths and transaction before retrying.
 5. **Lexical boundaries.** Workspace containment is decided on normalized
    paths; deleting a symlink removes the link, never the target, so symlink
    targets outside the workspace neither leak nor block.

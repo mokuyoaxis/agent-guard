@@ -1,7 +1,9 @@
 """Compensation engine: relocate / snapshot / restore semantics."""
+import errno
 import json
 import os
 from pathlib import Path
+import stat
 import subprocess
 import sys
 import unittest
@@ -111,6 +113,122 @@ class RelocateTests(RepoFixture):
         restored = engine.restore(txid)
         self.assertTrue(restored["ok"], restored)
         self.assertEqual(Path(origin).read_text(), "recover me")
+
+    def test_cross_device_failed_copy_keeps_source_and_never_publishes_partial_destination(self):
+        engine = RecoveryEngine(self.root)
+        origin = Path(self.write("valuable.txt", "original bytes"))
+        mode = stat.S_IMODE(origin.stat().st_mode)
+
+        def partial_copy(_source, destination):
+            Path(destination).write_text("partial", encoding="utf-8")
+            raise OSError(errno.ENOSPC, "synthetic disk full")
+
+        with mock.patch("core.recovery.os.rename",
+                        side_effect=OSError(errno.EXDEV, "synthetic mount boundary")), \
+                mock.patch("core.recovery.shutil.copy2", side_effect=partial_copy):
+            report = engine.relocate(specs_for(engine, ["valuable.txt"]))
+
+        txid = report["txid"]
+        self.assertTrue(report["storage_failure"], report)
+        self.assertEqual(report["moved"], [])
+        self.assertEqual(origin.read_text(), "original bytes")
+        self.assertEqual(stat.S_IMODE(origin.stat().st_mode), mode)
+        self.assertEqual(list(Path(engine.trash_root, txid).iterdir()), [])
+        transaction = engine.transactions()[txid]
+        self.assertEqual(transaction["state"], "FAILED")
+        self.assertEqual(transaction["restorable_items"], 0)
+        self.assertEqual(transaction["manual_review_items"], 1)
+
+    def test_cross_device_completion_failure_preserves_source_and_copy_for_reconciliation(self):
+        engine = RecoveryEngine(self.root)
+        origin = Path(self.write("valuable.txt", "complete bytes"))
+        origin.chmod(0o640)
+        mode = stat.S_IMODE(origin.stat().st_mode)
+        real_rename = os.rename
+        real_append = engine._manifest_append
+
+        def cross_device(source, destination):
+            if source == str(origin):
+                raise OSError(errno.EXDEV, "synthetic mount boundary")
+            return real_rename(source, destination)
+
+        def fail_completion(records):
+            if records[0]["type"] == "relocate":
+                self.assertTrue(origin.is_file())
+                self.assertEqual(Path(records[0]["trash_path"]).read_text(), "complete bytes")
+                raise PermissionError("synthetic completion journal failure")
+            return real_append(records)
+
+        with mock.patch("core.recovery.os.rename", side_effect=cross_device), \
+                mock.patch.object(engine, "_manifest_append", side_effect=fail_completion):
+            with self.assertRaisesRegex(PermissionError, "completion journal failure"):
+                engine.relocate(specs_for(engine, ["valuable.txt"]))
+
+        self.assertEqual(origin.read_text(), "complete bytes")
+        txid, transaction = next(iter(engine.transactions().items()))
+        self.assertEqual(transaction["state"], "RESTORABLE")
+        self.assertEqual(transaction["manual_review_items"], 0)
+        self.assertTrue(transaction["items"][0]["recovered_from_intent"])
+        self.assertEqual(engine.restore(txid)["conflicts"], [str(origin)])
+        origin.rename(origin.with_name("retained-original.txt"))
+        self.assertTrue(engine.restore(txid)["ok"])
+        self.assertEqual(origin.read_text(), "complete bytes")
+        self.assertEqual(stat.S_IMODE(origin.stat().st_mode), mode)
+
+    def test_cross_device_link_roundtrip_preserves_the_link(self):
+        engine = RecoveryEngine(self.root)
+        self.write("owned.txt", "keep")
+        origin = Path(self.root, "link")
+        try:
+            origin.symlink_to("owned.txt")
+        except (NotImplementedError, OSError) as exc:
+            self.skipTest(f"symlinks unavailable: {exc}")
+        real_rename = os.rename
+
+        def cross_device(source, destination):
+            if os.path.islink(source) and Path(source).name == "link":
+                raise OSError(errno.EXDEV, "synthetic mount boundary")
+            return real_rename(source, destination)
+
+        with mock.patch("core.recovery.os.rename", side_effect=cross_device):
+            report = engine.relocate(specs_for(engine, ["link"]))
+            copy = Path(report["moved"][0]["trash"])
+            self.assertTrue(copy.is_symlink())
+            self.assertEqual(os.readlink(copy), "owned.txt")
+            self.assertFalse(origin.is_symlink())
+            self.assertTrue(engine.restore(report["txid"])["ok"])
+        self.assertTrue(origin.is_symlink())
+        self.assertEqual(os.readlink(origin), "owned.txt")
+        self.assertEqual(origin.read_text(), "keep")
+
+    def test_cross_device_source_change_after_completion_blocks_cleanup(self):
+        engine = RecoveryEngine(self.root)
+        origin = Path(self.write("valuable.txt", "original bytes"))
+        real_rename = os.rename
+        real_append = engine._manifest_append
+
+        def cross_device(source, destination):
+            if source == str(origin):
+                raise OSError(errno.EXDEV, "synthetic mount boundary")
+            return real_rename(source, destination)
+
+        def append_and_change_source(records):
+            real_append(records)
+            if records[0]["type"] == "relocate":
+                origin.write_text("new source contents", encoding="utf-8")
+
+        with mock.patch("core.recovery.os.rename", side_effect=cross_device), \
+                mock.patch.object(engine, "_manifest_append", side_effect=append_and_change_source):
+            report = engine.relocate(specs_for(engine, ["valuable.txt"]))
+        self.assertEqual(report["moved"], [])
+        self.assertIn("source cleanup failed", report["skipped"][0]["reason"])
+        self.assertEqual(origin.read_text(), "new source contents")
+        txid = report["txid"]
+        self.assertEqual(Path(engine.trash_root, txid, origin.name).read_text(), "original bytes")
+        transaction = engine.transactions()[txid]
+        self.assertEqual(transaction["state"], "RESTORABLE")
+        self.assertEqual(transaction["manual_review_items"], 0)
+        self.assertEqual(engine.restore(txid)["conflicts"], [str(origin)])
 
     def test_multi_target_completion_failure_recovers_every_move(self):
         engine = RecoveryEngine(self.root)

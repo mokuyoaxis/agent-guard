@@ -97,6 +97,12 @@ effort: EMPTY is not verified absence, and RESTORABLE does not verify payload
 integrity, Git snapshot availability or authorization to restore. Partial
 coverage, budget errors and unmeasured space are not converted into zeroes.
 
+On the development branch, `manual_review_items` counts failed relocation
+paths without a matching completion record, per transaction and across the
+overview's transactions. These entries are excluded from `restorable_items`.
+The counts are null when manifest coverage is partial. The terminal overview
+marks observed transactions that require review.
+
 Age hints use the existing soft retention period. Missing timestamps remain
 unknown rather than being inferred from an ID. Capacity-based eligibility
 requires detailed measurement; explicitly request the existing GC preview

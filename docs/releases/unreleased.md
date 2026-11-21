@@ -2,6 +2,17 @@
 
 <a id="current-unreleased-scope"></a>
 
+## Delete-guard cross-filesystem recovery
+
+Cross-filesystem moves stage copies on the destination filesystem before
+renaming them into place. Relocation records the completed quarantine copy
+before clearing the source and returns the transaction ID on a source-cleanup
+failure. Transaction queries show `manual_review_items` for failed relocation
+items without a matching completion record. Ordinary restore recovers
+confirmed copies and reports surviving unconfirmed copies for manual review.
+See the
+[recovery feedback guide](../guides/recovery-feedback.md).
+
 ## Delete-guard workspace limit settings
 
 The operator CLI `agent-guard-delete-policy` shows effective values and

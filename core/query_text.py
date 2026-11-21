@@ -108,8 +108,11 @@ def format_workspace_query(data, *, width=96, color=False):
 
     transactions = data["transactions"]
     section("TRANSACTIONS / 隔离事务  (" + str(transactions["returned"]) + " shown)")
-    tx_rows = [(row["txid"], row["state"], row["items"], "yes" if row["age_candidate_hint"] else
-                "?" if row["age_candidate_hint"] is None else "no") for row in transactions["items"]]
+    tx_rows = [
+        (row["txid"], row["state"] + (" !" if row["manual_review_items"] else ""), row["items"],
+         "yes" if row["age_candidate_hint"] else "?" if row["age_candidate_hint"] is None else "no")
+        for row in transactions["items"]
+    ]
     if not tx_rows:
         lines.append("  No transaction records observed.")
     elif width >= 72:
@@ -117,6 +120,8 @@ def format_workspace_query(data, *, width=96, color=False):
     else:
         for txid, state, items, age in tx_rows:
             lines.extend(["  " + _text(txid), "    " + state + "  items=" + str(items) + "  age hint=" + age])
+    if transactions["manual_review_items"]:
+        lines.append(f"  ! Manual review required for {transactions['manual_review_items']} failed relocation item(s).")
     lines.append("  Core states are metadata/path observations, not payload-integrity or restore-permission proof.")
 
     section("STORAGE & GC / 占用与候选")

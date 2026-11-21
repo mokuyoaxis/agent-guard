@@ -11,6 +11,7 @@ from unittest import mock
 
 from adapters.mcp.operations import InvalidArguments, Operations
 from core import policy
+from core.recovery import RecoveryEngine
 from tests.helpers import RepoFixture, git_available
 
 
@@ -147,6 +148,60 @@ class McpOperations(RepoFixture):
         self.assertEqual(Path(self.root, "valuable").read_text(), "original bytes")
         listing = self.operations.call("transactions", {})
         self.assertEqual(listing["result"]["transactions"][0]["state"], "RESTORED")
+
+    def test_failed_legacy_copy_is_flagged_and_refused_in_restore(self):
+        engine = RecoveryEngine(self.root)
+        txid = "legacy-copy"
+        origin = Path(self.root, "valuable")
+        residual = Path(self.write(f".agent-trash/{txid}/valuable", "partial bytes"))
+        paths = {"txid": txid, "origin_path": str(origin), "trash_path": str(residual)}
+        engine._manifest_append([
+            {"type": "tx-start", "txid": txid},
+            {"type": "relocate-intent", **paths},
+            {"type": "relocate-failed", **paths, "reason": "storage unavailable"},
+        ])
+
+        listing = self.operations.call("transactions", {})
+        self.assertTrue(listing["ok"], listing)
+        rows = listing["result"]["transactions"]
+        overview = self.operations.call("status", {"view": "overview"})
+        self.assertTrue(overview["ok"], overview)
+        for row in (rows[0], overview["result"]["transactions"]["items"][0]):
+            self.assertEqual(row["txid"], txid)
+            self.assertEqual(row["state"], "FAILED")
+            self.assertEqual(row["restorable_items"], 0)
+            self.assertEqual(row["manual_review_items"], 1)
+        full_status = self.operations.call("status", {})
+        self.assertEqual(full_status["result"]["usage"]["manual_review_items"], 1)
+
+        restored = self.operations.call("restore", {"txid": txid})
+        self.assertFalse(restored["ok"], restored)
+        self.assertEqual(restored["exit_code"], 1)
+        self.assertIn("manual review", restored["result"]["errors"][0])
+        self.assertEqual(restored["result"]["restored"], [])
+        self.assertFalse(origin.exists())
+        self.assertEqual(residual.read_text(), "partial bytes")
+
+    def test_mixed_transaction_restores_confirmed_copy_and_keeps_residual_for_review(self):
+        self.write("confirmed", "complete bytes")
+        deletion = self.delete("confirmed")
+        self.assertTrue(deletion["ok"], deletion)
+        txid = deletion["result"]["txid"]
+        origin = Path(self.root, "unconfirmed")
+        residual = Path(self.write(f".agent-trash/{txid}/unconfirmed", "partial bytes"))
+        paths = {"txid": txid, "origin_path": str(origin), "trash_path": str(residual)}
+        RecoveryEngine(self.root)._manifest_append([
+            {"type": "relocate-intent", **paths},
+            {"type": "relocate-failed", **paths, "reason": "storage unavailable"},
+        ])
+
+        restored = self.operations.call("restore", {"txid": txid})
+        self.assertFalse(restored["ok"], restored)
+        self.assertEqual(restored["result"]["execution_summary"]["status"], "PARTIAL")
+        self.assertIn("manual review", restored["result"]["errors"][0])
+        self.assertEqual(Path(self.root, "confirmed").read_text(), "complete bytes")
+        self.assertFalse(origin.exists())
+        self.assertEqual(residual.read_text(), "partial bytes")
 
     def test_cleanup_observations_are_read_only_and_keep_workspace(self):
         self.write('.gitignore', 'build/\n.work/\n')

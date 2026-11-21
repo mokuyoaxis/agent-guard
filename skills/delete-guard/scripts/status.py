@@ -177,6 +177,8 @@ def main() -> int:
     print(f"usage     : {usage['files']} files, {usage['bytes']} bytes, "
           f"{usage['transactions']} transactions "
           f"({usage['restorable_transactions']} restorable)")
+    if usage["manual_review_items"]:
+        print(f"Manual review required for {usage['manual_review_items']} failed relocation item(s).")
     print(f"snapshots : {stash_count} agent-guard stashes")
     deletion = info["delete_admission"]
     if deletion.get("status") == "BLOCKED":

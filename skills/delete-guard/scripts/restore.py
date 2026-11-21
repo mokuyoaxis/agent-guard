@@ -76,6 +76,7 @@ def main() -> int:
         listing = [{"txid": t["txid"], "ts": t.get("ts"),
                     "items": len(t["items"]),
                     "restorable_items": t.get("restorable_items", 0),
+                    "manual_review_items": t["manual_review_items"],
                     "state": t.get("state", "EMPTY"),
                     "strategies": sorted({i.get("type") for i in t["items"]})}
                    for t in txs.values()]
@@ -87,9 +88,11 @@ def main() -> int:
             print(f"files={usage['files']} bytes={usage['bytes']} "
                   f"transactions={usage['transactions']}")
             for item in listing[-20:]:
+                review = item["manual_review_items"]
                 print(f"  {item['txid']}  {item['state']:<10} "
                       f"{item['restorable_items']:>3}/{item['items']} items  "
-                      f"{','.join(item['strategies'])}")
+                      f"{','.join(item['strategies'])}"
+                      + (f"  {review} item(s) require manual review" if review else ""))
         return 0
 
     report = engine.restore(args.txid, force=args.force)
