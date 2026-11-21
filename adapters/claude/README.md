@@ -92,6 +92,14 @@ Requirements: Python 3.9+, POSIX shell, git. No third-party packages.
 The optional Claude doctor uses only standard-library modules; the adapter
 does not require it at runtime.
 
+## Opt-in Bash Exfil
+
+Set `AGENT_GUARD_EXFIL_BASH=1` in the installed hook process's environment
+to check Bash arguments for credential values and secret-source references
+before the delete checker runs. A refusal exits `2` with rule labels and
+a fixed diagnostic. Use `agent-guard-config-view` by itself to inspect
+configuration structure. [Bash Exfil coverage](../../docs/guides/harness-capabilities.md#opt-in-bash-exfil)
+
 ## Conformance
 
 `tests/test_conformance.py` pins the cross-harness guarantee: identical

@@ -83,6 +83,31 @@ context. The text tools assess drafts on an explicit channel, and do not send
 them. Git projects can separately enable the local `pre-commit` and `commit-msg`
 checks. [MCP Exfil tools](../../docs/guides/mcp.md#exfil-guard-tools) · [Git hooks](../../adapters/git/README.md)
 
+## Review files before export
+
+Run the preflight against the same explicit files or directories you intend
+to package or share. From the workspace root, pass literal paths or a
+workspace-local UTF-8 `--paths-file` with one path per line.
+
+```sh
+agent-guard-exfil-export --json -- dist report.md
+```
+
+Use exit `0` to continue and exit `2` to withhold the export. A finding that
+requires rewriting also exits `2`. Inspect the counts for skipped binary,
+symlink and exempt content. The preflight checks known secret-store names
+before opening files, then scans bounded UTF-8 content. It counts Git-ignored
+files, refuses unsafe links and unreadable inputs, and stops at its limits.
+Use `--strict-paths` to refuse generic absolute path warnings.
+[Export contract](references/rules.md#export-preflight)
+
+## Opt-in Bash interception
+
+An operator can enable credential checks for the native Bash hook in Claude
+Code, Kimi Code or DSH. The check runs before Delete-guard can compensate,
+and refuses recognized credentials and secret-source references. A plain
+standalone config view stays available. [Host setup and coverage](../../docs/guides/harness-capabilities.md#opt-in-bash-exfil)
+
 ## What you can receive
 
 | Verdict | Meaning | Your move |

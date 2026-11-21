@@ -876,3 +876,21 @@ def decide_spans(spans, ctx=None, channel=None, workspace=None,
             span.channel = channel.name
         verdicts.append(decide_span(span, ctx, channel))
     return verdicts
+
+
+def assess_unrewritten_spans(spans, channel, mode, *, strict_paths=False):
+    """Return the dominant verdict, whether to refuse, and all span verdicts."""
+    verdicts = decide_spans(spans, channel=channel, mode=mode)
+    refused, warnings = [], []
+    for span, verdict in zip(spans, verdicts):
+        if verdict.decision == DECISION_ALLOW:
+            continue
+        if (not strict_paths and mode == MODE_NORMAL
+                and span.rule_id == redaction.RULE_GENERIC_ABSOLUTE_PATH
+                and verdict.code == CODE_ASK_PATH_EMISSION):
+            warnings.append(verdict)
+        else:
+            refused.append(verdict)
+    selected = refused or warnings
+    top = worst(selected) if selected else Verdict(DECISION_ALLOW, CODE_ALLOW_NOOP)
+    return top, bool(refused), verdicts

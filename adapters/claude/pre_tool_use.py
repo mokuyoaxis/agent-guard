@@ -147,6 +147,17 @@ def main(ask_is_block: bool = False, strict_payload: bool = True) -> int:
         if strict_payload:
             return malformed_payload()
         return 0
+    cwd = payload.get("cwd") or os.getcwd()
+    if os.environ.get("AGENT_GUARD_EXFIL_BASH", "").lower() in {"1", "true", "yes"}:
+        sys.dont_write_bytecode = True
+        from core import exfil_audit, exfil_bash
+
+        result = exfil_bash.assess(command, cwd)
+        if "error" in result["audit"]:
+            print(exfil_audit.WRITE_WARNING, file=sys.stderr)
+        if result["exit"]:
+            print(exfil_bash.refusal_message(result), file=sys.stderr)
+            return 2
     _write_sentinel_receipt(payload, command)
     # Dialect resolution must happen BEFORE the prefilter: the POSIX regex
     # cannot see `ri build -r -fo`, so a Windows-native payload would be
@@ -175,7 +186,6 @@ def main(ask_is_block: bool = False, strict_payload: bool = True) -> int:
             or DESTRUCTIVE_PREFILTER_RE_WINDOWS.search(command)):
         return 0  # fast path: regex cost only
 
-    cwd = payload.get("cwd") or os.getcwd()
     env = dict(os.environ)
     session_id = payload.get("session_id")
     if session_id:

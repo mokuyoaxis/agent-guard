@@ -115,6 +115,14 @@ It does not describe a missing hook or a failed hook command.
 
 <a id="optional-recovery-feedback-unreleased-checkout-addition"></a>
 
+## Opt-in Bash Exfil
+
+Set `AGENT_GUARD_EXFIL_BASH=1` in the Kimi Code hook process's environment
+to check Bash arguments before the shared delete checker runs. The hook
+refuses known credential values and secret-source references with exit
+`2`. A standalone `agent-guard-config-view` call remains available.
+[Bash Exfil coverage](../../docs/guides/harness-capabilities.md#opt-in-bash-exfil)
+
 ## Optional recovery feedback
 
 The tested 0.42.0, 2.1.1 and 2.3.0 success-hook paths do not include the hook's

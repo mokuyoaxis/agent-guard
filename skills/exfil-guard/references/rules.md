@@ -90,6 +90,14 @@ loosens a BLOCK.
 | `secret/jwt` | three base64url segments; header decodes to JSON with a nonempty ASCII string `alg` | **structural**, not just `a.b.c` |
 | `secret/private-key-block` | `-----BEGIN [X ]*PRIVATE KEY-----` … `-----END …` | delimiters; whole block withheld |
 | `secret/connection-password` | nonempty password between the first userinfo colon and final `@` in a `scheme://` authority | URI credential context; only password withheld |
+| `secret/npm-token` | `npm_` and 36 ASCII alphanumeric characters | fixed vendor format |
+| `secret/google-api-key` | `AIza` and 35 base64url characters | Google Cloud, Gemini and Firebase key shape |
+| `secret/huggingface-token` | `hf_` and at least 34 ASCII alphanumeric characters | vendor prefix and minimum length |
+| `secret/sendgrid-key` | `SG.` followed by 22 and 43 base64url characters in dot-separated segments | fixed segment lengths |
+| `secret/vault-token` | `hvs.` or `hvb.` and at least 24 base64url characters | service and batch token prefixes |
+| `secret/digitalocean-token` | `dop_v1_`, `doo_v1_` or `dor_v1_` and 64 lowercase hex digits | personal, OAuth and refresh token prefixes |
+| `secret/perplexity-key` | `pplx-` and at least 40 ASCII alphanumeric characters | vendor prefix and minimum length |
+| `secret/http-basic-auth` | Basic Authorization header with a strictly decoded UTF-8 user/password pair | replaces the whole Base64 field |
 | `secret/source-reference` | an env-var *name* with a complete credential component, a secret-store file name, or a whole-environment expansion | value-free (T2) |
 
 Vendor/JWT boundaries use ASCII identifier characters so credentials adjacent
@@ -142,6 +150,11 @@ Raw `/`, `?`, `#`, whitespace and quote delimiters end the authority: encode
 them inside a password. This rule does not cover non-URI DSNs, fully encoded
 URLs or arbitrary nested serialization. Accounts and hosts remain visible.
 Syntax reference: [RFC 3986 §3.2.1](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.1).
+
+The HTTP Basic rule accepts standard Base64 for a UTF-8 user/password pair
+with a nonempty, non-placeholder password. The header and its spacing are
+preserved. The encoded field and decoded values stay out of diagnostics and
+audits. [RFC 7617 §2](https://datatracker.ietf.org/doc/html/rfc7617#section-2)
 
 Two design rules that keep T1 deterministic:
 
@@ -311,6 +324,9 @@ corpus.
 
 ## Audit record shape
 
+The export preflight and optional Bash adapters also use the shared
+metadata projection. [Opt-in Exfil audit](../../../docs/guides/audit-metadata.md#opt-in-exfil-audit)
+
 In the development checkout, enable metadata-only records on `check_span.py`
 and `sanitize.py` with `--audit` or `AGENT_GUARD_EXFIL_AUDIT=1`. Each decision
 has one summary and up to 64 span records. The checker records an advisory
@@ -336,13 +352,47 @@ default rule set must produce **zero BLOCK** and only path-family matches.
 Anything else is a rule bug, not a tuning problem. Verified by
 `tests/test_exfil_classifier.py::RepoCorpusNoise`.
 
+## Export preflight
+
+`agent-guard-exfil-export` checks explicitly selected candidates on the
+`archive-upload` channel by default. The no-follow descriptor walk requires
+POSIX file-descriptor operations. Workspace-relative inputs resolve at the
+selected root. Absolute candidates must belong to that workspace. A
+`--paths-file` is itself a regular UTF-8 file in the workspace, bounded to
+1 MiB. Empty selections and unsupported platforms are refused.
+
+The default budget is 5,000 file candidates, 4 MiB per text file and
+64 MiB of aggregate reads, including binary probes. `--max-files` allows
+up to 20,000 entries. `--max-file-bytes` and `--max-total-bytes` adjust
+the byte limits within these caps. Inspection stops when expansion exceeds
+a limit and reports `complete: false` and `truncated: true`. `--max-file-bytes`
+applies after a binary probe of up to 8 KiB. Ordinary binary content with a
+NUL in the probe is counted as skipped. Known secret-store names are refused
+before any probe. The four dotenv templates `.env.example`, `.env.sample`,
+`.env.template` and `.env.dist` go through regular content scanning.
+
+Traversal skips `.git` and `.agent-trash` directories discovered under a
+target. An explicitly named control directory or a file under it is scanned.
+Git-ignored paths are considered. Exempt directories skip contents under
+the approved path while traversal still checks symlink and file boundaries.
+Internal symlinks are counted and skipped. Escaping, broken and cyclic links
+and symlink ancestors of literal targets are refused.
+
+JSON uses `exfil_export_scan/v1` with `workspace: "."`. Findings show safe
+relative locators where available, policy codes and span offsets. Token-shaped
+or unsafe locators are withheld. The result includes bounded findings, counts,
+the audit receipt and the exit code. Exit `2` with decision `SANITIZE` means
+the input needs a rewrite before it can be shared. The scanner leaves the
+selected files intact and evaluates the candidates seen at scan time.
+
 ## Known limitations (V1.y)
 
 - T3 (generic entropy with a context gate) is **not in this release**: it is
   the single largest false-positive source, and the named scenarios do not
   require it (design 6.2 item 3).
-- No archive/packaging enumeration (`tar`, `git bundle`, `gh release
-  upload`); the natural MVP-6.
+- Export preflight covers explicit filesystem paths. Archive containers,
+  Git object history, packaging membership and the upload operation remain
+  outside the scan.
 - No git-history rewriting. Detection is not remediation.
 - Channels with no hook remain uncovered, by construction. See
   `channels.md`.

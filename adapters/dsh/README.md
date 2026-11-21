@@ -60,6 +60,19 @@ See [status and cleanup feedback](../../docs/guides/recovery-feedback.md).
 | `dialect` | `""` (posix) | shell dialect for guard invocations: `posix`, `cmd`, or `powershell` |
 | `readResultGuard` | `false` | enable the bounded native text-read prototype described below |
 | `readGuardDshRoot` | `""` | absolute installed DSH npm package root; required when the prototype is enabled |
+| `exfilBashGuard` | `false` | check covered Bash arguments for credential values before delete compensation |
+
+## Opt-in Bash Exfil
+
+Set `exfilBashGuard: true` in the Agent Guard composition row. The worker
+uses the tool's `workdir` or the configured `defaultCwd`, with the plugin's
+current directory as the final default. Set `defaultCwd` to the workspace
+when the executor and plugin start in different directories.
+
+The plugin checks the Python worker during startup. Commands selected for
+inspection travel through stdin to the local worker with a timeout and
+output cap. Refusals and worker failures deny that Bash call before
+Delete-guard compensation. [Bash Exfil coverage](../../docs/guides/harness-capabilities.md#opt-in-bash-exfil)
 
 ## Experimental text-read redaction
 

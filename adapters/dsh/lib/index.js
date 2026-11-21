@@ -27,7 +27,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
@@ -51,8 +51,22 @@ const CONFIG_DIALECTS = new Set([
 ]);
 const CONFIG_FIELDS = new Set([
   "repoRoot", "defaultCwd", "promptSection", "sectionOrder", "dialect",
-  "readResultGuard", "readGuardDshRoot",
+  "readResultGuard", "readGuardDshRoot", "exfilBashGuard",
 ]);
+const EXFIL_BASH_MAX_INPUT = 4 * 1024 * 1024;
+const EXFIL_BASH_MAX_OUTPUT = 65536;
+const EXFIL_BASH_CODES = new Set([
+  "BLOCK_SECRET_EMISSION", "BLOCK_SECRET_SOURCE_DUMP", "BLOCK_OUTPUT_UNSCANNABLE",
+]);
+// Cost filter only. Include the prefixes and source shapes from core/redaction.py.
+const EXFIL_BASH_SUSPECT = new RegExp([
+  /sk-|sk_live_|rk_live_|gh[pours]_|github_pat_|AKIA|ASIA|glpat-|xox[baprs]-|pypi-|eyJ|-----BEGIN /.source,
+  /npm_|AIza|hf_|SG\.|hv[sb]\.|do[por]_v1_|pplx-/.source,
+  /:(?:\/|\\\/){2}|Authorization\s*:\s*Basic|[$%]/.source,
+  /[.](?:env|npmrc|netrc|pgpass|htpasswd|pem|key|p12|pfx|tfvars|keystore|jks)/.source,
+  /[c]redentials|id_(?:rsa|dsa|ecdsa|ed25519)|[k]ubeconfig|\/proc\/self\/environ/.source,
+  /\b(?:env|[p]rintenv|export|set)\b/.source,
+].join("|"), "i");
 
 // Keep the adapter installable without importing a host-private helper. DSH's
 // public registry accepts plain Tool Definition objects; defineTool() only
@@ -132,6 +146,7 @@ export const Config = {
         dialect: "",
         readResultGuard: false,
         readGuardDshRoot: "",
+        exfilBashGuard: false,
       };
       for (const key of Object.keys(input)) {
         if (!CONFIG_FIELDS.has(key)) {
@@ -160,11 +175,12 @@ export const Config = {
           config.sectionOrder = input.sectionOrder;
         }
       }
-      if (Object.prototype.hasOwnProperty.call(input, "readResultGuard")) {
-        if (typeof input.readResultGuard !== "boolean") {
-          issues.push({ message: "readResultGuard must be a boolean", path: ["readResultGuard"] });
+      for (const key of ["readResultGuard", "exfilBashGuard"]) {
+        if (!Object.prototype.hasOwnProperty.call(input, key)) continue;
+        if (typeof input[key] !== "boolean") {
+          issues.push({ message: key + " must be a boolean", path: [key] });
         } else {
-          config.readResultGuard = input.readResultGuard;
+          config[key] = input[key];
         }
       }
       if (config.readResultGuard && !path.isAbsolute(config.readGuardDshRoot)) {
@@ -215,6 +231,65 @@ function dialectSelector(args, config, env) {
   return undefined;
 }
 
+function exfilRefusal(code = "BLOCK_OUTPUT_UNSCANNABLE", rules = []) {
+  const list = rules.length ? " (" + rules.join(", ") + ")" : "";
+  return {
+    kind: "deny",
+    reason: "[agent-guard] Bash Exfil refused [" + code + "]" + list +
+      ". Keep credential values out of shell arguments. Use agent-guard-config-view for config structure.",
+  };
+}
+
+function checkBashExfil(script, command, workdir, signal) {
+  if (signal?.aborted) return Promise.resolve(exfilRefusal());
+  return new Promise((resolve) => {
+    let child;
+    try {
+      child = spawn("python3", ["-B", script, "--json", "--workspace", workdir], {
+        cwd: workdir, stdio: ["pipe", "pipe", "ignore"], windowsHide: true,
+        timeout: 10000, killSignal: "SIGKILL", signal,
+      });
+    } catch {
+      resolve(exfilRefusal());
+      return;
+    }
+    const chunks = [];
+    let size = 0, failed = false;
+    const stop = () => {
+      failed = true;
+      child.kill("SIGKILL");
+      resolve(exfilRefusal());
+    };
+    child.on("error", stop);
+    child.stdin.on("error", stop);
+    child.stdout.on("data", (chunk) => {
+      if (failed) return;
+      size += chunk.length;
+      if (size > EXFIL_BASH_MAX_OUTPUT) return stop();
+      chunks.push(chunk);
+    });
+    child.on("close", (exit) => {
+      if (failed) return;
+      try {
+        const reply = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+        if (reply.audit?.error === "AUDIT_WRITE_FAILED") {
+          console.error("[agent-guard] AUDIT_WRITE_FAILED: egress audit could not be persisted");
+        }
+        if (exit === 0 && reply.exit === 0 && reply.decision === "ALLOW" && reply.code === "ALLOW_NOOP") {
+          return resolve(null);
+        }
+        if (exit === 2 && reply.exit === 2 && reply.decision === "BLOCK" && EXFIL_BASH_CODES.has(reply.code) &&
+            Array.isArray(reply.rule_ids) && reply.rule_ids.length <= 32 &&
+            reply.rule_ids.every((rule) => typeof rule === "string" && /^secret\/[a-z0-9-]{1,40}$/.test(rule))) {
+          return resolve(exfilRefusal(reply.code, reply.rule_ids));
+        }
+      } catch {} // The child output is untrusted diagnostic material.
+      resolve(exfilRefusal());
+    });
+    child.stdin.end(command, "utf8");
+  });
+}
+
 /**
  * Build the adapter runtime for one apply() invocation.
  * @param ctx - registrant context carrying injected services.
@@ -223,6 +298,7 @@ function dialectSelector(args, config, env) {
 function buildRuntime(ctx, config, shell, systemPrompt) {
   const repoRoot = config.repoRoot || PACKAGE_ROOT;
   const scriptsDir = path.join(repoRoot, "skills", "delete-guard", "scripts");
+  const exfilBashScript = path.resolve(repoRoot, "skills", "exfil-guard", "scripts", "check_bash_exfil.py");
   const diagnostics = {
     startup_check: "NOT_RUN",
     startup_scope: "plugin_process",
@@ -289,6 +365,7 @@ function buildRuntime(ctx, config, shell, systemPrompt) {
     systemPrompt,
     repoRoot,
     scriptsDir,
+    exfilBashScript,
     diagnostics,
     shQuote,
     runScript,
@@ -329,6 +406,15 @@ export async function apply(ctx, config) {
       error.killed ? "The local checker startup check timed out." :
       "The local Python checker could not run. Check python3 on the plugin process PATH and the checker imports.");
   }
+  if (config.exfilBashGuard === true) {
+    try {
+      await runFile("python3", ["-B", rt.exfilBashScript, "--help"], {
+        timeout: 10000, maxBuffer: EXFIL_BASH_MAX_OUTPUT,
+      });
+    } catch {
+      refuseStartup("The opt-in Bash Exfil checker could not start. Check the package and Python on PATH.");
+    }
+  }
   rt.diagnostics.startup_check = "PASSED";
 
   if (config.readResultGuard) {
@@ -361,6 +447,15 @@ function contribute(ctx, config, rt) {
         const args = exec.arguments || {};
         const command =
           typeof args.command === "string" ? args.command : "";
+        if (config.exfilBashGuard === true && command) {
+          if (Buffer.byteLength(command, "utf8") > EXFIL_BASH_MAX_INPUT) return exfilRefusal();
+          if (EXFIL_BASH_SUSPECT.test(command)) {
+            const folder = typeof args.workdir === "string" ? args.workdir : ".";
+            const workdir = path.resolve(config.defaultCwd || process.cwd(), folder);
+            const refused = await checkBashExfil(rt.exfilBashScript, command, workdir, exec.signal);
+            if (refused) return refused;
+          }
+        }
         // A dialect selector is still forwarded to the Core for validation.
         const selector = dialectSelector(args, config, process.env);
         if (!command ||

@@ -12,6 +12,14 @@
 - Use the three Exfil-guard MCP tools for config inspection and draft checks.
   Git repositories can separately enable local checks for staged text and
   commit messages. [MCP tools](../guides/mcp.md#exfil-guard-tools) · [Git hooks](../../adapters/git/README.md)
+- Recognize eight more credential rules, including modern vendor tokens and
+  structurally valid HTTP Basic inputs. [Rule catalogue](../../skills/exfil-guard/references/rules.md)
+- Check workspace files before sharing with `agent-guard-exfil-export`.
+  The CLI bounds its reads and reports skipped binary files and links.
+  [Export preflight](../../skills/exfil-guard/references/rules.md#export-preflight)
+- Opt into credential checks on native Bash events in Claude Code, Kimi Code
+  and DSH. A refusal happens before delete compensation.
+  [Bash Exfil setup](../guides/harness-capabilities.md#opt-in-bash-exfil)
 
 ## Published maintenance history
 

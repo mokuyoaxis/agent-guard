@@ -70,7 +70,7 @@ def record(workspace, tool, phase, result, *, started, active):
                "guard_latency_ms": (time.monotonic() - started) * 1000,
                "span_count": span_count, "redacted_count": len(result.get("redaction_plan", [])),
                "exempted_count": exempted, "omitted_span_count": span_count - min(len(spans), MAX_AUDIT_SPANS),
-               "size_bytes": result.get("size_bytes")}
+               "size_bytes": result.get("size_bytes"), "target_count": result.get("target_count")}
     rows = [summary]
     for span in spans[:MAX_AUDIT_SPANS]:
         rows.append({**common, "event": "exfil-span", "exempted": False,

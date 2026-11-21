@@ -84,14 +84,11 @@ def assess(text, workspace, channel, exemption, mode, *, strict_paths=False):
     scan = redaction.scan_text(text, channel=channel, workspace=workspace, exemption=exemption)
     if not scan.scanned:
         return unscannable(channel, scan.size_bytes)
-    verdicts = policy.decide_spans(scan.spans, channel=redaction.CHANNELS[channel], mode=mode)
-    findings = [v for v in verdicts if v.decision != "ALLOW"]
-    blocking = [v for v in findings if strict_paths or v.code != policy.CODE_ASK_PATH_EMISSION]
-    selected = blocking or findings
-    top = policy.worst(selected) if selected else policy.Verdict("ALLOW", policy.CODE_ALLOW_NOOP)
+    top, blocked, verdicts = policy.assess_unrewritten_spans(
+        scan.spans, redaction.CHANNELS[channel], mode, strict_paths=strict_paths)
     return {"decision": top.decision, "code": top.code, "spans": redaction.verdict_rows(scan.spans, verdicts),
             "channel": channel, "size_bytes": scan.size_bytes, "exempted": scan.exempted,
-            "exit": 2 if blocking else 0}
+            "exit": 2 if blocked else 0}
 
 
 def commit_message(path, workspace, exemption, mode):

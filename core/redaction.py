@@ -55,6 +55,14 @@ RULE_PYPI_TOKEN = "secret/pypi-token"
 RULE_JWT = "secret/jwt"
 RULE_PRIVATE_KEY_BLOCK = "secret/private-key-block"
 RULE_CONNECTION_PASSWORD = "secret/connection-password"
+RULE_NPM_TOKEN = "secret/npm-token"
+RULE_GOOGLE_API_KEY = "secret/google-api-key"
+RULE_HUGGINGFACE_TOKEN = "secret/huggingface-token"
+RULE_SENDGRID_KEY = "secret/sendgrid-key"
+RULE_VAULT_TOKEN = "secret/vault-token"
+RULE_DIGITALOCEAN_TOKEN = "secret/digitalocean-token"
+RULE_PERPLEXITY_KEY = "secret/perplexity-key"
+RULE_HTTP_BASIC_AUTH = "secret/http-basic-auth"
 # A value-free reference to a secret source (env var name / secret store).
 RULE_SECRET_SOURCE = "secret/source-reference"
 
@@ -156,10 +164,11 @@ _PLACEHOLDER_SHAPE_RE = re.compile(
 _REDACTED_MARKER = "<REDACTED>"
 # Only remove a public, reviewed prefix before checking a whole placeholder
 # body. Words embedded in random credential bytes are never exemptions.
+MODERN_VENDOR_PREFIX_PATTERN = r"npm_|AIza|hf_|SG\.|hv[sb]\.|do[por]_v1_|pplx-"
 _PLACEHOLDER_VENDOR_PREFIX_RE = re.compile(
-    r"^(?:sk-proj-|sk-ant-(?:api03-)?|sk-live-|sk-|(?:sk|rk)_live_|"
+    r"^(?:sk-proj-|sk-ant-(?:api03-)?|sk-or-v1-|sk-live-|sk-|(?:sk|rk)_live_|"
     r"(?:ghp|gho|ghu|ghs|ghr)_|github_pat_|glpat-|xox[baprs]-|pypi-|"
-    r"AKIA|ASIA)")
+    r"AKIA|ASIA|" + MODERN_VENDOR_PREFIX_PATTERN + r")")
 _PLACEHOLDER_TEMPLATE_RE = re.compile(
     r"(?:<[A-Za-z_][A-Za-z0-9_]*>|\$\{[A-Za-z_][A-Za-z0-9_]*\})\Z")
 
@@ -176,14 +185,7 @@ def _is_trivial_alphabet(token: str) -> bool:
     if len(set(token)) <= 1:
         return True                      # xxxx, ********, ....
     lower = token.lower()
-    if lower in _SEQUENTIAL_ALPHABETS:
-        return True
-    for alphabet in _SEQUENTIAL_ALPHABETS:
-        for start in range(len(alphabet)):
-            for length in range(4, len(alphabet) - start + 1):
-                if lower == alphabet[start:start + length]:
-                    return True
-    return False
+    return len(lower) >= 4 and any(lower in alphabet for alphabet in _SEQUENTIAL_ALPHABETS)
 
 
 def is_placeholder(token: str) -> bool:
@@ -204,9 +206,15 @@ def _is_placeholder(token: str) -> bool:
         return False
     if value in _PUBLIC_EXAMPLE_VALUES:
         return True
-    value = _PLACEHOLDER_VENDOR_PREFIX_RE.sub("", value, count=1)
-    if not value:
-        return False
+    prefix = _PLACEHOLDER_VENDOR_PREFIX_RE.match(value)
+    if prefix:
+        value = value[prefix.end():]
+        if not value:
+            return False
+        if prefix.group() == "SG.":
+            parts = value.split(".")
+            if len(parts) == 2 and all(part and len(set(part)) == 1 for part in parts):
+                return True
     if _PLACEHOLDER_SHAPE_RE.fullmatch(value) or _PLACEHOLDER_TEMPLATE_RE.fullmatch(value):
         return True                       # whole marker/template only
     normalized = value.lower().replace("-", "_")
@@ -247,6 +255,18 @@ _STRIPE_RE = re.compile(_TOKEN_START + r"(?:sk|rk)_live_[A-Za-z0-9]{16,}")
 # PyPI's documented scanner format allows arbitrary Macaroon caveat length.
 # Capture the entire base64url body, rather than an 85-character prefix.
 _PYPI_RE = re.compile(_TOKEN_START + r"pypi-[A-Za-z0-9_-]{85,}")
+_MODERN_VENDOR_PATTERNS = (
+    (RULE_NPM_TOKEN, re.compile(_TOKEN_START + r"npm_[A-Za-z0-9]{36}" + _TOKEN_END)),
+    (RULE_GOOGLE_API_KEY, re.compile(_TOKEN_START + r"AIza[A-Za-z0-9_-]{35}(?![A-Za-z0-9_-])")),
+    (RULE_HUGGINGFACE_TOKEN, re.compile(_TOKEN_START + r"hf_[A-Za-z0-9]{34,}" + _TOKEN_END)),
+    (RULE_SENDGRID_KEY, re.compile(_TOKEN_START + r"SG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])")),
+    (RULE_VAULT_TOKEN, re.compile(_TOKEN_START + r"hv[sb]\.[A-Za-z0-9_-]{24,}" + _TOKEN_END)),
+    (RULE_DIGITALOCEAN_TOKEN, re.compile(_TOKEN_START + r"do[por]_v1_[0-9a-f]{64}" + _TOKEN_END)),
+    (RULE_PERPLEXITY_KEY, re.compile(_TOKEN_START + r"pplx-[A-Za-z0-9]{40,}" + _TOKEN_END)),
+)
+_HTTP_BASIC_RE = re.compile(
+    r"(?<![A-Za-z0-9_-])Authorization\s*:\s*Basic\s+"
+    r"(?P<b64>[A-Za-z0-9+/]{8,}={0,2})(?![A-Za-z0-9+/=])", re.IGNORECASE | re.ASCII)
 _JWT_RE = re.compile(
     _TOKEN_START + r"eyJ[A-Za-z0-9_\-]{4,}\.[A-Za-z0-9_\-]{4,}\.[A-Za-z0-9_\-]{4,}")
 _PRIVATE_KEY_RE = re.compile(
@@ -263,6 +283,19 @@ _CONNECTION_PREFIX_RE = re.compile(
 _CONNECTION_AUTHORITY_RE = re.compile(r"[^\s/?#\"'`]+")
 _CONNECTION_TEMPLATE_RE = re.compile(
     r"(?:<[^<>@]+>|\$\{[^{}@]+\}|%[A-Za-z_][A-Za-z0-9_]*%)\Z")
+
+
+def _valid_basic_auth(token: str) -> bool:
+    if len(token) % 4:
+        return False
+    try:
+        decoded = base64.b64decode(token, validate=True).decode("utf-8")
+    except (binascii.Error, UnicodeDecodeError):
+        return False
+    _, colon, password = decoded.partition(":")
+    return (bool(colon and password) and all(ord(ch) >= 0x20 and ord(ch) != 0x7f for ch in decoded)
+            and not (is_placeholder(password) or _CONNECTION_TEMPLATE_RE.fullmatch(password)
+                     or re.fullmatch(r"\*{3,}", password)))
 
 
 def _connection_passwords(text: str, channel: str) -> List[SpanSpec]:
@@ -317,8 +350,17 @@ SECRET_STORE_SUFFIXES = (".pem", ".key", ".p12", ".pfx", ".tfvars",
 # `.env` and its dotted variants (`.env.local`, `.env.production`): these
 # are the same secret store, and `.env.local` is the file people actually
 # commit by accident.
-SECRET_STORE_ENV_RE = re.compile(r"(?<![\w.@])\.env(?:\.[A-Za-z0-9_-]+)?"
+SECRET_STORE_ENV_RE = re.compile(r"(?<![\w.@])\.env(?:\.[A-Za-z0-9_-]+)*"
                                  r"(?![\w-])")
+ENV_TEMPLATE_NAMES = frozenset({".env.example", ".env.sample", ".env.template", ".env.dist"})
+
+
+def secret_store_name(name: str) -> bool:
+    """Classify a basename before reading an export candidate."""
+    name = name.lower()
+    return (name not in ENV_TEMPLATE_NAMES and
+            (name in SECRET_STORE_NAMES or name.endswith(SECRET_STORE_SUFFIXES)
+             or name.startswith(".env.")))
 # Whole-environment expansion: value-free detection (T2), ASK-only.
 # "Read the WHOLE environment": the *shape* of the command, not the word.
 # Design 2.4 item 4 - only the no-argument expansion forms are dumps:
@@ -338,6 +380,9 @@ ENV_DUMP_RE = re.compile(
     _SHELL_AT_START + r"(?:env|printenv)\s*\|"
     r"|" + _SHELL_AT_START + r"(?:env|printenv|export\s+-p|set)\s*$"
     r"|(?<![\w.])cat\s+/proc/self/environ", re.MULTILINE)
+_BASH_ENV_DUMP_RE = re.compile(
+    r"(?:^|[;&|()])[ \t]*(?:env|printenv|export[ \t]+-p|set)(?=[ \t]*(?:$|[;&|)<>]))"
+    r"|(?<![\w.])cat[ \t]+/proc/self/environ", re.MULTILINE)
 
 
 def _b64url_json_has_alg(segment: str) -> bool:
@@ -378,14 +423,15 @@ def detect_secrets(text: str, channel: str = "") -> List[SpanSpec]:
     """
     spans: List[SpanSpec] = []
 
-    def add(match: "re.Match[str]", rule_id: str, notes: Iterable[str] = ()):
-        raw = match.group(0)
+    def add(match: "re.Match[str]", rule_id: str, notes: Iterable[str] = (), *, group=0):
+        raw = match.group(group)
         if is_placeholder(raw):
             return
+        start, end = match.span(group)
         spans.append(SpanSpec(
-            raw=raw, start=match.start(), end=match.end(), rule_id=rule_id,
+            raw=raw, start=start, end=end, rule_id=rule_id,
             family=FAMILY_SECRET, confidence=CONFIDENCE_DETERMINISTIC,
-            context=_note_context(text, match.start()), channel=channel,
+            context=_note_context(text, start), channel=channel,
             notes=list(notes)))
 
     for match in _PRIVATE_KEY_RE.finditer(text):
@@ -408,6 +454,12 @@ def detect_secrets(text: str, channel: str = "") -> List[SpanSpec]:
         add(match, RULE_STRIPE_KEY, ["prefix + live mode (test keys exempt)"])
     for match in _PYPI_RE.finditer(text):
         add(match, RULE_PYPI_TOKEN, ["vendor prefix + documented base64url minimum"])
+    for rule_id, pattern in _MODERN_VENDOR_PATTERNS:
+        for match in pattern.finditer(text):
+            add(match, rule_id, ["vendor prefix + length + charset"])
+    for match in _HTTP_BASIC_RE.finditer(text):
+        if _valid_basic_auth(match.group("b64")):
+            add(match, RULE_HTTP_BASIC_AUTH, ["structured HTTP Basic credentials"], group="b64")
     for match in _JWT_RE.finditer(text):
         header = match.group(0).split(".", 1)[0]
         if not _b64url_json_has_alg(header):
@@ -972,7 +1024,7 @@ def _secret_bearing_name(name: str, *, explicit_environment: bool = False) -> bo
             and any(part in _SECRET_NAME_COMPONENTS for part in components))
 
 
-def _secret_source_reference(text: str) -> Optional[Tuple[str, int, int, str]]:
+def _secret_source_reference(text: str, *, bash=False, include_store_paths=True) -> Optional[Tuple[str, int, int, str]]:
     """(matched expression, start, end, reason) for a secret source, or None.
 
     Value-free by construction: the match is an environment-variable *name*,
@@ -980,21 +1032,22 @@ def _secret_source_reference(text: str) -> Optional[Tuple[str, int, int, str]]:
     here resolves a value; that invariant is what keeps the guard's own
     output from becoming the leak (design 2.4, "anti-loop rule").
     """
-    match = ENV_DUMP_RE.search(text)
+    match = (_BASH_ENV_DUMP_RE if bash else ENV_DUMP_RE).search(text)
     if match:
         # Trim the pipe/whitespace the expansion regex uses to anchor the
         # read position: the fact is the command, not the separator.
         raw = match.group(0).rstrip(" |\t")
         return raw, match.start(), match.start() + len(raw), \
             "environment expansion"
-    match = SECRET_STORE_ENV_RE.search(text)
-    if match:
-        return match.group(0), match.start(), match.end(), \
-            "secret store: " + match.group(0)
-    match = SECRET_STORE_RE.search(text)
-    if match:
-        return match.group(0), match.start(), match.end(), \
-            "secret store: " + match.group(0)
+    if include_store_paths:
+        for match in SECRET_STORE_ENV_RE.finditer(text):
+            if not bash or match.group(0) not in ENV_TEMPLATE_NAMES:
+                return match.group(0), match.start(), match.end(), \
+                    "secret store: " + match.group(0)
+        match = SECRET_STORE_RE.search(text)
+        if match:
+            return match.group(0), match.start(), match.end(), \
+                "secret store: " + match.group(0)
     for match in SECRET_NAME_RE.finditer(text):
         name = next(g for g in match.groups() if g)
         explicit_environment = match.group(1) is not None or match.group(4) is not None
@@ -1002,6 +1055,17 @@ def _secret_source_reference(text: str) -> Optional[Tuple[str, int, int, str]]:
             return match.group(0), match.start(), match.end(), \
                 "secret-bearing name: " + name
     return None
+
+
+def secret_source_span(text, channel, *, bash=False, include_store_paths=True):
+    """Return the first value-free secret source fact in a payload."""
+    reference = _secret_source_reference(text, bash=bash, include_store_paths=include_store_paths)
+    if reference is None:
+        return None
+    raw, start, end, reason = reference
+    return SpanSpec(raw=raw, start=start, end=end, rule_id=RULE_SECRET_SOURCE, family=FAMILY_SECRET,
+                    confidence=CONFIDENCE_DETERMINISTIC, context="env-var", channel=channel,
+                    source_dump=True, notes=["value-free reference detection", reason])
 
 
 # ------------------------------------------------- repo-local exemptions
@@ -1200,7 +1264,7 @@ def _parse_allowfile(text: str, source: str) -> Exemption:
     return exemption
 
 
-def load_exemption(workspace: Optional[str]) -> Exemption:
+def load_exemption(workspace: Optional[str], *, read_text=None) -> Exemption:
     """Read the repo-local exemption file; absent means "no exemptions"."""
     result = Exemption()
     if not workspace:
@@ -1208,8 +1272,12 @@ def load_exemption(workspace: Optional[str]) -> Exemption:
     for relative in (DEFAULT_ALLOWFILE, DEFAULT_IGNOREFILE):
         path = os.path.join(workspace, relative)
         try:
-            with open(path, "r", encoding="utf-8") as fh:
-                parsed = _parse_allowfile(fh.read(), relative)
+            if read_text is None:
+                with open(path, "r", encoding="utf-8") as fh:
+                    text = fh.read()
+            else:
+                text = read_text(relative)
+            parsed = _parse_allowfile(text, relative)
         except FileNotFoundError:
             continue
         except UnicodeDecodeError:
@@ -1280,7 +1348,7 @@ def scan_text(text: str, channel: str = "",
         return result
 
     spans = merge_spans(spans)
-    source = _secret_source_reference(text)
+    source = secret_source_span(text, channel)
     if source is not None:
         # The dump makes the whole payload unattributable. It gets a span of
         # its own - not just a flag on an existing one - because the
@@ -1288,12 +1356,7 @@ def scan_text(text: str, channel: str = "",
         # all, and "no match" must not be reported as "clean" when the
         # guard never saw the content. The span records the *reference
         # expression*, which is value-free by construction (design 2.4).
-        raw, start, end, reason = source
-        spans.append(SpanSpec(
-            raw=raw, start=start, end=end, rule_id=RULE_SECRET_SOURCE,
-            family=FAMILY_SECRET, confidence=CONFIDENCE_DETERMINISTIC,
-            context="env-var", channel=channel, source_dump=True,
-            notes=["value-free reference detection", reason]))
+        spans.append(source)
     if exemption is None:
         exemption = load_exemption(workspace)
     result.exemption_info = exemption.safe()

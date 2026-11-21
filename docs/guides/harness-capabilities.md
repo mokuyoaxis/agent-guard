@@ -68,6 +68,21 @@ a CLI/cooperative path and the narrowly scoped, opt-in DSH text-read prototype
 above. This table does not imply universal interception of model context,
 uploads, or every output channel.
 
+## Opt-in Bash Exfil
+
+The development adapter supports credential checks on the covered Bash
+events. Claude Code and Kimi Code read `AGENT_GUARD_EXFIL_BASH=1` from
+the installed hook's environment. DSH uses `exfilBashGuard: true` in
+the Agent Guard composition row. All three default to off.
+
+A refusal stops the command before Delete-guard enforcement. The scan covers
+known credential literals and common secret-source references. Ordinary
+absolute path arguments are outside the Bash scan. For explicit archive
+contents, use the separate export preflight. Current Exfil evidence comes
+from direct hook calls with synthetic payloads and a DSH adapter test with
+mock host services and a real Python worker.
+[Claude setup](../../adapters/claude/README.md#opt-in-bash-exfil) · [Kimi setup](../../adapters/kimi-code/README.md#opt-in-bash-exfil) · [DSH setup](../../adapters/dsh/README.md#opt-in-bash-exfil) · [Export preflight](../../skills/exfil-guard/references/rules.md#export-preflight)
+
 ## Local MCP tools introduced in 0.2.7
 
 The optional [local stdio MCP adapter](mcp.md) provides explicit safe_delete,

@@ -43,6 +43,10 @@ from _payload import (InvalidArguments, PayloadTooLarge, SafeArgumentParser, Std
 
 REDACTED = "<REDACTED>"
 PATH_PLACEHOLDER = "<PATH>"
+_REDACTION_PREFIX_RE = re.compile(
+    r"^(sk-|rk_|ghp_|gho_|ghu_|ghs_|ghr_|github_pat_|"
+    r"glpat-|xox[baprs]-|pypi-|AKIA|ASIA|sk_live_|rk_live_|"
+    + redaction.MODERN_VENDOR_PREFIX_PATTERN + r")")
 # Windows drive/UNC prefixes are layout, not identity, and they are what
 # makes a rewritten path still readable ("C:\\Users\\..." -> "C:\\<PATH>").
 _DRIVE_PREFIX_RE = re.compile(r"^[A-Za-z]:[\\/]")
@@ -53,13 +57,11 @@ def placeholder_for(span) -> str:
     if span.family != redaction.FAMILY_SECRET:
         return PATH_PLACEHOLDER
     if span.rule_id in (redaction.RULE_PRIVATE_KEY_BLOCK,
-                        redaction.RULE_CONNECTION_PASSWORD):
+                        redaction.RULE_CONNECTION_PASSWORD, redaction.RULE_HTTP_BASIC_AUTH):
         return REDACTED
     # Keep the vendor prefix: it is public information (it says *which*
     # credential kind leaked) and it is what makes the output reviewable.
-    match = re.match(r"^(sk-|rk_|ghp_|gho_|ghu_|ghs_|ghr_|github_pat_|"
-                     r"glpat-|xox[baprs]-|pypi-|AKIA|ASIA|"
-                     r"sk_live_|rk_live_)", span.raw)
+    match = _REDACTION_PREFIX_RE.match(span.raw)
     if match:
         return match.group(1) + REDACTED
     return REDACTED

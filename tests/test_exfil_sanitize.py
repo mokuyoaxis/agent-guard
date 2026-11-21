@@ -20,6 +20,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core import policy, redaction
 from core.redaction import get_channel, scan_text
 from tests.helpers import RepoFixture, git_available
+from tests.test_exfil_classifier import MODERN_TOKENS
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCRIPTS = os.path.join(ROOT, "skills", "exfil-guard", "scripts")
@@ -61,6 +62,29 @@ def run(script, channel, text, extra=(), env=None):
 
 
 class FormatPreservation(unittest.TestCase):
+    def test_modern_vendor_rewrites_are_value_free_and_rescan_clean(self):
+        text = "，".join(prefix + body for prefix, body, _ in MODERN_TOKENS)
+        result = sanitize_mod.sanitize_text(text, "file-write", ROOT)
+        self.assertEqual(result["text"], "，".join(prefix + "<REDACTED>" for prefix, _, _ in MODERN_TOKENS))
+        self.assertEqual([row["rule_id"] for row in result["plan"]], [rule for _, _, rule in MODERN_TOKENS])
+        self.assertFalse(redaction.detect_secrets(result["text"]))
+
+    def test_basic_auth_json_and_audit_keep_neither_encoded_nor_decoded_credentials(self):
+        user, password = "owned-basic-identity", "rain-52:sample"
+        token = base64.b64encode(f"{user}:{password}".encode()).decode()
+        header = "Authorization: " + "Basic "
+        with tempfile.TemporaryDirectory() as workspace:
+            log = os.path.join(workspace, ".agent-trash", "audit.jsonl")
+            proc = run(SANITIZE, "file-write", header + token, ("--json", "--audit"),
+                       {"AGENT_GUARD_WORKSPACE": workspace, "AGENT_GUARD_TRASH": os.path.dirname(log)})
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertEqual(json.loads(proc.stdout)["text"], header + "<REDACTED>")
+            with open(log, encoding="utf-8") as stream:
+                audit = stream.read()
+            self.assertIn(redaction.RULE_HTTP_BASIC_AUTH, audit)
+            self.assertTrue(all(value not in proc.stdout + proc.stderr + audit
+                                for value in (token, user, password)))
+
     def test_native_windows_user_path_uses_exact_bytes_and_sanitizes(self):
         # Build the fixture in Python: Git Bash printf rewrites backslashes
         # and caused the withdrawn third finding in Issue #7.

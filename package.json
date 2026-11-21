@@ -32,6 +32,7 @@
     "agent-guard-status": "./skills/delete-guard/scripts/status.py",
     "agent-guard-delete-policy": "./skills/delete-guard/scripts/delete_policy.py",
     "agent-guard-exfil-check": "./skills/exfil-guard/scripts/check_span.py",
+    "agent-guard-exfil-export": "./skills/exfil-guard/scripts/check_export.py",
     "agent-guard-exfil-sanitize": "./skills/exfil-guard/scripts/sanitize.py",
     "agent-guard-config-view": "./skills/exfil-guard/scripts/view.py"
   },

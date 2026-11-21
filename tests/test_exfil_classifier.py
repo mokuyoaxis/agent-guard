@@ -34,6 +34,20 @@ JWT = ("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
 _ARMOR = "-----" + "BEGIN OPENSSH PRIVATE KEY" + "-----"
 _FOOTER = "-----" + "END OPENSSH PRIVATE KEY" + "-----"
 PRIVATE_KEY = _ARMOR + "\n" + "b3BlbnNzaC1rZXktdjEAAAAABG5vbmU" + "\n" + _FOOTER
+_MIXED = "m2X0a8S9v6k31wqu4ZbLJ7cN5tH"
+_HEX = "4b77c903febda528b80c5a94f632ed11"
+MODERN_TOKENS = (
+    ("npm_", (_MIXED * 2)[:36], redaction.RULE_NPM_TOKEN),
+    ("AIza", (_MIXED + "_-" + _MIXED)[:35], redaction.RULE_GOOGLE_API_KEY),
+    ("hf_", _MIXED * 2, redaction.RULE_HUGGINGFACE_TOKEN),
+    ("SG.", _MIXED[:22] + "." + (_MIXED * 2)[:43], redaction.RULE_SENDGRID_KEY),
+    ("hvs.", _MIXED + "-a_b", redaction.RULE_VAULT_TOKEN),
+    ("hvb.", _MIXED + "_cd", redaction.RULE_VAULT_TOKEN),
+    ("dop_v1_", _HEX * 2, redaction.RULE_DIGITALOCEAN_TOKEN),
+    ("doo_v1_", _HEX * 2, redaction.RULE_DIGITALOCEAN_TOKEN),
+    ("dor_v1_", _HEX * 2, redaction.RULE_DIGITALOCEAN_TOKEN),
+    ("pplx-", (_MIXED * 2)[:40], redaction.RULE_PERPLEXITY_KEY),
+)
 
 
 def installation_token(app_id="123456", signature_length=360):
@@ -109,6 +123,56 @@ class T1KnownPatterns(unittest.TestCase):
         self.assertEqual(detect_secrets(""), [])
         self.assertEqual(detect_secrets("nothing to see here, just prose."), [])
         self.assertEqual(detect_secrets("sha512-" + "a" * 88), [])
+
+
+class ModernCredentials(unittest.TestCase):
+    def test_vendor_formats_and_ascii_boundaries(self):
+        for prefix, body, rule_id in MODERN_TOKENS:
+            token = prefix + body
+            with self.subTest(rule=rule_id, prefix=prefix):
+                span = one_span("凭据" + token + "结束")
+                self.assertEqual((span.rule_id, span.start, span.end, span.raw),
+                                 (rule_id, 2, 2 + len(token), token))
+                self.assertEqual(detect_secrets("identifier_" + token), [])
+                extended = token + "_property"
+                if rule_id == redaction.RULE_VAULT_TOKEN:
+                    self.assertEqual(one_span(extended).raw, extended)
+                else:
+                    self.assertEqual(detect_secrets(extended), [])
+        for prefix, body, rule_id in MODERN_TOKENS:
+            if rule_id in (redaction.RULE_NPM_TOKEN, redaction.RULE_GOOGLE_API_KEY,
+                           redaction.RULE_SENDGRID_KEY, redaction.RULE_DIGITALOCEAN_TOKEN):
+                self.assertEqual(detect_secrets(prefix + body + "A"), [])
+                self.assertEqual(detect_secrets(prefix + body[:-1]), [])
+        for prefix, body, _ in MODERN_TOKENS:
+            if prefix in ("AIza", "SG."):
+                self.assertEqual(detect_secrets(prefix + body + "-"), [])
+
+    def test_placeholders_and_openrouter_prefix(self):
+        for prefix, body, _ in MODERN_TOKENS:
+            placeholder = ("x" * 22 + "." + "y" * 43) if prefix == "SG." else "x" * len(body)
+            self.assertTrue(is_placeholder(prefix + placeholder))
+            self.assertFalse(detect_secrets(prefix + placeholder))
+            self.assertTrue(is_placeholder(prefix + "<REDACTED>"))
+        self.assertTrue(is_placeholder("sk-or-v1-" + "example"))
+        self.assertFalse(detect_secrets("sk-or-v1-" + "x" * 64))
+        self.assertEqual(one_span("sk-or-v1-" + _HEX * 2).rule_id, redaction.RULE_OPENAI_KEY)
+
+    def test_basic_auth_validates_utf8_user_password_and_reports_only_token_offsets(self):
+        header = "AUTHORIZATION:" + "\tBasic "
+        password = "测试口令:48"
+        encoded = base64.b64encode(("fixture-user:" + password).encode()).decode()
+        span = one_span(header + encoded)
+        self.assertEqual((span.rule_id, span.start, span.end, span.raw),
+                         (redaction.RULE_HTTP_BASIC_AUTH, len(header), len(header) + len(encoded), encoded))
+        projection = json.dumps(span.safe()) + str(span.notes)
+        self.assertTrue(all(value not in projection for value in (encoded, password, "fixture-user")))
+        for invalid in (b"fixture-user", b"fixture-user:", b"user:\xffraw", b"user:key\nvalue",
+                        b"user\rname:valid78", b"user:<PASSWORD>", b"user:***", b"user:changeme"):
+            self.assertEqual(detect_secrets(header + base64.b64encode(invalid).decode()), [])
+        for text in (header + encoded + "=", header + "broken=",
+                     "X-" + header + encoded, "Basic " + encoded):
+            self.assertEqual(detect_secrets(text), [])
 
 
 class ConnectionPasswords(unittest.TestCase):

@@ -38,7 +38,7 @@ limits; unreadable files and invalid UTF-8 are not silently certified clean.
 ## Opt-in Exfil audit
 
 The development checkout writes egress audit records when the operator adds
-`--audit` to `check_span.py`, `sanitize.py` or a Git hook, or sets
+`--audit` to `check_span.py`, `sanitize.py`, the export preflight or a Git hook, or sets
 `AGENT_GUARD_EXFIL_AUDIT=1` (`true` and `yes` also work). The MCP server uses
 its own trusted `--audit-exfil` startup flag. It ignores the ambient flag and
 never accepts it in tool arguments. [MCP Exfil tools](mcp.md#exfil-guard-tools)
@@ -52,6 +52,13 @@ file. Each decision has an `exfil-allow`, `exfil-sanitize`, `exfil-ask` or
 omitted on early cutoff. The log contains neither payload bytes, target paths,
 nor hashes of matched values. Git `pre-commit` records blocked entries and one
 overall summary. The workspace `status --json` counts decision summaries.
+
+The export preflight writes `tool: "exfil_export"` and uses `target_count`
+for the files whose text was scanned. Its byte total includes binary
+probes. Bash adapters use `tool: "exfil_bash_hook"` for evaluated commands
+when the operator enables `AGENT_GUARD_EXFIL_AUDIT`. The DSH fast path
+skips both the worker and its audit. File names and command text stay
+outside these records.
 
 An `audit` receipt reports whether the write was enabled and recorded. A
 write failure produces `AUDIT_WRITE_FAILED` and leaves the current decision
