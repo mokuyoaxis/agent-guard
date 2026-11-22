@@ -51,11 +51,12 @@ import fnmatch
 import json
 import os
 import re
+import stat
 import subprocess
 import sys
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from . import STATE_NAME, TRASH_DIRNAME
 from . import redaction
@@ -429,13 +430,101 @@ class PolicyContext:
 # ------------------------------------------------------------- regenerability
 
 
+MAX_REGENERABLE_TREE_ENTRIES = 200_000
+MAX_REGENERABLE_TREE_DEPTH = 128
+
+
+def _is_secret_store_path(rel: str) -> bool:
+    """True when any segment names a secret-store file that must never be auto-deleted."""
+    normalized = rel.replace("\\", "/")
+    for part in normalized.split("/"):
+        if not part or part in (".", ".."):
+            continue
+        lower = part.lower()
+        if part in redaction.SECRET_STORE_NAMES or lower in redaction.SECRET_STORE_NAMES:
+            return True
+        if any(lower.endswith(suffix) for suffix in redaction.SECRET_STORE_SUFFIXES):
+            return True
+        if redaction.SECRET_STORE_ENV_RE.fullmatch(part) and lower not in redaction.ENV_TEMPLATE_NAMES:
+            return True
+    return False
+
+
+def tree_safe_for_direct_delete(path: str, rel: str, *,
+                                max_entries: Optional[int] = None,
+                                max_depth: Optional[int] = None) -> bool:
+    """True only when path and its entire scanned subtree contain no secret-store names.
+
+    Fail-closed for direct permanent deletion: any secret-store descendant,
+    unreadable directory, lstat error, or scan-bound breach returns False so
+    the caller falls back to recoverable quarantine instead of deleting.
+    Symlinks are checked by name and never followed.
+    """
+    limit_entries = MAX_REGENERABLE_TREE_ENTRIES if max_entries is None else max_entries
+    limit_depth = MAX_REGENERABLE_TREE_DEPTH if max_depth is None else max_depth
+    if _is_secret_store_path(rel):
+        return False
+    try:
+        info = os.lstat(path)
+    except OSError:
+        return False
+    if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
+        return True
+    stack: List[Tuple[str, int]] = [(path, 0)]
+    seen = 0
+    while stack:
+        current, depth = stack.pop()
+        if depth >= limit_depth:
+            return False
+        try:
+            with os.scandir(current) as entries:
+                for entry in entries:
+                    seen += 1
+                    if seen > limit_entries:
+                        return False
+                    if _is_secret_store_path(entry.name):
+                        return False
+                    try:
+                        is_link = entry.is_symlink()
+                        is_dir = False if is_link else entry.is_dir(follow_symlinks=False)
+                    except OSError:
+                        return False
+                    if is_dir:
+                        stack.append((entry.path, depth + 1))
+        except OSError:
+            return False
+    return True
+
+
+def effective_artifact_patterns(
+        ctx: PolicyContext,
+        deletion_config: Optional[delete_config.DeleteConfig] = None) -> List[str]:
+    """Built-in/env artifact patterns plus validated workspace regenerable patterns."""
+    patterns = list(ctx.config.artifact_patterns)
+    if deletion_config is not None and deletion_config.regenerable_patterns:
+        patterns.extend(deletion_config.regenerable_patterns)
+    return patterns
+
+
 def _matches_artifact(rel: str, patterns: List[str]) -> bool:
-    parts = rel.split(os.sep)
+    """Match workspace-relative paths segment-by-segment so '*' never crosses '/'."""
+    posix_rel = rel.replace("\\", "/")
+    parts = [part for part in posix_rel.split("/") if part and part != "."]
+    if not parts:
+        return False
     for pat in patterns:
-        if any(fnmatch.fnmatch(part, pat) for part in parts):
-            return True
-        if fnmatch.fnmatch(rel, pat):
-            return True
+        pat_norm = pat.replace("\\", "/").strip("/")
+        if not pat_norm:
+            continue
+        if "/" not in pat_norm:
+            if any(fnmatch.fnmatch(part, pat_norm) for part in parts):
+                return True
+        else:
+            pat_parts = pat_norm.split("/")
+            if len(parts) >= len(pat_parts) and all(
+                    fnmatch.fnmatch(parts[i], pat_parts[i])
+                    for i in range(len(pat_parts))):
+                return True
     return False
 
 
@@ -451,7 +540,8 @@ def is_git_ignored(workspace: str, path: str) -> bool:
     return proc.returncode == 0
 
 
-def regenerable(specs: List[PathSpec], ctx: PolicyContext) -> bool:
+def regenerable(specs: List[PathSpec], ctx: PolicyContext,
+                deletion_config: Optional[delete_config.DeleteConfig] = None) -> bool:
     """True when every target is git-ignored AND matches an artifact pattern.
 
     The workspace-relative path used for artifact matching is computed from
@@ -473,21 +563,31 @@ def regenerable(specs: List[PathSpec], ctx: PolicyContext) -> bool:
     and the decision table are untouched. ``spec.resolved`` is still handed
     to git unchanged.
     """
-    return _regenerable(specs, ctx, is_git_ignored)
+    return _regenerable(specs, ctx, is_git_ignored, deletion_config=deletion_config)
 
 
-def _regenerable(specs, ctx, git_ignored):
+def _regenerable(specs, ctx, git_ignored, *, deletion_config=None):
     """Shared rule; the planner supplies only its scan-local Git facts."""
     if not ctx.config.allow_regenerable:
         return False
+    if deletion_config is None and ctx.workspace:
+        try:
+            deletion_config = delete_config.load_config(ctx.workspace)
+        except delete_config.DeleteConfigError:
+            return False
+    patterns = effective_artifact_patterns(ctx, deletion_config)
     for spec in specs:
         if not spec.resolved or not spec.exists:
             return False
         rel = os.path.relpath(_physical_keep_final(spec.resolved),
                               _physical(ctx.workspace))
-        if not _matches_artifact(rel, ctx.config.artifact_patterns):
+        if _is_secret_store_path(rel):
+            return False
+        if not _matches_artifact(rel, patterns):
             return False
         if not git_ignored(ctx.workspace, spec.resolved):
+            return False
+        if not tree_safe_for_direct_delete(spec.resolved, rel):
             return False
     return True
 
@@ -586,7 +686,9 @@ def _decide_path_batch(specs, ctx, recursive, *, config_loader,
                        ["restricted mode permits only explicit single-file "
                         "deletes inside the workspace"])
 
-    if recursive and regenerable_check(specs, ctx):
+    if recursive and (
+            _regenerable(specs, ctx, is_git_ignored, deletion_config=deletion_config)
+            if regenerable_check is regenerable else regenerable_check(specs, ctx)):
         return Verdict(DECISION_ALLOW, CODE_ALLOW_REGENERABLE,
                        ["all targets are git-ignored and match known "
                         "artifact patterns"])

@@ -31,7 +31,7 @@ class UserFeedbackTests(RepoFixture):
 
     def test_unrecognized_commands_keep_noop_with_honest_explanation(self):
         for command in ("npm run clean", "make clean", "git stash clear",
-                        'python -c "import shutil; shutil.rmtree(\'src\')"'):
+                        "python scripts/custom_clean.py"):
             with self.subTest(command=command):
                 proc = self.cli("check.py", "--json", "--", command)
                 self.assertEqual(proc.returncode, 0, proc.stderr)
@@ -42,6 +42,12 @@ class UserFeedbackTests(RepoFixture):
                               report["explanation"])
                 self.assertNotIn("Nothing to delete", report["explanation"])
                 self.assertNotIn("storage_notice", report)
+        inline = self.cli("check.py", "--json", "--",
+                          'python -c "import shutil; shutil.rmtree(\'src\')"')
+        self.assertEqual(inline.returncode, 0, inline.stderr)
+        inline_report = json.loads(inline.stdout)
+        self.assertEqual((inline_report["decision"], inline_report["code"]),
+                         ("BLOCK", "BLOCK_UNDETERMINABLE_EFFECT"))
         self.assertTrue(Path(self.root, "src/main.py").is_file())
 
     def test_text_check_shows_explanation_without_echoing_command(self):

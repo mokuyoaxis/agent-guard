@@ -27,7 +27,7 @@ EXFIL_TOOLS = EXFIL_PAYLOAD_TOOLS | {"config_safe_view"}
 GROUP_TOOLS = frozenset(("cleanup_discover", "cleanup_measure"))
 TASK_TOOLS = frozenset(("cleanup_execute", "cleanup_task_status"))
 APPROVAL_TOOL = "cleanup_request_approval"
-TOOLS = (frozenset(("safe_delete", "restore", "transactions", "status", "gc_plan", "cleanup_plan", APPROVAL_TOOL))
+TOOLS = (frozenset(("safe_delete", "restore", "restore_preview", "transactions", "status", "gc_plan", "cleanup_plan", APPROVAL_TOOL))
          | GROUP_TOOLS | TASK_TOOLS | EXFIL_TOOLS)
 MAX_PATHS = 1000
 TXID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*\Z")
@@ -118,7 +118,8 @@ class Operations:
             raise InvalidArguments("unknown MCP tool")
         if not isinstance(arguments, dict):
             raise InvalidArguments("tool arguments must be an object")
-        allowed = {"safe_delete": {"paths", "dry_run", "quarantine"}, "restore": {"txid"},
+        allowed = {"safe_delete": {"paths", "dry_run", "quarantine"},
+                   "restore": {"txid"}, "restore_preview": {"txid"},
                    "status": {"tail", "view", "limit"}, "transactions": set(), "gc_plan": set(),
                    "cleanup_discover": {"scopes", "max_entries", "max_depth"},
                    "cleanup_measure": {"scopes", "max_entries", "max_depth"},
@@ -184,7 +185,7 @@ class Operations:
             if type(result.get("quarantine", False)) is not bool:
                 raise InvalidArguments("quarantine must be a boolean")
             result["quarantine"] = result.get("quarantine", False)
-        elif name == "restore":
+        elif name in ("restore", "restore_preview"):
             txid = result.get("txid")
             # Match the recovery engine's transaction-ID grammar at this
             # untrusted tool boundary; no filesystem path or CLI option.
@@ -320,7 +321,9 @@ class Operations:
             # filename such as '[old]*.txt' cannot select adjacent files.
             command += ["--", *(glob.escape(path) for path in paths)]
         elif name == "restore":
-            command = ["restore.py", "restore", "--json", "--", args["txid"]]
+            command = ["restore.py", "restore", "--exact-txid", "--json", "--", args["txid"]]
+        elif name == "restore_preview":
+            command = ["restore.py", "preview", "--exact-txid", "--json", "--", args["txid"]]
         elif name == "transactions":
             command = ["restore.py", "list", "--json"]
         elif name == "status":
@@ -363,7 +366,7 @@ class Operations:
         # Keep existing calls serialized. Task status reads atomically
         # replaced receipts and must not wait behind its own long execution.
         # No call changes process cwd/environment; writers share Core admission.
-        with (nullcontext() if name in EXFIL_TOOLS or name == "cleanup_task_status" or
+        with (nullcontext() if name in EXFIL_TOOLS or name in ("cleanup_task_status", "restore_preview") or
               (name == "status" and args["view"] == "overview") else self._lock):
             try:
                 child = subprocess.run([sys.executable, "-B", str(scripts / command[0]), *command[1:]],
@@ -395,6 +398,12 @@ class Operations:
                                  exit_code=child.returncode, may_have_changed=mutating, task_id=task_id)
         if name in EXFIL_TOOLS:
             return self._exfil_response(name, child.returncode, result, mutating)
+        if name == "restore_preview":
+            if result.get("schema") != "restore_preview/v1" or type(result.get("ok")) is not bool:
+                return self._failure(name, "MCP_CLI_PROTOCOL_ERROR", "Unexpected restore preview response",
+                                     exit_code=child.returncode)
+            return {"tool": name, "ok": child.returncode == 0 and result["ok"],
+                    "exit_code": child.returncode, "result": result}
         if name == "status" and args["view"] == "overview" and child.returncode in (0, 1):
             if (result.get("schema") != "workspace_query/v1" or result.get("workspace") != self.workspace
                     or result.get("trash_root") != self.trash_root or type(result.get("complete")) is not bool):

@@ -58,6 +58,7 @@ class _Node:
     files: Dict[Tuple[int, int], int] = field(default_factory=dict)
     fingerprint: str = ""
     has_protected: bool = False
+    has_secret_store: bool = False
 
 
 def _git_facts(root: str, paths: List[str], targets=None):
@@ -234,6 +235,8 @@ def plan_cleanup(
                               or any(c.has_protected for c in node.children)
                               or (node.kind == "directory"
                                   and any(_under(p, node.path) for p in protect)))
+        node.has_secret_store = ((node.path != "." and policy._is_secret_store_path(node.path))
+                                 or any(c.has_secret_store for c in node.children))
         node.fingerprint = _digest([node.path, node.signature if not node.protected else None,
                                     node.protected, node.complete,
                                     [c.fingerprint for c in node.children]])
@@ -268,7 +271,7 @@ def plan_cleanup(
         return os.path.relpath(absolute, root).replace(os.sep, "/") in ignored
 
     def regenerable(specs, context):
-        return policy._regenerable(specs, context, git_ignored)
+        return policy._regenerable(specs, context, git_ignored, deletion_config=delete_config)
 
     def row(node: _Node, category: str, reason: str) -> Dict[str, Any]:
         result = {
@@ -309,8 +312,10 @@ def plan_cleanup(
             if any(_under(node.path, p) for p in discard):
                 return [row(node, "discarded", "explicitly declared discarded by caller")]
             if (node.path in ignored and node.path not in tracked_ancestors
-                    and policy._matches_artifact(node.path.replace("/", os.sep),
-                                                 ctx.config.artifact_patterns)):
+                    and not node.has_secret_store
+                    and policy._matches_artifact(
+                        node.path,
+                        policy.effective_artifact_patterns(ctx, delete_config))):
                 return [row(node, "regenerable", "Git-ignored and matches an artifact pattern")]
         children = [entry for child in node.children for entry in flatten(child)]
         if (node.path == "."
@@ -321,6 +326,8 @@ def plan_cleanup(
                     "No Git-tracked content found")
         evidence = ("declared discard cannot select this whole subtree"
                     if any(_under(node.path, p) for p in discard) else
+                    "contains secret-store path; regeneration not proven (quarantine or review separately)"
+                    if node.has_secret_store else
                     "no explicit discard declaration; regeneration not proven")
         return [row(node, "uncertain", tracking + "; " + evidence)]
 

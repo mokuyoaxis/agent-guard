@@ -19,6 +19,7 @@ repository `.gitignore` rule is accepted; otherwise the engine adds a local
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
@@ -680,6 +681,333 @@ class RecoveryEngine:
             target, storage = os.path.normcase(target), os.path.normcase(storage)
             if inside_path(target, storage) or inside_path(storage, target):
                 raise ValueError("force restore target overlaps quarantine storage")
+
+    @staticmethod
+    def _preview_entry_metadata(path: str) -> Dict[str, Any]:
+        """Inspect one path without following symlinks or reading contents."""
+        try:
+            info = os.lstat(path)
+        except FileNotFoundError:
+            return {"kind": "missing", "size_bytes": None, "mtime_ns": None}
+        except OSError:
+            return {"kind": "unreadable", "size_bytes": None, "mtime_ns": None}
+        mode = info.st_mode
+        if stat.S_ISLNK(mode):
+            kind = "symlink"
+        elif stat.S_ISREG(mode):
+            kind = "file"
+        elif stat.S_ISDIR(mode):
+            kind = "dir"
+        else:
+            kind = "special"
+        return {
+            "kind": kind,
+            "size_bytes": info.st_size if kind == "file" else None,
+            "mtime_ns": info.st_mtime_ns,
+        }
+
+    @staticmethod
+    def _preview_regular_sha256(path: str, max_bytes: int) -> Optional[str]:
+        """Bounded, no-follow SHA-256 for internal equality checks only (never emitted)."""
+        flags = (os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+                 | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_BINARY", 0))
+        try:
+            fd = os.open(path, flags)
+        except OSError:
+            return None
+        try:
+            info = os.fstat(fd)
+            if not stat.S_ISREG(info.st_mode) or info.st_size > max_bytes:
+                return None
+            digest = hashlib.sha256()
+            total = 0
+            while True:
+                chunk = os.read(fd, 65536)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > max_bytes:
+                    return None
+                digest.update(chunk)
+            return digest.hexdigest()
+        except OSError:
+            return None
+        finally:
+            os.close(fd)
+
+    @classmethod
+    def _compare_preview_entries(cls, trash: str, origin: str,
+                                 q_meta: Dict[str, Any], o_meta: Dict[str, Any],
+                                 hash_max_bytes: int) -> Dict[str, Any]:
+        """Compare quarantine copy and current occupant without leaking content or hashes."""
+        same_kind = q_meta["kind"] == o_meta["kind"]
+        same_size = (
+            q_meta["size_bytes"] == o_meta["size_bytes"]
+            if same_kind and q_meta["kind"] == "file" else None
+        )
+        if not same_kind:
+            return {"same_kind": False, "same_size": None,
+                    "content_equal": False, "basis": "kind_diff"}
+        kind = q_meta["kind"]
+        if kind == "dir":
+            return {"same_kind": True, "same_size": None,
+                    "content_equal": None, "basis": "directory_uncompared"}
+        if kind == "symlink":
+            return {"same_kind": True, "same_size": None,
+                    "content_equal": None, "basis": "symlink_target_uncompared"}
+        if kind != "file":
+            return {"same_kind": True, "same_size": None,
+                    "content_equal": None, "basis": "special_uncompared"}
+        if not same_size:
+            return {"same_kind": True, "same_size": False,
+                    "content_equal": False, "basis": "size_diff"}
+        if q_meta["size_bytes"] is None or q_meta["size_bytes"] > hash_max_bytes:
+            return {"same_kind": True, "same_size": True,
+                    "content_equal": None, "basis": "exceeds_hash_cap"}
+        left = cls._preview_regular_sha256(trash, hash_max_bytes)
+        right = cls._preview_regular_sha256(origin, hash_max_bytes)
+        if left is None or right is None:
+            return {"same_kind": True, "same_size": True,
+                    "content_equal": None, "basis": "unreadable"}
+        return {"same_kind": True, "same_size": True,
+                "content_equal": left == right, "basis": "sha256_regular_file"}
+
+    def _restore_parent_blocker(self, origin: str) -> Optional[str]:
+        """Return a reason when an existing ancestor of origin blocks restoring into it."""
+        parent = os.path.dirname(origin)
+        if not parent or parent == origin:
+            return None
+        root = os.path.normcase(_physical(self.workspace))
+        chain: List[str] = []
+        current = parent
+        while current and os.path.normcase(_physical_keep_final(current)) != root:
+            chain.append(current)
+            nxt = os.path.dirname(current)
+            if nxt == current:
+                break
+            current = nxt
+        for ancestor in reversed(chain):
+            try:
+                info = os.lstat(ancestor)
+            except FileNotFoundError:
+                return None
+            except OSError:
+                return f"restore target parent path is not accessible: {ancestor}"
+            mode = info.st_mode
+            if stat.S_ISLNK(mode):
+                try:
+                    target_info = os.stat(ancestor)
+                except OSError:
+                    return f"restore target parent is a broken or unreadable symlink: {ancestor}"
+                if not stat.S_ISDIR(target_info.st_mode):
+                    return f"restore target parent is not a directory: {ancestor}"
+            elif not stat.S_ISDIR(mode):
+                return f"restore target parent is not a directory: {ancestor}"
+        return None
+
+    def preview_restore(self, txid: str, *, force: bool = False,
+                        hash_max_bytes: int = 4 * 1024 * 1024) -> Dict[str, Any]:
+        """Read-only restore preflight and conflict comparison; writes nothing."""
+        from .messages import restore_guidance
+
+        if not isinstance(txid, str) or not _GC_TXID_RE.fullmatch(txid):
+            return {"schema": "restore_preview/v1", "ok": False,
+                    "error": "invalid quarantine transaction id"}
+        transactions = self.transactions()
+        tx = transactions.get(txid)
+        if not tx:
+            return {"schema": "restore_preview/v1", "ok": False,
+                    "error": f"unknown transaction: {txid}"}
+
+        errors: List[str] = []
+        tx_dir_ok = True
+        try:
+            self._restore_transaction_dir(txid)
+        except (OSError, ValueError):
+            tx_dir_ok = False
+            errors.append(
+                "restore source is outside its transaction or cannot be resolved")
+
+        completed = {
+            (item.get("origin_path"), item.get("trash_path"))
+            for item in tx["items"] if item.get("type") == "relocate"
+        }
+        failed_map: Dict[Tuple[str, str], str] = {}
+        for failure in tx.get("failures", ()):
+            origin = failure.get("origin_path")
+            trash = failure.get("trash_path")
+            if isinstance(origin, str) and isinstance(trash, str):
+                failed_map[(origin, trash)] = str(failure.get("error") or "relocation failed")
+        unconfirmed = (set(failed_map) - completed) if not tx.get("purged") else set()
+        manual_review_rows = [
+            {
+                "origin_path": origin,
+                "trash_path": trash,
+                "payload_exists": os.path.lexists(trash),
+                "error": failed_map[(origin, trash)],
+            }
+            for origin, trash in sorted(unconfirmed)
+        ]
+        manual_review_blocks = bool(
+            tx["manual_review_items"] and (not tx["items"] or tx["unconfirmed_payload_exists"])
+        )
+        if manual_review_blocks:
+            errors.append(
+                f"manual review required for {tx['manual_review_items']} failed "
+                "relocation item(s) without a completion record")
+
+        preview_items: List[Dict[str, Any]] = []
+        summary = {
+            "total_items": len(tx["items"]),
+            "ready_count": 0,
+            "conflict_count": 0,
+            "identical_conflict_count": 0,
+            "missing_copy_count": 0,
+            "boundary_error_count": 0,
+            "blocked_count": 0,
+            "snapshot_count": 0,
+            "manual_review_count": len(manual_review_rows),
+        }
+        for item in tx["items"]:
+            kind = item.get("type")
+            if kind == "relocate":
+                origin = item.get("origin_path")
+                trash = item.get("trash_path")
+                row: Dict[str, Any] = {
+                    "type": "relocate",
+                    "origin_path": origin,
+                    "trash_path": trash,
+                    "recovered_from_intent": bool(item.get("recovered_from_intent")),
+                    "status": "ready",
+                    "quarantine_entry": None,
+                    "occupant_entry": None,
+                    "comparison": None,
+                    "force_preservable": False,
+                    "note": "",
+                }
+                boundary_note = None
+                if not tx_dir_ok:
+                    boundary_note = "restore source is outside its transaction or cannot be resolved"
+                else:
+                    try:
+                        self._validate_restore_target(origin)
+                    except (OSError, ValueError):
+                        boundary_note = "restore target is outside workspace or cannot be resolved"
+                    if boundary_note is None:
+                        try:
+                            self._validate_restore_source(trash, txid)
+                        except (OSError, ValueError):
+                            boundary_note = "restore source is outside its transaction or cannot be resolved"
+                if boundary_note is not None:
+                    row["status"] = "boundary_error"
+                    row["note"] = boundary_note
+                    summary["boundary_error_count"] += 1
+                    preview_items.append(row)
+                    continue
+
+                q_meta = self._preview_entry_metadata(trash)
+                parent_blocker = self._restore_parent_blocker(origin)
+                o_meta = self._preview_entry_metadata(origin)
+                row["quarantine_entry"] = q_meta
+                row["occupant_entry"] = o_meta
+                if q_meta["kind"] == "missing":
+                    row["status"] = "missing_copy"
+                    row["note"] = "quarantine copy is missing"
+                    summary["missing_copy_count"] += 1
+                elif parent_blocker is not None:
+                    row["status"] = "blocked"
+                    row["force_preservable"] = False
+                    row["note"] = parent_blocker
+                    summary["blocked_count"] += 1
+                    errors.append(parent_blocker)
+                elif q_meta["kind"] == "unreadable" or o_meta["kind"] == "unreadable":
+                    note = (f"quarantine copy is unreadable: {trash}"
+                            if q_meta["kind"] == "unreadable"
+                            else f"restore target path is not accessible: {origin}")
+                    row["status"] = "blocked"
+                    row["force_preservable"] = False
+                    row["note"] = note
+                    summary["blocked_count"] += 1
+                    errors.append(note)
+                elif o_meta["kind"] != "missing":
+                    row["status"] = "conflict"
+                    comparison = self._compare_preview_entries(
+                        trash, origin, q_meta, o_meta, hash_max_bytes)
+                    row["comparison"] = comparison
+                    preservable = True
+                    try:
+                        self._validate_restore_preservation(origin)
+                    except (OSError, ValueError):
+                        preservable = False
+                    row["force_preservable"] = preservable
+                    if not preservable:
+                        row["note"] = "force restore target overlaps quarantine storage"
+                    elif comparison["content_equal"] is True:
+                        row["note"] = "occupant matches quarantine copy byte-for-byte; --force preserves occupant first"
+                        summary["identical_conflict_count"] += 1
+                    else:
+                        row["note"] = "origin path is occupied; ordinary restore refuses, --force preserves occupant first"
+                    summary["conflict_count"] += 1
+                else:
+                    row["status"] = "ready"
+                    row["force_preservable"] = True
+                    row["note"] = "ready to move back to origin path"
+                    summary["ready_count"] += 1
+                preview_items.append(row)
+            elif kind == "snapshot":
+                sha = item.get("sha")
+                if sha:
+                    summary["snapshot_count"] += 1
+                preview_items.append({
+                    "type": "snapshot",
+                    "sha": sha,
+                    "status": "ready" if sha else "empty",
+                    "note": ("git stash apply; stored stash is retained"
+                             if sha else "working tree was clean; nothing to apply"),
+                })
+
+        has_actionable = bool(
+            summary["ready_count"] or summary["conflict_count"] or summary["snapshot_count"]
+        )
+        has_blocking = bool(
+            errors or summary["boundary_error_count"] or summary["missing_copy_count"]
+            or summary["blocked_count"] or manual_review_blocks
+        )
+        all_conflicts_preservable = all(
+            row["force_preservable"] for row in preview_items if row.get("status") == "conflict"
+        )
+        can_restore = (
+            not has_blocking and summary["conflict_count"] == 0 and has_actionable
+        )
+        can_restore_with_force = (
+            not has_blocking and has_actionable and all_conflicts_preservable
+        )
+        if force and summary["conflict_count"] and not all_conflicts_preservable:
+            errors.append(
+                "force restore target overlaps quarantine storage or cannot be resolved")
+        return {
+            "schema": "restore_preview/v1",
+            "ok": tx_dir_ok and summary["boundary_error_count"] == 0,
+            "txid": txid,
+            "ts": tx.get("ts"),
+            "state": tx.get("state", "EMPTY"),
+            "workspace": self.workspace,
+            "trash_root": self.trash_root,
+            "force_requested": bool(force),
+            "can_restore": can_restore,
+            "can_restore_with_force": can_restore_with_force,
+            "summary": summary,
+            "items": preview_items,
+            "manual_review": manual_review_rows,
+            "errors": errors,
+            "next_step": restore_guidance(
+                txid, self.workspace, self.trash_root,
+                can_restore=can_restore,
+                can_restore_with_force=can_restore_with_force,
+                has_conflicts=bool(summary["conflict_count"]),
+                has_manual_review=manual_review_blocks,
+            ),
+        }
 
     def restore(self, txid: str, force: bool = False,
                 cwd: Optional[str] = None) -> Dict[str, Any]:

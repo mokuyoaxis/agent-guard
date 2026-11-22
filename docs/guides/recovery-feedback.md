@@ -103,8 +103,37 @@ artifacts still require the existing ignored-path and artifact-pattern rules.
 Run maintenance from the same working directory with the same
 `AGENT_GUARD_WORKSPACE` and `AGENT_GUARD_TRASH` settings as the operation.
 Replace the package path below with your installation; CLI results supply
-POSIX-shell-quoted commands for that package and Python interpreter. Use a
-POSIX shell for these command strings; their quoting is not PowerShell or CMD syntax.
+POSIX-shell-quoted commands on POSIX systems and PowerShell-quoted commands on
+Windows in the development checkout (escaping ASCII and typographic single
+quotes and scoping custom workspace/trash environment variables to the single
+invocation inside a `try`/`finally` block so later terminal commands never
+inherit stale bindings; published 0.3.1 emits POSIX quoting only).
+
+### Read-only restore preview
+
+In the development checkout, inspect a transaction before restoring it:
+
+```sh
+# Read-only preflight; writes no workspace files, manifests or audit entries.
+python3 /absolute/agent-guard/skills/delete-guard/scripts/restore.py preview '<txid>'
+python3 /absolute/agent-guard/skills/delete-guard/scripts/restore.py '<txid>' --preview --json
+```
+
+`restore.py` accepts exact transaction IDs or unique CLI prefixes (ambiguous
+prefixes exit `2` without mutating state; MCP `restore` and `restore_preview`
+always require the complete transaction ID). The JSON output uses schema
+`restore_preview/v1` and reports `can_restore`, `can_restore_with_force`,
+per-item status (`ready`, `conflict`, `blocked`, `missing_copy`,
+`boundary_error`, `snapshot`), `manual_review` items and next-step commands.
+When an origin ancestor directory has been replaced by a regular file or is
+unreadable, preview marks the item `blocked` with `can_restore_with_force: false`
+and withholds any `--force` command. For occupied regular
+files up to 4 MiB, preview compares the quarantine copy and current occupant via
+bounded no-follow SHA-256 and returns only a boolean `content_equal` and
+comparison `basis` (`sha256_regular_file`, `size_diff`, `kind_diff`,
+`directory_uncompared`, `symlink_target_uncompared`, `exceeds_hash_cap`)—never
+file contents or hash digests. The local MCP server exposes the same read-only
+preflight as [`restore_preview`](mcp.md#tools-and-limits) without `--force`.
 
 ```sh
 # Inspect the plan; this removes nothing.

@@ -454,6 +454,60 @@ class McpOperations(RepoFixture):
         self.assertTrue(restored["result"]["conflicts"])
         self.assertEqual(Path(self.root, "valuable").read_text(), "new occupant")
 
+    def test_restore_preview_validates_compares_conflicts_is_read_only_and_lock_free(self):
+        for bad in ({}, {"txid": "id", "force": True}, {"txid": "../escape"}, {"txid": "--force"}):
+            with self.subTest(bad=bad), self.assertRaises(InvalidArguments):
+                self.operations.call("restore_preview", bad)
+
+        self.write("same.txt", "synthetic-same-payload")
+        self.write("diff.txt", "before")
+        deleted = self.delete("same.txt", "diff.txt")
+        self.assertTrue(deleted["ok"], deleted)
+        txid = deleted["result"]["txid"]
+        self.write("same.txt", "synthetic-same-payload")
+        self.write("diff.txt", "after-different")
+
+        before = self.files()
+        with self.operations._lock:
+            preview = self.operations.call("restore_preview", {"txid": txid})
+        self.assertTrue(preview["ok"], preview)
+        self.assertEqual(preview["exit_code"], 0)
+        body = preview["result"]
+        self.assertEqual(body["schema"], "restore_preview/v1")
+        self.assertFalse(body["can_restore"])
+        self.assertTrue(body["can_restore_with_force"])
+        self.assertEqual(body["summary"]["conflict_count"], 2)
+        self.assertEqual(body["summary"]["identical_conflict_count"], 1)
+        self.assertNotIn("synthetic-same-payload", json.dumps(preview))
+        self.assertEqual(self.files(), before)
+
+        unknown = self.operations.call("restore_preview", {"txid": "unknown-tx-id"})
+        self.assertFalse(unknown["ok"])
+        self.assertEqual(unknown["exit_code"], 1)
+        self.assertEqual(self.files(), before)
+
+        # MCP restore_preview and restore MUST require exact full txid (never accept short prefix).
+        short = txid[:12]
+        self.assertNotEqual(short, txid)
+        prefix_preview = self.operations.call("restore_preview", {"txid": short})
+        self.assertFalse(prefix_preview["ok"], prefix_preview)
+        self.assertEqual(prefix_preview["exit_code"], 1)
+        self.assertIn("unknown transaction", prefix_preview["result"]["error"])
+        self.assertEqual(self.files(), before)
+
+        # Verify write-side MCP restore also rejects a unique short prefix without restoring.
+        self.write("exact_only.txt", "keep in quarantine")
+        del_exact = self.delete("exact_only.txt")
+        self.assertTrue(del_exact["ok"], del_exact)
+        exact_txid = del_exact["result"]["txid"]
+        prefix_restore = self.operations.call("restore", {"txid": exact_txid[:12]})
+        self.assertFalse(prefix_restore["ok"], prefix_restore)
+        self.assertEqual(prefix_restore["exit_code"], 1)
+        self.assertFalse(Path(self.root, "exact_only.txt").exists())
+        full_restore = self.operations.call("restore", {"txid": exact_txid})
+        self.assertTrue(full_restore["ok"], full_restore)
+        self.assertEqual(Path(self.root, "exact_only.txt").read_text(), "keep in quarantine")
+
     def test_dry_run_keeps_targets_and_does_not_spend_budget(self):
         self.write("valuable", "original")
         result = self.delete("valuable", dry_run=True)

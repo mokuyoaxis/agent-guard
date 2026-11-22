@@ -6,18 +6,32 @@ defaults; malformed configuration never silently disables protection.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+import fnmatch
 import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import stat
 from typing import List, Optional
+
+from . import redaction
 
 
 CONFIG_DIRECTORY = ".agent-guard"
 CONFIG_NAME = "delete-policy.json"
 MAX_CONFIG_BYTES = 1024 * 1024
 MAX_INTEGER = (1 << 63) - 1
+MAX_REGENERABLE_PATTERNS = 64
+MAX_PATTERN_LENGTH = 128
+
+_FORBIDDEN_REGENERABLE_SAMPLES = (
+    ".git", ".agent-trash", ".agent-guard", ".internal",
+    "." + "env", "." + "env.local", "." + "env.production",
+    *sorted(redaction.SECRET_STORE_NAMES),
+    *(f"sample{suffix}" for suffix in sorted(redaction.SECRET_STORE_SUFFIXES)),
+)
+_BRACKET_CLASS_RE = re.compile(r"\[[^\]]*\]")
 
 
 class DeleteConfigError(ValueError):
@@ -36,12 +50,16 @@ class DeleteConfig:
     batch_max_bytes: int = 256 * 1024 ** 2
     batch_max_entries: int = 1_000
     protected_paths: List[str] = field(default_factory=list)
+    regenerable_patterns: List[str] = field(default_factory=list)
 
     def fingerprint(self) -> str:
         return fingerprint(self)
 
 
-LIMIT_FIELDS = tuple(name for name in DeleteConfig.__dataclass_fields__ if name != "protected_paths")
+LIMIT_FIELDS = tuple(
+    name for name in DeleteConfig.__dataclass_fields__
+    if name not in ("protected_paths", "regenerable_patterns")
+)
 
 
 def _inside(path: str, root: str) -> bool:
@@ -67,6 +85,47 @@ def _declaration(value: str, workspace: str) -> str:
     if path != root and not _inside(location, os.path.realpath(root)):
         raise DeleteConfigError("protected_paths cannot cross an external directory link")
     return os.path.relpath(path, root)
+
+
+def normalize_protected_path(value: str, workspace: str) -> str:
+    """Validate and normalize one workspace-relative protected path."""
+    return _declaration(value, workspace)
+
+
+def validate_regenerable_pattern(value: str) -> str:
+    """Validate one workspace-relative regenerable artifact pattern.
+
+    Rejects broad catch-all globs, recursive '**' wildcards, path escapes,
+    and patterns that could match protected or secret-store names.
+    """
+    if not isinstance(value, str) or not value or len(value) > MAX_PATTERN_LENGTH:
+        raise DeleteConfigError(
+            f"regenerable_patterns entries must be nonempty strings up to {MAX_PATTERN_LENGTH} characters")
+    if value != value.strip() or any(ord(ch) < 32 or ord(ch) == 127 for ch in value):
+        raise DeleteConfigError("regenerable_patterns cannot contain control characters or outer whitespace")
+    if "\\" in value or ":" in value or value.startswith("/") or value.endswith("/"):
+        raise DeleteConfigError("regenerable_patterns must use relative POSIX-style patterns inside the workspace")
+    if "**" in value:
+        raise DeleteConfigError("regenerable_patterns cannot use recursive '**' wildcards")
+    parts = value.split("/")
+    if any(part in ("", ".", "..") for part in parts):
+        raise DeleteConfigError("regenerable_patterns cannot contain empty, '.' or '..' segments")
+    for part in parts:
+        stripped_part = _BRACKET_CLASS_RE.sub("", part)
+        if "[" in stripped_part or "]" in stripped_part:
+            raise DeleteConfigError("regenerable_patterns contains an unbalanced character class")
+    leaf = parts[-1]
+    literals = _BRACKET_CLASS_RE.sub("", leaf).replace("*", "").replace("?", "")
+    if sum(ch.isalnum() for ch in literals) < 2:
+        raise DeleteConfigError(
+            "regenerable_patterns final segment must contain at least two literal alphanumeric characters")
+    for sample in _FORBIDDEN_REGENERABLE_SAMPLES:
+        if fnmatch.fnmatch(sample, leaf) or (len(parts) == 1 and fnmatch.fnmatch(sample, value)):
+            raise DeleteConfigError("regenerable_patterns cannot match protected or secret-store names")
+    for core_dir in (".git", ".agent-trash", ".agent-guard", ".internal"):
+        if any(fnmatch.fnmatch(core_dir, part) for part in parts):
+            raise DeleteConfigError("regenerable_patterns cannot match protected or secret-store names")
+    return value
 
 
 def _unique_object(pairs):
@@ -131,6 +190,13 @@ def parse_config(raw: Optional[bytes], workspace: str) -> tuple[dict, DeleteConf
             if not isinstance(value, list):
                 raise DeleteConfigError("protected_paths must be a list of literal paths")
             values[name] = sorted(set(_declaration(item, workspace) for item in value))
+        elif name == "regenerable_patterns":
+            if not isinstance(value, list):
+                raise DeleteConfigError("regenerable_patterns must be a list of patterns")
+            if len(value) > MAX_REGENERABLE_PATTERNS:
+                raise DeleteConfigError(
+                    f"regenerable_patterns supports at most {MAX_REGENERABLE_PATTERNS} entries")
+            values[name] = sorted(set(validate_regenerable_pattern(item) for item in value))
         else:
             validate_limit(name, value)
     return data, DeleteConfig(**values)

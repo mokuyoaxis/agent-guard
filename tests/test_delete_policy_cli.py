@@ -13,9 +13,9 @@ import unittest
 from unittest import mock
 
 from adapters.mcp.operations import Operations
-from core import cleanup_saved, cleanup_tasks
+from core import classifier, cleanup_saved, cleanup_tasks, policy as guard_policy
 from core.cleanup import plan_cleanup
-from core.delete_config import config_path
+from core.delete_config import MAX_REGENERABLE_PATTERNS, config_path
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / "skills/delete-guard/scripts/delete_policy.py"
@@ -259,3 +259,228 @@ class DeletePolicyCLITests(unittest.TestCase):
         self.assertEqual((result["status"], result["counts"]["not_dispatched"]), ("STOPPED", 1))
         self.assertEqual(file.read_text(), "owned")
         self.assertFalse((self.trash / "manifest.jsonl").exists())
+
+    def test_protect_add_remove_preview_apply_and_core_boundary_refusal(self):
+        preview = self.invoke("protect", "add", "evidence", "backups/current", "--preview", "--json")
+        self.assertEqual(preview.returncode, 0, preview.stderr)
+        report = json.loads(preview.stdout)
+        self.assertEqual(report["mode"], "preview")
+        self.assertTrue(report["requires_confirmation"])
+        self.assertTrue(report["effective_policy_changed"])
+        self.assertEqual(report["changes"]["protected_paths"]["added"], ["backups/current", "evidence"])
+        self.assertEqual(list(self.root.iterdir()), [])
+
+        noninteractive = self.invoke("protect", "add", "evidence", input_text="APPLY\n")
+        self.assertEqual(noninteractive.returncode, 2)
+        self.assertIn("interactive operator terminal", noninteractive.stderr)
+
+        for forbidden in (".", ".git", ".git/HEAD", ".agent-guard", ".agent-guard/x",
+                          ".agent-trash", ".agent-trash/x", "../outside"):
+            with self.subTest(forbidden=forbidden):
+                code, _, stderr = self.operator("protect", "add", forbidden)
+                self.assertEqual(code, 2, stderr)
+                self.assertNotIn("Type APPLY", stderr)
+                self.assertFalse(self.policy.exists())
+
+        code, stdout, stderr = self.operator("protect", "add", "evidence", "backups/current")
+        self.assertEqual(code, 0, stderr)
+        saved = json.loads(stdout)
+        self.assertEqual(saved["protected_paths"], ["backups/current", "evidence"])
+        self.assertEqual(saved["protected_path_count"], 2)
+
+        text_show = self.invoke("show")
+        self.assertEqual(text_show.returncode, 0, text_show.stderr)
+        self.assertIn("Protected paths:", text_show.stdout)
+        self.assertIn('"evidence"', text_show.stdout)
+        self.assertIn("Regenerable patterns (workspace):", text_show.stdout)
+
+        (self.root / "evidence").write_text("keep")
+        blocked = Operations(self.root).call("safe_delete", {"paths": ["evidence"], "dry_run": True})
+        self.assertEqual(blocked["result"]["verdict"]["code"], "BLOCK_DELETE_PROTECTED")
+
+        missing = self.invoke("protect", "remove", "not-configured", "--preview", "--json")
+        self.assertEqual(missing.returncode, 2)
+        self.assertIn("not configured", missing.stderr)
+
+        rm_preview = self.invoke("protect", "remove", "evidence", "--preview", "--json")
+        self.assertEqual(rm_preview.returncode, 0, rm_preview.stderr)
+        rm_report = json.loads(rm_preview.stdout)
+        self.assertIn("warning", rm_report)
+        self.assertEqual(rm_report["changes"]["protected_paths"]["removed"], ["evidence"])
+        self.assertEqual(json.loads(self.policy.read_bytes())["protected_paths"], ["backups/current", "evidence"])
+
+        code, stdout, stderr = self.operator("protect", "remove", "evidence")
+        self.assertEqual(code, 0, stderr)
+        self.assertIn("WARNING:", stderr)
+        self.assertEqual(json.loads(stdout)["protected_paths"], ["backups/current"])
+        self.assertEqual(json.loads(self.policy.read_bytes())["protected_paths"], ["backups/current"])
+
+    def test_regenerable_add_remove_guardrails_secret_protection_and_quarantine(self):
+        subprocess.run(["git", "init", "-q", str(self.root)], check=True, capture_output=True)
+        secret_file = "." + "env.local"
+        (self.root / ".gitignore").write_text(".venv-wheel-*\n" + secret_file + "\n", encoding="utf-8")
+        wheel_dir = self.root / ".venv-wheel-313"
+        wheel_dir.mkdir()
+        (wheel_dir / "pkg.whl").write_text("synthetic wheel")
+        (self.root / secret_file).write_text("SYNTHETIC_VALUE=placeholder\n")
+
+        for bad in ("*", "**", ".*", "src/*", "*.a", "foo/**/bar", "/abs", "a\\b", "a:b",
+                    "foo/", "." + "env*", "." + "env.*", ".git*", "*." + "pem", "*." + "key",
+                    "id_" + "*", "[unclosed", "a*", " .venv-wheel-*",
+                    "build/" + "." + "env*", "build/*." + "pem", ".git/cache-*", "apps/[unclosed/cache"):
+            with self.subTest(bad=bad):
+                code, _, stderr = self.operator("regenerable", "add", bad)
+                self.assertEqual(code, 2, stderr)
+                self.assertNotIn("Type APPLY", stderr)
+                self.assertFalse(self.policy.exists())
+
+        too_many = [f"cache-slot-{i:02d}" for i in range(MAX_REGENERABLE_PATTERNS + 1)]
+        code, _, stderr = self.operator("regenerable", "add", *too_many)
+        self.assertEqual(code, 2, stderr)
+        self.assertIn(str(MAX_REGENERABLE_PATTERNS), stderr)
+
+        preview = self.invoke("regenerable", "add", ".venv-wheel-*", "--preview", "--json")
+        self.assertEqual(preview.returncode, 0, preview.stderr)
+        pre_report = json.loads(preview.stdout)
+        self.assertTrue(pre_report["requires_confirmation"])
+        self.assertIn("PERMANENTLY DELETED", pre_report["warning"])
+        self.assertFalse(self.policy.exists())
+
+        # Approve a Cleanup task before updating regenerable_patterns to verify CONFIG_CHANGED.
+        discard_file = self.root / "old.txt"
+        discard_file.write_text("owned")
+        saved = cleanup_saved.save_plan(plan_cleanup(str(self.root), targets=["old.txt"], discard=["old.txt"]))
+        task = cleanup_tasks.approve_task(saved)
+        self.assertEqual(task["approval_status"], "CURRENT")
+
+        code, stdout, stderr = self.operator("regenerable", "add", ".venv-wheel-*")
+        self.assertEqual(code, 0, stderr)
+        self.assertIn("PERMANENTLY DELETED", stderr)
+        self.assertEqual(json.loads(stdout)["regenerable_patterns"], [".venv-wheel-*"])
+
+        operations = Operations(self.root)
+        self.assertEqual(operations.call("cleanup_task_status", {"task_id": task["task_id"]})["result"]["approval_status"],
+                         "CONFIG_CHANGED")
+
+        # Workspace pattern makes Git-ignored .venv-wheel-313 regenerable, while --quarantine overrides it.
+        default_dry = operations.call("safe_delete", {"paths": [".venv-wheel-313"], "dry_run": True})
+        self.assertEqual(default_dry["result"]["verdict"]["code"], "ALLOW_REGENERABLE")
+        quarantine_dry = operations.call("safe_delete", {"paths": [".venv-wheel-313"], "dry_run": True, "quarantine": True})
+        self.assertEqual(quarantine_dry["result"]["verdict"]["decision"], "RELOCATE")
+
+        plan_default = plan_cleanup(str(self.root), targets=[".venv-wheel-313"])
+        self.assertEqual(plan_default["entries"][0]["category"], "regenerable")
+        self.assertEqual(plan_default["entries"][0]["effect"], "delete")
+        plan_quarantine = plan_cleanup(str(self.root), targets=[".venv-wheel-313"], quarantine=True)
+        self.assertEqual(plan_quarantine["entries"][0]["category"], "regenerable")
+        self.assertEqual(plan_quarantine["entries"][0]["effect"], "quarantine")
+
+        # Secret-store paths are NEVER regenerable even if an extra pattern tries to match them.
+        ctx = guard_policy.PolicyContext(
+            workspace=str(self.root), trash_root=str(self.trash), base_dir=str(self.root),
+            config=guard_policy.GuardConfig(artifact_patterns=["*.local", "*.example"]),
+        )
+        secret_specs = classifier.classify_paths(
+            [secret_file], str(self.root), str(self.root), str(self.trash)
+        )
+        self.assertFalse(guard_policy.regenerable(secret_specs, ctx))
+
+        # reset-limits preserves BOTH protected_paths and regenerable_patterns.
+        self.assertEqual(self.operator("protect", "add", "old.txt")[0], 0)
+        self.assertEqual(self.operator("set", "session_max_bytes=4KiB")[0], 0)
+        code, stdout, stderr = self.operator("reset-limits")
+        self.assertEqual(code, 0, stderr)
+        after_reset = json.loads(stdout)
+        self.assertEqual(after_reset["protected_paths"], ["old.txt"])
+        self.assertEqual(after_reset["regenerable_patterns"], [".venv-wheel-*"])
+
+        # Remove regenerable pattern and verify unconfigured removal fails.
+        code, stdout, stderr = self.operator("regenerable", "remove", ".venv-wheel-*")
+        self.assertEqual(code, 0, stderr)
+        self.assertEqual(json.loads(stdout)["regenerable_patterns"], [])
+        missing = self.invoke("regenerable", "remove", ".venv-wheel-*", "--preview", "--json")
+        self.assertEqual(missing.returncode, 2)
+        self.assertIn("not configured", missing.stderr)
+
+    def test_regenerable_directory_with_secret_descendant_incomplete_scan_and_segment_matching(self):
+        subprocess.run(["git", "init", "-q", str(self.root)], check=True, capture_output=True)
+        secret_name = "." + "env.local"
+        cert_name = "server." + "pem"
+        (self.root / ".gitignore").write_text(
+            "dist/\n.venv-wheel-*\napps/\n", encoding="utf-8"
+        )
+        # 1. Built-in artifact dir containing a nested secret-store file must quarantine, never delete.
+        (self.root / "dist/nested").mkdir(parents=True)
+        (self.root / "dist/bundle.js").write_text("generated")
+        (self.root / "dist/nested" / secret_name).write_text("SYNTHETIC_VALUE=placeholder\n")
+
+        # 2. Custom workspace regenerable dir containing a nested secret-store file must also quarantine.
+        code, _, stderr = self.operator("regenerable", "add", ".venv-wheel-*", "apps/*-cache")
+        self.assertEqual(code, 0, stderr)
+        (self.root / ".venv-wheel-313/sub").mkdir(parents=True)
+        (self.root / ".venv-wheel-313/sub" / cert_name).write_text("placeholder cert")
+
+        operations = Operations(self.root)
+        for target in ("dist", ".venv-wheel-313"):
+            with self.subTest(target=target):
+                dry = operations.call("safe_delete", {"paths": [target], "dry_run": True})
+                self.assertTrue(dry["ok"], dry)
+                self.assertEqual(dry["result"]["verdict"]["decision"], "RELOCATE")
+                self.assertNotEqual(dry["result"]["verdict"]["code"], "ALLOW_REGENERABLE")
+
+                # Cleanup without --discard must NEVER propose the secret-containing dir for direct delete.
+                plan = plan_cleanup(str(self.root), targets=[target])
+                self.assertFalse(
+                    any(e["path"] == target and e["effect"] == "delete" for e in plan["entries"]),
+                    plan["entries"],
+                )
+                # Cleanup with explicit --discard must route the dir to quarantine, never delete.
+                discard_plan = plan_cleanup(str(self.root), targets=[target], discard=[target])
+                self.assertEqual(discard_plan["entries"][0]["path"], target)
+                self.assertEqual(discard_plan["entries"][0]["effect"], "quarantine")
+
+        # 3. Incomplete scan (entry bound or unreadable subdir) falls back to quarantine, never direct delete.
+        clean_dist = self.root / "out"
+        (self.root / ".gitignore").write_text("dist/\n.venv-wheel-*\napps/\nout/\n", encoding="utf-8")
+        (clean_dist / "sub").mkdir(parents=True)
+        (clean_dist / "sub/a.txt").write_text("gen")
+        (clean_dist / "sub/b.txt").write_text("gen")
+        self.assertTrue(guard_policy.tree_safe_for_direct_delete(str(clean_dist), "out"))
+        self.assertFalse(guard_policy.tree_safe_for_direct_delete(str(clean_dist), "out", max_entries=1))
+        self.assertFalse(guard_policy.tree_safe_for_direct_delete(str(clean_dist), "out", max_depth=1))
+        out_specs = classifier.classify_paths(["out"], str(self.root), str(self.root), str(self.trash))
+        out_ctx = guard_policy.PolicyContext(workspace=str(self.root), trash_root=str(self.trash), base_dir=str(self.root))
+        with mock.patch.object(guard_policy, "MAX_REGENERABLE_TREE_ENTRIES", 1):
+            bounded_verdict = guard_policy.decide_path_batch(out_specs, out_ctx, recursive=True)
+            self.assertEqual(bounded_verdict.decision, "RELOCATE")
+        with mock.patch.object(guard_policy, "MAX_REGENERABLE_TREE_DEPTH", 1):
+            deep_verdict = guard_policy.decide_path_batch(out_specs, out_ctx, recursive=True)
+            self.assertEqual(deep_verdict.decision, "RELOCATE")
+        incomplete_plan = plan_cleanup(str(self.root), targets=["out"], max_entries=1)
+        self.assertFalse(incomplete_plan["complete"])
+        self.assertEqual(incomplete_plan["entries"][0]["category"], "uncertain")
+        self.assertNotEqual(incomplete_plan["entries"][0]["effect"], "delete")
+
+        if os.name == "posix" and os.geteuid() != 0:
+            locked = clean_dist / "locked"
+            locked.mkdir()
+            (locked / "inside.txt").write_text("hidden")
+            locked.chmod(0o000)
+            self.addCleanup(lambda: locked.chmod(0o755))
+            unreadable_dry = operations.call("safe_delete", {"paths": ["out"], "dry_run": True})
+            self.assertEqual(unreadable_dry["result"]["verdict"]["decision"], "RELOCATE")
+
+        # 4. Segment-by-segment matching: '*' in 'apps/*-cache' must NOT cross '/'.
+        (self.root / "apps/web-cache").mkdir(parents=True)
+        (self.root / "apps/web-cache/item.bin").write_text("ok")
+        (self.root / "apps/foo/bar-cache").mkdir(parents=True)
+        (self.root / "apps/foo/bar-cache/keep.bin").write_text("must not cross slash")
+
+        direct = operations.call("safe_delete", {"paths": ["apps/web-cache"], "dry_run": True})
+        self.assertEqual(direct["result"]["verdict"]["code"], "ALLOW_REGENERABLE")
+        cross_slash = operations.call("safe_delete", {"paths": ["apps/foo/bar-cache"], "dry_run": True})
+        self.assertEqual(cross_slash["result"]["verdict"]["decision"], "RELOCATE")
+        self.assertNotEqual(cross_slash["result"]["verdict"]["code"], "ALLOW_REGENERABLE")
+        plan_cross = plan_cleanup(str(self.root), targets=["apps/foo/bar-cache"])
+        self.assertEqual(plan_cross["entries"][0]["category"], "uncertain")
+        self.assertNotEqual(plan_cross["entries"][0]["effect"], "delete")

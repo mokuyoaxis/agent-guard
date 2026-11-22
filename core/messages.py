@@ -25,23 +25,88 @@ ADMISSION_PREVIEW_NOTICE = (
 )
 
 
-def quarantine_command(argv, workspace, trash_root):
-    """Keep custom storage on copied POSIX CLI instructions, never grants."""
+# PowerShell treats ASCII apostrophe and these four typographic single quotes
+# as single-quoted string delimiters (about_Quoting_Rules).
+_PS_SINGLE_QUOTES = ("'", "\u2018", "\u2019", "\u201a", "\u201b")
+
+
+def _ps_quote(value: str) -> str:
+    """Single-quote one PowerShell literal, escaping ASCII and typographic single quotes."""
+    text = str(value)
+    for ch in _PS_SINGLE_QUOTES:
+        if ch in text:
+            text = text.replace(ch, ch + ch)
+    return "'" + text + "'"
+
+
+def _storage_env(workspace, trash_root):
+    if workspace is None or trash_root is None:
+        return {}
     workspace = os.path.realpath(workspace)
     trash_root = os.path.abspath(trash_root)
     if trash_root == os.path.join(workspace, ".agent-trash"):
-        return argv
-    return ["env", "AGENT_GUARD_WORKSPACE=" + workspace,
-            "AGENT_GUARD_TRASH=" + trash_root, *argv]
+        return {}
+    return {
+        "AGENT_GUARD_WORKSPACE": workspace,
+        "AGENT_GUARD_TRASH": trash_root,
+    }
 
 
-def deletion_guidance(preview, workspace, trash_root, cwd, paths, *, quarantine=False):
+def format_command(argv, env_vars=None, *, platform=None):
+    """Render a copy-pasteable shell command for POSIX or Windows PowerShell.
+
+    On Windows PowerShell, custom environment bindings are scoped to the single
+    invocation inside a child scriptblock with try/finally restoration so later
+    commands in the operator's terminal never inherit stale workspace/trash vars.
+    """
+    target_os = os.name if platform is None else platform
+    items = list(env_vars.items()) if env_vars else []
+    if target_os == "nt":
+        rendered = "& " + " ".join(_ps_quote(part) for part in argv)
+        if items:
+            keys_list = ",".join(_ps_quote(key) for key, _ in items)
+            set_stmts = "; ".join(
+                f"[Environment]::SetEnvironmentVariable({_ps_quote(key)},{_ps_quote(value)},'Process')"
+                for key, value in items
+            )
+            return (
+                "& { $p=@{}; foreach($k in " + keys_list + "){ "
+                "$p[$k]=[Environment]::GetEnvironmentVariable($k,'Process') }; "
+                "try { " + set_stmts + "; " + rendered + " } "
+                "finally { foreach($k in $p.Keys){ "
+                "[Environment]::SetEnvironmentVariable($k,$p[$k],'Process') } } }"
+            )
+        return rendered
+    if items:
+        return shlex.join(["env", *(f"{key}={value}" for key, value in items), *argv])
+    return shlex.join(argv)
+
+
+def quarantine_command(argv, workspace, trash_root, *, platform=None):
+    """Keep custom storage on copied CLI instructions, never grants."""
+    env_vars = _storage_env(workspace, trash_root)
+    if not env_vars:
+        return list(argv)
+    if (os.name if platform is None else platform) == "nt":
+        return list(argv)
+    return ["env", *(f"{key}={value}" for key, value in env_vars.items()), *argv]
+
+
+def deletion_guidance(preview, workspace, trash_root, cwd, paths, *,
+                      quarantine=False, platform=None):
     """Existing supported next steps; no automatic approval, reset or purge."""
     scripts = Path(__file__).resolve().parent.parent / "skills/delete-guard/scripts"
+    target_os = os.name if platform is None else platform
+    env_vars = _storage_env(workspace, trash_root)
 
     def command(label, name, arguments):
-        argv = quarantine_command([sys.executable, str(scripts / name), *arguments], workspace, trash_root)
-        return {"label": label, "argv": argv, "command": shlex.join(argv)}
+        raw_argv = [sys.executable, str(scripts / name), *arguments]
+        argv = quarantine_command(raw_argv, workspace, trash_root, platform=target_os)
+        entry = {"label": label, "argv": argv,
+                 "command": format_command(raw_argv, env_vars, platform=target_os)}
+        if target_os == "nt" and env_vars:
+            entry["env"] = dict(env_vars)
+        return entry
 
     code = preview["code"]
     commands = []
@@ -89,9 +154,10 @@ def deletion_guidance(preview, workspace, trash_root, cwd, paths, *, quarantine=
         else:
             message = "Stop and inspect the reported policy, source or state problem. Preserve targets and control files."
         commands.append(command("Inspect status", "status.py", ["--json", "--tail", "0"]))
+    quoting = "PowerShell quoting" if target_os == "nt" else "POSIX quoting"
     return {"action": action, "message": message, "commands": commands,
             "cwd": cwd, "workspace": workspace, "trash_root": trash_root, **extra,
-            "binding_notice": "Keep the same workspace, quarantine and session settings. Command strings use POSIX quoting; argv is structured."}
+            "binding_notice": f"Keep the same workspace, quarantine and session settings. Command strings use {quoting}; argv is structured."}
 
 
 def print_admission_preview(preview):
@@ -112,20 +178,59 @@ def print_admission_preview(preview):
     print(following["binding_notice"])
 
 
-def gc_guidance(workspace=None, trash_root=None, *, txid=None):
+def gc_guidance(workspace=None, trash_root=None, *, txid=None, platform=None):
     script = Path(__file__).resolve().parent.parent / "skills/delete-guard/scripts/gc.py"
-    command = [sys.executable, str(script)]
-    if workspace is not None and trash_root is not None:
-        command = quarantine_command(command, workspace, trash_root)
+    target_os = os.name if platform is None else platform
+    base = [sys.executable, str(script)]
+    env_vars = _storage_env(workspace, trash_root)
+    shell_label = "PowerShell commands" if target_os == "nt" else "POSIX-shell commands"
     return {
-        "plan_command": shlex.join(command + (["--txid", txid] if txid else [])),
-        "purge_eligible_command": shlex.join(
-            command + ["--execute", "--all-eligible"]),
-        "purge_transaction_command": shlex.join(
-            command + ["--execute", "--txid", txid or "<txid>"]),
-        "note": "POSIX-shell commands. Review the plan first. Run from the same working directory "
+        "plan_command": format_command(
+            base + (["--txid", txid] if txid else []), env_vars, platform=target_os),
+        "purge_eligible_command": format_command(
+            base + ["--execute", "--all-eligible"], env_vars, platform=target_os),
+        "purge_transaction_command": format_command(
+            base + ["--execute", "--txid", txid or "<txid>"], env_vars, platform=target_os),
+        "note": f"{shell_label}. Review the plan first. Run from the same working directory "
                 "with the same AGENT_GUARD_WORKSPACE / AGENT_GUARD_TRASH settings."
                 + (" Replace <txid> to select one transaction." if txid is None else ""),
+    }
+
+
+def restore_guidance(txid, workspace=None, trash_root=None, *,
+                     can_restore=False, can_restore_with_force=False,
+                     has_conflicts=False, has_manual_review=False,
+                     platform=None):
+    """Read-only next-step guidance for restore preview; never executes restore."""
+    script = Path(__file__).resolve().parent.parent / "skills/delete-guard/scripts/restore.py"
+    target_os = os.name if platform is None else platform
+    base = [sys.executable, str(script)]
+    env_vars = _storage_env(workspace, trash_root)
+    shell_label = "PowerShell commands" if target_os == "nt" else "POSIX-shell commands"
+    ordinary = format_command(base + ["restore", "--", txid], env_vars, platform=target_os)
+    forced = format_command(base + ["restore", "--force", "--", txid], env_vars, platform=target_os)
+    if has_manual_review:
+        action = "manual_review"
+        message = ("Inspect failed cross-filesystem relocation items before restoring. "
+                   "Ordinary restore refuses unconfirmed copies.")
+    elif can_restore:
+        action = "restore"
+        message = ("All checked items are ready for ordinary restore without overwriting existing files. "
+                   "Ordinary restore leaves deletion budget usage unchanged.")
+    elif has_conflicts and can_restore_with_force:
+        action = "review_conflicts"
+        message = ("Existing files occupy one or more origin paths. Compare each conflict before deciding; "
+                   "operator terminal --force preserves the current occupant in a separate backup transaction first "
+                   "(MCP restore does not expose --force).")
+    else:
+        action = "inspect"
+        message = "This transaction cannot be restored automatically in its current state; inspect the reported items and errors."
+    return {
+        "action": action,
+        "message": message,
+        "restore_command": ordinary,
+        "force_restore_command": forced if has_conflicts and can_restore_with_force else None,
+        "note": f"{shell_label}. Preview is read-only and rechecked on execution.",
     }
 
 

@@ -29,8 +29,9 @@ You operate inside a workspace where irreversible destruction is not a default c
 python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/safe_delete.py src/old_module.py
 python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/safe_delete.py 'build/**/*.tmp' --reason "stale build output"
 
-# undo a transaction (list first if unsure):
+# undo a transaction (list or preview first if unsure):
 python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/restore.py list
+python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/restore.py preview '<txid>'
 python3 /absolute/path/to/agent-guard/skills/delete-guard/scripts/restore.py '<txid>'
 
 # current guard state:
@@ -261,7 +262,14 @@ maps user terms to fields and units.
    `show` to check the saved result after they apply it.
 
 Restoring defaults removes numeric overrides for the selected workspace.
-It preserves protected paths, session accounting and recovery records.
+It preserves `protected_paths`, `regenerable_patterns`, session accounting and
+recovery records. In the development checkout, `delete_policy.py` also manages
+workspace `protected_paths` (`protect add|remove PATH...`) and controlled
+`regenerable_patterns` (`regenerable add|remove PATTERN...`) through the same
+`--preview` and interactive terminal `APPLY` confirmation flow (`protect add`
+refuses `.`, `.git`, `.agent-guard` and `.agent-trash`; `regenerable add`
+enforces strict pattern guardrails, warns about direct deletion of Git-ignored
+matches and invalidates pending Cleanup approvals via `CONFIG_CHANGED`).
 After a limit refusal, inspect the current status and explain which limit
 applied. Propose a settings change when the user asks to change it.
 
@@ -275,7 +283,7 @@ can receive:
 | `ALLOW` | no recovery action for recognized operations; unrecognized effects are unchecked | continue only within the authorized scope; do not infer that scripts or overwrites are safe |
 | `RELOCATE` / `SNAPSHOT` (harness may show `PROCEED` after compensation) | quarantine or tracked Git snapshot required | record and verify the resulting `txid` before continuing |
 | `ASK` | this understood operation needs single-execution approval | use the host's human approval path; if unavailable, stop or split the command |
-| `BLOCK_UNDETERMINABLE_EFFECT` | targets unresolvable (`$VAR`, `bash -c`, `find -delete`, `xargs`) | restate with explicit paths, or use `safe_delete` |
+| `BLOCK_UNDETERMINABLE_EFFECT` | targets unresolvable (`$VAR`, `bash -c`, `find -delete`, `xargs`, inline script deletion calls such as `python -c` / `node -e` / interpreter heredocs) | restate with explicit paths, or use `safe_delete` |
 | `BLOCK_WILDCARD` | glob target set is opaque | use `safe_delete` with the glob |
 | `BLOCK_OUT_OF_WORKSPACE` / `BLOCK_PROTECTED_PATH` / `BLOCK_PROTECTED_ANCESTOR` | outside boundary, workspace root, `.git`, or a filesystem root (`/`, `/home`, `/usr`, `$HOME`) | do not retry; this is a hard boundary. Ask the human if it is truly needed |
 | `BLOCK_RESTRICTED_MODE` | session is downgraded | only explicit single-file deletes are permitted; ask the human for anything more |
@@ -401,17 +409,24 @@ and ask.
 ## Regenerable artifacts
 
 Provably regenerable targets (git-ignored AND matching known artifact names
-like `node_modules/`, `dist/`, `__pycache__/`) are allowed to be deleted
-directly - no quarantine overhead. If git cannot prove a target is ignored,
-it is treated as valuable and quarantined. Uncertainty increases restriction.
+like `node_modules/`, `dist/`, `__pycache__/`, or validated workspace
+`regenerable_patterns` in `.agent-guard/delete-policy.json`) are allowed to be
+deleted directly - no quarantine overhead. Protected paths, secret-store files
+and explicit `--quarantine` requests are never directly deleted as regenerable.
+If git cannot prove a target is ignored, it is treated as valuable and
+quarantined. Uncertainty increases restriction.
 
 ## Recovery
 
 Every relocation writes `origin -> trash` pairs into
-`.agent-trash/manifest.jsonl`. Restore is non-destructive: it refuses to
-overwrite anything that now exists at the origin unless a human passes
-`--force`. Git snapshots are stored as stashes named `agent-guard:<txid>`;
-restore applies them and never drops them.
+`.agent-trash/manifest.jsonl`. In the development checkout, inspect a
+transaction before restoring with `restore.py preview '<txid>'` (or
+`restore.py '<txid>' --preview`, or MCP `restore_preview`): preview is strictly
+read-only (no file or audit writes), accepts unique CLI transaction prefixes,
+and compares occupied origins without leaking file contents or hashes. Restore
+is non-destructive: it refuses to overwrite anything that now exists at the
+origin unless a human passes `--force`. Git snapshots are stored as stashes
+named `agent-guard:<txid>`; restore applies them and never drops them.
 
 With human `--force`, an existing occupant is first preserved by the normal
 relocation journal in a separate transaction. The result's optional

@@ -458,11 +458,13 @@ def describe(workspace, trash_root):
     record = state["sessions"].get(_session_key(), _empty_session())
     limits = asdict(config)
     limits.pop("protected_paths")
+    limits.pop("regenerable_patterns", None)
     return {"used_bytes": record["used_bytes"], "used_entries": record["used_entries"],
             "window_operations": sum(event["at"] > time.time() - config.rate_window_seconds
                                      for event in record["events"]),
             "limits": limits, "config_fingerprint": fingerprint(config),
             "protected_path_count": len(config.protected_paths),
+            "regenerable_pattern_count": len(config.regenerable_patterns),
             "accounting": "admitted work; failures and restores do not refund session budget"}
 
 

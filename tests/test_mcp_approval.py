@@ -332,7 +332,7 @@ class HostApprovalProtocolTests(_ApprovalFixture):
             self.write(path, text)
         connection = self.start(lambda _: ACCEPT)
         tools = connection.request("tools/list", {})["result"]["tools"]
-        self.assertEqual(len(tools), 14)
+        self.assertEqual(len(tools), 15)
         saved = self.content(connection.call("cleanup_plan", targets=list(originals), discard_targets=True,
                                              quarantine=True, save=True))
         self.assertTrue(saved["ok"], saved)

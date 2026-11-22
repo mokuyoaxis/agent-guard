@@ -124,6 +124,8 @@ jobs:
             tests.test_delete.SafeDeleteCLI.test_legacy_output_encoding_keeps_real_receipts_and_restore_exit `
             tests.test_delete.WindowsVerbNoDialect `
             tests.test_delete.CheckCLI.test_cmd_dialect_cannot_turn_rm_root_delete_into_noop `
+            tests.test_restore_preview.WindowsGuidanceFormatting `
+            tests.test_inline_script_delete.InlineScriptWindowsDialects `
             tests.test_exfil_sanitize.FormatPreservation.test_native_windows_user_path_uses_exact_bytes_and_sanitizes `
             *> windows-core-test-output.txt
           $testExit = $LASTEXITCODE

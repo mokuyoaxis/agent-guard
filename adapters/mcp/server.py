@@ -24,7 +24,7 @@ INSTRUCTIONS = (
     "proven regenerable artifacts may be physically removed. Record returned transaction IDs. "
     "When recovery is required, set quarantine=true on safe_delete or a new cleanup_plan, including for regenerable artifacts. "
     "This choice is retained in a saved plan and does not lift admission or application cache consistency requirements. "
-    "Inspect transactions before restoring. Never bypass a refusal, change session identity, "
+    "Inspect transactions and use restore_preview before restoring. Never bypass a refusal, change session identity, "
     "or retry an uncertain mutation automatically. Use cleanup_plan for literal-target proposals; "
     "save=true explicitly stores a reviewable selection. The operator approves its saved ID "
     "in the same package's terminal CLI; then use cleanup_execute with the returned task_id. "
@@ -87,6 +87,14 @@ TOOL_DEFINITIONS = {
                         "Inspect the returned per-item result and filesystem after partial errors."),
         "properties": {"txid": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"}},
         "required": ["txid"], "read_only": False, "destructive": False,
+    },
+    "restore_preview": {
+        "description": ("Read-only restore preflight for one transaction ID returned by transactions. "
+                        "Checks workspace/quarantine boundaries, missing copies, failed cross-filesystem manual_review items, "
+                        "and compares occupied origins against quarantine copies without modifying files or writing audit logs. "
+                        "Never overwrites or exposes --force."),
+        "properties": {"txid": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"}},
+        "required": ["txid"], "read_only": True, "destructive": False,
     },
     "transactions": {
         "description": "List recovery transactions and their RESTORABLE/RESTORED state without changing workspace files. Use returned transaction IDs for ordinary restore.",

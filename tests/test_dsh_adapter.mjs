@@ -173,8 +173,23 @@ try {
     next
   );
   assert.equal(stdinScript.kind, "deny");
+  const inlinePython = await handlers[0].handler(
+    { name: "bash", arguments: { command: "python3 -c \"import shutil; shutil.rmtree('src')\"" } },
+    next
+  );
+  assert.equal(inlinePython.kind, "deny");
+  const inlineNode = await handlers[0].handler(
+    { name: "bash", arguments: { command: "node -e \"require('fs').rmSync('dist', {recursive: true})\"" } },
+    next
+  );
+  assert.equal(inlineNode.kind, "deny");
+  const benignInlinePython = await handlers[0].handler(
+    { name: "bash", arguments: { command: "python3 -c \"print('ok')\"" } },
+    () => ({ kind: "continued" })
+  );
+  assert.equal(benignInlinePython.kind, "continued");
   assert.equal(continued, 1);
-  assert.equal(requests.length, 4);
+  assert.equal(requests.length, 6);
   assert.match(requests[0].command, /check\.py/);
   assert.match(requests[1].command, /del \/s \/q build/);
 
@@ -251,16 +266,16 @@ try {
     host_interception: "UNVERIFIED",
     note: "Startup checks the plugin process Python only. Hook registration and a local status result do not verify live host interception or every shell environment.",
   });
-  assert.equal(requests.length, 12);
-  assert.match(requests[11].command, /status\.py/);
+  assert.equal(requests.length, 14);
+  assert.match(requests[13].command, /status\.py/);
   const restoreTool = registered.find(
     (tool) => tool.name === "agent_guard_restore"
   );
   assert.equal(restoreTool.parameters.type, "object");
   assert.equal(restoreTool.parameters.properties.force, undefined);
   await restoreTool.execute({ txid: "fixture", force: true }, {});
-  assert.equal(requests.length, 13);
-  assert.doesNotMatch(requests[12].command, /--force/);
+  assert.equal(requests.length, 15);
+  assert.doesNotMatch(requests[14].command, /--force/);
   for (const failure of [
     { exitCode: 0, timedOut: true, output: JSON.stringify(statusReport), code: "STATUS_TIMEOUT" },
     { exitCode: 127, output: "private_status_marker", code: "STATUS_PROCESS_FAILED" },

@@ -151,15 +151,16 @@ class McpProtocolTests(unittest.TestCase):
                          json.loads((ROOT / "package.json").read_text())["version"])
         tools = connection.request("tools/list", {})["result"]["tools"]
         self.assertEqual({row["name"] for row in tools},
-                         {"safe_delete", "restore", "transactions", "status", "gc_plan", "cleanup_discover", "cleanup_measure",
-                          "cleanup_plan", "cleanup_execute", "cleanup_task_status",
-                          "config_safe_view", "exfil_check", "exfil_sanitize"})
+                         {"safe_delete", "restore", "restore_preview", "transactions", "status", "gc_plan",
+                          "cleanup_discover", "cleanup_measure", "cleanup_plan", "cleanup_execute",
+                          "cleanup_task_status", "config_safe_view", "exfil_check", "exfil_sanitize"})
         for tool in tools:
             self.assertFalse(tool["inputSchema"]["additionalProperties"])
             self.assertFalse(tool["annotations"]["openWorldHint"])
             self.assertEqual(tool["annotations"]["readOnlyHint"],
-                             tool["name"] in ("status", "transactions", "gc_plan", "cleanup_discover", "cleanup_measure",
-                                              "cleanup_task_status", "config_safe_view", "exfil_check", "exfil_sanitize"))
+                             tool["name"] in ("restore_preview", "status", "transactions", "gc_plan",
+                                              "cleanup_discover", "cleanup_measure", "cleanup_task_status",
+                                              "config_safe_view", "exfil_check", "exfil_sanitize"))
         self.assertTrue(next(row for row in tools if row["name"] == "safe_delete")["annotations"]["destructiveHint"])
         by_name = {tool["name"]: tool for tool in tools}
         for name in ("exfil_check", "exfil_sanitize"):
@@ -347,6 +348,35 @@ class McpProtocolTests(unittest.TestCase):
         self.assertFalse(reply["ok"])
         self.assertEqual(reply["error"]["code"], "MCP_QUARANTINE_PROTECTED")
         self.assertEqual(payloads[0].read_bytes(), b"preserve")
+
+    def test_restore_preview_reports_conflict_without_mutating_over_real_stdio(self):
+        path = self.workspace / "valuable.txt"
+        path.write_text("original bytes", encoding="utf-8")
+        connection = self.start()
+        deleted = self.content(connection.call("safe_delete", paths=[path.name]))
+        self.assertTrue(deleted["ok"], deleted)
+        txid = deleted["result"]["txid"]
+        path.write_text("replacement occupant", encoding="utf-8")
+        before = sorted(str(p.relative_to(self.workspace)) for p in self.workspace.rglob("*"))
+        audit_before = (self.workspace / ".agent-trash" / "audit.jsonl").read_bytes()
+
+        preview = self.content(connection.call("restore_preview", txid=txid))
+        self.assertTrue(preview["ok"], preview)
+        self.assertEqual(preview["result"]["schema"], "restore_preview/v1")
+        self.assertFalse(preview["result"]["can_restore"])
+        self.assertTrue(preview["result"]["can_restore_with_force"])
+        self.assertEqual(preview["result"]["items"][0]["status"], "conflict")
+        self.assertEqual(preview["result"]["items"][0]["comparison"]["basis"], "size_diff")
+        self.assertNotIn("original bytes", json.dumps(preview))
+        self.assertNotIn("replacement occupant", json.dumps(preview))
+
+        refused = connection.call("restore_preview", txid=txid, force=True)
+        self.assertTrue("error" in refused or refused["result"].get("isError"), refused)
+        short_preview = self.content(connection.call("restore_preview", txid=txid[:12]))
+        self.assertFalse(short_preview["ok"], short_preview)
+        self.assertIn("unknown transaction", short_preview["result"]["error"])
+        self.assertEqual(sorted(str(p.relative_to(self.workspace)) for p in self.workspace.rglob("*")), before)
+        self.assertEqual((self.workspace / ".agent-trash" / "audit.jsonl").read_bytes(), audit_before)
 
 
 if __name__ == "__main__":

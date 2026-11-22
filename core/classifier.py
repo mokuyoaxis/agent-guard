@@ -98,12 +98,34 @@ def protected_ancestor_root(path: Optional[str]) -> Optional[str]:
         return norm
     return None
 
+_INLINE_DELETE_API_PATTERN = (
+    r"\bshutil\.rmtree\b"
+    r"|\bos\.(?:remove|unlink|rmdir|removedirs)\b"
+    r"|\.(?:unlink|rmdir|rmSync|unlinkSync|rmdirSync)\s*\("
+    r"|\bfs(?:\.promises)?\.(?:rm|rmSync|unlink|unlinkSync|rmdir|rmdirSync)\b"
+    r"|\brequire\s*\(\s*['\"](?:node:)?fs(?:/promises)?['\"]\s*\)\s*(?:\.promises)?\.(?:rm|rmSync|unlink|unlinkSync|rmdir|rmdirSync)\b"
+    r"|\bDeno\.remove(?:Sync)?\b"
+    r"|\brimraf\b"
+    r"|\bFileUtils\.rm(?:_rf|_r|_f)?\b"
+    r"|\bFile\.(?:delete|unlink)\b"
+    r"|\brmtree\b"
+)
+
+_INLINE_SCRIPT_DELETE_RE = re.compile(
+    _INLINE_DELETE_API_PATTERN + r"|\bunlink\s*\("
+)
+_INLINE_EXEC_SUBPROCESS_RE = re.compile(
+    r"\b(?:subprocess|os\.system|os\.popen|execSync|spawnSync|child_process)\b"
+)
+_PYTHON_CMD_RE = re.compile(r"python(?:3(?:\.[0-9]+)?)?\Z")
+
 # Single-source keyword prefilter: harness adapters use it to skip
 # non-destructive traffic at regex cost before invoking check.py.
 DESTRUCTIVE_PREFILTER_RE = re.compile(
     r"\b(rm|rmdir|unlink|shred)\b"
     r"|\bfind\b[^\n|;&]*-delete\b"
-    r"|\bgit\b[^\n|;&]*\b(clean|reset|restore|checkout|push)\b")
+    r"|\bgit\b[^\n|;&]*\b(clean|reset|restore|checkout|push)\b"
+    r"|" + _INLINE_DELETE_API_PATTERN)
 
 # Windows-native prefilter vocabulary. The POSIX regex above never matches
 # `ri build -r -fo`/`rd /s /q build`, so a Windows-native harness would hand
@@ -113,7 +135,8 @@ DESTRUCTIVE_PREFILTER_RE = re.compile(
 DESTRUCTIVE_PREFILTER_RE_WINDOWS = re.compile(
     r"\b(rm|ri|rd|rmdir|del|erase|remove-item)\b"
     r"|-\s?(recurse|force|whatif|literalpath)\b"
-    r"|\bgit\b[^\n|;&]*\b(clean|reset|restore|checkout|push)\b",
+    r"|\bgit\b[^\n|;&]*\b(clean|reset|restore|checkout|push)\b"
+    r"|" + _INLINE_DELETE_API_PATTERN,
     re.IGNORECASE)
 
 
@@ -1121,8 +1144,378 @@ def _posix_tokens(cmd: str) -> List[str]:
     return list(lexer)
 
 
+_INLINE_EVAL_RE = re.compile(r"\b(?:eval|exec)\s*\(")
+_KEEP_MODULE_STRINGS = frozenset({"fs", "node:fs", "fs/promises", "node:fs/promises"})
+_NODE_VALUE_OPTS = frozenset({
+    "-r", "--require", "--import", "-C", "--conditions", "--env-file",
+    "--env-file-if-exists", "--loader", "--experimental-loader", "--input-type",
+    "--title", "--redirect-warnings", "--diagnostic-dir", "--heapsnapshot-signal",
+    "--max-http-header-size", "--openssl-config", "--icu-data-dir",
+})
+_DENO_VALUE_OPTS = frozenset({
+    "-c", "--config", "--ext", "--import-map", "--lock", "--log-level",
+    "--v8-flags", "--cert", "--seed", "--location", "--preload",
+})
+
+
+def _mask_code_strings(code: str) -> str:
+    """Replace static string-literal interiors while keeping executable code intact.
+
+    Handles single/double quotes, Python triple quotes, backslash escapes, and
+    JS template interpolations (`...${expr}...`). Unterminated quotes are kept
+    unmasked (fail-closed) so malformed quoting cannot hide deletion calls.
+    """
+    out: List[str] = []
+    n = len(code)
+    i = 0
+    while i < n:
+        ch = code[i]
+        if ch in ("'", '"'):
+            delim = code[i:i + 3] if code[i:i + 3] == ch * 3 else ch
+            j = i + len(delim)
+            closed = False
+            while j < n:
+                if code[j] == "\\" and j + 1 < n:
+                    j += 2
+                    continue
+                if code.startswith(delim, j):
+                    j += len(delim)
+                    closed = True
+                    break
+                j += 1
+            if not closed:
+                out.append(code[i:])
+                break
+            inner = code[i + len(delim):j - len(delim)]
+            if inner in _KEEP_MODULE_STRINGS:
+                out.append(code[i:j])
+            else:
+                out.append(delim + delim)
+            i = j
+            continue
+        if ch == "`":
+            j = i + 1
+            buf = ["`"]
+            closed = False
+            while j < n:
+                if code[j] == "\\" and j + 1 < n:
+                    j += 2
+                    continue
+                if code[j] == "`":
+                    buf.append("`")
+                    j += 1
+                    closed = True
+                    break
+                if code[j:j + 2] == "${":
+                    depth = 1
+                    expr_start = j + 2
+                    k = expr_start
+                    while k < n and depth > 0:
+                        if code[k] == "{":
+                            depth += 1
+                        elif code[k] == "}":
+                            depth -= 1
+                        elif code[k] in ("'", '"'):
+                            q = code[k]
+                            k += 1
+                            while k < n:
+                                if code[k] == "\\" and k + 1 < n:
+                                    k += 2
+                                    continue
+                                if code[k] == q:
+                                    break
+                                k += 1
+                        k += 1
+                    if depth == 0:
+                        buf.append("${")
+                        buf.append(_mask_code_strings(code[expr_start:k - 1]))
+                        buf.append("}")
+                        j = k
+                        continue
+                    break
+                j += 1
+            if not closed:
+                out.append(code[i:])
+                break
+            out.append("".join(buf))
+            i = j
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
+def _script_interpreter_kind(token: str) -> Optional[str]:
+    name = _portable_command_name(token, casefold=True)
+    if _PYTHON_CMD_RE.fullmatch(name) or name == "py":
+        return "python"
+    if name in ("node", "nodejs", "bun"):
+        return "node"
+    if name == "deno":
+        return "deno"
+    if name in ("ruby", "perl"):
+        return "eval_e"
+    return None
+
+
+def _inline_script_smell(code: str) -> bool:
+    if not code:
+        return False
+    masked = _mask_code_strings(code)
+    if _INLINE_SCRIPT_DELETE_RE.search(masked):
+        return True
+    if _INLINE_EVAL_RE.search(masked) and (
+            _INLINE_SCRIPT_DELETE_RE.search(code) or DESTRUCTIVE_SMELL_RE.search(code)):
+        return True
+    if _INLINE_EXEC_SUBPROCESS_RE.search(masked) and DESTRUCTIVE_SMELL_RE.search(code):
+        return True
+    return False
+
+
+def _inline_script_payload(kind: str, rest: List[str]) -> Optional[str]:
+    """Extract only executed inline code argument(s), never script files or data args."""
+    if kind == "python":
+        i = 0
+        while i < len(rest):
+            tok = rest[i]
+            if tok == "--" or tok == "-" or not tok.startswith("-"):
+                return None
+            if tok == "-c":
+                return rest[i + 1] if i + 1 < len(rest) else ""
+            if tok.startswith("-c") and len(tok) > 2:
+                return tok[2:]
+            if tok == "-m" or tok.startswith("-m"):
+                return None
+            if tok in ("-W", "-X"):
+                i += 2
+                continue
+            i += 1
+        return None
+    if kind == "node":
+        chunks: List[str] = []
+        i = 0
+        while i < len(rest):
+            tok = rest[i]
+            if tok == "--" or not tok.startswith("-"):
+                break
+            if tok in ("-e", "--eval", "-p", "--print"):
+                if i + 1 < len(rest):
+                    chunks.append(rest[i + 1])
+                i += 2
+                continue
+            if tok.startswith(("--eval=", "--print=")):
+                chunks.append(tok.split("=", 1)[1])
+                i += 1
+                continue
+            if tok in _NODE_VALUE_OPTS:
+                i += 2
+                continue
+            i += 1
+        return "\n".join(chunks) if chunks else None
+    if kind == "deno":
+        i = 0
+        while i < len(rest) and rest[i].startswith("-"):
+            i += 1
+        if i >= len(rest) or rest[i] != "eval":
+            return None
+        # `deno eval [OPTIONS] <CODE_ARG> [-- <SCRIPT_ARGS>...]` executes ONLY
+        # the first positional <CODE_ARG>; later tokens are data in Deno.args.
+        j = i + 1
+        after_dd = False
+        while j < len(rest):
+            tok = rest[j]
+            if not after_dd and tok == "--":
+                after_dd = True
+                j += 1
+                continue
+            if not after_dd and tok.startswith("-"):
+                if tok in _DENO_VALUE_OPTS:
+                    j += 2
+                else:
+                    j += 1
+                continue
+            return tok if tok != "-" else None
+        return None
+    if kind == "eval_e":
+        chunks = []
+        i = 0
+        while i < len(rest):
+            tok = rest[i]
+            if tok == "--" or not tok.startswith("-"):
+                break
+            if tok in ("-e", "-E"):
+                if i + 1 < len(rest):
+                    chunks.append(rest[i + 1])
+                i += 2
+                continue
+            if tok.startswith(("-e", "-E")) and len(tok) > 2:
+                chunks.append(tok[2:])
+            i += 1
+        return "\n".join(chunks) if chunks else None
+    return None
+
+
+def _reads_stdin_as_code(kind: str, rest: List[str]) -> bool:
+    """True when an interpreter segment executes code arriving on stdin."""
+    if kind == "python":
+        i = 0
+        while i < len(rest):
+            tok = rest[i]
+            if tok == "-":
+                return True
+            if tok == "--" or not tok.startswith("-"):
+                return False
+            if tok in ("-c", "-m") or tok.startswith(("-c", "-m")):
+                return False
+            if tok in ("-W", "-X"):
+                i += 2
+                continue
+            i += 1
+        return True
+    if kind == "node":
+        i = 0
+        while i < len(rest):
+            tok = rest[i]
+            if tok == "-":
+                return True
+            if tok == "--" or not tok.startswith("-"):
+                return False
+            if tok in ("-e", "--eval", "-p", "--print") or tok.startswith(("--eval=", "--print=")):
+                return False
+            if tok in _NODE_VALUE_OPTS:
+                i += 2
+                continue
+            i += 1
+        return True
+    if kind == "deno":
+        i = 0
+        while i < len(rest) and rest[i].startswith("-"):
+            i += 1
+        if i >= len(rest) or rest[i] != "eval":
+            return False
+        j = i + 1
+        after_dd = False
+        while j < len(rest):
+            tok = rest[j]
+            if not after_dd and tok == "--":
+                after_dd = True
+                j += 1
+                continue
+            if not after_dd and tok.startswith("-"):
+                j += 2 if tok in _DENO_VALUE_OPTS else 1
+                continue
+            return tok == "-"
+        return True
+    if kind == "eval_e":
+        i = 0
+        while i < len(rest):
+            tok = rest[i]
+            if tok == "-":
+                return True
+            if tok == "--" or not tok.startswith("-"):
+                return False
+            if tok in ("-e", "-E") or tok.startswith(("-e", "-E")):
+                return False
+            i += 1
+        return True
+    return False
+
+
+def _piped_inline_script_spec(tokens: List[str]) -> Optional[OpSpec]:
+    """Check pipelines feeding program text into an interpreter reading code from stdin."""
+    segments: List[List[str]] = []
+    seps: List[str] = []
+    cur: List[str] = []
+    for tok in tokens:
+        if tok in SEPARATORS:
+            segments.append(cur)
+            seps.append(tok)
+            cur = []
+        else:
+            cur.append(tok)
+    segments.append(cur)
+    for idx, sep in enumerate(seps):
+        if sep != "|":
+            continue
+        up_raw = segments[idx]
+        down_raw = segments[idx + 1] if idx + 1 < len(segments) else []
+        up, _, _ = _unwrap_shell_prefixes(up_raw)
+        down, _, _ = _unwrap_shell_prefixes(down_raw)
+        if not up or not down:
+            continue
+        kind = _script_interpreter_kind(down[0])
+        if kind is None or not _reads_stdin_as_code(kind, down[1:]):
+            continue
+        up_head = _portable_command_name(up[0], casefold=True)
+        payload = " ".join(up[1:]) if up_head in ("echo", "printf") else " ".join(up)
+        if _inline_script_smell(payload):
+            return _unknown_op("inline script with destructive file-deletion API arrives via stdin")
+    return None
+
+
+def _inline_script_spec(segment: List[str]) -> Optional[OpSpec]:
+    if not segment:
+        return None
+    kind = _script_interpreter_kind(segment[0])
+    if kind is None:
+        return None
+    payload = _inline_script_payload(kind, segment[1:])
+    if payload is None or not _inline_script_smell(payload):
+        return None
+    head = _portable_command_name(segment[0], casefold=True)
+    spec = OpSpec(op=head, kind=KIND_UNKNOWN, undeterminable=True,
+                  targets=[payload[:200]])
+    spec.note("inline script execution with destructive file-deletion API; "
+              "use safe_delete or Cleanup Copilot instead")
+    return spec
+
+
+def _heredoc_interpreter_specs(cmd: str) -> List[OpSpec]:
+    """Inspect heredoc bodies fed directly to an executing interpreter (not cat/tee)."""
+    specs: List[OpSpec] = []
+    cursor = 0
+    while True:
+        match = HEREDOC_OP_RE.search(cmd, cursor)
+        if not match:
+            return specs
+        tag = match.group(2)
+        nl = cmd.find("\n", match.end())
+        if nl == -1:
+            cursor = match.end()
+            continue
+        terminator = re.compile(r"^\s*" + re.escape(tag) + r"\s*$", re.MULTILINE)
+        end_m = terminator.search(cmd, nl + 1)
+        body = cmd[nl + 1:end_m.start()] if end_m else cmd[nl + 1:]
+        cursor = end_m.end() if end_m else len(cmd)
+
+        line_start = cmd.rfind("\n", 0, match.start()) + 1
+        prefix = cmd[line_start:match.start()]
+        for sep in ("&&", "||", ";", "|"):
+            pos = prefix.rfind(sep)
+            if pos != -1:
+                prefix = prefix[pos + len(sep):]
+        try:
+            words = shlex.split(prefix)
+        except ValueError:
+            words = prefix.split()
+        words, _, _ = _unwrap_shell_prefixes(words)
+        if not words:
+            continue
+        head = _portable_command_name(words[0], casefold=True)
+        if head in INTERPRETER_CMDS and DESTRUCTIVE_SMELL_RE.search(body):
+            spec = OpSpec(op=head, kind=KIND_UNKNOWN, undeterminable=True)
+            spec.note("heredoc shell execution with destructive smell")
+            specs.append(spec)
+        elif _script_interpreter_kind(words[0]) is not None and _inline_script_smell(body):
+            spec = OpSpec(op=head, kind=KIND_UNKNOWN, undeterminable=True)
+            spec.note("heredoc inline script with destructive file-deletion API; "
+                      "use safe_delete or Cleanup Copilot instead")
+            specs.append(spec)
+
+
 def _classify_posix(cmd: str) -> Tuple[List[OpSpec], Optional[str]]:
     """POSIX lexer with explicit shell command boundaries."""
+    heredoc_specs = _heredoc_interpreter_specs(cmd)
     text = strip_heredocs(cmd)
     if "\\" in text and _WINDOWS_COMMAND_RE.search(text):
         # The cmd-style backslash rewrite is safe only for a standalone
@@ -1150,8 +1543,11 @@ def _classify_posix(cmd: str) -> Tuple[List[OpSpec], Optional[str]]:
     if (re.search(r"\|\s*(?:/[^\s|;&]+/)?(?:sh|bash|zsh|ksh)\b", text)
             and DESTRUCTIVE_SMELL_RE.search(text)):
         return [_unknown_op("shell program arrives via stdin")], None
+    piped_inline = _piped_inline_script_spec(tokens)
+    if piped_inline is not None:
+        return [piped_inline], None
 
-    specs: List[OpSpec] = []
+    specs: List[OpSpec] = list(heredoc_specs)
     cd_positions: List[int] = []
     creation_positions: List[int] = []
 
@@ -1187,6 +1583,11 @@ def _classify_posix(cmd: str) -> Tuple[List[OpSpec], Optional[str]]:
                               targets=[inner[:200]])
                 spec.note("indirect shell execution with destructive smell")
                 emit(spec, index)
+            continue
+
+        inline_spec = _inline_script_spec(seg)
+        if inline_spec is not None:
+            emit(inline_spec, index)
             continue
 
         if head in FS_DELETE_CMDS:
@@ -1257,6 +1658,10 @@ def _classify_windows_dialect(cmd: str, dialect: str
               or head.lower() in CMD_CREATION_CMDS
               or _has_create_redirect(segment)):
             creation_positions.append(index)
+        inline_spec = _inline_script_spec(segment)
+        if inline_spec is not None:
+            inline_spec.segment_index = index
+            specs.append(inline_spec)
     for spec in specs:
         spec.dialect = dialect
         spec.targets = [t.replace("\\", "/") for t in spec.targets]

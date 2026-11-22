@@ -125,6 +125,7 @@ invalid JSON, unreadable configuration and invalid values block new deletion.
 | `batch_max_bytes` | 268435456 (256 MiB) | Larger operations require confirmed Cleanup execution |
 | `batch_max_entries` | 1000 | Same confirmation threshold in filesystem entries |
 | `protected_paths` | `[]` | Additional literal workspace paths to preserve |
+| `regenerable_patterns` | `[]` | Validated workspace-relative artifact patterns (development checkout; max 64) |
 
 Numbers must be integers through `2**63 - 1`; booleans and numeric strings
 are invalid. Byte limits may be zero, meaning no byte allowance, not unlimited.
@@ -132,6 +133,19 @@ Other numeric limits must be positive. Configuration files larger than 1 MiB are
 Protected paths may be workspace-relative or absolute inside the workspace;
 they may name future paths, but cannot escape through an external directory
 link. A final outward-pointing link itself can be protected.
+
+Workspace `regenerable_patterns` extend built-in artifact names under four
+guardrails: patterns must be workspace-relative POSIX patterns up to 128
+characters without `**`, `.` / `..`, drive/path prefixes, or catch-all
+wildcards (the final segment needs at least two literal alphanumeric characters
+and cannot match protected or secret-store names, and multi-segment patterns
+match segment-by-segment so `*` never crosses `/`); targets must still be
+Git-ignored and outside protected paths; whole-tree inspection ensures that
+secret-store files or directories containing secret-store descendants (or
+whose scan is incomplete/unreadable) fall back to recoverable quarantine
+instead of direct deletion; and `--quarantine` always takes precedence over
+direct deletion. Adding or removing patterns changes the policy fingerprint and
+invalidates pending Cleanup approvals (`CONFIG_CHANGED`).
 
 For example, an operator can choose stricter limits and preserve evidence:
 
@@ -159,6 +173,8 @@ or change limits for one workspace. From source, run
 ```sh
 agent-guard-delete-policy show
 agent-guard-delete-policy set session_max_bytes=2GiB --preview
+agent-guard-delete-policy protect add evidence backups/current --preview
+agent-guard-delete-policy regenerable add '.venv-wheel-*' --preview
 ```
 
 `show` lists the selected workspace, effective values and built-in defaults.
@@ -188,14 +204,24 @@ without `--preview`. Review the current workspace and diff, then type
 unlinked policy path. Repair invalid policy JSON in its source file before
 applying an update.
 
+`protect add|remove` and `regenerable add|remove` (development checkout) manage
+`protected_paths` and `regenerable_patterns` through the same `--preview` and
+interactive terminal `APPLY` flow. `protect add` refuses the workspace root (`.`)
+and Core control directories (`.git`, `.agent-guard`, `.agent-trash`);
+`protect remove` warns that guarded deletion will be allowed for the removed
+path. `regenerable add` validates each pattern against the guardrails above and
+warns that Git-ignored matches may be permanently deleted without quarantine
+copies unless `--quarantine` is requested. `show` displays both lists alongside
+effective numeric limits.
+
 `reset-limits` removes the numeric overrides for the selected workspace.
 Those fields return to the built-in defaults. Run
 `agent-guard-delete-policy reset-limits --preview` to review the change.
-The workspace keeps its `protected_paths`, cumulative usage, recorded rate
-events and recovery transactions. The effective window length determines
-which recorded events count. An effective policy change can make a pending
-Cleanup task report `CONFIG_CHANGED`. Review and approve the selection under
-the current policy before executing it. Use the separate
+The workspace keeps its `protected_paths`, `regenerable_patterns`, cumulative
+usage, recorded rate events and recovery transactions. The effective window
+length determines which recorded events count. An effective policy change can
+make a pending Cleanup task report `CONFIG_CHANGED`. Review and approve the
+selection under the current policy before executing it. Use the separate
 [operator budget reset](#status-and-operator-recovery)
 when you intend to clear current-session accounting.
 

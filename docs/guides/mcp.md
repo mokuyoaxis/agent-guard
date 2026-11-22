@@ -1,6 +1,6 @@
 # Local MCP tools / 本地 MCP 工具
 
-The local stdio MCP server gives a coding-agent client structured, workspace-bound tools for Delete-guard workflows—covering **direct recoverable deletion & restore** (`safe_delete`, `restore`, `transactions`, `status`, `gc_plan`), **read-only cleanup inventory** (`cleanup_discover`, `cleanup_measure`), and **reviewed batch task execution & queries** (`cleanup_plan`, `cleanup_execute`, `cleanup_task_status`, plus optional Codex confirmation when enabled by the operator). The development checkout adds [three Exfil-guard tools](#exfil-guard-tools). Binding the workspace, session budget, and optional startup `--trash-root` at launch prevents model tool arguments from switching buckets or bypassing limits.
+The local stdio MCP server gives a coding-agent client structured, workspace-bound tools for Delete-guard workflows—covering **direct recoverable deletion & restore** (`safe_delete`, `restore`, `restore_preview`, `transactions`, `status`, `gc_plan`), **read-only cleanup inventory** (`cleanup_discover`, `cleanup_measure`), and **reviewed batch task execution & queries** (`cleanup_plan`, `cleanup_execute`, `cleanup_task_status`, plus optional Codex confirmation when enabled by the operator). The development checkout adds [three Exfil-guard tools](#exfil-guard-tools) and read-only `restore_preview`. Binding the workspace, session budget, and optional startup `--trash-root` at launch prevents model tool arguments from switching buckets or bypassing limits.
 
 **Core boundary:** Registering MCP tools does **not** intercept native shell `rm`, custom scripts, or editor deletions that bypass the server. Keep a compatible host blocking hook active wherever automatic interception of native tool calls is required.
 
@@ -166,10 +166,11 @@ The checks cover:
 2. A classic `2025-06-18` stdio handshake, the `agent-guard` service identity
    and a service version matching the doctor's package version.
 3. The expected tools and query annotations for this installation: five in
-   0.2.8, seven in 0.2.9, ten by default in 0.3.0,
-   or eleven with the matching `--approval-channel codex` option.
+   0.2.8, seven in 0.2.9, ten by default in 0.3.0 and 0.3.1 (eleven with Codex),
+   and fourteen by default in the development checkout (fifteen with
+   `--approval-channel codex`).
    The plan tool is annotated as writable because it can explicitly save;
-   task status is read-only. Use doctor and server
+   `restore_preview` and `cleanup_task_status` are read-only. Use doctor and server
    from the same installation; matching package version text alone does not
    establish an identical tool set.
 4. Successful `status`, `transactions` and `gc_plan` calls, including the
@@ -233,7 +234,8 @@ or atomic rollback. Final candidate results are recorded in the
 | Tool | Inputs | Effect |
 |---|---|---|
 | `safe_delete` | `paths` (1–1000 literal strings), optional `dry_run` (default false); 0.3.0 adds `quarantine` (default false) | Existing policy and admission; `quarantine: true` retains recovery copies even for proven regenerable artifacts |
-| `restore` | `txid` | Restore a transaction without force-overwriting an occupant |
+| `restore` | complete `txid` (no prefix expansion) | Restore a transaction without force-overwriting an occupant |
+| `restore_preview` (dev) | complete `txid` only (no prefix expansion, no `force`) | Read-only restore preflight (`restore_preview/v1`) and conflict comparison without writing files/audit or leaking content/hashes |
 | `transactions` | none | List the selected workspace's recovery transactions |
 | `status` | optional `tail` (0–100); 0.3.0 adds `view: overview/full` and overview-only `limit` (1–50) | Legacy full by default; explicit overview reads bounded task/transaction metadata and budget without payload size walks |
 | `gc_plan` | none | Preview the existing transaction GC plan; never execute it |
@@ -391,7 +393,7 @@ local control files and the existing TTY workflow do not isolate malicious
 same-UID clients. Claude, DSH and Kimi approval bridges are not enabled by
 this Codex option; their existing terminal workflow remains available.
 
-The development `doctor mcp --approval-channel codex` checks fourteen tools
+The development `doctor mcp --approval-channel codex` checks fifteen tools
 with the same workspace and storage options. It probes status, transactions,
 GC preview and a benign Exfil check with auditing disabled. Host confirmation
 remains `UNVERIFIED` and diagnosis creates no approval metadata. Protocol tests with scripted
@@ -400,7 +402,8 @@ answers are distinct from real operator/frontend acceptance; see the
 
 ## Exfil-guard tools
 
-The development server exposes thirteen tools by default and fourteen with
+The development server exposes fourteen tools by default (including
+`restore_preview` and the three Exfil-guard tools) and fifteen with
 Codex confirmation. Exfil tools use the same startup workspace, quarantine,
 and session. `config_safe_view` is read-only. The text tools do not write by
 default. Their bodies travel to the local CLI over stdin.
@@ -744,7 +747,7 @@ below retain their original scope.
 
 1. Confirm the interpreter starts the server and the client discovers the
    tools for that installation: five in 0.2.8, seven in published 0.2.9,
-   ten by default in published 0.3.0 and 0.3.1, and thirteen in the development
+   ten by default in published 0.3.0 and 0.3.1, and fourteen in the development
    checkout. Codex confirmation adds one tool when enabled.
    Check stderr when a dependency or executable cannot
    be found, and reconnect after changing the selected installation.

@@ -21,6 +21,40 @@
   and DSH. A refusal happens before delete compensation.
   [Bash Exfil setup](../guides/harness-capabilities.md#opt-in-bash-exfil)
 
+## Delete-guard development changes
+
+- Manage workspace `protected_paths` and controlled `regenerable_patterns`
+  through `agent-guard-delete-policy protect|regenerable add|remove` with
+  `--preview` and interactive terminal `APPLY` confirmation. Core boundaries
+  cannot be added as custom protections, broad or secret-store patterns are
+  rejected, multi-segment patterns match segment-by-segment without crossing
+  `/`, whole-tree checks fall back to quarantine if a directory contains a
+  secret-store descendant or cannot be completely scanned, `--quarantine`
+  always overrides direct deletion, `reset-limits` preserves both lists, and
+  policy changes invalidate pending Cleanup approvals (`CONFIG_CHANGED`).
+  [Workspace policy settings](../guides/deletion-limits.md#configure-workspace-limits)
+- Inspect a recovery transaction before restoring with strictly read-only
+  `restore.py preview <txid>` (or `--preview`), unique CLI transaction prefixes,
+  and the read-only MCP tool `restore_preview` (bringing the development MCP
+  server to 14 default tools / 15 with Codex confirmation; MCP `restore` and
+  `restore_preview` require exact complete transaction IDs). Occupied regular
+  files up to 4 MiB report metadata and boolean content equality without
+  emitting file contents or digests, and unreachable non-directory origin
+  parents report as `blocked` without offering `--force`.
+  [Restore preview](../guides/recovery-feedback.md#read-only-restore-preview) · [MCP tools](../guides/mcp.md#tools-and-limits)
+- Block inline script deletion calls (`python -c`, `node -e`, `ruby -e`,
+  `perl -e`, `deno eval`, interpreter heredocs and piped scripts calling
+  file-deletion APIs) as `BLOCK_UNDETERMINABLE_EFFECT` across Core and DSH
+  prefilters while keeping benign interpreter runs, string-printing scripts,
+  Deno data arguments and `cat`/`tee` heredocs unchanged.
+  [Delete-guard Skill](../../skills/delete-guard/SKILL.md#if-you-run-rm--destructive-git-anyway)
+- Emit PowerShell-quoted handoff commands on Windows (escaping ASCII and
+  typographic single quotes and scoping custom workspace/trash environment
+  bindings to the single invocation via `try`/`finally`) while retaining POSIX
+  `shlex` output on POSIX platforms, verified with an echo probe in the Windows
+  Core CI gate.
+  [Recovery feedback](../guides/recovery-feedback.md#moving-a-file-does-not-remove-its-recovery-copy)
+
 ## Published maintenance history
 
 The next three maintenance sections ship in **[0.3.1](release-notes-0.3.1.md)**

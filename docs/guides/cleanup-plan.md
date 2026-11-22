@@ -335,7 +335,7 @@ Git facts no target is proposed as regenerable.
 
 | Category | Evidence | Default handling |
 |---|---|---|
-| 可再生 / `regenerable` | Git-ignored, matches an existing artifact pattern, and no tracked descendants | Selectable if existing policy permits; inspect `effect` |
+| 可再生 / `regenerable` | Git-ignored, matches a built-in or validated workspace artifact pattern, no tracked descendants, and not a secret-store file | Selectable if existing policy permits; inspect `effect` (`--quarantine` forces quarantine) |
 | 明确废弃 / `discarded` | Caller explicitly declared the path/subtree with `--discard PATH` | Selectable if existing policy permits; ordinary content goes to quarantine |
 | 不确定 / `uncertain` | No sufficient regeneration or discard evidence, or incomplete scan | Review only |
 | 受保护 / `protected` | `.git`, `.internal`, quarantine names/boundaries, explicit protected paths or special entries | Keep; do not traverse |

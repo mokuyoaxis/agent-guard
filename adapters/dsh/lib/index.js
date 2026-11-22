@@ -203,11 +203,24 @@ export const Config = {
   },
 };
 
+const INLINE_DELETE_API_PATTERN =
+  "\\bshutil\\.rmtree\\b" +
+  "|\\bos\\.(?:remove|unlink|rmdir|removedirs)\\b" +
+  "|\\.(?:unlink|rmdir|rmSync|unlinkSync|rmdirSync)\\s*\\(" +
+  "|\\bfs(?:\\.promises)?\\.(?:rm|rmSync|unlink|unlinkSync|rmdir|rmdirSync)\\b" +
+  "|\\brequire\\s*\\(\\s*['\"](?:node:)?fs(?:/promises)?['\"]\\s*\\)\\s*(?:\\.promises)?\\.(?:rm|rmSync|unlink|unlinkSync|rmdir|rmdirSync)\\b" +
+  "|\\bDeno\\.remove(?:Sync)?\\b" +
+  "|\\brimraf\\b" +
+  "|\\bFileUtils\\.rm(?:_rf|_r|_f)?\\b" +
+  "|\\bFile\\.(?:delete|unlink)\\b" +
+  "|\\brmtree\\b";
+
 // Aligned with core/classifier.py vocabulary (V1: Linux/macOS).
 const DESTRUCTIVE_RE = new RegExp(
   "\\b(rm|rmdir|unlink|shred)\\b" +
     "|\\bfind\\b[^\\n|;&]*-delete\\b" +
-    "|\\bgit\\b[^\\n|;&]*\\b(clean|reset|restore|checkout|push)\\b"
+    "|\\bgit\\b[^\\n|;&]*\\b(clean|reset|restore|checkout|push)\\b" +
+    "|" + INLINE_DELETE_API_PATTERN
 );
 
 // Windows-native vocabulary (cmd / PowerShell). Screen both vocabularies
@@ -216,7 +229,8 @@ const DESTRUCTIVE_RE = new RegExp(
 const DESTRUCTIVE_RE_WINDOWS = new RegExp(
   "\\b(rm|ri|rd|rmdir|del|erase|remove-item)\\b" +
     "|-\\s?(recurse|force|whatif|literalpath)\\b" +
-    "|\\bgit\\b[^\\n|;&]*\\b(clean|reset|restore|checkout|push)\\b",
+    "|\\bgit\\b[^\\n|;&]*\\b(clean|reset|restore|checkout|push)\\b" +
+    "|" + INLINE_DELETE_API_PATTERN,
   "i"
 );
 
