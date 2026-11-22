@@ -57,10 +57,10 @@ class _Fixture:
         program = ROOT / "skills" / skill / "scripts" / (script + ".py")
         proc = subprocess.run(
             [sys.executable, "-B", str(program), "--json", *args], cwd=self.root,
-            input=payload if payload is not None else "",
-            capture_output=True, encoding="utf-8", timeout=self.timeout,
+            # Fixture payloads are compared byte for byte, including newlines.
+            input=(payload or "").encode("utf-8"), capture_output=True, timeout=self.timeout,
         )
-        return proc.returncode, json.loads(proc.stdout), proc.stdout, proc.stderr
+        return proc.returncode, json.loads(proc.stdout), proc.stdout.decode("utf-8"), proc.stderr.decode("utf-8")
 
     def delete(self, *args):
         return self.cli("delete-guard", "safe_delete", *args)[:2]
