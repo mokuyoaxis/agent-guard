@@ -1,6 +1,6 @@
 # Local Exfil-guard Git hooks
 
-The development checkout provides two opt-in hooks. `pre-commit` checks UTF-8
+Version `0.3.2+` provides two opt-in hooks. `pre-commit` checks UTF-8
 text in staged blobs. `commit-msg` checks the proposed message. The hooks use
 the installed Exfil-guard rules and leave the index, worktree, and message
 file as they found them. [Git hook behavior](https://git-scm.com/docs/githooks)

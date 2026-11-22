@@ -29,9 +29,9 @@ tail applies only to the full view. `--limit` applies only to overview.
 Overview cannot be combined with budget reset; the existing interactive
 reset workflow remains separate.
 
-MCP `status` accepts optional read arguments. The published `0.3.1` service
-has ten default tools. The development checkout adds three Exfil tools and
-retains this status contract. [Tool listing](mcp.md#exfil-guard-tools)
+MCP `status` accepts optional read arguments. Versions `0.3.0` and `0.3.1`
+have ten default tools; `0.3.2+` adds three Exfil tools and `restore_preview`
+(fourteen default tools) while retaining this status contract. [Tool listing](mcp.md#exfil-guard-tools)
 
 ```json
 {"name":"status","arguments":{"view":"overview","limit":10}}
@@ -41,8 +41,8 @@ Default MCP status remains the old full result for compatibility. Prefer the
 explicit overview for routine maintenance. A valid partial overview returns
 `ok: true, partial: true` and CLI exit 1; complete overview exits 0, invalid
 input exits 2. Read success is not deletion permission or a completed task.
-Doctor still probes the three original state queries. Its development Exfil
-probe checks for an allowed result with auditing disabled.
+Doctor probes the three original state queries plus a benign `exfil_check`
+probe in `0.3.2+` with auditing disabled.
 
 ## Read model
 

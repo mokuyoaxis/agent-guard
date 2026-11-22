@@ -2,7 +2,13 @@
 
 <a id="current-unreleased-scope"></a>
 
-## Exfil-guard development changes
+No unreleased feature changes sit ahead of **[0.3.2](release-notes-0.3.2.md)** yet.
+The next three sections ship in **[0.3.2](release-notes-0.3.2.md)** (absent from
+published `0.3.1`). Before registry installation, verify the exact
+[GitHub Release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.3.2)
+and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.3.2).
+
+## Exfil-guard changes (0.3.2)
 
 - Inspect TOML configuration structure with Python 3.11+ using the same
   value-free view as JSON and dotenv. Older Python runtimes refuse TOML
@@ -21,7 +27,7 @@
   and DSH. A refusal happens before delete compensation.
   [Bash Exfil setup](../guides/harness-capabilities.md#opt-in-bash-exfil)
 
-## Delete-guard development changes
+## Delete-guard changes (0.3.2)
 
 - Manage workspace `protected_paths` and controlled `regenerable_patterns`
   through `agent-guard-delete-policy protect|regenerable add|remove` with
@@ -35,7 +41,7 @@
   [Workspace policy settings](../guides/deletion-limits.md#configure-workspace-limits)
 - Inspect a recovery transaction before restoring with strictly read-only
   `restore.py preview <txid>` (or `--preview`), unique CLI transaction prefixes,
-  and the read-only MCP tool `restore_preview` (bringing the development MCP
+  and the read-only MCP tool `restore_preview` (bringing the `0.3.2` MCP
   server to 14 default tools / 15 with Codex confirmation; MCP `restore` and
   `restore_preview` require exact complete transaction IDs). Occupied regular
   files up to 4 MiB report metadata and boolean content equality without
@@ -55,7 +61,7 @@
   Core CI gate.
   [Recovery feedback](../guides/recovery-feedback.md#moving-a-file-does-not-remove-its-recovery-copy)
 
-## Guard-lab and workspace diagnostics
+## Guard-lab and workspace diagnostics (0.3.2)
 
 - Run the L0 lifecycle calibration suite for 11 paired Core and CLI checks.
   Reports count both protective and benign outcomes and identify unsupported

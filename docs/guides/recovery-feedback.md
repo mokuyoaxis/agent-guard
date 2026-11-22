@@ -3,7 +3,7 @@
 Clear operational feedback helps operators and coding agents tell three things apart: whether local adapter wiring initialized properly, what a guard verdict actually proves, and whether quarantined recovery copies still occupy disk. This guide covers status diagnostics (`agent_guard_status`, `doctor`), what `ALLOW_NOOP` does and does not guarantee, quarantine storage notices and manual GC, and optional Kimi Stop recovery feedback.
 
 > [!NOTE]
-> **Version scope:** Core CLI/DSH storage and `ALLOW_NOOP` diagnostics landed in `0.2.5`, Kimi Stop feedback in `0.2.6`, receipt-derived [execution summaries](maintenance-output.md#fixed-execution-summaries) plus bounded [`status` overviews](read-only-query.md) (`--view overview`, preserving legacy `--json` defaults without adding a UI panel) in **`0.3.0`**, and staged cross-filesystem recovery (`manual_review_items`), exact-`txid` GC commands, unique prefixes, and `gc.py --task ID` in **`0.3.1`**. See [maintenance acceptance](../reports/test-report-maintenance-0.3.0.md#regression-and-package-checkpoints) and [0.3.1 notes](../releases/release-notes-0.3.1.md) for recorded checks.
+> **Version scope:** Core CLI/DSH storage and `ALLOW_NOOP` diagnostics landed in `0.2.5`, Kimi Stop feedback in `0.2.6`, receipt-derived [execution summaries](maintenance-output.md#fixed-execution-summaries) plus bounded [`status` overviews](read-only-query.md) (`--view overview`, preserving legacy `--json` defaults without adding a UI panel) in **`0.3.0`**, staged cross-filesystem recovery (`manual_review_items`), exact-`txid` GC commands, unique prefixes, and `gc.py --task ID` in **`0.3.1`**, and read-only `restore.py preview` / MCP `restore_preview` plus Windows PowerShell-quoted handoff commands in **`0.3.2`**. See [maintenance acceptance](../reports/test-report-maintenance-0.3.0.md#regression-and-package-checkpoints) and [0.3.2 notes](../releases/release-notes-0.3.2.md) for recorded checks.
 >
 > **Reading `0.3.0` summaries:** Explicit `--view summary` omits per-row receipt details (capture full output on the initial call if you need row-level records rather than re-running a mutation), missing receipts remain labeled unknown, GC inventory is best effort, and summaries never claim unmeasured physical disk space reclaimed.
 
@@ -104,14 +104,14 @@ Run maintenance from the same working directory with the same
 `AGENT_GUARD_WORKSPACE` and `AGENT_GUARD_TRASH` settings as the operation.
 Replace the package path below with your installation; CLI results supply
 POSIX-shell-quoted commands on POSIX systems and PowerShell-quoted commands on
-Windows in the development checkout (escaping ASCII and typographic single
-quotes and scoping custom workspace/trash environment variables to the single
-invocation inside a `try`/`finally` block so later terminal commands never
-inherit stale bindings; published 0.3.1 emits POSIX quoting only).
+Windows in `0.3.2+` (escaping ASCII and typographic single quotes and scoping
+custom workspace/trash environment variables to the single invocation inside a
+`try`/`finally` block so later terminal commands never inherit stale bindings;
+`0.3.1` and earlier emit POSIX quoting only).
 
 ### Read-only restore preview
 
-In the development checkout, inspect a transaction before restoring it:
+In `0.3.2+`, inspect a transaction before restoring it:
 
 ```sh
 # Read-only preflight; writes no workspace files, manifests or audit entries.

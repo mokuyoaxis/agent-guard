@@ -34,7 +34,7 @@ scan facts, not to a byte-identical input fingerprint. The library returns empty
 checker retains its explicit mode/path overrides, which are not authorization
 for the sanitizer. Input and plan files are bounded UTF-8 text.
 
-In the development checkout, `sanitize.py --json` returns the structured
+In `0.3.2+`, `sanitize.py --json` returns the structured
 result. `ASK` and `BLOCK` return an empty `text` and `redaction_plan: []`.
 Invalid arguments or plans return a fixed error and exit 1. `--dry-run` and
 `--json` are separate output modes. The JSON path withholds a payload if a
@@ -327,7 +327,7 @@ corpus.
 The export preflight and optional Bash adapters also use the shared
 metadata projection. [Opt-in Exfil audit](../../../docs/guides/audit-metadata.md#opt-in-exfil-audit)
 
-In the development checkout, enable metadata-only records on `check_span.py`
+In `0.3.2+`, enable metadata-only records on `check_span.py`
 and `sanitize.py` with `--audit` or `AGENT_GUARD_EXFIL_AUDIT=1`. Each decision
 has one summary and up to 64 span records. The checker records an advisory
 decision. The sanitizer records whether it produced a permitted result.

@@ -1,6 +1,6 @@
 # Local MCP tools / 本地 MCP 工具
 
-The local stdio MCP server gives a coding-agent client structured, workspace-bound tools for Delete-guard workflows—covering **direct recoverable deletion & restore** (`safe_delete`, `restore`, `restore_preview`, `transactions`, `status`, `gc_plan`), **read-only cleanup inventory** (`cleanup_discover`, `cleanup_measure`), and **reviewed batch task execution & queries** (`cleanup_plan`, `cleanup_execute`, `cleanup_task_status`, plus optional Codex confirmation when enabled by the operator). The development checkout adds [three Exfil-guard tools](#exfil-guard-tools) and read-only `restore_preview`. Binding the workspace, session budget, and optional startup `--trash-root` at launch prevents model tool arguments from switching buckets or bypassing limits.
+The local stdio MCP server gives a coding-agent client structured, workspace-bound tools for Delete-guard and Exfil-guard workflows—covering **direct recoverable deletion & restore** (`safe_delete`, `restore`, `restore_preview`, `transactions`, `status`, `gc_plan`), **read-only cleanup inventory** (`cleanup_discover`, `cleanup_measure`), **reviewed batch task execution & queries** (`cleanup_plan`, `cleanup_execute`, `cleanup_task_status`, plus optional Codex confirmation when enabled by the operator), and **[three Exfil-guard tools](#exfil-guard-tools)** (`config_safe_view`, `exfil_check`, `exfil_sanitize`, added alongside `restore_preview` in `0.3.2`). Binding the workspace, session budget, and optional startup `--trash-root` at launch prevents model tool arguments from switching buckets or bypassing limits.
 
 **Core boundary:** Registering MCP tools does **not** intercept native shell `rm`, custom scripts, or editor deletions that bypass the server. Keep a compatible host blocking hook active wherever automatic interception of native tool calls is required.
 
@@ -56,10 +56,10 @@ The client starts this stdio process. No network listener, cloud account or
 system service is required. Use absolute paths and bind one workspace at
 startup; a tool call cannot change it or select another quarantine. Protocol
 messages use stdout; diagnostics use stderr.
-Storage defaults to the workspace-local `.agent-trash/`. The **0.3.0
-development checkout** also accepts a trusted startup `--trash-root` for a
-fixed quarantine directory; published 0.2.9 does not have this option. Ambient
-quarantine and deletion-policy environment overrides are still ignored.
+Storage defaults to the workspace-local `.agent-trash/`. Starting with
+**0.3.0**, a trusted startup `--trash-root` selects a fixed quarantine
+directory. Ambient quarantine and deletion-policy environment overrides are
+ignored.
 
 <a id="select-a-fixed-quarantine-directory-030-development"></a>
 
@@ -167,14 +167,15 @@ The checks cover:
    and a service version matching the doctor's package version.
 3. The expected tools and query annotations for this installation: five in
    0.2.8, seven in 0.2.9, ten by default in 0.3.0 and 0.3.1 (eleven with Codex),
-   and fourteen by default in the development checkout (fifteen with
+   and fourteen by default in 0.3.2+ (fifteen with
    `--approval-channel codex`).
    The plan tool is annotated as writable because it can explicitly save;
    `restore_preview` and `cleanup_task_status` are read-only. Use doctor and server
    from the same installation; matching package version text alone does not
    establish an identical tool set.
-4. Successful `status`, `transactions` and `gc_plan` calls, including the
-   requested workspace and the selected quarantine binding reported by `status`.
+4. Successful `status`, `transactions`, `gc_plan` and benign `exfil_check`
+   calls, including the requested workspace and the selected quarantine binding
+   reported by `status`.
 
 No model, deletion, restore, GC execution or dependency installation is part
 of this diagnosis. It does not create host configuration or approve a budget
@@ -235,7 +236,7 @@ or atomic rollback. Final candidate results are recorded in the
 |---|---|---|
 | `safe_delete` | `paths` (1–1000 literal strings), optional `dry_run` (default false); 0.3.0 adds `quarantine` (default false) | Existing policy and admission; `quarantine: true` retains recovery copies even for proven regenerable artifacts |
 | `restore` | complete `txid` (no prefix expansion) | Restore a transaction without force-overwriting an occupant |
-| `restore_preview` (dev) | complete `txid` only (no prefix expansion, no `force`) | Read-only restore preflight (`restore_preview/v1`) and conflict comparison without writing files/audit or leaking content/hashes |
+| `restore_preview` (0.3.2) | complete `txid` only (no prefix expansion, no `force`) | Read-only restore preflight (`restore_preview/v1`) and conflict comparison without writing files/audit or leaking content/hashes |
 | `transactions` | none | List the selected workspace's recovery transactions |
 | `status` | optional `tail` (0–100); 0.3.0 adds `view: overview/full` and overview-only `limit` (1–50) | Legacy full by default; explicit overview reads bounded task/transaction metadata and budget without payload size walks |
 | `gc_plan` | none | Preview the existing transaction GC plan; never execute it |
@@ -563,7 +564,7 @@ Client schemas, approvals and connection behavior can change; verify the
 installed version rather than copying another client's configuration shape.
 
 The project-scoped entry was also exercised on 2026-11-13 with Codex 0.165.0,
-a stable SDK 2.3.0 environment and this ten-tool development checkout. A fresh
+a stable SDK 2.3.0 environment and the ten-tool 0.3.0 development checkout. A fresh
 session used the actual project configuration for three read-only MCP calls,
 without shell calls or MCP launch overrides. See the
 [registration acceptance](../reports/test-report-maintenance-0.3.0.md#project-scoped-codex-mcp-registration-2026-11-13)
@@ -630,8 +631,8 @@ is an operator-terminal action. The separate, explicitly enabled
 [Codex host confirmation](#host-confirmation-030-development) can request
 approval of a saved selection without model-supplied consent.
 No additional SDK, network service, configuration or recovery migration is
-needed. Update/reconnect the selected server and use its own doctor and CLI;
-package version text alone does not identify this unreleased implementation.
+needed. Update and reconnect the selected server, then verify the tool list
+using Doctor from the same installation.
 
 These tools now default to `view: summary`. Plan/status queries can request
 `view: details` with category/state, literal relative path and pagination;
@@ -747,8 +748,8 @@ below retain their original scope.
 
 1. Confirm the interpreter starts the server and the client discovers the
    tools for that installation: five in 0.2.8, seven in published 0.2.9,
-   ten by default in published 0.3.0 and 0.3.1, and fourteen in the development
-   checkout. Codex confirmation adds one tool when enabled.
+   ten by default in 0.3.0 and 0.3.1, and fourteen by default in 0.3.2+.
+   Codex confirmation adds one tool when enabled.
    Check stderr when a dependency or executable cannot
    be found, and reconnect after changing the selected installation.
 2. Call `status`, `transactions` and `gc_plan` in a disposable project; confirm

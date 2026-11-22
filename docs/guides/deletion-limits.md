@@ -11,7 +11,7 @@ Delete-guard enforces shared execution-time admission controls across `safe_dele
 Limits apply per workspace root via `.agent-guard/delete-policy.json` (falling back to built-in defaults for omitted keys). 删除准入控制按工作区根目录生效，未显式设置的字段自动沿用内置默认值。
 
 > [!NOTE]
-> Shared deletion admission arrived in [**0.2.7**](../releases/release-notes-0.2.7.md) (deployments on `0.2.6` and earlier retain only soft retention and manual GC). Version [**0.3.0**](../releases/release-notes-0.3.0.md) adds dry-run `admission` previews, `--quarantine` preservation requests, and approved-task accounting, and [**0.3.1**](../releases/release-notes-0.3.1.md) adds `agent-guard-delete-policy`, conditional dry-run phrasing, and multi-target `--targets-file` handoff; historical validation checkpoints and host test scope remain recorded in the [0.2.7 notes](../releases/release-notes-0.2.7.md) and [0.3.0 acceptance report](../reports/test-report-maintenance-0.3.0.md).
+> Shared deletion admission arrived in [**0.2.7**](../releases/release-notes-0.2.7.md) (deployments on `0.2.6` and earlier retain only soft retention and manual GC). Version [**0.3.0**](../releases/release-notes-0.3.0.md) adds dry-run `admission` previews, `--quarantine` preservation requests, and approved-task accounting, [**0.3.1**](../releases/release-notes-0.3.1.md) adds `agent-guard-delete-policy`, conditional dry-run phrasing, and multi-target `--targets-file` handoff, and [**0.3.2**](../releases/release-notes-0.3.2.md) adds `protect`/`regenerable` subcommands with guarded workspace `regenerable_patterns`; historical validation checkpoints and host test scope remain recorded in the [0.2.7 notes](../releases/release-notes-0.2.7.md) and [0.3.0 acceptance report](../reports/test-report-maintenance-0.3.0.md).
 
 <a id="dry-run-admission-preview-030-development"></a>
 
@@ -125,7 +125,7 @@ invalid JSON, unreadable configuration and invalid values block new deletion.
 | `batch_max_bytes` | 268435456 (256 MiB) | Larger operations require confirmed Cleanup execution |
 | `batch_max_entries` | 1000 | Same confirmation threshold in filesystem entries |
 | `protected_paths` | `[]` | Additional literal workspace paths to preserve |
-| `regenerable_patterns` | `[]` | Validated workspace-relative artifact patterns (development checkout; max 64) |
+| `regenerable_patterns` | `[]` | Validated workspace-relative artifact patterns (`0.3.2+`; max 64) |
 
 Numbers must be integers through `2**63 - 1`; booleans and numeric strings
 are invalid. Byte limits may be zero, meaning no byte allowance, not unlimited.
@@ -204,7 +204,7 @@ without `--preview`. Review the current workspace and diff, then type
 unlinked policy path. Repair invalid policy JSON in its source file before
 applying an update.
 
-`protect add|remove` and `regenerable add|remove` (development checkout) manage
+`protect add|remove` and `regenerable add|remove` (`0.3.2+`) manage
 `protected_paths` and `regenerable_patterns` through the same `--preview` and
 interactive terminal `APPLY` flow. `protect add` refuses the workspace root (`.`)
 and Core control directories (`.git`, `.agent-guard`, `.agent-trash`);

@@ -11,7 +11,7 @@
 | Explicit, structured verdicts and append-only local audit trails for observed calls | Guaranteeing unbypassable telemetry or complete visibility across bypassed paths |
 | Safe redaction of documented credential shapes and host-identifying paths on inspected channels | Legal hold, cryptographic deletion certificates, or authenticated human identity |
 
-Regenerable, Git-ignored artifacts may still be deleted directly unless an operator explicitly requires quarantine (e.g., via Cleanup `--quarantine`). Versioned release scope and acceptance records live in the [0.3.1 release notes](../releases/release-notes-0.3.1.md), [0.3.0 release notes](../releases/release-notes-0.3.0.md), and [0.3.0 acceptance report](../reports/test-report-maintenance-0.3.0.md).
+Regenerable, Git-ignored artifacts may still be deleted directly unless an operator explicitly requires quarantine (e.g., via Cleanup `--quarantine`). Versioned release scope and acceptance records live in the [0.3.2 release notes](../releases/release-notes-0.3.2.md), [0.3.1 release notes](../releases/release-notes-0.3.1.md), and [0.3.0 acceptance report](../reports/test-report-maintenance-0.3.0.md).
 
 ## Assets
 
@@ -23,7 +23,7 @@ Regenerable, Git-ignored artifacts may still be deleted directly unless an opera
 
 | # | Vector | Mitigation | Residual risk |
 |---|---|---|---|
-| 1 | Agent deletes via unrecognized channel: its own script calling `unlink()`, `python -c`, `node -e` | Out of scope for command classification; prompt layer forbids circumvention; audit records what was seen | Real. Upgrade path: kernel-side enforcement (fanotify/eBPF/sandbox) or intercepting the FS service rather than the shell |
+| 1 | Agent deletes via unrecognized channel: external scripts calling `unlink()`, obfuscated code, or direct syscalls | In `0.3.2+`, inline script deletion calls (`python -c`, `node -e`, `ruby -e`, `perl -e`, `deno eval`, interpreter heredocs) fail closed as `BLOCK_UNDETERMINABLE_EFFECT`; arbitrary external scripts and obfuscated invocations remain out of scope for static command classification; prompt layer forbids circumvention; audit records what was seen | Real. Upgrade path: kernel-side enforcement (fanotify/eBPF/sandbox) or intercepting the FS service rather than the shell |
 | 2 | Agent tampers with `.agent-trash/state.json` to self-promote mode | Portable file is advisory by design; harness adapters SHOULD hold the authoritative mode in host memory the agent's shell cannot reach | Accepted for pure-CLI usage; documented |
 | 3 | Agent allocates a PTY to pass the `isatty()` human check | The CLI check is a heuristic. An integration requiring human-only promotion must provide independent host authority; the shipped adapters do not supply isolated mode storage | Same-UID configuration/state remain writable; no authenticated human identity guarantee |
 | 4 | Agent edits/removes `manifest.jsonl` to hide provenance | Append-only by convention; audit log is separate; adapters may ship both off-box | Tamper-evident only if exported |

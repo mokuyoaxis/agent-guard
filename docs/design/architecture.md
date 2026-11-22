@@ -10,9 +10,9 @@ Core components, the Decision Protocol, Skills, and the Lab CLI establish the co
 
 | Module | Responsibilities & Core modules | Guides & contracts |
 |---|---|---|
-| **Exfil-guard** | Credential/path scanning and redaction (`core/redaction.py`), disclosure decisions (`core/policy.py`), and scalar-free config inspection (`core/safe_view.py`) | [Exfil-guard Skill](../../skills/exfil-guard/SKILL.md) |
-| **Delete-guard** | Command classification, admission & authorization, recovery, and audit; Cleanup Copilot (read-only inventory/measurement plus reviewed task handoff to `safe_delete`); explicit local MCP tools and read-only doctor checks | [Delete-guard Skill](../../skills/delete-guard/SKILL.md) · [Cleanup](../guides/cleanup-plan.md) · [Limits](../guides/deletion-limits.md) · [MCP](../guides/mcp.md) |
-| **Guard-lab** | User-controlled diagnostic plane (`guard_lab.py`, `core/lab.py`) for zero-model calibration, declared-channel observation, and matched comparisons | [Lab guide](../lab/guard-lab.md) |
+| **Exfil-guard** | Credential/path scanning and redaction (`core/redaction.py`), disclosure decisions (`core/policy.py`), scalar-free config inspection (`core/safe_view.py`), opt-in audit (`core/exfil_audit.py`), bounded export preflight (`core/export_scan.py`), Bash preflight (`core/exfil_bash.py`), local Git hooks, and MCP Exfil tools | [Exfil-guard Skill](../../skills/exfil-guard/SKILL.md) · [Git hooks](../../adapters/git/README.md) |
+| **Delete-guard** | Command classification (including inline-script deletion blocks), admission & authorization, recovery & read-only restore previews, and audit; Cleanup Copilot (read-only inventory/measurement plus reviewed task handoff to `safe_delete`); explicit local MCP tools and read-only doctor checks | [Delete-guard Skill](../../skills/delete-guard/SKILL.md) · [Cleanup](../guides/cleanup-plan.md) · [Limits](../guides/deletion-limits.md) · [MCP](../guides/mcp.md) |
+| **Guard-lab & Doctor** | User-controlled diagnostic plane (`guard_lab.py`, `core/lab.py`, `core/lifecycle_calibration.py`) for zero-model loopback controls, L0 paired lifecycle calibration, declared-channel observation, and matched comparisons; read-only `doctor.py workspace` (`core/workspace_doctor.py`, `core/carrier_unicode.py`) | [Lab guide](../lab/guard-lab.md) · [Workspace doctor](../guides/host-drift.md#workspace-doctor) |
 
 Core and adapters act as shared infrastructure across these areas. [recovery-audit](../../skills/recovery-audit/SKILL.md) provides a separate workflow for reconstructing workspaces after an incident.
 
@@ -330,7 +330,7 @@ order of value:
 
 ## Implementation status and design directions
 
-Core enforcement primitives, cleanup planning, and controlled Lab calibration are implemented and tracked per release tag—see [compatibility](compatibility.md), [0.3.1 release notes](../releases/release-notes-0.3.1.md), and [0.3.0 release notes](../releases/release-notes-0.3.0.md) for versioned contracts and upgrade rules, and [changes and maintenance details](../releases/unreleased.md) for maintenance history.
+Core enforcement primitives, cleanup planning, and controlled Lab calibration are implemented and tracked per release tag—see [compatibility](compatibility.md), [0.3.2 release notes](../releases/release-notes-0.3.2.md), and [0.3.1 release notes](../releases/release-notes-0.3.1.md) for versioned contracts and upgrade rules, and [changes and maintenance details](../releases/unreleased.md) for maintenance history.
 
 ### Shipped foundation and active boundaries
 

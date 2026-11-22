@@ -70,8 +70,8 @@ uploads, or every output channel.
 
 ## Opt-in Bash Exfil
 
-The development adapter supports credential checks on the covered Bash
-events. Claude Code and Kimi Code read `AGENT_GUARD_EXFIL_BASH=1` from
+In `0.3.2+`, the native adapters support opt-in credential checks on covered
+Bash events. Claude Code and Kimi Code read `AGENT_GUARD_EXFIL_BASH=1` from
 the installed hook's environment. DSH uses `exfilBashGuard: true` in
 the Agent Guard composition row. All three default to off.
 
@@ -111,9 +111,10 @@ Version 0.3.0 adds `cleanup_plan`, `cleanup_execute` and
 `cleanup_task_status`, reusing the same approved task records as CLI.
 Terminal approval is the default; the optional
 [Codex confirmation channel](mcp.md#host-confirmation-030-development) adds
-native-form approval of a saved selection. Published 0.3.1 advertises ten
-tools by default and eleven with the opt-in channel. The development checkout
-adds the Exfil tools and a benign Exfil doctor probe. Runtime/SDK, operator-approved protocol-client execution,
+native-form approval of a saved selection. Versions `0.3.0` and `0.3.1`
+advertise ten tools by default and eleven with the opt-in channel; `0.3.2+`
+adds three Exfil tools, read-only `restore_preview` (fourteen default / fifteen
+Codex), and a benign Exfil doctor probe. Runtime/SDK, operator-approved protocol-client execution,
 ordinary model maintenance in Codex/Kimi/DSH and completed-task replay have
 recorded results. Codex, DSH and Kimi each passed first execution of a fresh
 operator-approved 71-root task; Claude model work is deferred.

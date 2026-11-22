@@ -5,10 +5,11 @@ stability over time—this document defines what may change and what may not per
 release class.
 
 <details>
-<summary>Active release baselines &amp; bounded maintainer exceptions (0.2.4 – 0.3.1)</summary>
+<summary>Active release baselines &amp; bounded maintainer exceptions (0.2.4 – 0.3.2)</summary>
 
 | Release | Contract scope & notes |
 |---|---|
+| **[0.3.2](../releases/release-notes-0.3.2.md)** | Exfil-guard TOML safe view (Py 3.11+), opt-in metadata-only audit, 3 MCP Exfil tools, opt-in local Git hooks, 8 modern credential rules, `agent-guard-exfil-export` (15 CLI bins; POSIX descriptors), opt-in Bash Exfil checks; Delete-guard `protect`/`regenerable` policy CLI with whole-tree secret-store guards, read-only `restore.py preview` & MCP `restore_preview` (14 default / 15 Codex tools), inline-script deletion blocks, Windows PowerShell handoff; L0 paired `lifecycle-calibration`, read-only `doctor workspace` with bundled Unicode 17.0 carrier tables, and `exfil-guard` Skill installer alignment; zero policy or manifest migration |
 | **[0.3.1](../releases/release-notes-0.3.1.md)** | Cleanup terminal review formatting/folding, unique CLI ID prefixes, multi-target `--targets-file` dry-run handoff, exact-`txid` and `gc.py --task` GC guidance, staged cross-filesystem recovery (`manual_review_items`), `agent-guard-delete-policy` CLI, three-Skill installer (`--skill exfil-guard`/`recovery-audit`), and tag-pinned release verification; zero policy or manifest migration |
 | **[0.3.0](../releases/release-notes-0.3.0.md)** | Reviewed cleanup task execution/queries, optional quarantine mode, Skill symlink installer (`install_skill.py`), optional Codex native confirmation tool. Acceptance/deferred host work recorded in [test-report-maintenance-0.3.0.md](../reports/test-report-maintenance-0.3.0.md) |
 | **[0.2.9](../releases/release-notes-0.2.9.md)** | Bounded maintainer decision adding read-only Cleanup discovery/measurement schemas (`cleanup_discover`, `cleanup_measure`) and faster scans without altering mutation/policy contracts |
@@ -253,9 +254,10 @@ existing `--json`, explicit `--tail` and MCP status default to the legacy
 full result. Explicit `--view full` also retains that behavior.
 
 The MCP status tool adds `view: overview/full` and overview-only `limit`
-(1–50, default 10). Published `0.3.1` has ten default tools. The development
-checkout adds three Exfil tools. The separately enabled Codex confirmation
-channel adds one. Valid partial overview results use `ok: true, partial: true`
+(1–50, default 10). Versions `0.3.0` and `0.3.1` have ten default tools;
+`0.3.2+` adds three Exfil tools and read-only `restore_preview` (fourteen
+default tools), and the separately enabled Codex confirmation channel adds
+one. Valid partial overview results use `ok: true, partial: true`
 with CLI exit 1. [MCP tool contracts](../guides/mcp.md#exfil-guard-tools)
 
 Bounded task listing uses the same validation as direct task reads and

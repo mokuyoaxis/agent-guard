@@ -10,14 +10,14 @@ Agent Guard 提供三条彼此独立的能力路径：**Delete-guard**（可恢�
 
 - **Core CLI & Skills:** Python `3.9+` and Git (examples assume a POSIX shell). No third-party Python packages required.
 - **Optional local MCP server:** Python `3.10+` and a separately installed [pinned MCP SDK](mcp.md) (`npm` does not install Python dependencies). MCP exposes explicit tools and does not intercept shell or editor calls that bypass them.
-- **Host-specific extras:** Optional DSH native read prototype requires Node 22; Kimi TOML configuration helpers require Python `3.11+`. Windows Core unit coverage does not establish native Windows hook-bridge support.
+- **Host-specific extras:** Optional DSH native read prototype requires Node 22; TOML `safe_view` and Kimi TOML configuration helpers require Python `3.11+`; `agent-guard-exfil-export` requires POSIX file-descriptor operations. Windows Core unit coverage does not establish native Windows hook-bridge support.
 
-### Install `0.3.1` (current stable)
+### Install `0.3.2` (current stable)
 
 Install into a fixed, user-owned directory so host hook and Skill paths remain stable across sessions:
 
 ```sh
-npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.3.1
+npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.3.2
 ```
 
 Your package root is `/absolute/path/to/agent-guard-install/node_modules/@mokuyoaxis/agent-guard`. Keep the `@mokuyoaxis/` scope. You can also run directly from a source clone (keep in mind that `main` may include post-release changes described in [unreleased notes](../releases/unreleased.md)):
@@ -27,7 +27,7 @@ git clone https://github.com/mokuyoaxis/agent-guard.git
 cd agent-guard
 ```
 
-Publication artifacts live on [GitHub Releases (`0.3.1`)](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.3.1) and [npm (`0.3.1`)](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.3.1).
+Publication artifacts live on [GitHub Releases (`0.3.2`)](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.3.2) and [npm (`0.3.2`)](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.3.2).
 
 <details>
 <summary>Offline tarballs, alternate channels & upgrade impacts</summary>
@@ -36,11 +36,12 @@ Publication artifacts live on [GitHub Releases (`0.3.1`)](https://github.com/mok
   ```sh
   npm install --offline --ignore-scripts --legacy-peer-deps --no-audit --no-fund \
     --prefix /absolute/path/to/agent-guard-review \
-    /absolute/path/to/mokuyoaxis-agent-guard-0.3.1.tgz
+    /absolute/path/to/mokuyoaxis-agent-guard-0.3.2.tgz
   ```
   The package root is `/absolute/path/to/agent-guard-review/node_modules/@mokuyoaxis/agent-guard`.
 - **Opt-in channels:** Prerelease `@mokuyoaxis/agent-guard@0.2.5-rc3` ([GitHub](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.2.5-rc3) · [npm](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.2.5-rc3)) and stable quarantine backport `@mokuyoaxis/agent-guard@0.2.4-hotfix.1` remain explicitly selectable without altering `latest`.
-- **Upgrading from `0.3.0` or earlier:**
+- **Upgrading from `0.3.1` or earlier:**
+  - `0.3.2` expands the MCP server to 14 default tools (15 with Codex confirmation) with three Exfil tools and read-only `restore_preview`, adds `agent-guard-exfil-export` (15 npm CLI bins), TOML `safe_view`, metadata-only Exfil audit, opt-in local Git hooks and Bash Exfil checks, `delete-policy protect|regenerable`, inline-script deletion blocks, Windows PowerShell handoff commands, L0 `lifecycle-calibration`, and read-only `agent-guard-doctor workspace`—with no policy or recovery format migration.
   - `0.3.1` adds Cleanup terminal review grouping/folding, unique CLI ID prefixes, multi-target `--targets-file` dry-run handoff, exact-`txid` and `gc.py --task` GC selection, staged cross-filesystem recovery (`manual_review_items`), `agent-guard-delete-policy` workspace limit settings, and `--skill exfil-guard` / `recovery-audit` linking—with no policy or recovery format migration.
   - `0.3.0` adds the preview-first [Skill installer](skill-installation.md) (`install_skill.py`), which is absent from `0.2.9` and earlier. Installing into a new directory never migrates existing global installations or host settings automatically.
   - `0.2.7+` introduces [deletion admission limits](deletion-limits.md) (capacity, budgets, rate/repeat limits, protected paths) that can refuse previously allowed deletions; normal restore remains available without new debits.

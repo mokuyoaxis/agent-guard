@@ -37,7 +37,7 @@ limits; unreadable files and invalid UTF-8 are not silently certified clean.
 
 ## Opt-in Exfil audit
 
-The development checkout writes egress audit records when the operator adds
+In `0.3.2+`, Exfil-guard writes egress audit records when the operator adds
 `--audit` to `check_span.py`, `sanitize.py`, the export preflight or a Git hook, or sets
 `AGENT_GUARD_EXFIL_AUDIT=1` (`true` and `yes` also work). The MCP server uses
 its own trusted `--audit-exfil` startup flag. It ignores the ambient flag and

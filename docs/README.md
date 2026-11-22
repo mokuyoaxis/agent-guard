@@ -9,8 +9,8 @@ Start with [Getting started](guides/getting-started.md) for installation and age
 | Capability / 能力模块 | Included guides & contracts / 包含指南与契约 |
 |---|---|
 | **Delete-guard** | [Recoverable deletion](../skills/delete-guard/SKILL.md) · [Cleanup Copilot](guides/cleanup-plan.md) · [Deletion limits](guides/deletion-limits.md) · [Recovery & GC](guides/recovery-feedback.md) · [MCP tools](guides/mcp.md) · [MCP doctor](guides/mcp.md#diagnose-a-local-service-028) |
-| **Exfil-guard** | [Text inspection & redaction](../skills/exfil-guard/SKILL.md) · [Detection rules](../skills/exfil-guard/references/rules.md) · [Safe config view](../skills/exfil-guard/SKILL.md#safe-config-view) |
-| **Guard-lab** | [Controlled experiments & evidence](lab/guard-lab.md) · [Four zero-model controls](lab/blue-team-calibration.md) · [Defensive research](research/README.md) |
+| **Exfil-guard** | [Text inspection & redaction](../skills/exfil-guard/SKILL.md) · [Detection rules & export](../skills/exfil-guard/references/rules.md) · [Safe config view](../skills/exfil-guard/SKILL.md#safe-config-view) · [Git hooks](../adapters/git/README.md) |
+| **Guard-lab & Doctor** | [Controlled experiments & evidence](lab/guard-lab.md) · [Lifecycle calibration](lab/guard-lab.md#lifecycle-calibration) · [Workspace doctor](guides/host-drift.md#workspace-doctor) · [Four zero-model controls](lab/blue-team-calibration.md) · [Defensive research](research/README.md) |
 
 Core and host adapters provide shared infrastructure, while [recovery-audit](../skills/recovery-audit/SKILL.md) covers post-incident workspace reconstruction.
 
@@ -21,7 +21,7 @@ Core and host adapters provide shared infrastructure, while [recovery-audit](../
 | [Lab](#lab) / 防守验测 | 校准流程、任务模板与示例 |
 | [Research](#research) / 防守研究 | 来源、发送授权、父子代理与任务效用研究 |
 | [Reports](#reports) / 测试报告 | 按宿主与版本记录的实测证据与已知缺口 |
-| [Releases](#releases) / 发布记录 | `0.3.1` 与各历史发行说明（当前主线维护见[变更摘要](releases/unreleased.md)） |
+| [Releases](#releases) / 发布记录 | `0.3.2` 与各历史发行说明（当前主线维护见[变更摘要](releases/unreleased.md)） |
 | [History](#history) / 历史设计与经验 | 早期设计方案、实现教训与事故记录 |
 
 ## Guides
@@ -119,6 +119,7 @@ coverage rather than treating every historical result as current acceptance.
 
 | Document / 文档 | Scope / 范围 |
 |---|---|
+| [0.3.2](releases/release-notes-0.3.2.md) | Exfil-guard TOML/审计/MCP/Git Hook/八凭据/导出与 Bash 预检、Delete-guard 策略与恢复预览/内联删除拦截/PowerShell 交接、L0 生命周期校准与工作区体检 |
 | [0.3.1](releases/release-notes-0.3.1.md) | Cleanup 确认屏与短前缀、精确/任务 GC、跨文件系统暂存恢复、工作区额度设置 CLI 与三套 Skill 安装 |
 | [0.3.0](releases/release-notes-0.3.0.md) | 保存清理任务、批准与执行交接、Codex原生表单及升级边界；安装前核实精确版本渠道 |
 | [0.2.9](releases/release-notes-0.2.9.md) | 目录概况／计量、两只读 MCP 工具、扫描提速与语料门修复 |

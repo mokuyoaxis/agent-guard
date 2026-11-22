@@ -263,7 +263,7 @@ maps user terms to fields and units.
 
 Restoring defaults removes numeric overrides for the selected workspace.
 It preserves `protected_paths`, `regenerable_patterns`, session accounting and
-recovery records. In the development checkout, `delete_policy.py` also manages
+recovery records. In `0.3.2+`, `delete_policy.py` also manages
 workspace `protected_paths` (`protect add|remove PATH...`) and controlled
 `regenerable_patterns` (`regenerable add|remove PATTERN...`) through the same
 `--preview` and interactive terminal `APPLY` confirmation flow (`protect add`
@@ -419,7 +419,7 @@ quarantined. Uncertainty increases restriction.
 ## Recovery
 
 Every relocation writes `origin -> trash` pairs into
-`.agent-trash/manifest.jsonl`. In the development checkout, inspect a
+`.agent-trash/manifest.jsonl`. In `0.3.2+`, inspect a
 transaction before restoring with `restore.py preview '<txid>'` (or
 `restore.py '<txid>' --preview`, or MCP `restore_preview`): preview is strictly
 read-only (no file or audit writes), accepts unique CLI transaction prefixes,

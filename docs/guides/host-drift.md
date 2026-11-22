@@ -7,7 +7,7 @@ that reliability problem; it is not a sandbox or a live-interception proof.
 
 <a id="workspace-doctor"></a>
 
-## Workspace doctor (development)
+## Workspace doctor (0.3.2+)
 
 ```sh
 agent-guard-doctor workspace --workspace /path/to/project

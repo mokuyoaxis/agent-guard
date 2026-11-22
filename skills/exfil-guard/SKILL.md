@@ -24,7 +24,7 @@ leave?". The four pillars, restated for egress:
   user's rules or exemptions. Workspace configuration remains writable by
   same-UID processes; its location is not a security boundary.
 - **Auditability** - `--audit` opts into metadata-only decision records in
-  the development checkout. The text CLIs write no audit by default.
+  `0.3.2+`. The text CLIs write no audit by default.
   Matched bytes or hashes of low-entropy secrets must not be recorded.
 
 ## The one rule
@@ -49,7 +49,7 @@ contract: `0` allow/sanitize, `2` block, `3` ask, `1` error.
 error. Both CLIs bound stdin while reading (4 MiB by default), support UTF-8,
 and resolve the same default workspace/host-side mode. The first-byte wait is
 bounded; it is not a deadline for a producer that has already started writing.
-On the development checkout, `sanitize.py --json` returns the decision, safe
+In `0.3.2+`, `sanitize.py --json` returns the decision, safe
 spans, plan, text and audit receipt. On `ASK` or `BLOCK`, `text` is empty and
 the plan is `[]`. `--dry-run` remains a plan-only output mode. Enable auditing
 with `--audit` or `AGENT_GUARD_EXFIL_AUDIT=1`. [Audit metadata](../../docs/guides/audit-metadata.md#opt-in-exfil-audit)
@@ -68,7 +68,7 @@ The argument is a workspace-relative path. The JSON result contains field
 names, types, and `set`/`empty` states, **never scalar values**. Known
 secret-shaped field names are hidden too; arbitrary field names are not a
 proof of secrecy. Use small, valid UTF-8 files and the supported single-line
-dotenv subset. TOML on the development checkout requires Python 3.11+.
+dotenv subset. TOML support (`0.3.2+`) requires Python 3.11+.
 Earlier runtimes report `UNSUPPORTED_RUNTIME` before opening a TOML input.
 The view refuses symlinks, hardlinks, special files,
 unsafe paths, and unsupported platforms instead of falling back to a raw
@@ -77,7 +77,7 @@ internal error. Do not write the value-free view back over the original
 config: it is diagnostic output, not an editable copy. This CLI does not
 intercept a harness's ordinary file-read tool.
 
-The development MCP server exposes `config_safe_view`, `exfil_check`, and
+In `0.3.2+`, the local MCP server exposes `config_safe_view`, `exfil_check`, and
 `exfil_sanitize`. Use the config view for a file before its values enter model
 context. The text tools assess drafts on an explicit channel, and do not send
 them. Git projects can separately enable the local `pre-commit` and `commit-msg`

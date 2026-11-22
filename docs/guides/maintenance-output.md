@@ -16,8 +16,9 @@ Reading these views inspects stored plans and public receipts without rescanning
 | Restore/GC `--json` | Full original fields plus `execution_summary` (and `selected_txids` / `task_id` on selected GC previews) | `--view summary` |
 | safe_delete | Existing fields/text plus `execution_summary` or its formatted text | Optional 0.3.0 `--quarantine` / MCP `quarantine: true` for recovery, including regenerable artifacts |
 
-Published `0.3.1` has ten default tools. The development checkout adds
-[three Exfil tools](mcp.md#exfil-guard-tools), and operator-enabled
+Versions `0.3.0` and `0.3.1` have ten default MCP tools; `0.3.2+` adds
+[three Exfil tools](mcp.md#exfil-guard-tools) and read-only `restore_preview`
+(fourteen default tools), and operator-enabled
 [Codex host confirmation](mcp.md#host-confirmation-030-development) adds one.
 The original seven MCP operations retain
 their default behavior and full CLI results, with additive execution summaries

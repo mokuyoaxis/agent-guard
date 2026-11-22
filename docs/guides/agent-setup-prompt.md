@@ -58,14 +58,17 @@ MCP 连接不证明原生 Shell／脚本／编辑器受保护；没有验证阻�
 观察结果不是执行许可。检查所选安装实际提供的工具，不假定旧版具有新入口。
 0.3.0 提供 cleanup_plan、cleanup_execute、cleanup_task_status；先计划，
 显式 save 才写提议。已有 saved_plan_id 可只读查看；执行只接受操作者获准的
-task_id，不接受 approved／confirm 或 token。默认十工具没有批准入口。
+task_id，不接受 approved／confirm 或 token。0.3.0／0.3.1 默认十工具，0.3.2+ 新增
+Exfil 三工具与只读 restore_preview 共十四工具；默认工具集均不含批准入口。
 若操作者明确选择可信 Codex 交互通道，可在服务启动参数加入
 --approval-channel codex，额外暴露 cleanup_request_approval(saved_plan_id)。
 先由操作者审阅保存计划返回的完整只读 review.file，再请求宿主确认；表单默认
 暂不批准，须明确选择仅批准本次并声明已审阅。不得代答、自动启用或用客户端
 名字冒充人工凭据。重连后按 saved_plan_id 查询 host_approval 与已有 task_id，
 重复请求不重新弹窗或签发。拒绝／取消／过期后的新决定保留原终端入口。
-doctor mcp 的 --approval-channel codex 只核对十一工具与三只读调用，不认证人工。
+doctor mcp 的 --approval-channel codex 核对对应版本的完整工具集（0.3.0／0.3.1
+为十一工具，0.3.2+ 为十五工具）与只读调用，不认证人工；0.3.2+ 另提供只读
+agent-guard-doctor workspace 核查工作区策略、Skill 链接、Git Hook 与载体字符。
 Claude／DSH／Kimi 本轮仍使用终端通路；所选宿主／安装须分别验收，不能继承
 其他环境的通过结果。完整清单与内部回执不放进公开报告。
 Guard任务批准与宿主调用MCP写工具的许可是两道门；Core的can_execute不代表

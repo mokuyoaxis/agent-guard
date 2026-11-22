@@ -77,7 +77,7 @@ was prevented.
 
 <a id="lifecycle-calibration"></a>
 
-### Lifecycle calibration (development)
+### Lifecycle calibration (0.3.2+)
 
 ```sh
 agent-guard-lab run --case lifecycle-calibration --output-dir /tmp/ag-lifecycle --json

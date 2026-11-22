@@ -7,7 +7,7 @@
   <a href="https://www.npmjs.com/package/@mokuyoaxis/agent-guard"><img src="https://img.shields.io/npm/v/%40mokuyoaxis%2Fagent-guard.svg" alt="npm 稳定版"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/mokuyoaxis/agent-guard" alt="License"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&amp;logoColor=white" alt="Python 3.9+"></a>
-  <a href="docs/releases/release-notes-0.3.1.md"><img src="https://img.shields.io/badge/notes-0.3.1-5B6B7A" alt="0.3.1 说明"></a>
+  <a href="docs/releases/release-notes-0.3.2.md"><img src="https://img.shields.io/badge/notes-0.3.2-5B6B7A" alt="0.3.2 说明"></a>
 </p>
 
 <p align="center">
@@ -15,7 +15,7 @@
   <a href="README.md">English</a>
 </p>
 
-编码 Agent 经常在可预见的地方出错：一条范围过宽的 `rm` 清空未提交的改动，一段调试日志把凭据带进提交或提示词，或者宿主工具升级后旧 hook 悄悄失效。**Agent Guard** 基于共享 Python Core（`3.9+`）与可选宿主适配层，为编码 Agent 提供确定性的安全检查点与可控的行为验测。
+编码 Agent 经常在可预见的地方出错：一条范围过宽的 `rm` 清空未提交的改动，一段调试日志把凭据带进提交或提示词，或者宿主工具升级后旧 hook 悄悄失效。**Agent Guard** 基于零依赖的共享 Python Core（`3.9+`）与可选宿主适配层，为编码 Agent 提供确定性的事务级可恢复保护、多通道无原文外发防护、L0 成对校准与工作区只读体检。
 
 > [!IMPORTANT]
 > **负责接入本项目的 AI Agent：** 修改宿主配置或编写桥接前，请先阅读[适配要求](adapters/INTEGRATION.md)、[接入流程](docs/guides/getting-started.md#set-up-a-coding-agent)以及对应宿主适配指南。核实实际宿主与版本号并查阅其官方 hook 文档，只如实报告已验证的覆盖范围——不能仅凭“Skill 已安装”或“配置已复制”就判断防护已生效。
@@ -24,9 +24,9 @@
 
 | 能力模块 | 核心功能 | 指南与契约 |
 |---|---|---|
-| **Delete-guard** | 受支持破坏性删除前的隔离保全与 Git 快照；Cleanup Copilot 盘点与获准维护任务；按工作区生效的容量、速率/重复限制与保护路径；事务恢复、手动 GC 与可选本地 MCP 工具 | [Skill 与 CLI](skills/delete-guard/SKILL.md) · [Cleanup Copilot](docs/guides/cleanup-plan.md) · [删除限制](docs/guides/deletion-limits.md) · [恢复与 GC](docs/guides/recovery-feedback.md) · [MCP 工具](docs/guides/mcp.md) · [MCP doctor](docs/guides/mcp.md#diagnose-a-local-service-028) |
-| **Exfil-guard** | 扫描待外发文本中已覆盖的凭据格式、凭据源引用与宿主标识路径；基于计划验证的安全脱敏；不暴露标量值的 JSON / `.env` 配置结构视图（`safe_view`） | [Skill 与 CLI](skills/exfil-guard/SKILL.md) · [检测规则](skills/exfil-guard/references/rules.md) · [安全配置视图](skills/exfil-guard/SKILL.md#safe-config-view) |
-| **Guard-lab** | 在一次性夹具中运行四项零模型校准对照，投放非秘密合成标记，经由独立声明信道观察行为并执行关闭／开启防护的配对比较 | [Lab 指南](docs/lab/guard-lab.md) · [四控制示例](docs/lab/blue-team-calibration.md) · [证据等级](docs/lab/guard-lab.md#evidence-levels) |
+| **Delete-guard** | 受支持破坏性删除前的隔离保全与 Git 快照；内联脚本删除双重锚定拦截；Cleanup Copilot 盘点与获准维护任务；按工作区生效的容量、速率/重复限制、保护路径与受控可再生模式；只读恢复预览、事务恢复、手动 GC 与可选本地 MCP 工具（默认 14 工具／Codex 15 工具） | [Skill 与 CLI](skills/delete-guard/SKILL.md) · [Cleanup Copilot](docs/guides/cleanup-plan.md) · [删除限制](docs/guides/deletion-limits.md) · [恢复与 GC](docs/guides/recovery-feedback.md) · [MCP 工具](docs/guides/mcp.md) · [MCP doctor](docs/guides/mcp.md#diagnose-a-local-service-028) |
+| **Exfil-guard** | 无原文扫描待外发文本中的凭据格式、凭据源引用与宿主标识路径；基于计划验证的安全脱敏与可选元数据审计；不暴露标量值的 JSON / `.env` / TOML 配置结构视图（`safe_view`）；文件导出预检（`agent-guard-exfil-export`）、本地 Git Hook、MCP 工具与可选 Bash 预检 | [Skill 与 CLI](skills/exfil-guard/SKILL.md) · [检测规则与导出](skills/exfil-guard/references/rules.md) · [安全配置视图](skills/exfil-guard/SKILL.md#safe-config-view) · [Git Hook](adapters/git/README.md) |
+| **Guard-lab 与 Doctor** | 在一次性夹具中运行四项回环对照与 L0 成对生命周期校准（`lifecycle-calibration`），投放非秘密合成标记并执行关闭／开启防护的配对比较；只读 `agent-guard-doctor workspace` 巡检策略、Skill 链接、Git Hook 与持久载体隐形 Unicode 走私 | [Lab 指南](docs/lab/guard-lab.md) · [生命周期校准](docs/lab/guard-lab.md#lifecycle-calibration) · [工作区体检](docs/guides/host-drift.md#workspace-doctor) · [四控制示例](docs/lab/blue-team-calibration.md) |
 
 Core 与适配器构成上述模块的共享底座。若事故已经发生，可辅助使用 [recovery-audit](skills/recovery-audit/SKILL.md) 从尚存的 Git、会话与缓存记录中审计并重建工作区。
 
@@ -43,10 +43,10 @@ Core 与适配器构成上述模块的共享底座。若事故已经发生，可
 
 Core 需要 **Python 3.9+** 与 **Git**（示例默认使用 POSIX Shell）。可选本地 MCP 适配器需要 **Python 3.10+** 及单独安装的[固定版本 MCP SDK](docs/guides/mcp.md)。
 
-将当前稳定版 **`0.3.1`** 安装到长期保留的用户目录：
+将当前稳定版 **`0.3.2`** 安装到长期保留的用户目录：
 
 ```sh
-npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.3.1
+npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.3.2
 ```
 
 安装后的包根目录为 `/absolute/path/to/agent-guard-install/node_modules/@mokuyoaxis/agent-guard`（请保留 `@mokuyoaxis/` 作用域）。也可以直接使用源码仓库：
@@ -56,13 +56,14 @@ git clone https://github.com/mokuyoaxis/agent-guard.git
 cd agent-guard
 ```
 
-具体发行资产可在 [GitHub Release (`0.3.1`)](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.3.1) 与 [npm (`0.3.1`)](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.3.1) 查看。离线 tarball 安装、版本升级及扩展运行要求（如可选 DSH 读取原型需 Node 22、Kimi TOML 辅助需 Python 3.11+）见[入门指南](docs/guides/getting-started.md)。
+具体发行资产可在 [GitHub Release (`0.3.2`)](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.3.2) 与 [npm (`0.3.2`)](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.3.2) 查看。离线 tarball 安装、版本升级及扩展运行要求（如可选 DSH 读取原型需 Node 22、TOML `safe_view` 与 Kimi TOML 辅助需 Python 3.11+）见[入门指南](docs/guides/getting-started.md)。
 
 <details>
-<summary>版本演进与可选通道（0.2.4 – 0.3.1）</summary>
+<summary>版本演进与可选通道（0.2.4 – 0.3.2）</summary>
 
 | 版本 | 核心变更 |
 |---|---|
+| **[0.3.2](docs/releases/release-notes-0.3.2.md)** | Exfil-guard TOML 安全视图、可选外发审计、3 项 MCP 工具、本地 Git Hook、八类现代凭据、`agent-guard-exfil-export` 与 opt-in Bash 预检；Delete-guard `protect`/`regenerable` 策略 CLI 与整树敏感源守卫、只读 `restore.py preview` 及 MCP `restore_preview`（14 默认／15 Codex）、内联脚本删除拦截、Windows PowerShell 交接格式化；L0 成对 `lifecycle-calibration`、只读 `agent-guard-doctor workspace`（含隐形 Unicode 载体走私检测） |
 | **[0.3.1](docs/releases/release-notes-0.3.1.md)** | Cleanup 终端确认屏重构（永久删除置顶、可读/精确容量、超 20 根目录汇总与只读清单）、CLI 唯一短前缀 ID、多目标 `--targets-file` 引导、精确 `txid` 与 `gc.py --task` 清理、跨文件系统暂存恢复与 `manual_review_items`、`agent-guard-delete-policy` 额度 CLI、三套 Skill 安装器 |
 | **[0.3.0](docs/releases/release-notes-0.3.0.md)** | 审核后批量维护工作流（保存明确目标计划、操作者单次批准、Agent 按任务 ID 执行与查询）、可选强制隔离、linked Skill 安装器、可选 Codex 原生确认表单 |
 | **[0.2.9](docs/releases/release-notes-0.2.9.md)** | Cleanup 只读目录概况（`--discover`）与选定范围计量（`--measure`）、两项只读 MCP 工具、计划扫描性能优化 |
@@ -122,7 +123,7 @@ python3 -c 'print("config: sk-proj-" + "AbCdEf0123456789GhIjKl")' |
 - **`check_span.py` 只评估不改写：** 返回判决（`ALLOW`、`SANITIZE`、`ASK`、`BLOCK`）与可验证的脱敏计划，退出码 0 表示 `ALLOW` 或 `SANITIZE`。
 - **`sanitize.py` 仅在安全时产出文本：** 在 `ALLOW`/`SANITIZE` 时输出允许或脱敏后的文本；遇到 `ASK`、`BLOCK` 或校验错误时静默阻断 stdout。
 - **检测边界与审计：** 覆盖文档定义的凭据格式、无需读值的凭据源引用与特定宿主标识路径，不是全仓秘钥审计器，也不防御刻意编码混淆；外发决策与外发审计日志仍由调用方负责。
-- **无标量配置视图：** 需要查看配置结构时，可通过 `safe_view` 只读展示受支持 JSON / `.env` 的键结构与状态，不返回敏感标量值，也不自动拦截普通文件读取。
+- **无标量配置视图：** 需要查看配置结构时，可通过 `safe_view` 只读展示受支持 JSON / `.env` / TOML（Python 3.11+）的键结构与状态，不返回敏感标量值，也不自动拦截普通文件读取。对外打包或分享文件前，可使用 `agent-guard-exfil-export`（POSIX）做有界导出预检。
 
 规则与信道契约见 [Exfil-guard Skill](skills/exfil-guard/SKILL.md)、[检测规则](skills/exfil-guard/references/rules.md)与[信道契约](skills/exfil-guard/references/channels.md)。
 
@@ -170,7 +171,7 @@ python3 docs/lab/examples/blue-team-calibration.py --output-dir "$blue_run/contr
 | **Claude Code** | `2.1.311` / `2.1.270–273` | `2.1.311` 已连通并发现 10 个 MCP 工具；真实模型维护试次延期 | 原生 Bash hook 证据保留在 `2.1.270`／`2.1.273` 的脚本宿主运行中；`2.1.311` 新版 hook 尚未验证 | [验收报告](docs/reports/test-report-maintenance-0.3.0.md#host-acceptance) · [接入指南](adapters/claude/README.md) |
 | **其他宿主** | — | 支持 Skill / CLI / MCP 协作式运行 | 参照[适配指南](adapters/INTEGRATION.md)完成本地接入，并实测确实阻塞危险调用后再声明原生拦截能力 | [适配指南](adapters/INTEGRATION.md) |
 
-日常巡检可使用 `doctor.py kimi|claude --probe` 与 `--check-drift` 对照兼容性档案检查本地配置（`PASS` 仅代表本地接线完整，不证明实时宿主已加载 hook）。显式 `live sentinel` 会发起单次根代理 Bash 采样并可能消耗模型额度，详见[宿主漂移指南](docs/guides/host-drift.md)。
+日常巡检可使用 `doctor.py workspace` 只读核查工作区策略、Skill 链接、Git Hook 与白名单持久载体中的隐形 Unicode 走私，并使用 `doctor.py kimi|claude --probe` 与 `--check-drift` 对照兼容性档案检查本地宿主配置（`PASS` 仅代表本地接线完整，不证明实时宿主已加载 hook）。显式 `live sentinel` 会发起单次根代理 Bash 采样并可能消耗模型额度，详见[宿主漂移与工作区体检指南](docs/guides/host-drift.md)。
 
 ## 文档索引
 
@@ -182,7 +183,7 @@ python3 docs/lab/examples/blue-team-calibration.py --output-dir "$blue_run/contr
 | [威胁模型](docs/design/threat-model.md) | 同权限假设、攻击面与向内核隔离演进的路径 |
 | [兼容契约](docs/design/compatibility.md) | 适配器接口约定与版本兼容边界 |
 | [蓝队研究](docs/research/README.md) | 防守实验方法、去敏报告与零模型校准基线 |
-| [0.3.1 发布说明](docs/releases/release-notes-0.3.1.md) · [0.3.0 说明](docs/releases/release-notes-0.3.0.md) | 版本功能汇总、升级影响与验收范围 |
+| [0.3.2 发布说明](docs/releases/release-notes-0.3.2.md) · [0.3.1 说明](docs/releases/release-notes-0.3.1.md) | 版本功能汇总、升级影响与验收范围 |
 
 ## 参与贡献
 
