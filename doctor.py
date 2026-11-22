@@ -770,6 +770,13 @@ def main(argv: Optional[list[str]] = None, *, _include_mcp=True) -> int:
         mcp.add_argument("--timeout", type=int, default=30, metavar="SECONDS",
                          help="total diagnosis deadline, 5..120 seconds (default: 30)")
         mcp.add_argument("--json", action="store_true", help="print the independent MCP diagnosis report")
+        workspace = subcommands.add_parser("workspace", help="inspect a selected workspace without writes")
+        workspace.add_argument("--workspace", default=".", help="workspace directory (default: cwd)")
+        workspace.add_argument("--skill-dir", action="append", default=[],
+                               help="explicit Skill installation directory (repeatable)")
+        workspace.add_argument("--trash-root", help="explicit absolute quarantine directory")
+        workspace.add_argument("--strict", action="store_true", help="exit nonzero on warnings")
+        workspace.add_argument("--json", action="store_true", help="print a structured diagnosis")
     for command in (kimi, claude):
         command.add_argument(
             "--probe", action="store_true",
@@ -805,6 +812,19 @@ def main(argv: Optional[list[str]] = None, *, _include_mcp=True) -> int:
             help="live sentinel timeout, 15..600 seconds (default: 180)",
         )
     args = parser.parse_args(argv)
+    if args.harness == "workspace":
+        from core.workspace_doctor import diagnose, render
+
+        try:
+            report = diagnose(args.workspace, skill_dirs=args.skill_dir,
+                              trash_root=args.trash_root, strict=args.strict)
+        except ValueError as exc:
+            parser.error(str(exc))
+        if args.json:
+            print(json.dumps(report, ensure_ascii=True))
+        else:
+            print(render(report), end="")
+        return int(report["status"] == "FAIL" or (args.strict and report["status"] == "WARN"))
     if args.harness == "mcp":
         if not args.python or "\0" in args.python:
             parser.error("--python must name a nonempty interpreter")

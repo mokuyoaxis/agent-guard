@@ -22,6 +22,14 @@ BINARY_PREFIX = 8192
 CONTROL_DIRECTORIES = {".git", TRASH_DIRNAME}
 
 
+def supports_descriptor_scan():
+    return (
+        hasattr(os, "O_NOFOLLOW") and hasattr(os, "O_DIRECTORY") and hasattr(os, "O_NONBLOCK")
+        and {os.open, os.stat} <= os.supports_dir_fd
+        and os.scandir in os.supports_fd
+    )
+
+
 class Unscannable(Exception):
     def __init__(self, reason, *, truncated=False):
         super().__init__(reason)
@@ -247,14 +255,12 @@ class ExportScan:
             self._unscannable(parts, Unscannable("unreadable"))
 
     def scan(self, paths, paths_file):
-        no_follow = hasattr(os, "O_NOFOLLOW") and hasattr(os, "O_DIRECTORY") and hasattr(os, "O_NONBLOCK")
-        descriptor_ops = {os.open, os.stat} <= os.supports_dir_fd and os.scandir in os.supports_fd
         try:
             try:
                 self.workspace = self.workspace_input.resolve(strict=True)
             except (OSError, ValueError, RuntimeError):
                 raise Unscannable("unreadable_workspace") from None
-            if not no_follow or not descriptor_ops:
+            if not supports_descriptor_scan():
                 raise Unscannable("unsupported_platform")
             if self.workspace == self.workspace.parent:
                 raise Unscannable("outside_workspace")

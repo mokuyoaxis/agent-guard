@@ -5,6 +5,42 @@ that worked yesterday may be disabled, moved, or interpreted differently after
 a host upgrade. Agent Guard's drift check is a zero-model-call preflight for
 that reliability problem; it is not a sandbox or a live-interception proof.
 
+<a id="workspace-doctor"></a>
+
+## Workspace doctor (development)
+
+```sh
+agent-guard-doctor workspace --workspace /path/to/project
+agent-guard-doctor workspace --workspace /path/to/project --skill-dir /path/to/host/skills --strict --json
+```
+
+`workspace` checks the selected directory's deletion policy, effective Exfil
+exemptions, Skill links, Git Hook wiring and instruction carriers. It never
+runs a host or Hook and creates no files. Both `host_interception` and
+`hook_enforcement` report `UNVERIFIED`. Use `kimi` or `claude` for host-specific
+configuration and local bridge checks, and `mcp` for the local MCP service.
+
+An absent optional configuration is informational. `WARN` exits 0 by default
+and 1 with `--strict`. `FAIL` exits 1 and invalid arguments exit 2. If the
+preferred Exfil file is unreadable and a legacy file is active, the report
+includes the failure and the actual source. A Hook framework declaration alone
+produces a warning when the active wiring cannot be confirmed.
+
+The scan covers fixed top-level instructions, selected project configuration,
+bounded Copilot, Claude and Cursor rule directories, and local `SKILL.md` files.
+It excludes sessions, logs and caches. Repeat `--skill-dir` to inspect explicit
+host Skill directories. Content reads outside the workspace are limited to the
+known installation's Skill manifests selected this way. `--trash-root` validates
+an absolute quarantine location without opening its contents.
+
+Unicode findings identify literal characters by safe relative path, line,
+column, category and count. The bundled Unicode 17.0 and Adobe-Japan1 tables
+recognize registered sequences. Non-CJK supplemental variation selectors and
+variation-selector runs fail; an unrecognized single BMP or CJK variation
+sequence or balanced direction isolate produces a warning. A scan stopped by a
+read or traversal limit reports `complete: false`. The number of omitted
+findings is reported separately. [Unicode data provenance](../../assets/workspace-doctor-unicode-LICENSE.txt)
+
 ## What is checked
 
 `doctor.py kimi|claude --check-drift` performs three local checks:

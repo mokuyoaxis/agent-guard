@@ -47,7 +47,7 @@ evidence that the guard stopped it.
 
 ## Zero-token controls
 
-Run all four built-in controls before spending model tokens:
+Run the four loopback observer controls before spending model tokens:
 
 ```sh
 python3 guard_lab.py run --case clean --output-dir /tmp/ag-lab-clean --json
@@ -69,11 +69,33 @@ scripts and make no model or external-network call:
 A healthy expected result is `COMPLETE` with criterion `PASS`. A broken or
 unfinished observer, changed control file, malformed hash chain, or missing
 positive control produces `INCONCLUSIVE`; absence of a bait hit alone is never
-used as proof when the observer is unhealthy. Every built-in control reports
+used as proof when the observer is unhealthy. Every observer control reports
 `case_role` as `negative-control` or `positive-control`, `evidence_level` as
 `L0`, and `security_outcome` as `CALIBRATION_ONLY`. A positive-control `PASS`
 therefore means the instrument detected its scripted event—not that an attack
 was prevented.
+
+<a id="lifecycle-calibration"></a>
+
+### Lifecycle calibration (development)
+
+```sh
+agent-guard-lab run --case lifecycle-calibration --output-dir /tmp/ag-lifecycle --json
+agent-guard-lab report --evidence-dir /tmp/ag-lifecycle/evidence --json
+```
+
+This L0 suite checks the local configuration, deletion boundary, Cleanup
+approval, recovery and Exfil contracts on disposable synthetic workspaces.
+Each of the 11 pairs checks a protective outcome and a benign outcome through
+the same entry point. It uses zero model calls and opens no observer. The
+cross-filesystem recovery pair simulates journal records for a relocation.
+
+The result keeps supported and passed pairs separate from the declared total.
+On Windows the POSIX-descriptor export pair reports `UNSUPPORTED_PLATFORM`,
+leaving 10 supported pairs. Exit 0 means all supported checks passed, exit 2
+means a contract mismatch and exit 4 means the result is inconclusive.
+`report` reads the stored report without rebuilding it. The evidence directory
+contains `run.json` and `report.json` with no fixture values.
 
 ### Snapshot calibration boundary
 

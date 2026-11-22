@@ -98,20 +98,28 @@ class SkillInstallationTests(unittest.TestCase):
 
         plan = install_skill.installation_plan(str(exfil_target), skill="exfil-guard")
         self.assertEqual(plan["skill"], "exfil-guard")
-        self.assertEqual(set(plan["entrypoints"]), {"check_span", "sanitize", "view"})
+        self.assertEqual(set(plan["entrypoints"]),
+                         {"check_span", "check_export", "check_bash_exfil", "sanitize", "view"})
+        self.assertTrue({"scripts/check_export.py", "scripts/check_bash_exfil.py"}
+                        <= set(install_skill.SKILLS["exfil-guard"]["required"]))
         install_skill.execute_plan(plan)
         self.assertTrue(exfil_target.is_symlink())
 
-        completed = subprocess.run(
-            [sys.executable, "-B", plan["entrypoints"]["check_span"], "--channel", "file-write", "--json"],
-            input="ordinary text\n",
-            cwd=self.directory,
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        self.assertEqual(completed.returncode, 0, completed.stderr)
-        self.assertEqual(json.loads(completed.stdout)["decision"], "ALLOW")
+        (self.directory / "sample.txt").write_text("ordinary text\n", encoding="utf-8")
+        env = {name: value for name, value in os.environ.items() if not name.startswith("AGENT_GUARD_")}
+        for entry, args, payload in (
+            ("check_span", ("--channel", "file-write"), "ordinary text\n"),
+            ("check_export", ("--workspace", str(self.directory), "sample.txt"), ""),
+            ("check_bash_exfil", ("--workspace", str(self.directory)), "git status\n"),
+        ):
+            with self.subTest(entry=entry):
+                completed = subprocess.run(
+                    [sys.executable, "-B", plan["entrypoints"][entry], "--json", *args],
+                    input=payload, cwd=self.directory, env=env,
+                    capture_output=True, text=True, timeout=30,
+                )
+                self.assertEqual(completed.returncode, 0, completed.stderr)
+                self.assertEqual(json.loads(completed.stdout)["decision"], "ALLOW")
 
         detached = self.directory / "detached/exfil-guard"
         shutil.copytree(install_skill.ROOT / "skills/exfil-guard", detached)

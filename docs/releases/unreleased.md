@@ -55,6 +55,17 @@
   Core CI gate.
   [Recovery feedback](../guides/recovery-feedback.md#moving-a-file-does-not-remove-its-recovery-copy)
 
+## Guard-lab and workspace diagnostics
+
+- Run the L0 lifecycle calibration suite for 11 paired Core and CLI checks.
+  Reports count both protective and benign outcomes and identify unsupported
+  platform checks. [Lifecycle calibration](../lab/guard-lab.md#lifecycle-calibration)
+- Inspect workspace policy, Skill links, Git Hook wiring and selected Unicode
+  instruction carriers with `agent-guard-doctor workspace`.
+  [Workspace doctor](../guides/host-drift.md#workspace-doctor)
+- The Skill installer validates the linked `check_export.py` and
+  `check_bash_exfil.py` Exfil entrypoints. [Skill installation](../guides/skill-installation.md)
+
 ## Published maintenance history
 
 The next three maintenance sections ship in **[0.3.1](release-notes-0.3.1.md)**

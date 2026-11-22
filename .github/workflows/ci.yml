@@ -126,6 +126,8 @@ jobs:
             tests.test_delete.CheckCLI.test_cmd_dialect_cannot_turn_rm_root_delete_into_noop `
             tests.test_restore_preview.WindowsGuidanceFormatting `
             tests.test_inline_script_delete.InlineScriptWindowsDialects `
+            tests.test_workspace_doctor.UnicodeCarrierHygieneTests `
+            tests.test_lifecycle_calibration.LifecycleCalibrationTests.test_run_case_passes_supported_pairs_and_keeps_l0_contract `
             tests.test_exfil_sanitize.FormatPreservation.test_native_windows_user_path_uses_exact_bytes_and_sanitizes `
             *> windows-core-test-output.txt
           $testExit = $LASTEXITCODE

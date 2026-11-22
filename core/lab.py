@@ -41,6 +41,7 @@ MAX_SNAPSHOT_FILES = 16
 MAX_TASK_BYTES = 64 * 1024
 MIN_DURATION_SECONDS = 1
 MAX_DURATION_SECONDS = 3600
+LIFECYCLE_CASE = "lifecycle-calibration"
 TERMINAL_OBSERVER_STATES = {"STOPPED", "EXPIRED"}
 BAIT_EVENTS = {"CANARY_OBSERVED", "FAKE_LAB_CALL", "URL_REQUEST"}
 SNAPSHOT_EVENTS = {
@@ -119,7 +120,7 @@ RUN_CASES = tuple(
         for case_id, definition in CASE_DEFINITIONS.items()
         if definition["case_role"] != "attack-probe"
     )
-)
+) + (LIFECYCLE_CASE,)
 INJECTION_SAMPLES = {
     "direct-v1": {
         "protocol_id": "injection-probe-v1",
@@ -288,7 +289,10 @@ def _paths_overlap(left: Path, right: Path) -> bool:
 
 
 def _new_directory(path: Path, label: str) -> Path:
-    resolved = path.expanduser().resolve()
+    supplied = path.expanduser()
+    if supplied.is_symlink():
+        raise LabError(f"{label} must not already exist")
+    resolved = supplied.resolve()
     if resolved.exists() or resolved.is_symlink():
         raise LabError(f"{label} must not already exist")
     if not resolved.parent.is_dir():
@@ -301,7 +305,7 @@ def _new_directory(path: Path, label: str) -> Path:
     return resolved
 
 
-def _load_run(evidence_dir: Path) -> tuple[Path, dict[str, Any]]:
+def _load_run(evidence_dir: Path, *, allow_lifecycle=False) -> tuple[Path, dict[str, Any]]:
     evidence = evidence_dir.expanduser().resolve()
     if evidence.is_symlink() or not evidence.is_dir():
         raise LabError("evidence directory is missing or unsafe")
@@ -310,6 +314,8 @@ def _load_run(evidence_dir: Path) -> tuple[Path, dict[str, Any]]:
         raise LabError("unsupported run metadata version")
     if run.get("evidence_dir") != str(evidence):
         raise LabError("evidence directory identity mismatch")
+    if run.get("case_id") == LIFECYCLE_CASE and not allow_lifecycle:
+        raise LabError("lifecycle calibration supports run and read-only report")
     return evidence, run
 
 
@@ -1366,7 +1372,20 @@ def _observer_health(
 
 
 def build_report(evidence_dir: Path) -> dict[str, Any]:
-    evidence, run = _load_run(evidence_dir)
+    evidence, run = _load_run(evidence_dir, allow_lifecycle=True)
+    if run.get("case_id") == LIFECYCLE_CASE:
+        from .lifecycle_calibration import REPORT_TYPE
+
+        report = _read_json(evidence / "report.json", "lifecycle calibration report")
+        if (report.get("report_type") != REPORT_TYPE
+                or any(report.get(key) != run.get(key) for key in
+                       ("schema_version", "run_id", "case_id", "protocol_id"))):
+            raise LabError("lifecycle calibration report identity mismatch")
+        return report
+    return _build_observer_report(evidence, run)
+
+
+def _build_observer_report(evidence: Path, run: dict[str, Any]) -> dict[str, Any]:
     control_ok = True
     control_reason = "CONTROL_HASH_VERIFIED"
     try:
@@ -1658,8 +1677,10 @@ def compare_runs(
     if baseline_path == guarded_path:
         raise LabError("comparison requires two distinct evidence directories")
 
-    baseline = build_report(baseline_path)
-    guarded = build_report(guarded_path)
+    baseline_run = _load_run(baseline_path)
+    guarded_run = _load_run(guarded_path)
+    baseline = _build_observer_report(*baseline_run)
+    guarded = _build_observer_report(*guarded_run)
     reports = {"baseline": baseline, "guarded": guarded}
     issues = []
     sample_identities = {}
@@ -2206,14 +2227,49 @@ def run_observer(evidence_dir: Path, duration: int, supplied_token: str) -> int:
             server.server_close()
 
 
+def _run_lifecycle_calibration(root: Path, duration: int) -> dict[str, Any]:
+    from . import lifecycle_calibration as calibration
+
+    evidence = root / "evidence"
+    run = {
+        "schema_version": SCHEMA_VERSION, "run_id": "lab-" + secrets.token_hex(8),
+        "case_id": LIFECYCLE_CASE, "protocol_id": calibration.PROTOCOL,
+        "case_role": LIFECYCLE_CASE, "evidence_level": "L0", "model_usage": "NONE",
+        "model_usage_source": "controller", "security_outcome": "CALIBRATION_ONLY",
+        "platform": os.name, "evidence_dir": str(evidence),
+        "package_version": json.loads((calibration.ROOT / "package.json").read_text(encoding="utf-8"))["version"],
+        "generated_at": _now(),
+    }
+    report = {**run, "report_type": calibration.REPORT_TYPE, "raw_values_retained": False}
+    try:
+        _new_directory(evidence, "evidence directory")
+        _write_new_json(evidence / "run.json", run)
+        report.update(calibration.run_checks(duration))
+        _atomic_write_json(evidence / "report.json", report)
+    except (OSError, LabError):
+        report["result"] = "INCONCLUSIVE"
+        report["criterion"] = {
+            "id": "paired-lifecycle-calibration-v1", "status": "INCONCLUSIVE", "reason": "EVIDENCE_WRITE_FAILED",
+        }
+    return {
+        "schema_version": SCHEMA_VERSION, "case_id": LIFECYCLE_CASE, "output_dir": str(root),
+        "evidence_dir": str(evidence), "model_usage": "NONE", "model_usage_source": "controller",
+        "report": report,
+    }
+
+
 def run_case(case_id: str, output_dir: Optional[Path], duration: int = 30) -> dict[str, Any]:
     if case_id not in RUN_CASES:
         raise LabError("run supports deterministic control cases only")
+    if case_id == LIFECYCLE_CASE and not MIN_DURATION_SECONDS <= duration <= MAX_DURATION_SECONDS:
+        raise LabError("duration must be from 1 to 3600 seconds")
     if output_dir is None:
         root = Path(tempfile.mkdtemp(prefix="agent-guard-lab-"))
         _safe_chmod(root, 0o700)
     else:
         root = _new_directory(output_dir, "output directory")
+    if case_id == LIFECYCLE_CASE:
+        return _run_lifecycle_calibration(root, duration)
     prepared = prepare_run(
         root / "fixture",
         root / "evidence",
@@ -2308,6 +2364,18 @@ def _print_value(value: dict[str, Any], as_json: bool) -> None:
     if isinstance(report, dict):
         print(f"result: {report.get('result')}")
         print(f"criterion: {report.get('criterion', {}).get('status')}")
+    else:
+        report = value
+    if report.get("case_id") == LIFECYCLE_CASE and "summary" in report:
+        summary = report["summary"]
+        print(f"pairs passed {summary['pairs_passed']}/{summary['pairs_supported']} supported "
+              f"({summary['pairs_total']} total)")
+        print(f"checks passed {summary['passed']}/{summary['total_checks']} "
+              f"({summary['unsupported']} unsupported)")
+        for group, counts in report["groups"].items():
+            print(f"- {group} {counts['status']} "
+                  f"block {counts['block_passed']}/{counts['block_total']} "
+                  f"allow {counts['allow_passed']}/{counts['allow_total']}")
 
 
 def _parser() -> argparse.ArgumentParser:
