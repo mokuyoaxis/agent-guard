@@ -99,8 +99,8 @@ class SkillInstallationTests(unittest.TestCase):
         plan = install_skill.installation_plan(str(exfil_target), skill="exfil-guard")
         self.assertEqual(plan["skill"], "exfil-guard")
         self.assertEqual(set(plan["entrypoints"]),
-                         {"check_span", "check_export", "check_bash_exfil", "sanitize", "view"})
-        self.assertTrue({"scripts/check_export.py", "scripts/check_bash_exfil.py"}
+                         {"check_span", "check_export", "check_bash_exfil", "safe_read", "sanitize", "view"})
+        self.assertTrue({"scripts/check_export.py", "scripts/check_bash_exfil.py", "scripts/safe_read.py"}
                         <= set(install_skill.SKILLS["exfil-guard"]["required"]))
         install_skill.execute_plan(plan)
         self.assertTrue(exfil_target.is_symlink())
@@ -111,6 +111,7 @@ class SkillInstallationTests(unittest.TestCase):
             ("check_span", ("--channel", "file-write"), "ordinary text\n"),
             ("check_export", ("--workspace", str(self.directory), "sample.txt"), ""),
             ("check_bash_exfil", ("--workspace", str(self.directory)), "git status\n"),
+            ("safe_read", ("--workspace", str(self.directory), "--", "sample.txt"), ""),
         ):
             with self.subTest(entry=entry):
                 completed = subprocess.run(

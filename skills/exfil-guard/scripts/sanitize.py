@@ -36,86 +36,17 @@ sys.dont_write_bytecode = True
 import _bootstrap  # noqa: F401
 
 from core import policy, redaction
-from core.redaction import get_channel, scan_text
+from core.redaction import (
+    PATH_PLACEHOLDER, REDACTED, _REDACTION_PREFIX_RE, _plan_pieces,
+    apply_plan, get_channel, placeholder_for, plan_for_span, scan_text,
+)
 from _payload import (InvalidArguments, PayloadTooLarge, SafeArgumentParser, StdinIdle,
                       audit_result, emit_exemption_diagnostics, read_bounded_text,
                       read_payload, resolve_context)
 
-REDACTED = "<REDACTED>"
-PATH_PLACEHOLDER = "<PATH>"
-_REDACTION_PREFIX_RE = re.compile(
-    r"^(sk-|rk_|ghp_|gho_|ghu_|ghs_|ghr_|github_pat_|"
-    r"glpat-|xox[baprs]-|pypi-|AKIA|ASIA|sk_live_|rk_live_|"
-    + redaction.MODERN_VENDOR_PREFIX_PATTERN + r")")
 # Windows drive/UNC prefixes are layout, not identity, and they are what
 # makes a rewritten path still readable ("C:\\Users\\..." -> "C:\\<PATH>").
 _DRIVE_PREFIX_RE = re.compile(r"^[A-Za-z]:[\\/]")
-
-
-def placeholder_for(span) -> str:
-    """The replacement text for one span; derived from shape, never content."""
-    if span.family != redaction.FAMILY_SECRET:
-        return PATH_PLACEHOLDER
-    if span.rule_id in (redaction.RULE_PRIVATE_KEY_BLOCK,
-                        redaction.RULE_CONNECTION_PASSWORD, redaction.RULE_HTTP_BASIC_AUTH):
-        return REDACTED
-    # Keep the vendor prefix: it is public information (it says *which*
-    # credential kind leaked) and it is what makes the output reviewable.
-    match = _REDACTION_PREFIX_RE.match(span.raw)
-    if match:
-        return match.group(1) + REDACTED
-    return REDACTED
-
-
-def plan_for_span(span, channel=None) -> dict:
-    """One plan entry: offsets + placeholder. Never the matched bytes."""
-    return {
-        "start": span.start,
-        "end": span.end,
-        "rule_id": span.rule_id,
-        "family": span.family,
-        "confidence": span.confidence,
-        "placeholder": placeholder_for(span),
-    }
-
-
-def _plan_pieces(text, plan):
-    """Validate every range before constructing any output."""
-    if not isinstance(plan, list):
-        raise ValueError("redaction plan must be a list")
-    pieces = []
-    for entry in plan:
-        if not isinstance(entry, dict) or not {"start", "end", "placeholder"}.issubset(entry):
-            raise ValueError("invalid redaction plan entry")
-        start, end = entry["start"], entry["end"]
-        if type(start) is not int or type(end) is not int:
-            raise ValueError("redaction offsets must be integers")
-        if start < 0 or end > len(text) or start >= end:
-            raise ValueError("redaction plan has an out-of-range span")
-        if not isinstance(entry["placeholder"], str) or not entry["placeholder"]:
-            raise ValueError("invalid redaction placeholder")
-        pieces.append((start, end, entry["placeholder"]))
-    pieces.sort()
-    for previous, current in zip(pieces, pieces[1:]):
-        if current[0] < previous[1]:
-            raise ValueError("redaction plan has overlapping spans")
-    return pieces
-
-
-def apply_plan(text: str, plan, verify: bool = True) -> str:
-    """Use validated original coordinates to assemble output in one pass.
-
-    `verify` is retained for callers. Structural validation is mandatory;
-    only `sanitize_text` can verify a plan against a fresh policy decision.
-    """
-    pieces = _plan_pieces(text, plan)
-    chunks = []
-    cursor = 0
-    for start, end, placeholder in pieces:
-        chunks.extend((text[cursor:start], placeholder))
-        cursor = end
-    chunks.append(text[cursor:])
-    return "".join(chunks)
 
 
 def _checked_plan(text, plan, derived):

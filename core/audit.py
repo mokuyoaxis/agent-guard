@@ -72,8 +72,8 @@ def _enums():
         "decision": decisions, "action": decisions | {"PURGED"},
         "code": frozenset(policy.EXPLANATIONS),
         "tool": frozenset({"safe_delete", "check", "restore", "gc", "exfil_check",
-                           "exfil_sanitize", "git_pre_commit", "git_commit_msg",
-                           "exfil_export", "exfil_bash_hook"}),
+                           "exfil_sanitize", "exfil_safe_read", "git_pre_commit",
+                           "git_commit_msg", "exfil_export", "exfil_bash_hook"}),
         "phase": frozenset({"advisory", "intent", "complete"}),
         "outcome": frozenset({
             "relocated to quarantine", "deleted directly (provably regenerable)",

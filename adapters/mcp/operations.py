@@ -17,13 +17,14 @@ import threading
 
 from core.cleanup_views import read_options
 from core.operation_summary import unavailable_summary
-from core import policy, redaction, safe_view
+from core import policy, redaction, safe_read, safe_view
 
 ROOT = Path(__file__).resolve().parents[2]
 DELETE_SCRIPTS = ROOT / "skills" / "delete-guard" / "scripts"
 EXFIL_SCRIPTS = ROOT / "skills" / "exfil-guard" / "scripts"
 EXFIL_PAYLOAD_TOOLS = frozenset({"exfil_check", "exfil_sanitize"})
-EXFIL_TOOLS = EXFIL_PAYLOAD_TOOLS | {"config_safe_view"}
+EXFIL_AUDITED_TOOLS = EXFIL_PAYLOAD_TOOLS | {"safe_read"}
+EXFIL_TOOLS = EXFIL_AUDITED_TOOLS | {"config_safe_view"}
 GROUP_TOOLS = frozenset(("cleanup_discover", "cleanup_measure"))
 TASK_TOOLS = frozenset(("cleanup_execute", "cleanup_task_status"))
 APPROVAL_TOOL = "cleanup_request_approval"
@@ -129,13 +130,14 @@ class Operations:
                    APPROVAL_TOOL: {"saved_plan_id"},
                    "cleanup_execute": {"task_id", "view"},
                    "cleanup_task_status": {"task_id", "view", "state", "path", "offset", "limit"},
-                   "config_safe_view": {"path", "format"}, "exfil_check": {"text", "channel", "path"},
+                   "config_safe_view": {"path", "format"}, "safe_read": {"path", "start_line", "end_line", "strict_paths", "fail_on_redaction"},
+                   "exfil_check": {"text", "channel", "path"},
                    "exfil_sanitize": {"text", "channel"}}[name]
         if set(arguments) - allowed:
             raise InvalidArguments("unsupported tool argument")
         result = dict(arguments)
         if name in EXFIL_TOOLS:
-            if name == "config_safe_view" or "path" in result:
+            if name in ("config_safe_view", "safe_read") or "path" in result:
                 path = result.get("path")
                 try:
                     if not isinstance(path, str):
@@ -147,6 +149,20 @@ class Operations:
                 result.setdefault("format", "auto")
                 if result["format"] not in safe_view.FORMATS:
                     raise InvalidArguments("unsupported config format")
+            elif name == "safe_read":
+                start_line = result.get("start_line", 1)
+                if type(start_line) is not int or start_line < 1:
+                    raise InvalidArguments("start_line must be an integer >= 1")
+                result["start_line"] = start_line
+                if "end_line" in result:
+                    end_line = result["end_line"]
+                    if (type(end_line) is not int or end_line < start_line
+                            or (end_line - start_line + 1) > safe_read.MAX_RETURN_LINES):
+                        raise InvalidArguments("end_line must be >= start_line and span at most 200 lines")
+                for flag in ("strict_paths", "fail_on_redaction"):
+                    if type(result.get(flag, False)) is not bool:
+                        raise InvalidArguments(flag + " must be a boolean")
+                    result[flag] = result.get(flag, False)
             else:
                 channel = result.get("channel")
                 if not isinstance(channel, str) or channel not in redaction.CHANNELS:
@@ -283,13 +299,26 @@ class Operations:
         mutating = (name in ("restore", "cleanup_execute")
                     or (name == "safe_delete" and not args["dry_run"])
                     or (name == "cleanup_plan" and args.get("save", False))
-                    or (name in EXFIL_PAYLOAD_TOOLS and self.audit_exfil))
+                    or (name in EXFIL_AUDITED_TOOLS and self.audit_exfil))
         task_id = args["task_id"] if name in TASK_TOOLS else None
         scripts = DELETE_SCRIPTS
         stdin = {"stdin": subprocess.DEVNULL}
         if name == "config_safe_view":
             scripts = EXFIL_SCRIPTS
             command = ["view.py", "--format", args["format"], "--", args["path"]]
+        elif name == "safe_read":
+            scripts = EXFIL_SCRIPTS
+            command = ["safe_read.py", "--json", "--workspace", self.workspace,
+                       "--start-line", str(args["start_line"])]
+            if "end_line" in args:
+                command += ["--end-line", str(args["end_line"])]
+            if args["strict_paths"]:
+                command.append("--strict-paths")
+            if args["fail_on_redaction"]:
+                command.append("--fail-on-redaction")
+            if self.audit_exfil:
+                command.append("--audit")
+            command += ["--", args["path"]]
         elif name in EXFIL_PAYLOAD_TOOLS:
             scripts = EXFIL_SCRIPTS
             command = ["check_span.py" if name == "exfil_check" else "sanitize.py",
@@ -467,6 +496,30 @@ class Operations:
                              else safe_view.ERROR_MESSAGES.get(kind) == message)
                 if valid:
                     result = {"status": "error", "code": kind, "message": message}
+        elif name == "safe_read":
+            if (result.get("schema") == safe_read.SCHEMA and "workspace" not in result
+                    and result.get("exit") == code
+                    and isinstance(result.get("code"), str) and result["code"] in policy.EXPLANATIONS):
+                if code == 0:
+                    valid = (
+                        result.get("status") == "ok"
+                        and result.get("decision") in {policy.DECISION_ALLOW, policy.DECISION_SANITIZE}
+                        and isinstance(result.get("text"), str)
+                        and isinstance(result.get("spans"), list)
+                        and type(result.get("page_redacted")) is bool
+                        and type(result.get("page_redaction_count")) is int
+                        and isinstance(result.get("page_redactions_by_rule"), dict)
+                    )
+                elif code in (1, 2):
+                    expected_status = "refused" if code == 2 else "error"
+                    valid = (
+                        result.get("status") == expected_status
+                        and result.get("decision") == policy.DECISION_BLOCK
+                        and result.get("error_code") in safe_read.ALL_ERROR_CODES
+                        and result.get("message") in safe_read.ALLOWED_MESSAGES
+                        and result.get("text") == ""
+                        and result.get("spans") == []
+                    )
         else:
             expected = {0: {"ALLOW", "SANITIZE"}, 2: {"BLOCK"}, 3: {"ASK"}}
             decision = result.get("decision")

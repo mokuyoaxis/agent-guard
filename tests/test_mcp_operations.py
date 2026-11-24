@@ -44,6 +44,14 @@ class McpOperations(RepoFixture):
                 ("config_safe_view", {"path": "parent/../config.toml"}),
                 ("config_safe_view", {"path": "config.toml "}),
                 ("config_safe_view", {"path": "config.toml", "format": SECRET}),
+                ("safe_read", {"path": "parent/../notes.txt"}),
+                ("safe_read", {"path": "notes.txt", "start_line": 0}),
+                ("safe_read", {"path": "notes.txt", "start_line": True}),
+                ("safe_read", {"path": "notes.txt", "start_line": 5, "end_line": 4}),
+                ("safe_read", {"path": "notes.txt", "start_line": 1, "end_line": 201}),
+                ("safe_read", {"path": "notes.txt", "strict_paths": "yes"}),
+                ("safe_read", {"path": "notes.txt", "fail_on_redaction": 1}),
+                ("safe_read", {"path": "notes.txt", "audit": True}),
                 ("exfil_check", {"text": SECRET, "channel": SECRET}),
                 ("exfil_check", {"text": SECRET, "channel": "issue-body", "path": "/config.toml"}),
                 ("exfil_sanitize", {"text": SECRET, "channel": "issue-body", "plan": SECRET}),
@@ -93,6 +101,22 @@ class McpOperations(RepoFixture):
             child = subprocess.CompletedProcess([], 2, SECRET, json.dumps(body))
             with mock.patch("adapters.mcp.operations.subprocess.run", return_value=child):
                 result = self.operations.call("config_safe_view", {"path": "config.json"})
+            self.assertEqual(result["error"]["code"], "MCP_CLI_PROTOCOL_ERROR")
+            self.assertNotIn(SECRET, json.dumps(result))
+
+    def test_safe_read_does_not_trust_raw_child_diagnostics_or_workspace_echo(self):
+        for code, body in (
+            (2, {"schema": "safe_read/v1", "status": "refused", "decision": "BLOCK",
+                 "code": "BLOCK_OUTPUT_UNSCANNABLE", "error_code": "CONTROL_PATH",
+                 "message": SECRET, "text": "", "spans": [], "exit": 2}),
+            (0, {"schema": "safe_read/v1", "status": "ok", "decision": "ALLOW",
+                 "code": "ALLOW_NOOP", "workspace": self.root, "text": "ok",
+                 "spans": [], "page_redacted": False, "page_redaction_count": 0,
+                 "page_redactions_by_rule": {}, "exit": 0}),
+        ):
+            child = subprocess.CompletedProcess([], code, json.dumps(body), "")
+            with mock.patch("adapters.mcp.operations.subprocess.run", return_value=child):
+                result = self.operations.call("safe_read", {"path": "notes.txt"})
             self.assertEqual(result["error"]["code"], "MCP_CLI_PROTOCOL_ERROR")
             self.assertNotIn(SECRET, json.dumps(result))
 

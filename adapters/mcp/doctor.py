@@ -24,11 +24,11 @@ SDK_VERSION = "2.3.0"
 PROTOCOL_VERSION = "2025-06-18"
 TOOLS = frozenset(("safe_delete", "restore", "restore_preview", "transactions", "status", "gc_plan", "cleanup_discover", "cleanup_measure",
                    "cleanup_plan", "cleanup_execute", "cleanup_task_status",
-                   "config_safe_view", "exfil_check", "exfil_sanitize"))
+                   "config_safe_view", "safe_read", "exfil_check", "exfil_sanitize"))
 READ_ONLY_PROBES = {"status": {"tail": 0}, "transactions": {}, "gc_plan": {},
                     "exfil_check": {"text": "agent-guard doctor probe", "channel": "file-write"}}
 READ_ONLY_TOOLS = frozenset(READ_ONLY_PROBES) | {"restore_preview", "cleanup_discover", "cleanup_measure", "cleanup_task_status",
-                                               "config_safe_view", "exfil_sanitize"}
+                                               "config_safe_view", "safe_read", "exfil_sanitize"}
 MAX_MESSAGE_BYTES = 2 * 1024 * 1024
 
 PROBLEMS = {

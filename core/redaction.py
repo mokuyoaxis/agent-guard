@@ -1367,3 +1367,73 @@ def scan_text(text: str, channel: str = "",
     result.spans = apply_exemption(spans, exemption, path, workspace)
     result.exempted = len(spans) - len(result.spans)
     return result
+
+
+# --------------------------------------------------- shared redaction plan
+
+REDACTED = "<REDACTED>"
+PATH_PLACEHOLDER = "<PATH>"
+_REDACTION_PREFIX_RE = re.compile(
+    r"^(sk-|rk_|ghp_|gho_|ghu_|ghs_|ghr_|github_pat_|"
+    r"glpat-|xox[baprs]-|pypi-|AKIA|ASIA|sk_live_|rk_live_|"
+    + MODERN_VENDOR_PREFIX_PATTERN + r")")
+
+
+def placeholder_for(span: SpanSpec) -> str:
+    """Replacement text for one span; derived from shape, never content."""
+    if span.family != FAMILY_SECRET:
+        return PATH_PLACEHOLDER
+    if span.rule_id in (RULE_PRIVATE_KEY_BLOCK,
+                        RULE_CONNECTION_PASSWORD, RULE_HTTP_BASIC_AUTH):
+        return REDACTED
+    match = _REDACTION_PREFIX_RE.match(span.raw)
+    if match:
+        return match.group(1) + REDACTED
+    return REDACTED
+
+
+def plan_for_span(span: SpanSpec, channel: Any = None) -> Dict[str, Any]:
+    """One plan entry: offsets + placeholder. Never the matched bytes."""
+    return {
+        "start": span.start,
+        "end": span.end,
+        "rule_id": span.rule_id,
+        "family": span.family,
+        "confidence": span.confidence,
+        "placeholder": placeholder_for(span),
+    }
+
+
+def _plan_pieces(text: str, plan: Any) -> List[Tuple[int, int, str]]:
+    """Validate every range before constructing any output."""
+    if not isinstance(plan, list):
+        raise ValueError("redaction plan must be a list")
+    pieces: List[Tuple[int, int, str]] = []
+    for entry in plan:
+        if not isinstance(entry, dict) or not {"start", "end", "placeholder"}.issubset(entry):
+            raise ValueError("invalid redaction plan entry")
+        start, end = entry["start"], entry["end"]
+        if type(start) is not int or type(end) is not int:
+            raise ValueError("redaction offsets must be integers")
+        if start < 0 or end > len(text) or start >= end:
+            raise ValueError("redaction plan has an out-of-range span")
+        if not isinstance(entry["placeholder"], str) or not entry["placeholder"]:
+            raise ValueError("invalid redaction placeholder")
+        pieces.append((start, end, entry["placeholder"]))
+    pieces.sort()
+    for previous, current in zip(pieces, pieces[1:]):
+        if current[0] < previous[1]:
+            raise ValueError("redaction plan has overlapping spans")
+    return pieces
+
+
+def apply_plan(text: str, plan: Any, verify: bool = True) -> str:
+    """Use validated original coordinates to assemble output in one pass."""
+    pieces = _plan_pieces(text, plan)
+    chunks: List[str] = []
+    cursor = 0
+    for start, end, placeholder in pieces:
+        chunks.extend((text[cursor:start], placeholder))
+        cursor = end
+    chunks.append(text[cursor:])
+    return "".join(chunks)

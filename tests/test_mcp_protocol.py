@@ -153,14 +153,14 @@ class McpProtocolTests(unittest.TestCase):
         self.assertEqual({row["name"] for row in tools},
                          {"safe_delete", "restore", "restore_preview", "transactions", "status", "gc_plan",
                           "cleanup_discover", "cleanup_measure", "cleanup_plan", "cleanup_execute",
-                          "cleanup_task_status", "config_safe_view", "exfil_check", "exfil_sanitize"})
+                          "cleanup_task_status", "config_safe_view", "safe_read", "exfil_check", "exfil_sanitize"})
         for tool in tools:
             self.assertFalse(tool["inputSchema"]["additionalProperties"])
             self.assertFalse(tool["annotations"]["openWorldHint"])
             self.assertEqual(tool["annotations"]["readOnlyHint"],
                              tool["name"] in ("restore_preview", "status", "transactions", "gc_plan",
                                               "cleanup_discover", "cleanup_measure", "cleanup_task_status",
-                                              "config_safe_view", "exfil_check", "exfil_sanitize"))
+                                              "config_safe_view", "safe_read", "exfil_check", "exfil_sanitize"))
         self.assertTrue(next(row for row in tools if row["name"] == "safe_delete")["annotations"]["destructiveHint"])
         by_name = {tool["name"]: tool for tool in tools}
         for name in ("exfil_check", "exfil_sanitize"):
@@ -195,23 +195,46 @@ class McpProtocolTests(unittest.TestCase):
             self.assertEqual(denied["exit_code"], status)
             self.assertEqual((denied["result"]["text"], denied["result"]["redaction_plan"]), ("", []))
             self.assertNotIn(SECRET, json.dumps(denied))
-        self.assertNotIn(SECRET, json.dumps((view, toml, missing, invalid, check, rewritten)))
+        (self.workspace / "app.log").write_text("line1\ntoken=" + SECRET + "\n", encoding="utf-8")
+        (self.workspace / ("." + "env")).write_text("SECRET=" + SECRET + "\n", encoding="utf-8")
+        page1 = self.content(connection.call("safe_read", path="app.log", start_line=1, end_line=1))
+        self.assertTrue(page1["ok"], page1)
+        self.assertEqual(page1["result"]["decision"], "ALLOW")
+        self.assertEqual(page1["result"]["code"], "ALLOW_NOOP")
+        self.assertNotIn("workspace", page1["result"])
+        page2 = self.content(connection.call("safe_read", path="app.log", start_line=2, end_line=2))
+        self.assertTrue(page2["ok"], page2)
+        self.assertEqual(page2["result"]["decision"], "SANITIZE")
+        self.assertEqual(page2["result"]["text"], "token=ghp_<REDACTED>\n")
+        dotenv_denied = self.content(connection.call("safe_read", path="." + "env"))
+        self.assertFalse(dotenv_denied["ok"])
+        self.assertEqual(dotenv_denied["result"]["error_code"], "SECRET_STORE_REFUSED")
+        self.assertEqual(dotenv_denied["result"]["text"], "")
+        self.assertNotIn(SECRET, json.dumps((view, toml, missing, invalid, check, rewritten, page1, page2, dotenv_denied)))
         self.assertFalse((self.workspace / ".agent-trash").exists())
 
     def test_startup_audit_writes_only_bound_bucket_and_annotation_changes(self):
+        (self.workspace / "notes.txt").write_text("clean line\ntoken=" + SECRET + "\n", encoding="utf-8")
         with tempfile.TemporaryDirectory() as bucket:
             connection = Connection(self.workspace, trash_root=bucket, audit_exfil=True, session="owned-session")
             try:
                 tools = connection.request("tools/list", {})["result"]["tools"]
                 by_name = {tool["name"]: tool["annotations"] for tool in tools}
                 self.assertTrue(by_name["config_safe_view"]["readOnlyHint"])
-                for name in ("exfil_check", "exfil_sanitize"):
+                for name in ("exfil_check", "exfil_sanitize", "safe_read"):
                     self.assertFalse(by_name[name]["readOnlyHint"])
                     self.assertFalse(by_name[name]["destructiveHint"])
+                for name in ("exfil_check", "exfil_sanitize"):
                     result = self.content(connection.call(name, text=SECRET, channel="file-write"))
                     self.assertTrue(result["result"]["audit"]["recorded"])
+                read_res = self.content(connection.call("safe_read", path="notes.txt"))
+                self.assertTrue(read_res["ok"], read_res)
+                self.assertTrue(read_res["result"]["audit"]["recorded"])
+                self.assertNotIn("workspace", read_res["result"])
+                self.assertIn("ghp_<REDACTED>", read_res["result"]["text"])
                 log = Path(bucket, "audit.jsonl").read_text()
                 self.assertNotIn(SECRET, log)
+                self.assertIn("exfil_safe_read", log)
                 self.assertFalse((self.workspace / ".agent-trash").exists())
                 self.assertEqual(len(list(Path(bucket).iterdir())), 1)
             finally:

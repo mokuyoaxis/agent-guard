@@ -123,7 +123,7 @@ class McpDoctorBoundaryTests(unittest.TestCase):
             requests = pathlib.Path(REQUESTS)
             names = ["safe_delete", "restore", "restore_preview", "transactions", "status", "gc_plan",
                      "cleanup_discover", "cleanup_measure", "cleanup_plan", "cleanup_execute",
-                     "cleanup_task_status", "config_safe_view", "exfil_check", "exfil_sanitize"]
+                     "cleanup_task_status", "config_safe_view", "safe_read", "exfil_check", "exfil_sanitize"]
             for line in sys.stdin:
                 request = json.loads(line)
                 with requests.open("a") as stream:
@@ -155,7 +155,7 @@ class McpDoctorBoundaryTests(unittest.TestCase):
                     result = {"tools": [{"name": name, "annotations": {
                         "readOnlyHint": name in ("restore_preview", "status", "transactions", "gc_plan",
                                                  "cleanup_discover", "cleanup_measure", "cleanup_task_status",
-                                                 "config_safe_view", "exfil_check", "exfil_sanitize")}}
+                                                 "config_safe_view", "safe_read", "exfil_check", "exfil_sanitize")}}
                         for name in names]}
                     if mode == "tools":
                         result["tools"][0]["name"] = "PRIVATE-MARKER-tool"

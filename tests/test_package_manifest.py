@@ -69,6 +69,19 @@ class PackageManifestTests(unittest.TestCase):
         self.assertIn("--execute", completed.stdout)
         self.assertIn("--select", completed.stdout)
 
+    def test_safe_read_bin_is_declared_and_exposes_redaction_and_pagination_flags(self):
+        self.assertEqual(self.manifest["bin"]["agent-guard-safe-read"],
+                         "./skills/exfil-guard/scripts/safe_read.py")
+        self.assertEqual(len(self.manifest["bin"]), 16)
+        completed = subprocess.run(
+            [sys.executable, str(ROOT / self.manifest["bin"]["agent-guard-safe-read"]), "--help"],
+            cwd=ROOT, text=True, capture_output=True, check=False)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn("--start-line", completed.stdout)
+        self.assertIn("--end-line", completed.stdout)
+        self.assertIn("--strict-paths", completed.stdout)
+        self.assertIn("--fail-on-redaction", completed.stdout)
+
     def test_guard_lab_bin_exposes_only_the_user_controller(self):
         self.assertEqual(
             self.manifest["bin"]["agent-guard-lab"], "./guard_lab.py")

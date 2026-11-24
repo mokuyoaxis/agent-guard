@@ -36,6 +36,7 @@ INSTRUCTIONS = (
     "Their observations never grant execution permission. A successful call with partial=true "
     "still has incomplete coverage or unknown whole sizes; inspect those fields and use exact scopes. "
     "Use config_safe_view to inspect configuration structure without reading values into context. "
+    "Use safe_read for paginated, redacted reads of ordinary workspace text files (secret stores and control/quarantine paths are refused). "
     "Use exfil_check or exfil_sanitize with the actual outbound channel before sending draft text. "
     "If exfil_check returns SANITIZE, apply redaction before sending. Neither text tool sends the payload."
 )
@@ -60,6 +61,15 @@ TOOL_DEFINITIONS = {
         "description": "Read a workspace-relative JSON, dotenv or TOML config as keys, types and set/empty states. Values stay local. TOML requires Python 3.11 or newer.",
         "properties": {"path": {"type": "string", "minLength": 1},
                        "format": {"type": "string", "enum": list(FORMATS), "default": "auto"}},
+        "required": ["path"], "read_only": True, "destructive": False,
+    },
+    "safe_read": {
+        "description": "Read an ordinary workspace-relative UTF-8 text file with whole-file secret/path redaction, independent residual verification, and complete-line pagination (up to 200 lines / 32 KiB per page). Refuses secret stores, control directories, and quarantine locations. Page receipt reports only current-page hits.",
+        "properties": {"path": {"type": "string", "minLength": 1},
+                       "start_line": {"type": "integer", "minimum": 1, "default": 1},
+                       "end_line": {"type": "integer", "minimum": 1},
+                       "strict_paths": {"type": "boolean", "default": False},
+                       "fail_on_redaction": {"type": "boolean", "default": False}},
         "required": ["path"], "read_only": True, "destructive": False,
     },
     "exfil_check": {
@@ -179,7 +189,7 @@ def create_server(operations):
     import anyio
     import mcp_types as types
     from mcp.server import Server
-    from adapters.mcp.operations import EXFIL_PAYLOAD_TOOLS
+    from adapters.mcp.operations import EXFIL_AUDITED_TOOLS
 
     definitions = {name: value for name, value in TOOL_DEFINITIONS.items()
                    if name != "cleanup_request_approval" or operations.approval_channel == "codex"}
@@ -196,7 +206,7 @@ def create_server(operations):
     tools = [types.Tool(
         name=name, description=value["description"], input_schema=schemas[name],
         annotations=types.ToolAnnotations(read_only_hint=(value["read_only"] and
-                                                          not (operations.audit_exfil and name in EXFIL_PAYLOAD_TOOLS)),
+                                                          not (operations.audit_exfil and name in EXFIL_AUDITED_TOOLS)),
                                           destructive_hint=value["destructive"],
                                           idempotent_hint=False, open_world_hint=False))
         for name, value in definitions.items()]
