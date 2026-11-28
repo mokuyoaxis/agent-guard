@@ -111,10 +111,12 @@ TOOL_DEFINITIONS = {
         "properties": {}, "required": [], "read_only": True, "destructive": False,
     },
     "status": {
-        "description": "Read guard state and persistent current-session budget. Default full preserves legacy status. view=overview returns bounded current-budget task rows, existing transaction reconciliation and age-only GC hints without payload tree/size walks. limit=1..50 controls overview rows (default 10); tail applies to full only. Complete/partial metadata is not absence, grant readiness or host interception. Occupancy and capacity-based GC candidates remain unmeasured in overview. No raw tokens/session identity/manifest records are returned. Does not reset budgets or change modes.",
+        "description": "Read guard state and persistent current-session budget. Default full preserves legacy status. view=overview returns bounded current-budget task rows, existing transaction reconciliation and age-only GC hints without payload tree/size walks. Set measure_storage=true with view=overview for an opt-in bounded read-only logical byte/entry scan of the active quarantine (matching Core admission accounting; optional max_measure_entries 1..200000). Partial/truncated scans return observed amounts and reasons only; admission_ratio requires complete measurement and valid limits, and top_transactions also requires complete manifest attribution. limit=1..50 controls overview rows (default 10); tail applies to full only. Complete/partial metadata is not absence, grant readiness or host interception. No raw tokens/session identity/manifest records are returned. Does not reset budgets or change modes.",
         "properties": {"tail": {"type": "integer", "minimum": 0, "maximum": 100, "default": 10},
                        "view": {"type": "string", "enum": ["overview", "full"], "default": "full"},
-                       "limit": {"type": "integer", "minimum": 1, "maximum": 50, "description": "Overview only; default 10 rows per list."}},
+                       "limit": {"type": "integer", "minimum": 1, "maximum": 50, "description": "Overview only; default 10 rows per list."},
+                       "measure_storage": {"type": "boolean", "default": False, "description": "Overview only; opt-in bounded logical byte/entry scan of the active quarantine."},
+                       "max_measure_entries": {"type": "integer", "minimum": 1, "maximum": 200000, "description": "Overview with measure_storage=true only; entry scan budget (default 50000)."}},
         "required": [], "read_only": True, "destructive": False,
     },
     "gc_plan": {

@@ -130,6 +130,7 @@ jobs:
             tests.test_lifecycle_calibration.LifecycleCalibrationTests.test_run_case_passes_supported_pairs_and_keeps_l0_contract `
             tests.test_exfil_sanitize.FormatPreservation.test_native_windows_user_path_uses_exact_bytes_and_sanitizes `
             tests.test_safe_read.SafeReadPlatformAndBoundaryTests `
+            tests.test_quarantine_measurement `
             *> windows-core-test-output.txt
           $testExit = $LASTEXITCODE
           Get-Content windows-core-test-output.txt

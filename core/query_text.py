@@ -86,8 +86,19 @@ def format_workspace_query(data, *, width=96, color=False):
         lines.append("  Rate     " + _bar(budget["window_operations"], limits["rate_max_operations"]) + "  "
                      + str(budget["window_operations"]) + " / " + str(limits["rate_max_operations"])
                      + " in " + str(limits["rate_window_seconds"]) + "s")
-        lines.append("  Trash cap " + _size(limits["quarantine_max_bytes"]) + " / "
-                     + str(limits["quarantine_max_entries"]) + " entries; occupancy not measured")
+        storage = data["storage"]
+        if not storage.get("measured"):
+            lines.append("  Trash cap " + _size(limits["quarantine_max_bytes"]) + " / "
+                         + str(limits["quarantine_max_entries"]) + " entries; occupancy not measured")
+        elif storage.get("complete"):
+            lines.append("  Trash cap " + _bar(storage["logical_bytes"], limits["quarantine_max_bytes"]) + "  "
+                         + _size(storage["logical_bytes"]) + " / " + _size(limits["quarantine_max_bytes"])
+                         + f" ({storage['entries']}/{limits['quarantine_max_entries']} entries)")
+        else:
+            lines.append("  Trash cap " + _size(limits["quarantine_max_bytes"]) + " / "
+                         + str(limits["quarantine_max_entries"]) + " entries; partial observed "
+                         + _size(storage["observed_logical_bytes"])
+                         + f" ({storage['observed_entries']} entries)")
         lines.append("  Admitted work; failures and restores do not refund the session budget.")
 
     tasks = data["tasks"]
@@ -129,10 +140,39 @@ def format_workspace_query(data, *, width=96, color=False):
 
     section("STORAGE & GC / 占用与候选")
     gc = data["gc_candidates"]
-    location = data["storage"]["location"]
+    storage = data["storage"]
+    location = storage["location"]
     location_status = location.get("status") or (location["entries"][0]["status"] if location["entries"] else "UNCONFIRMED")
     lines.append("  Location        " + location_status)
-    lines.append("  Occupancy       not measured (overview does not walk payload trees)")
+    if not storage.get("measured"):
+        lines.append("  Occupancy       not measured (overview does not walk payload trees)")
+    elif storage.get("complete"):
+        lines.append("  Occupancy       " + _size(storage["logical_bytes"])
+                     + f" ({storage['entries']} entries; logical, admission accounting)")
+        ratio = storage.get("admission_ratio")
+        if ratio is not None:
+            b_pct = f"{ratio['bytes_ratio'] * 100:.1f}%" if ratio["bytes_ratio"] is not None else "n/a"
+            e_pct = f"{ratio['entries_ratio'] * 100:.1f}%" if ratio["entries_ratio"] is not None else "n/a"
+            lines.append(f"  Admission ratio bytes={b_pct}, entries={e_pct}")
+        else:
+            lines.append("  Admission ratio unavailable (" + str(storage.get("admission_ratio_unavailable_reason")) + ")")
+        top = storage.get("top_transactions")
+        if top is None:
+            lines.append("  Top transactions unavailable (" + str(storage.get("top_transactions_unavailable_reason")) + ")")
+        elif not top:
+            lines.append("  Top transactions none observed")
+        else:
+            top_rows = [(row["txid"], row["state"], _size(row["logical_bytes"]), row["entries"]) for row in top]
+            if width >= 72:
+                lines.extend(_table(("TOP TXID", "STATE", "LOGICAL SIZE", "ENTRIES"), top_rows, (26, 12, 12, 8)))
+            else:
+                for txid, state, size_txt, entries in top_rows:
+                    lines.append(f"    {_text(txid)}  {state}  {size_txt}  entries={entries}")
+    else:
+        lines.append("  Occupancy       PARTIAL (observed " + _size(storage["observed_logical_bytes"])
+                     + f", {storage['observed_entries']} entries; attempted {storage['attempted_entries']}/{storage['max_entries']})")
+        lines.append("  Admission ratio unavailable (" + str(storage.get("admission_ratio_unavailable_reason")) + ")")
+        lines.append("  Top transactions unavailable (" + str(storage.get("top_transactions_unavailable_reason")) + ")")
     lines.append("  Age-only hints  " + (str(gc["count"]) if gc["count"] is not None else "unknown")
                  + "; unknown age (observed)=" + str(gc["unknown_age_transactions"]))
     lines.append("  Capacity hints  not measured; use the existing explicit GC preview for details")
@@ -140,7 +180,8 @@ def format_workspace_query(data, *, width=96, color=False):
     lines.append("  " + QUARANTINE_NOTICE)
     lines.append("  GC is manual. Review the GC plan before selecting recovery copies to purge.")
     issues = [*tasks["coverage"]["issues"], *transactions["coverage"]["issues"],
-              *[row["code"] for row in data["storage"]["location"].get("errors", [])]]
+              *[row["code"] for row in location.get("errors", [])],
+              *storage.get("issues", [])]
     if issues:
         lines.append("  Coverage issues " + ", ".join(sorted(set(issues))))
     lines.extend(["", "Task details: cleanup.py --task TASK_ID --view details (use an ID above)",

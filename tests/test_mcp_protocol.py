@@ -401,6 +401,61 @@ class McpProtocolTests(unittest.TestCase):
         self.assertEqual(sorted(str(p.relative_to(self.workspace)) for p in self.workspace.rglob("*")), before)
         self.assertEqual((self.workspace / ".agent-trash" / "audit.jsonl").read_bytes(), audit_before)
 
+    def test_status_measure_storage_reports_complete_and_partial_over_real_stdio(self):
+        connection = self.start()
+        definitions = {tool["name"]: tool for tool in connection.request("tools/list", {})["result"]["tools"]}
+        status_props = definitions["status"]["inputSchema"]["properties"]
+        self.assertEqual(status_props["measure_storage"]["type"], "boolean")
+        self.assertEqual(status_props["max_measure_entries"]["type"], "integer")
+        self.assertTrue(definitions["status"]["annotations"]["readOnlyHint"])
+
+        # Uncreated quarantine: complete zero without creating .agent-trash.
+        empty = self.content(connection.call("status", view="overview", measure_storage=True))
+        self.assertTrue(empty["ok"], empty)
+        self.assertFalse(empty["partial"])
+        self.assertEqual(empty["result"]["storage"]["logical_bytes"], 0)
+        self.assertEqual(empty["result"]["storage"]["entries"], 0)
+        self.assertEqual(empty["result"]["storage"]["top_transactions"], [])
+        self.assertFalse((self.workspace / ".agent-trash").exists())
+
+        # Create a real quarantined file and verify measured totals, top_transactions, truncation, and read-only.
+        payload = self.workspace / "owned-note.txt"
+        payload.write_text("quarantine measurement stdio payload\n", encoding="utf-8")
+        deleted = self.content(connection.call("safe_delete", paths=[payload.name]))
+        self.assertTrue(deleted["ok"], deleted)
+        txid = deleted["result"]["txid"]
+        before = sorted(str(p.relative_to(self.workspace)) for p in self.workspace.rglob("*"))
+        audit_before = (self.workspace / ".agent-trash" / "audit.jsonl").read_bytes()
+
+        measured = self.content(connection.call("status", view="overview", measure_storage=True))
+        self.assertTrue(measured["ok"], measured)
+        self.assertFalse(measured["partial"])
+        self.assertTrue(measured["result"]["storage"]["complete"])
+        self.assertGreater(measured["result"]["storage"]["logical_bytes"], 0)
+        self.assertEqual([row["txid"] for row in measured["result"]["storage"]["top_transactions"]], [txid])
+        self.assertNotIn("owned-note.txt", json.dumps(measured["result"]["storage"]["top_transactions"]))
+
+        truncated = self.content(connection.call(
+            "status", view="overview", measure_storage=True, max_measure_entries=1))
+        self.assertTrue(truncated["ok"], truncated)
+        self.assertTrue(truncated["partial"])
+        self.assertEqual(truncated["exit_code"], 1)
+        self.assertFalse(truncated["result"]["storage"]["complete"])
+        self.assertTrue(truncated["result"]["storage"]["truncated"])
+        self.assertIsNone(truncated["result"]["storage"]["logical_bytes"])
+        self.assertIsNone(truncated["result"]["storage"]["top_transactions"])
+        self.assertEqual(truncated["result"]["storage"]["issues"], ["STORAGE_ENTRY_LIMIT"])
+
+        for bad_args in (
+            {"view": "full", "measure_storage": True},
+            {"view": "full", "measure_storage": False},
+            {"measure_storage": False},
+        ):
+            refused = connection.call("status", **bad_args)
+            self.assertTrue("error" in refused or refused["result"].get("isError"), (bad_args, refused))
+        self.assertEqual(sorted(str(p.relative_to(self.workspace)) for p in self.workspace.rglob("*")), before)
+        self.assertEqual((self.workspace / ".agent-trash" / "audit.jsonl").read_bytes(), audit_before)
+
 
 if __name__ == "__main__":
     unittest.main()

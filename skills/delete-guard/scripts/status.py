@@ -23,7 +23,8 @@ from core import admission, audit, classifier, policy, recovery
 from core.messages import (
     HOST_STATUS_NOTICE, QUARANTINE_NOTICE, gc_guidance, print_gc_guidance)
 from core.query_text import format_workspace_query
-from core.workspace_query import DEFAULT_LIMIT, workspace_query
+from core.workspace_query import (
+    DEFAULT_LIMIT, DEFAULT_MEASURE_ENTRIES, MAX_MEASURE_ENTRIES, workspace_query)
 
 
 def main() -> int:
@@ -33,6 +34,10 @@ def main() -> int:
     ap.add_argument("--view", choices=("overview", "full"),
                     help="text defaults to a read-only metadata overview; JSON retains full legacy status")
     ap.add_argument("--limit", type=int, help="overview task/transaction rows, 1–50; default 10")
+    ap.add_argument("--measure-storage", action="store_true",
+                    help="overview only; bounded read-only logical byte/entry scan of the active quarantine")
+    ap.add_argument("--max-measure-entries", type=int, default=None,
+                    help=f"entry budget for --measure-storage, 1–{MAX_MEASURE_ENTRIES}; default {DEFAULT_MEASURE_ENTRIES}")
     ap.add_argument("--reset-delete-budget", action="store_true",
                     help="interactively reset this session's deletion budget; preserves recovery copies")
     ap.add_argument("--trash-index", action="store_true",
@@ -49,10 +54,17 @@ def main() -> int:
 
     if args.reset_delete_budget and args.trash_index:
         ap.error("--reset-delete-budget cannot be combined with --trash-index")
-    if args.trash_index and (args.view is not None or args.limit is not None):
-        ap.error("view/limit controls do not apply to --trash-index")
-    if args.reset_delete_budget and (args.view == "overview" or args.limit is not None):
+    if args.trash_index and (args.view is not None or args.limit is not None
+                             or args.measure_storage or args.max_measure_entries is not None):
+        ap.error("view/limit/storage-measurement controls do not apply to --trash-index")
+    if args.reset_delete_budget and (args.view == "overview" or args.limit is not None
+                                     or args.measure_storage or args.max_measure_entries is not None):
         ap.error("the read-only overview cannot be combined with budget reset")
+    if args.max_measure_entries is not None and not args.measure_storage:
+        ap.error("--max-measure-entries requires --measure-storage")
+    if (args.max_measure_entries is not None
+            and not 1 <= args.max_measure_entries <= MAX_MEASURE_ENTRIES):
+        ap.error(f"--max-measure-entries must be between 1 and {MAX_MEASURE_ENTRIES}")
     if args.reset_delete_budget and not (sys.stdin.isatty() and sys.stderr.isatty()):
         print("Deletion-budget reset requires interactive stdin and stderr; no state changed.",
               file=sys.stderr)
@@ -106,10 +118,17 @@ def main() -> int:
     view = args.view or ("full" if args.as_json or args.tail is not None or args.reset_delete_budget else "overview")
     if args.limit is not None and view != "overview":
         ap.error("--limit requires --view overview")
+    if (args.measure_storage or args.max_measure_entries is not None) and view != "overview":
+        ap.error("--measure-storage requires --view overview")
     if view == "overview":
         try:
-            result = workspace_query(workspace, trash_root,
-                                     limit=DEFAULT_LIMIT if args.limit is None else args.limit)
+            result = workspace_query(
+                workspace, trash_root,
+                limit=DEFAULT_LIMIT if args.limit is None else args.limit,
+                measure_storage=args.measure_storage,
+                max_measure_entries=(DEFAULT_MEASURE_ENTRIES if args.max_measure_entries is None
+                                     else args.max_measure_entries),
+            )
         except (ValueError, OSError) as exc:
             if args.as_json:
                 print(json.dumps({"tool": "status", "error": str(exc), "exit": 2}, ensure_ascii=True))

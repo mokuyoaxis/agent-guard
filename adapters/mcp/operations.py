@@ -18,6 +18,7 @@ import threading
 from core.cleanup_views import read_options
 from core.operation_summary import unavailable_summary
 from core import policy, redaction, safe_read, safe_view
+from core.workspace_query import MAX_MEASURE_ENTRIES
 
 ROOT = Path(__file__).resolve().parents[2]
 DELETE_SCRIPTS = ROOT / "skills" / "delete-guard" / "scripts"
@@ -121,7 +122,7 @@ class Operations:
             raise InvalidArguments("tool arguments must be an object")
         allowed = {"safe_delete": {"paths", "dry_run", "quarantine"},
                    "restore": {"txid"}, "restore_preview": {"txid"},
-                   "status": {"tail", "view", "limit"}, "transactions": set(), "gc_plan": set(),
+                   "status": {"tail", "view", "limit", "measure_storage", "max_measure_entries"}, "transactions": set(), "gc_plan": set(),
                    "cleanup_discover": {"scopes", "max_entries", "max_depth"},
                    "cleanup_measure": {"scopes", "max_entries", "max_depth"},
                    "cleanup_plan": {"targets", "saved_plan_id", "save", "discard_targets", "quarantine",
@@ -215,13 +216,28 @@ class Operations:
             if view not in ("overview", "full"):
                 raise InvalidArguments("status view must be overview or full")
             result["view"] = view
+            has_measure_storage = "measure_storage" in result
+            measure_storage = result.get("measure_storage", False)
+            if type(measure_storage) is not bool:
+                raise InvalidArguments("measure_storage must be a boolean")
+            result["measure_storage"] = measure_storage
             if view == "overview":
                 limit = result.get("limit", 10)
                 if type(limit) is not int or not 1 <= limit <= 50:
                     raise InvalidArguments("status overview limit must be an integer between 1 and 50")
                 result["limit"] = limit
-            elif "limit" in result:
-                raise InvalidArguments("limit applies only to the status overview")
+                if "max_measure_entries" in result:
+                    if not measure_storage:
+                        raise InvalidArguments("max_measure_entries requires measure_storage=true")
+                    budget = result["max_measure_entries"]
+                    if type(budget) is not int or not 1 <= budget <= MAX_MEASURE_ENTRIES:
+                        raise InvalidArguments(
+                            f"max_measure_entries must be an integer between 1 and {MAX_MEASURE_ENTRIES}")
+            else:
+                if "limit" in result:
+                    raise InvalidArguments("limit applies only to the status overview")
+                if has_measure_storage or "max_measure_entries" in result:
+                    raise InvalidArguments("storage measurement applies only to the status overview")
         elif name in TASK_TOOLS:
             task_id = result.get("task_id")
             if not isinstance(task_id, str) or not TASK_ID_RE.fullmatch(task_id):
@@ -359,6 +375,10 @@ class Operations:
             command = ["status.py", "--json", "--tail", str(args["tail"])]
             if args["view"] == "overview":
                 command += ["--view", "overview", "--limit", str(args["limit"])]
+                if args["measure_storage"]:
+                    command.append("--measure-storage")
+                    if "max_measure_entries" in args:
+                        command += ["--max-measure-entries", str(args["max_measure_entries"])]
         elif name == "gc_plan":
             command = ["gc.py", "--json"]
         elif name == "cleanup_plan":

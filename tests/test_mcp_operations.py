@@ -580,7 +580,18 @@ class McpOperations(RepoFixture):
                ("restore", {"txid": "../escape"}), ("restore", {"txid": "--force"}),
                ("status", {"reset_delete_budget": True}),
                ("status", {"tail": True}), ("status", {"tail": -1}),
-               ("status", {"tail": 101}), ("gc_plan", {"execute": True}),
+               ("status", {"tail": 101}),
+               ("status", {"measure_storage": True}),
+               ("status", {"measure_storage": False}),
+               ("status", {"view": "full", "measure_storage": True}),
+               ("status", {"view": "full", "measure_storage": False}),
+               ("status", {"view": "overview", "measure_storage": "yes"}),
+               ("status", {"view": "overview", "measure_storage": 1}),
+               ("status", {"view": "overview", "max_measure_entries": 10}),
+               ("status", {"view": "overview", "measure_storage": True, "max_measure_entries": True}),
+               ("status", {"view": "overview", "measure_storage": True, "max_measure_entries": 0}),
+               ("status", {"view": "overview", "measure_storage": True, "max_measure_entries": 200001}),
+               ("gc_plan", {"execute": True}),
                ("transactions", {"workspace": "/"}), ("unknown", {}), ("status", None)]
         with mock.patch("adapters.mcp.operations.subprocess.run") as run:
             for name, args in bad:
