@@ -217,15 +217,16 @@ def main() -> int:
                 print(f"error: {exc}", file=sys.stderr)
             return 2
 
+    selector_cwd = os.getcwd() if paths is not None else None
     if is_preview:
-        report = engine.preview_restore(txid, force=args.force, paths=paths, cwd=os.getcwd())
+        report = engine.preview_restore(txid, force=args.force, paths=paths, cwd=selector_cwd)
         if args.as_json:
             print(json.dumps(report, ensure_ascii=False, indent=2))
         else:
             print_preview(report)
         return 0 if report.get("ok") else 1
 
-    report = engine.restore(txid, force=args.force, cwd=os.getcwd(), paths=paths)
+    report = engine.restore(txid, force=args.force, cwd=selector_cwd, paths=paths)
     event = restore_audit_event(txid, args.force, report, selective=paths is not None)
     try:
         audit.append(event, os.path.join(engine.trash_root, AUDIT_NAME))
