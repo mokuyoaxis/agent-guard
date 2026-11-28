@@ -19,6 +19,7 @@ repository `.gitignore` rule is accepted; otherwise the engine adds a local
 """
 from __future__ import annotations
 
+from collections import Counter
 import hashlib
 import json
 import os
@@ -52,6 +53,26 @@ _STORAGE_ERRNOS = {
 # separators or dots that could turn an ID into a path traversal. Restore
 # uses the same identifier constraint as GC.
 _GC_TXID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*\Z")
+RESTORE_ITEM_COUNTS = (
+    "live_relocate_items", "pending_snapshot_items",
+    "retained_snapshot_items", "missing_relocate_items",
+)
+
+
+def _recorded_path_key(path: Any) -> Optional[str]:
+    """Compare recorded locations without re-resolving their current parents."""
+    if isinstance(path, str) and "\0" not in path and os.path.isabs(path):
+        return os.path.normcase(os.path.normpath(path))
+    return None
+
+
+def _snapshot_restore_status(item: Dict[str, Any], applied) -> str:
+    if item.get("stored", True) is not True:
+        return "failed"
+    sha = item.get("sha")
+    if not isinstance(sha, str) or not sha:
+        return "empty"
+    return "already_applied" if sha in applied else "ready"
 
 
 class StorageUnavailable(OSError):
@@ -567,8 +588,8 @@ class RecoveryEngine:
         """
         out: Dict[str, Dict[str, Any]] = {}
         for record in self.read_manifest() if records is None else records:
-            txid = record.get("txid")
-            if not txid:
+            txid = record.get("txid") if isinstance(record, dict) else None
+            if not isinstance(txid, str) or not txid:
                 continue
             slot = out.setdefault(txid, {"txid": txid, "items": []})
             if record.get("type") == "tx-start":
@@ -582,58 +603,101 @@ class RecoveryEngine:
                 slot.setdefault("failures", []).append(record)
             elif record.get("type") == "restore":
                 slot["last_restore"] = record
+                restored = record.get("restored")
+                if isinstance(restored, list):
+                    slot.setdefault("_restore_receipts", set()).update(
+                        value for value in restored if isinstance(value, str))
             elif record.get("type") == "purged":
                 slot["purged"] = True
 
-        # An intent and an existing destination can recover a missing
-        # completion record. An explicit failure requires stronger evidence.
         for slot in out.values():
-            completed = {
-                (item.get("origin_path"), item.get("trash_path"))
-                for item in slot["items"] if item.get("type") == "relocate"
-            }
-            failed = {
-                (failure["origin_path"], failure["trash_path"])
-                for failure in slot.get("failures", ())
-                if all(isinstance(failure.get(field), str) for field in ("origin_path", "trash_path"))
-            }
-            for intent in slot.pop("_intents", []):
-                key = (intent.get("origin_path"), intent.get("trash_path"))
-                if key in completed or key in failed:
-                    continue
-                _, trash = key
-                if trash and os.path.lexists(trash):
-                    slot["items"].append({
-                        **intent, "type": "relocate",
-                        "recovered_from_intent": True,
-                    })
-            live_items = 0
-            for item in slot["items"]:
-                if item.get("type") == "relocate" and \
-                        os.path.lexists(item.get("trash_path", "")):
-                    live_items += 1
-                elif item.get("type") == "snapshot" and item.get("sha"):
-                    # Stored stashes are deliberately retained after apply.
-                    live_items += 1
-            slot["restorable_items"] = live_items
-            unconfirmed = failed - completed if not slot.get("purged") else set()
-            slot["manual_review_items"] = len(unconfirmed)
-            slot["unconfirmed_payload_exists"] = any(os.path.lexists(trash) for _, trash in unconfirmed)
-            restored = slot.get("last_restore", {})
-            if slot.get("purged"):
-                slot["state"] = "PURGED"
-            elif restored.get("restored") and not restored.get("errors") and \
-                    not restored.get("conflicts"):
-                slot["state"] = "RESTORED"
-            elif live_items:
-                slot["state"] = "RESTORABLE"
-            elif slot.get("failures"):
-                slot["state"] = "FAILED"
-            else:
-                slot["state"] = "EMPTY"
+            self._reconcile_transaction(slot)
         return out
 
-    def _validate_restore_target(self, origin: str) -> None:
+    @staticmethod
+    def _reconcile_transaction(slot: Dict[str, Any]) -> None:
+        items = slot["items"]
+        purged = bool(slot.get("purged"))
+        completed = {
+            (item.get("origin_path"), item.get("trash_path"))
+            for item in items if item.get("type") == "relocate"
+            and all(isinstance(item.get(field), str) for field in ("origin_path", "trash_path"))
+        }
+        failed = {
+            (item["origin_path"], item["trash_path"])
+            for item in slot.get("failures", ())
+            if all(isinstance(item.get(field), str) for field in ("origin_path", "trash_path"))
+        }
+        intents = {}
+        for intent in slot.pop("_intents", ()):
+            pair = (intent.get("origin_path"), intent.get("trash_path"))
+            if all(_recorded_path_key(path) is not None for path in pair):
+                if pair not in completed and pair not in failed:
+                    intents.setdefault(pair, intent)
+
+        # Legacy receipts identify a relocation by origin. Attribute them
+        # only when that origin identifies a single recorded copy in this tx.
+        origin_counts = Counter(_recorded_path_key(origin)
+                                for origin, _ in completed | intents.keys())
+        receipts = slot.pop("_restore_receipts", ())
+        restored = {_recorded_path_key(receipt) for receipt in receipts}
+        restored = {origin for origin in restored if origin is not None and origin_counts[origin] == 1}
+        for (origin, trash), intent in intents.items():
+            if _recorded_path_key(origin) in restored or (not purged and os.path.lexists(trash)):
+                items.append({**intent, "type": "relocate", "recovered_from_intent": True})
+
+        applied = sorted({
+            item["sha"] for item in items
+            if item.get("type") == "snapshot" and _snapshot_restore_status(item, ()) == "ready"
+            and f"stash:{item['sha']}" in receipts
+        })
+        origin_status = {}
+        live_positions = []
+        snapshot_failed = False
+        slot.update(dict.fromkeys(RESTORE_ITEM_COUNTS, 0))
+        for position, item in enumerate(items):
+            if item.get("type") == "snapshot":
+                status = _snapshot_restore_status(item, applied)
+                if status == "already_applied":
+                    slot["retained_snapshot_items"] += 1
+                elif status == "ready" and not purged:
+                    slot["pending_snapshot_items"] += 1
+                snapshot_failed |= status == "failed"
+            else:
+                origin = _recorded_path_key(item.get("origin_path"))
+                copy = item.get("trash_path")
+                present = not purged and isinstance(copy, str) and os.path.lexists(copy)
+                if origin in restored:
+                    origin_status[origin] = "blocked" if present else "already_restored"
+                elif present:
+                    live_positions.append(position)
+                elif not purged:
+                    slot["missing_relocate_items"] += 1
+
+        unconfirmed = failed - completed if not purged else set()
+        slot["manual_review_items"] = len(unconfirmed)
+        slot["unconfirmed_payload_exists"] = any(os.path.lexists(trash) for _, trash in unconfirmed)
+        slot["live_relocate_items"] = len(live_positions)
+        slot["restorable_items"] = slot["live_relocate_items"] + slot["pending_snapshot_items"]
+        slot["_live_relocate_positions"] = live_positions
+        slot["_restore_origins"] = origin_status
+        slot["_applied_stashes"] = applied
+        # A failed move without a residual copy stays in the diagnostic count.
+        unresolved = bool(slot["unconfirmed_payload_exists"] or snapshot_failed
+                          or slot["missing_relocate_items"] or "blocked" in origin_status.values())
+        last = slot.get("last_restore", {})
+        if purged:
+            slot["state"] = "PURGED"
+        elif slot["restorable_items"]:
+            slot["state"] = "RESTORABLE"
+        elif (restored or applied) and not unresolved:
+            slot["state"] = "RESTORED"
+        elif unresolved or slot.get("failures") or last.get("errors") or last.get("conflicts"):
+            slot["state"] = "FAILED"
+        else:
+            slot["state"] = "EMPTY"
+
+    def _validate_restore_target(self, origin: str) -> str:
         """Check the parent chain, retaining the final symlink's location.
 
         Recorded paths are absolute and normalized. Resolve both sides for
@@ -648,6 +712,7 @@ class RecoveryEngine:
         target = os.path.normcase(_physical_keep_final(origin))
         if target == root or not inside_path(target, root):
             raise ValueError("restore target is outside workspace")
+        return target
 
     def _restore_transaction_dir(self, txid: str) -> str:
         """Bind an ID to its own direct child of the selected quarantine."""
@@ -805,271 +870,409 @@ class RecoveryEngine:
                 return f"restore target parent is not a directory: {ancestor}"
         return None
 
-    def preview_restore(self, txid: str, *, force: bool = False,
-                        hash_max_bytes: int = 4 * 1024 * 1024) -> Dict[str, Any]:
-        """Read-only restore preflight and conflict comparison; writes nothing."""
-        from .messages import restore_guidance
+    @staticmethod
+    def _restore_review_reason(tx: Dict[str, Any]) -> Optional[str]:
+        count = tx["manual_review_items"]
+        if count and (not tx["items"] or tx["unconfirmed_payload_exists"]):
+            return f"manual review required for {count} failed relocation item(s) without a completion record"
+        return None
 
-        if not isinstance(txid, str) or not _GC_TXID_RE.fullmatch(txid):
-            return {"schema": "restore_preview/v1", "ok": False,
-                    "error": "invalid quarantine transaction id"}
-        transactions = self.transactions()
-        tx = transactions.get(txid)
-        if not tx:
-            return {"schema": "restore_preview/v1", "ok": False,
-                    "error": f"unknown transaction: {txid}"}
+    def _restore_selection(self, tx, paths, *, cwd=None):
+        if paths is None:
+            return tx["items"], {}
+        selection = {"selected_paths": []}
+        if (not isinstance(paths, (list, tuple)) or not paths
+                or any(not isinstance(path, str) or not path or "\0" in path for path in paths)):
+            return [], {**selection, "error": "restore paths must be nonempty literal paths"}
+        try:
+            base = os.path.abspath(cwd) if cwd is not None else self.workspace
+        except (OSError, TypeError, ValueError):
+            return [], {**selection, "error": "restore selection is outside workspace or cannot be resolved"}
 
-        errors: List[str] = []
-        tx_dir_ok = True
+        index = {}
+        for position, item in enumerate(tx["items"]):
+            if item.get("type") != "relocate":
+                continue
+            origin = item.get("origin_path")
+            key = _recorded_path_key(origin)
+            if key is None:
+                continue
+            index.setdefault(key, set()).add(position)
+            # A literal match still has to pass the filesystem preflight.
+            try:
+                physical = os.path.normcase(_physical_keep_final(origin))
+            except (OSError, ValueError):
+                continue
+            index.setdefault(physical, set()).add(position)
+
+        positions = set()
+        unmatched, ambiguous, already_restored = [], [], []
+        for path in paths:
+            try:
+                absolute = os.path.normpath(os.path.join(base, path))
+                physical = self._validate_restore_target(absolute)
+            except (OSError, ValueError):
+                return [], {**selection, "error": "restore selection is outside workspace or cannot be resolved"}
+            matches = index.get(os.path.normcase(absolute), set()) | index.get(physical, set())
+            if not matches:
+                unmatched.append(path)
+            elif len(matches) != 1:
+                ambiguous.append(path)
+            else:
+                position, = matches
+                origin = tx["items"][position]["origin_path"]
+                if _recorded_path_key(origin) in tx["_restore_origins"]:
+                    already_restored.append(origin)
+                else:
+                    positions.add(position)
+
+        problems = []
+        for field, values, reason in (
+            ("unmatched_paths", unmatched, "restore paths did not match any relocation entry"),
+            ("ambiguous_paths", ambiguous, "restore paths matched more than one relocation entry"),
+            ("already_restored", already_restored, "selected relocation has already been restored"),
+        ):
+            if values:
+                selection[field] = list(dict.fromkeys(values))
+                problems.append(reason)
+        if problems:
+            return [], {**selection, "error": ". ".join(problems)}
+
+        items = [tx["items"][position] for position in sorted(positions)]
+        selection.update(
+            selected_paths=[item["origin_path"] for item in items],
+            omitted_relocate_count=sum(position not in positions for position in tx["_live_relocate_positions"]),
+            omitted_snapshot_count=tx["pending_snapshot_items"],
+        )
+        return items, selection
+
+    def _inspect_restore_item(self, txid, tx, item, tx_dir_ok):
+        if item.get("type") == "snapshot":
+            status = _snapshot_restore_status(item, tx["_applied_stashes"])
+            notes = {
+                "ready": "git stash apply; stored stash is retained",
+                "already_applied": "stash already applied and retained",
+                "empty": "working tree was clean; nothing to apply",
+                "failed": "Git snapshot was not stored",
+            }
+            return {"type": "snapshot", "sha": item.get("sha"), "status": status, "note": notes[status]}
+
+        origin, trash = item.get("origin_path"), item.get("trash_path")
+        row = {
+            "type": "relocate", "origin_path": origin, "trash_path": trash,
+            "recovered_from_intent": bool(item.get("recovered_from_intent")),
+            "status": "ready", "quarantine_entry": None, "occupant_entry": None,
+            "comparison": None, "force_preservable": False, "note": "",
+        }
+        history = tx["_restore_origins"].get(_recorded_path_key(origin))
+        if not tx_dir_ok:
+            row.update(status="boundary_error", note="restore source is outside its transaction or cannot be resolved")
+        elif history == "already_restored":
+            row.update(status=history, note="already restored according to the recovery journal")
+        elif history == "blocked":
+            row.update(status=history, note="a copy reappeared after restore; manual review required")
+        else:
+            try:
+                self._validate_restore_target(origin)
+            except (OSError, ValueError):
+                row.update(status="boundary_error", note="restore target is outside workspace or cannot be resolved")
+                return row
+            try:
+                self._validate_restore_source(trash, txid)
+            except (OSError, ValueError):
+                row.update(status="boundary_error", note="restore source is outside its transaction or cannot be resolved")
+                return row
+
+            q_meta = self._preview_entry_metadata(trash)
+            parent_blocker = self._restore_parent_blocker(origin)
+            o_meta = self._preview_entry_metadata(origin)
+            row.update(quarantine_entry=q_meta, occupant_entry=o_meta)
+            if q_meta["kind"] == "missing":
+                row.update(status="missing_copy", note="quarantine copy is missing")
+            elif parent_blocker is not None:
+                row.update(status="blocked", note=parent_blocker)
+            elif q_meta["kind"] == "unreadable":
+                row.update(status="blocked", note=f"quarantine copy is unreadable: {trash}")
+            elif o_meta["kind"] == "unreadable":
+                row.update(status="blocked", note=f"restore target path is not accessible: {origin}")
+            elif o_meta["kind"] != "missing":
+                row["status"] = "conflict"
+                try:
+                    self._validate_restore_preservation(origin)
+                except (OSError, ValueError):
+                    row["note"] = "force restore target overlaps quarantine storage"
+                else:
+                    row.update(force_preservable=True,
+                               note="origin path is occupied; ordinary restore refuses, --force preserves occupant first")
+            else:
+                row.update(force_preservable=True, note="ready to move back to origin path")
+        return row
+
+    @staticmethod
+    def _restore_selection_overlaps(tx, items):
+        def locations(item):
+            return [os.path.normcase(_physical_keep_final(item[field]))
+                    for field in ("origin_path", "trash_path")
+                    if _recorded_path_key(item.get(field)) is not None]
+
+        selected_ids = {id(item) for item in items}
+        selected = [path for item in items for path in locations(item)]
+        others = [path for item in tx["items"] if item.get("type") == "relocate"
+                  and id(item) not in selected_ids for path in locations(item)]
+        return any(inside_path(path, other) or inside_path(other, path)
+                   for path in selected for other in others)
+
+    def _restore_preflight(self, txid, tx, items, *, selective):
+        errors = []
         try:
             self._restore_transaction_dir(txid)
         except (OSError, ValueError):
-            tx_dir_ok = False
-            errors.append(
-                "restore source is outside its transaction or cannot be resolved")
+            errors.append("restore source is outside its transaction or cannot be resolved")
+        tx_dir_ok = not errors
+        review_reason = self._restore_review_reason(tx)
+        if review_reason:
+            errors.append(review_reason)
 
-        completed = {
-            (item.get("origin_path"), item.get("trash_path"))
-            for item in tx["items"] if item.get("type") == "relocate"
-        }
-        failed_map: Dict[Tuple[str, str], str] = {}
+        rows = [self._inspect_restore_item(txid, tx, item, tx_dir_ok) for item in items]
+        blocking = {"blocked", "failed"}
+        if selective and tx_dir_ok:
+            blocking.update(("boundary_error", "missing_copy"))
+        errors.extend(row["note"] for row in rows if row["status"] in blocking)
+        if selective and not errors:
+            try:
+                overlaps = self._restore_selection_overlaps(tx, items)
+            except (OSError, ValueError):
+                errors.append("restore selection scope could not be resolved")
+            else:
+                if overlaps:
+                    errors.append("restore selection overlaps an unselected relocation entry")
+        return rows, errors, tx_dir_ok, bool(review_reason)
+
+    def preview_restore(self, txid: str, *, force: bool = False,
+                        hash_max_bytes: int = 4 * 1024 * 1024, paths=None,
+                        cwd: Optional[str] = None) -> Dict[str, Any]:
+        """Read-only restore preflight and conflict comparison; writes nothing."""
+        from .messages import restore_guidance
+
+        schema = "restore_preview/v1"
+        refused = {"schema": schema, "ok": False}
+        if paths is not None:
+            refused.update(selected_paths=[], can_restore=False, can_restore_with_force=False)
+        if not isinstance(txid, str) or not _GC_TXID_RE.fullmatch(txid):
+            return {**refused, "error": "invalid quarantine transaction id"}
+        tx = self.transactions().get(txid)
+        if not tx:
+            return {**refused, "error": f"unknown transaction: {txid}"}
+        if tx.get("purged"):
+            return {**refused, "state": "PURGED", "error": "quarantine transaction was purged"}
+
+        items, selection = self._restore_selection(tx, paths, cwd=cwd)
+        if selection.get("error"):
+            return {**refused, **selection}
+        rows, errors, tx_dir_ok, manual_review_blocks = self._restore_preflight(
+            txid, tx, items, selective=paths is not None)
+
+        completed = {(item.get("origin_path"), item.get("trash_path"))
+                     for item in tx["items"] if item.get("type") == "relocate"}
+        failed_map = {}
         for failure in tx.get("failures", ()):
-            origin = failure.get("origin_path")
-            trash = failure.get("trash_path")
-            if isinstance(origin, str) and isinstance(trash, str):
+            origin, trash = failure.get("origin_path"), failure.get("trash_path")
+            if isinstance(origin, str) and isinstance(trash, str) and (origin, trash) not in completed:
                 failed_map[(origin, trash)] = str(failure.get("error") or "relocation failed")
-        unconfirmed = (set(failed_map) - completed) if not tx.get("purged") else set()
         manual_review_rows = [
-            {
-                "origin_path": origin,
-                "trash_path": trash,
-                "payload_exists": os.path.lexists(trash),
-                "error": failed_map[(origin, trash)],
-            }
-            for origin, trash in sorted(unconfirmed)
+            {"origin_path": origin, "trash_path": trash,
+             "payload_exists": os.path.lexists(trash), "error": failed_map[(origin, trash)]}
+            for origin, trash in sorted(failed_map)
         ]
-        manual_review_blocks = bool(
-            tx["manual_review_items"] and (not tx["items"] or tx["unconfirmed_payload_exists"])
-        )
-        if manual_review_blocks:
-            errors.append(
-                f"manual review required for {tx['manual_review_items']} failed "
-                "relocation item(s) without a completion record")
 
-        preview_items: List[Dict[str, Any]] = []
+        conflicts = [row for row in rows if row["status"] == "conflict"]
+        identical = 0
+        for row in conflicts:
+            comparison = self._compare_preview_entries(
+                row["trash_path"], row["origin_path"], row["quarantine_entry"],
+                row["occupant_entry"], hash_max_bytes)
+            row["comparison"] = comparison
+            if row["force_preservable"] and comparison["content_equal"] is True:
+                row["note"] = "occupant matches quarantine copy byte-for-byte; --force preserves occupant first"
+                identical += 1
+
+        relocations = Counter(row["status"] for row in rows if row["type"] == "relocate")
+        snapshots = Counter(row["status"] for row in rows if row["type"] == "snapshot")
         summary = {
-            "total_items": len(tx["items"]),
-            "ready_count": 0,
-            "conflict_count": 0,
-            "identical_conflict_count": 0,
-            "missing_copy_count": 0,
-            "boundary_error_count": 0,
-            "blocked_count": 0,
-            "snapshot_count": 0,
+            "total_items": len(items),
+            "ready_count": relocations["ready"],
+            "conflict_count": len(conflicts),
+            "identical_conflict_count": identical,
+            "missing_copy_count": relocations["missing_copy"],
+            "boundary_error_count": relocations["boundary_error"],
+            "blocked_count": relocations["blocked"],
+            "snapshot_count": snapshots["ready"],
             "manual_review_count": len(manual_review_rows),
+            "already_restored_count": relocations["already_restored"],
+            "retained_snapshot_count": snapshots["already_applied"],
         }
-        for item in tx["items"]:
-            kind = item.get("type")
-            if kind == "relocate":
-                origin = item.get("origin_path")
-                trash = item.get("trash_path")
-                row: Dict[str, Any] = {
-                    "type": "relocate",
-                    "origin_path": origin,
-                    "trash_path": trash,
-                    "recovered_from_intent": bool(item.get("recovered_from_intent")),
-                    "status": "ready",
-                    "quarantine_entry": None,
-                    "occupant_entry": None,
-                    "comparison": None,
-                    "force_preservable": False,
-                    "note": "",
-                }
-                boundary_note = None
-                if not tx_dir_ok:
-                    boundary_note = "restore source is outside its transaction or cannot be resolved"
-                else:
-                    try:
-                        self._validate_restore_target(origin)
-                    except (OSError, ValueError):
-                        boundary_note = "restore target is outside workspace or cannot be resolved"
-                    if boundary_note is None:
-                        try:
-                            self._validate_restore_source(trash, txid)
-                        except (OSError, ValueError):
-                            boundary_note = "restore source is outside its transaction or cannot be resolved"
-                if boundary_note is not None:
-                    row["status"] = "boundary_error"
-                    row["note"] = boundary_note
-                    summary["boundary_error_count"] += 1
-                    preview_items.append(row)
-                    continue
-
-                q_meta = self._preview_entry_metadata(trash)
-                parent_blocker = self._restore_parent_blocker(origin)
-                o_meta = self._preview_entry_metadata(origin)
-                row["quarantine_entry"] = q_meta
-                row["occupant_entry"] = o_meta
-                if q_meta["kind"] == "missing":
-                    row["status"] = "missing_copy"
-                    row["note"] = "quarantine copy is missing"
-                    summary["missing_copy_count"] += 1
-                elif parent_blocker is not None:
-                    row["status"] = "blocked"
-                    row["force_preservable"] = False
-                    row["note"] = parent_blocker
-                    summary["blocked_count"] += 1
-                    errors.append(parent_blocker)
-                elif q_meta["kind"] == "unreadable" or o_meta["kind"] == "unreadable":
-                    note = (f"quarantine copy is unreadable: {trash}"
-                            if q_meta["kind"] == "unreadable"
-                            else f"restore target path is not accessible: {origin}")
-                    row["status"] = "blocked"
-                    row["force_preservable"] = False
-                    row["note"] = note
-                    summary["blocked_count"] += 1
-                    errors.append(note)
-                elif o_meta["kind"] != "missing":
-                    row["status"] = "conflict"
-                    comparison = self._compare_preview_entries(
-                        trash, origin, q_meta, o_meta, hash_max_bytes)
-                    row["comparison"] = comparison
-                    preservable = True
-                    try:
-                        self._validate_restore_preservation(origin)
-                    except (OSError, ValueError):
-                        preservable = False
-                    row["force_preservable"] = preservable
-                    if not preservable:
-                        row["note"] = "force restore target overlaps quarantine storage"
-                    elif comparison["content_equal"] is True:
-                        row["note"] = "occupant matches quarantine copy byte-for-byte; --force preserves occupant first"
-                        summary["identical_conflict_count"] += 1
-                    else:
-                        row["note"] = "origin path is occupied; ordinary restore refuses, --force preserves occupant first"
-                    summary["conflict_count"] += 1
-                else:
-                    row["status"] = "ready"
-                    row["force_preservable"] = True
-                    row["note"] = "ready to move back to origin path"
-                    summary["ready_count"] += 1
-                preview_items.append(row)
-            elif kind == "snapshot":
-                sha = item.get("sha")
-                if sha:
-                    summary["snapshot_count"] += 1
-                preview_items.append({
-                    "type": "snapshot",
-                    "sha": sha,
-                    "status": "ready" if sha else "empty",
-                    "note": ("git stash apply; stored stash is retained"
-                             if sha else "working tree was clean; nothing to apply"),
-                })
-
-        has_actionable = bool(
-            summary["ready_count"] or summary["conflict_count"] or summary["snapshot_count"]
-        )
-        has_blocking = bool(
-            errors or summary["boundary_error_count"] or summary["missing_copy_count"]
-            or summary["blocked_count"] or manual_review_blocks
-        )
-        all_conflicts_preservable = all(
-            row["force_preservable"] for row in preview_items if row.get("status") == "conflict"
-        )
-        can_restore = (
-            not has_blocking and summary["conflict_count"] == 0 and has_actionable
-        )
-        can_restore_with_force = (
-            not has_blocking and has_actionable and all_conflicts_preservable
-        )
-        if force and summary["conflict_count"] and not all_conflicts_preservable:
-            errors.append(
-                "force restore target overlaps quarantine storage or cannot be resolved")
+        has_actionable = bool(relocations["ready"] or conflicts or snapshots["ready"])
+        has_blocking = bool(errors or relocations["boundary_error"] or relocations["missing_copy"])
+        all_conflicts_preservable = all(row["force_preservable"] for row in conflicts)
+        can_restore = not has_blocking and not conflicts and has_actionable
+        can_restore_with_force = not has_blocking and has_actionable and all_conflicts_preservable
+        if force and conflicts and not all_conflicts_preservable:
+            errors.append("force restore target overlaps quarantine storage or cannot be resolved")
         return {
-            "schema": "restore_preview/v1",
-            "ok": tx_dir_ok and summary["boundary_error_count"] == 0,
+            "schema": schema,
+            "ok": tx_dir_ok and not relocations["boundary_error"],
             "txid": txid,
             "ts": tx.get("ts"),
-            "state": tx.get("state", "EMPTY"),
+            "state": tx["state"],
             "workspace": self.workspace,
             "trash_root": self.trash_root,
             "force_requested": bool(force),
             "can_restore": can_restore,
             "can_restore_with_force": can_restore_with_force,
             "summary": summary,
-            "items": preview_items,
+            "items": rows,
             "manual_review": manual_review_rows,
             "errors": errors,
+            **selection,
             "next_step": restore_guidance(
                 txid, self.workspace, self.trash_root,
                 can_restore=can_restore,
                 can_restore_with_force=can_restore_with_force,
-                has_conflicts=bool(summary["conflict_count"]),
+                has_conflicts=bool(conflicts),
                 has_manual_review=manual_review_blocks,
+                selected_paths=selection.get("selected_paths"),
             ),
         }
 
-    def restore(self, txid: str, force: bool = False,
-                cwd: Optional[str] = None) -> Dict[str, Any]:
-        """Undo one transaction. Refuses to overwrite unless force is set.
-
-        Relocate items move back to their origin paths; snapshot items apply
-        the stored stash (apply, never drop - the evidence stays until a
-        human prunes it). Relocation targets must remain inside this
-        workspace and sources inside their own quarantine transaction;
-        force does not override either check. A forced overwrite first
-        preserves the current occupant in a separate relocation transaction.
-        backup_txids identifies preservation attempts, including failed ones.
-        """
-        if not isinstance(txid, str) or not _GC_TXID_RE.fullmatch(txid):
-            return {"ok": False, "error": "invalid quarantine transaction id"}
-        transactions = self.transactions()
-        tx = transactions.get(txid)
-        if not tx:
-            return {"ok": False, "error": f"unknown transaction: {txid}"}
-        restored: List[str] = []
-        conflicts: List[str] = []
-        errors: List[str] = []
-        items = tx["items"]
-        manual_review = tx["manual_review_items"]
-        if manual_review and (not items or tx["unconfirmed_payload_exists"]):
-            errors.append(f"manual review required for {manual_review} failed "
-                          "relocation item(s) without a completion record")
-        backup_txids: List[str] = []
-        known_txids = set(transactions)
+    def _legacy_restore_boundary_error(self, txid, items, force):
         try:
             self._restore_transaction_dir(txid)
         except (OSError, ValueError):
-            errors.append(
-                "restore source is outside its transaction or cannot be resolved")
-            items = []
+            return "restore source is outside its transaction or cannot be resolved"
+        relocations = [item for item in items if item.get("type") == "relocate"]
         try:
-            # Check every destination before restoring an earlier valid item
-            # or removing an existing occupant under force.
+            for item in relocations:
+                self._validate_restore_target(item.get("origin_path"))
+        except (OSError, ValueError):
+            return "restore target is outside workspace or cannot be resolved"
+        try:
+            for item in relocations:
+                self._validate_restore_source(item.get("trash_path"), txid)
+        except (OSError, ValueError):
+            return "restore source is outside its transaction or cannot be resolved"
+        if force:
+            try:
+                for item in relocations:
+                    if os.path.lexists(item["origin_path"]):
+                        self._validate_restore_preservation(item["origin_path"])
+            except (OSError, ValueError):
+                return "force restore target overlaps quarantine storage or cannot be resolved"
+        return None
+
+    def _prune_restored_parents(self, txid, tx, moved_sources):
+        """Remove only empty, unowned parents left by journaled moves."""
+        if not moved_sources:
+            return
+        try:
+            root = os.path.normcase(_physical(self._restore_transaction_dir(txid)))
+            protected = {
+                os.path.normcase(_physical_keep_final(item["trash_path"]))
+                for group in (tx["items"], tx.get("failures", ())) for item in group
+                if _recorded_path_key(item.get("trash_path")) is not None
+            }
+        except (OSError, ValueError):
+            return
+        for source in moved_sources:
+            parent = os.path.dirname(source)
+            while parent:
+                try:
+                    location = os.path.normcase(_physical_keep_final(parent))
+                    if location in protected or not inside_path(location, root):
+                        break
+                    info = os.lstat(parent)
+                    attributes = getattr(info, "st_file_attributes", 0)
+                    if not stat.S_ISDIR(info.st_mode) or attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT:
+                        break
+                    os.rmdir(parent)
+                except (OSError, ValueError):
+                    break
+                if location == root:
+                    break
+                parent = os.path.dirname(parent)
+
+    def restore(self, txid: str, force: bool = False,
+                cwd: Optional[str] = None, *, paths=None) -> Dict[str, Any]:
+        """Undo one transaction or preflight and restore a selection of entries.
+
+        Relocations return to their recorded origins; Git snapshots are
+        applied and retained. Force preserves an existing occupant in a
+        separate transaction first. backup_txids records those attempts.
+        """
+        refused = {"ok": False}
+        if paths is not None:
+            refused.update(selected_paths=[], restored=[])
+        if not isinstance(txid, str) or not _GC_TXID_RE.fullmatch(txid):
+            return {**refused, "error": "invalid quarantine transaction id"}
+        transactions = self.transactions()
+        tx = transactions.get(txid)
+        if not tx:
+            return {**refused, "error": f"unknown transaction: {txid}"}
+        if tx.get("purged"):
+            return {**refused, "state": "PURGED", "error": "quarantine transaction was purged"}
+
+        items, selection = self._restore_selection(tx, paths, cwd=cwd)
+        if selection.get("error"):
+            return {**refused, **selection}
+        restored: List[str] = []
+        conflicts: List[str] = []
+        errors: List[str] = []
+        report = {"ok": False, "restored": restored, "conflicts": conflicts, "errors": errors, **selection}
+        if paths is not None:
+            rows, blocking, _, _ = self._restore_preflight(txid, tx, items, selective=True)
+            errors.extend(blocking)
+            occupied = [row for row in rows if row["status"] == "conflict"]
+            if force and any(not row["force_preservable"] for row in occupied):
+                errors.append("force restore target overlaps quarantine storage or cannot be resolved")
+            if not force:
+                conflicts.extend(row["origin_path"] for row in occupied)
+            if errors or conflicts:
+                return report
+        else:
+            review_reason = self._restore_review_reason(tx)
+            if review_reason:
+                errors.append(review_reason)
+            pending = []
             for item in items:
                 if item.get("type") == "relocate":
-                    self._validate_restore_target(item.get("origin_path"))
-        except (OSError, ValueError):
-            errors.append(
-                "restore target is outside workspace or cannot be resolved")
-            items = []
-        try:
-            for item in items:
-                if item.get("type") == "relocate":
-                    self._validate_restore_source(item.get("trash_path"), txid)
-        except (OSError, ValueError):
-            errors.append(
-                "restore source is outside its transaction or cannot be resolved")
-            items = []
-        try:
-            for item in items:
-                if (force and item.get("type") == "relocate" and
-                        os.path.lexists(item["origin_path"])):
-                    self._validate_restore_preservation(item["origin_path"])
-        except (OSError, ValueError):
-            errors.append(
-                "force restore target overlaps quarantine storage or cannot be resolved")
-            items = []
+                    origin = item.get("origin_path")
+                    status = tx["_restore_origins"].get(_recorded_path_key(origin))
+                    if status == "already_restored":
+                        report.setdefault("already_restored", []).append(origin)
+                    elif status == "blocked":
+                        errors.append("a copy reappeared after restore; manual review required")
+                    else:
+                        pending.append(item)
+                else:
+                    status = _snapshot_restore_status(item, tx["_applied_stashes"])
+                    if status == "already_applied":
+                        report.setdefault("already_applied", []).append(item["sha"])
+                    elif status == "failed":
+                        errors.append("Git snapshot was not stored")
+                    elif status == "ready":
+                        pending.append(item)
+            boundary_error = self._legacy_restore_boundary_error(txid, pending, force)
+            if boundary_error:
+                errors.append(boundary_error)
+                pending = []
+            items = pending
+            if not items and not errors:
+                report["ok"] = True
+                return report
+
+        backup_txids: List[str] = []
+        moved_sources: List[str] = []
+        known_txids = set(transactions)
+        applied = set()
         for item in items:
             if item.get("type") == "relocate":
                 origin = item["origin_path"]
@@ -1140,16 +1343,22 @@ class RecoveryEngine:
                     if copied_source is not None:
                         self._remove_copied_source(trash, copied_source)
                     restored.append(origin)
+                    moved_sources.append(trash)
                 except OSError as exc:
                     errors.append(f"{origin}: {exc}")
             elif item.get("type") == "snapshot":
-                sha = item.get("sha")
-                if not sha:
+                sha = item["sha"]
+                if sha in applied:
                     continue
-                apply = subprocess.run(
-                    ["git", "-C", cwd or self.workspace, "stash", "apply", sha],
-                    capture_output=True, text=True, timeout=60)
+                try:
+                    apply = subprocess.run(
+                        ["git", "-C", cwd or self.workspace, "stash", "apply", sha],
+                        capture_output=True, text=True, timeout=60)
+                except (OSError, ValueError, subprocess.TimeoutExpired):
+                    errors.append("git stash apply could not complete; inspect Git state")
+                    continue
                 if apply.returncode == 0:
+                    applied.add(sha)
                     restored.append(f"stash:{sha}")
                 else:
                     errors.append(
@@ -1159,19 +1368,13 @@ class RecoveryEngine:
             self._manifest_append([{
                 "type": "restore", "txid": txid, "force": force,
                 "restored": restored, "conflicts": conflicts, "errors": errors,
+                **({"selected_paths": selection["selected_paths"]} if paths is not None else {}),
             }])
         except OSError:
             errors.append("restore journal could not be stored; inspect filesystem state")
-        # drop empty quarantine directories for tidy listings
-        try:
-            if not errors:
-                txdir = self._restore_transaction_dir(txid)
-                if os.path.isdir(txdir) and not os.listdir(txdir):
-                    os.rmdir(txdir)
-        except (OSError, ValueError):
-            pass
-        report = {"ok": not errors and not conflicts,
-                  "restored": restored, "conflicts": conflicts, "errors": errors}
+        else:
+            self._prune_restored_parents(txid, tx, moved_sources)
+        report["ok"] = not errors and not conflicts
         if backup_txids:
             report["backup_txids"] = backup_txids
         return report

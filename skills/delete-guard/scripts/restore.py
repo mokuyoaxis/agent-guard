@@ -2,8 +2,8 @@
 """restore - inspect or undo a guarded deletion transaction.
 
     restore.py list [--json]
-    restore.py preview TXID [--force] [--json]
-    restore.py [restore] TXID [--preview] [--force] [--json] [--view summary|full]
+    restore.py preview TXID [--path PATH ...] [--force] [--json]
+    restore.py [restore] TXID [--path PATH ...] [--preview] [--force] [--json] [--view summary|full]
 
 Preview is strictly read-only: it never writes files, manifests or audit records.
 Restore is non-destructive by default: it refuses to overwrite anything now
@@ -50,10 +50,11 @@ def resolve_txid(engine, raw_txid):
     return match if match is not None else raw_txid
 
 
-def restore_audit_event(txid, force, report):
+def restore_audit_event(txid, force, report, *, selective=False):
     """Non-recovery metadata only; exact paths/errors stay in the result/journal."""
     event = {
         "event": "restore", "force": force, "ok": report.get("ok"),
+        "selective": selective, "selected_count": len(report.get("selected_paths", [])),
         "restored_count": len(report.get("restored", [])),
         "conflict_count": len(report.get("conflicts", [])),
         "error_count": len(report.get("errors", [])) + bool(report.get("error")),
@@ -81,6 +82,12 @@ def print_preview(report):
     summary = report["summary"]
     print(f"restore preview: {report['txid']} ({report['state']})")
     print(f"quarantine     : {report['trash_root']}")
+    if "selected_paths" in report and not report.get("error"):
+        print(
+            f"selection      : {len(report['selected_paths'])} selected "
+            f"(omitted: {report.get('omitted_relocate_count', 0)} relocations, "
+            f"{report.get('omitted_snapshot_count', 0)} snapshots)"
+        )
     print(
         f"summary        : ready={summary['ready_count']} "
         f"conflicts={summary['conflict_count']} "
@@ -88,6 +95,8 @@ def print_preview(report):
         f"blocked={summary.get('blocked_count', 0)} "
         f"missing={summary['missing_copy_count']} "
         f"snapshots={summary['snapshot_count']} "
+        f"already_restored={summary['already_restored_count']} "
+        f"retained_snapshots={summary['retained_snapshot_count']} "
         f"manual_review={summary['manual_review_count']}"
     )
     print(
@@ -137,12 +146,16 @@ def main() -> int:
     lp.add_argument("--json", action="store_true", dest="as_json")
     pp = sub.add_parser("preview")
     pp.add_argument("txid")
+    pp.add_argument("--path", dest="paths", action="append",
+                    help="select a recorded origin path (repeat for multiple entries)")
     pp.add_argument("--force", action="store_true")
     pp.add_argument("--exact-txid", action="store_true",
                     help="require a complete transaction ID (disable CLI prefix matching)")
     pp.add_argument("--json", action="store_true", dest="as_json")
     rp = sub.add_parser("restore")
     rp.add_argument("txid")
+    rp.add_argument("--path", dest="paths", action="append",
+                    help="select a recorded origin path (repeat for multiple entries)")
     rp.add_argument("--preview", action="store_true",
                     help="read-only restore preflight without modifying files or audit logs")
     rp.add_argument("--force", action="store_true")
@@ -156,6 +169,9 @@ def main() -> int:
     if argv and argv[0] not in ("list", "preview", "restore", "-h", "--help"):
         argv = ["restore"] + argv
     args = ap.parse_args(argv)
+    paths = getattr(args, "paths", None)
+    if paths is not None and any(not path for path in paths):
+        ap.error("--path requires a nonempty literal path")
 
     engine = context()
 
@@ -166,6 +182,7 @@ def main() -> int:
                     "items": len(t["items"]),
                     "restorable_items": t.get("restorable_items", 0),
                     "manual_review_items": t["manual_review_items"],
+                    **{field: t[field] for field in recovery.RESTORE_ITEM_COUNTS},
                     "state": t.get("state", "EMPTY"),
                     "strategies": sorted({i.get("type") for i in t["items"]})}
                    for t in txs.values()]
@@ -201,15 +218,15 @@ def main() -> int:
             return 2
 
     if is_preview:
-        report = engine.preview_restore(txid, force=args.force)
+        report = engine.preview_restore(txid, force=args.force, paths=paths, cwd=os.getcwd())
         if args.as_json:
             print(json.dumps(report, ensure_ascii=False, indent=2))
         else:
             print_preview(report)
         return 0 if report.get("ok") else 1
 
-    report = engine.restore(txid, force=args.force)
-    event = restore_audit_event(txid, args.force, report)
+    report = engine.restore(txid, force=args.force, cwd=os.getcwd(), paths=paths)
+    event = restore_audit_event(txid, args.force, report, selective=paths is not None)
     try:
         audit.append(event, os.path.join(engine.trash_root, AUDIT_NAME))
     except OSError:
@@ -226,10 +243,20 @@ def main() -> int:
         print(format_execution_summary(report["execution_summary"]))
     else:
         print(format_execution_summary(report["execution_summary"]))
+        if "selected_paths" in report and not report.get("error"):
+            print(
+                f"selection: {len(report['selected_paths'])} selected "
+                f"(omitted: {report.get('omitted_relocate_count', 0)} relocations, "
+                f"{report.get('omitted_snapshot_count', 0)} snapshots)"
+            )
         for backup_id in report.get("backup_txids", []):
             print(f"current-version preservation transaction: {backup_id} (inspect state)")
         for path in report.get("restored", []):
             print(f"restored: {path}")
+        for path in report.get("already_restored", []):
+            print(f"already restored: {path}")
+        for sha in report.get("already_applied", []):
+            print(f"stash already applied: {sha}")
         for path in report.get("conflicts", []):
             print(f"conflict (exists; use --force): {path}")
         for err in report.get("errors", []):

@@ -92,18 +92,24 @@ TOOL_DEFINITIONS = {
         "required": ["paths"], "read_only": False, "destructive": True,
     },
     "restore": {
-        "description": ("Restore one transaction returned by transactions, without overwriting an existing occupant. "
-                        "No force option. Ordinary restore leaves deletion budget usage unchanged. "
+        "description": ("Restore a transaction or select whole relocation entries with literal paths. "
+                        "The selected batch must pass preflight before any move. "
+                        "Ordinary restore preserves occupied origins and leaves deletion budget usage unchanged. "
                         "Inspect the returned per-item result and filesystem after partial errors."),
-        "properties": {"txid": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"}},
+        "properties": {"txid": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"},
+                       "paths": {"type": "array", "items": {"type": "string", "minLength": 1},
+                                 "minItems": 1, "maxItems": 1000,
+                                 "description": "Optional literal origin paths, relative to the bound workspace or absolute."}},
         "required": ["txid"], "read_only": False, "destructive": False,
     },
     "restore_preview": {
-        "description": ("Read-only restore preflight for one transaction ID returned by transactions. "
+        "description": ("Read-only restore preflight for a transaction or an explicit selection of whole relocation entries. "
                         "Checks workspace/quarantine boundaries, missing copies, failed cross-filesystem manual_review items, "
-                        "and compares occupied origins against quarantine copies without modifying files or writing audit logs. "
-                        "Never overwrites or exposes --force."),
-        "properties": {"txid": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"}},
+                        "and compares occupied origins against quarantine copies."),
+        "properties": {"txid": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"},
+                       "paths": {"type": "array", "items": {"type": "string", "minLength": 1},
+                                 "minItems": 1, "maxItems": 1000,
+                                 "description": "Optional literal origin paths, relative to the bound workspace or absolute."}},
         "required": ["txid"], "read_only": True, "destructive": False,
     },
     "transactions": {

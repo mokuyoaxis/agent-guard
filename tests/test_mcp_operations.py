@@ -593,6 +593,11 @@ class McpOperations(RepoFixture):
                ("status", {"view": "overview", "measure_storage": True, "max_measure_entries": 200001}),
                ("gc_plan", {"execute": True}),
                ("transactions", {"workspace": "/"}), ("unknown", {}), ("status", None)]
+        bad.extend(
+            (tool, {"txid": "id", "paths": invalid})
+            for tool in ("restore", "restore_preview")
+            for invalid in (None, [], "file", [""], ["item\0name"], ["file "], ["x"] * 1001)
+        )
         with mock.patch("adapters.mcp.operations.subprocess.run") as run:
             for name, args in bad:
                 with self.subTest(name=name, args=args):

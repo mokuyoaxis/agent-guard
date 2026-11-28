@@ -42,6 +42,14 @@ class InvalidArguments(ValueError):
     """An unsupported MCP argument, before any CLI is started."""
 
 
+def _validate_literal_paths(paths):
+    if (not isinstance(paths, list) or not 1 <= len(paths) <= MAX_PATHS
+            or any(not isinstance(path, str) or not path or "\0" in path for path in paths)):
+        raise InvalidArguments("paths must contain 1 through 1000 nonempty literal paths")
+    if any(os.path.normpath(path)[-1].isspace() for path in paths):
+        raise InvalidArguments("literal paths cannot end in whitespace")
+
+
 def _inside(path, root):
     try:
         return os.path.commonpath((os.path.normcase(path), os.path.normcase(root))) == os.path.normcase(root)
@@ -121,7 +129,7 @@ class Operations:
         if not isinstance(arguments, dict):
             raise InvalidArguments("tool arguments must be an object")
         allowed = {"safe_delete": {"paths", "dry_run", "quarantine"},
-                   "restore": {"txid"}, "restore_preview": {"txid"},
+                   "restore": {"txid", "paths"}, "restore_preview": {"txid", "paths"},
                    "status": {"tail", "view", "limit", "measure_storage", "max_measure_entries"}, "transactions": set(), "gc_plan": set(),
                    "cleanup_discover": {"scopes", "max_entries", "max_depth"},
                    "cleanup_measure": {"scopes", "max_entries", "max_depth"},
@@ -188,14 +196,7 @@ class Operations:
             if not isinstance(identifier, str) or not PLAN_ID_RE.fullmatch(identifier):
                 raise InvalidArguments("saved_plan_id must be a 64-character lowercase hexadecimal saved plan ID")
         elif name == "safe_delete":
-            paths = result.get("paths")
-            if (not isinstance(paths, list) or not 1 <= len(paths) <= MAX_PATHS
-                    or any(not isinstance(path, str) or not path or "\0" in path for path in paths)):
-                raise InvalidArguments("paths must contain 1 through 1000 nonempty literal paths")
-            if any(os.path.normpath(path)[-1].isspace() for path in paths):
-                # The existing path classifier strips terminal whitespace.
-                # Refuse rather than let a literal tool select a neighbor.
-                raise InvalidArguments("literal paths cannot end in whitespace")
+            _validate_literal_paths(result.get("paths"))
             if type(result.get("dry_run", False)) is not bool:
                 raise InvalidArguments("dry_run must be a boolean")
             result["dry_run"] = result.get("dry_run", False)
@@ -204,10 +205,10 @@ class Operations:
             result["quarantine"] = result.get("quarantine", False)
         elif name in ("restore", "restore_preview"):
             txid = result.get("txid")
-            # Match the recovery engine's transaction-ID grammar at this
-            # untrusted tool boundary; no filesystem path or CLI option.
             if not isinstance(txid, str) or not TXID_RE.fullmatch(txid):
                 raise InvalidArguments("txid must use the recovery transaction-ID format")
+            if "paths" in result:
+                _validate_literal_paths(result["paths"])
         elif name == "status":
             if type(result.get("tail", 10)) is not int or not 0 <= result.get("tail", 10) <= 100:
                 raise InvalidArguments("tail must be an integer between 0 and 100")
@@ -365,10 +366,10 @@ class Operations:
             # The CLI expands globs. Escape each absolute target so a literal
             # filename such as '[old]*.txt' cannot select adjacent files.
             command += ["--", *(glob.escape(path) for path in paths)]
-        elif name == "restore":
-            command = ["restore.py", "restore", "--exact-txid", "--json", "--", args["txid"]]
-        elif name == "restore_preview":
-            command = ["restore.py", "preview", "--exact-txid", "--json", "--", args["txid"]]
+        elif name in ("restore", "restore_preview"):
+            action = "restore" if name == "restore" else "preview"
+            command = ["restore.py", action, "--exact-txid", "--json",
+                       *(f"--path={path}" for path in args.get("paths", ())), "--", args["txid"]]
         elif name == "transactions":
             command = ["restore.py", "list", "--json"]
         elif name == "status":

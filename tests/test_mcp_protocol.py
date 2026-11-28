@@ -401,6 +401,48 @@ class McpProtocolTests(unittest.TestCase):
         self.assertEqual(sorted(str(p.relative_to(self.workspace)) for p in self.workspace.rglob("*")), before)
         self.assertEqual((self.workspace / ".agent-trash" / "audit.jsonl").read_bytes(), audit_before)
 
+    def test_selection_is_shared_by_restore_and_preview_over_real_stdio(self):
+        first = self.workspace / "first.txt"
+        second = self.workspace / "-second.txt"
+        first.write_bytes(b"first synthetic copy")
+        second.write_bytes(b"second synthetic copy")
+        connection = self.start()
+        definitions = {tool["name"]: tool for tool in connection.request("tools/list", {})["result"]["tools"]}
+        for name in ("restore", "restore_preview"):
+            schema = definitions[name]["inputSchema"]
+            self.assertEqual(schema["required"], ["txid"])
+            self.assertEqual(schema["properties"]["paths"]["minItems"], 1)
+            self.assertEqual(schema["properties"]["paths"]["maxItems"], 1000)
+            self.assertNotIn("force", schema["properties"])
+
+        quarantined = self.content(connection.call("safe_delete", paths=[first.name, second.name]))
+        self.assertTrue(quarantined["ok"], quarantined)
+        txid = quarantined["result"]["txid"]
+        trash = self.workspace / ".agent-trash"
+        before = {name: (trash / name).read_bytes() for name in ("manifest.jsonl", "audit.jsonl")}
+        preview = self.content(connection.call("restore_preview", txid=txid, paths=[second.name]))
+        self.assertTrue(preview["result"]["can_restore"], preview)
+        self.assertEqual(preview["result"]["selected_paths"], [str(second.resolve())])
+        for name, payload in before.items():
+            self.assertEqual((trash / name).read_bytes(), payload)
+
+        selected = self.content(connection.call("restore", txid=txid, paths=[second.name]))
+        self.assertTrue(selected["ok"], selected)
+        self.assertEqual(second.read_bytes(), b"second synthetic copy")
+        self.assertFalse(first.exists())
+        journal = (trash / "manifest.jsonl").read_bytes()
+        mixed = self.content(connection.call("restore", txid=txid, paths=[first.name, second.name]))
+        self.assertFalse(mixed["ok"], mixed)
+        self.assertEqual(mixed["result"]["restored"], [])
+        self.assertEqual((trash / "manifest.jsonl").read_bytes(), journal)
+        listed = self.content(connection.call("transactions"))["result"]["transactions"][0]
+        self.assertEqual((listed["state"], listed["restorable_items"]), ("RESTORABLE", 1))
+        finished = self.content(connection.call("restore", txid=txid))
+        self.assertTrue(finished["ok"], finished)
+        self.assertEqual(first.read_bytes(), b"first synthetic copy")
+        listed = self.content(connection.call("transactions"))["result"]["transactions"][0]
+        self.assertEqual((listed["state"], listed["restorable_items"]), ("RESTORED", 0))
+
     def test_status_measure_storage_reports_complete_and_partial_over_real_stdio(self):
         connection = self.start()
         definitions = {tool["name"]: tool for tool in connection.request("tools/list", {})["result"]["tools"]}

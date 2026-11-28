@@ -39,12 +39,12 @@ def _ps_quote(value: str) -> str:
     return "'" + text + "'"
 
 
-def _storage_env(workspace, trash_root):
+def _storage_env(workspace, trash_root, *, include_default=False):
     if workspace is None or trash_root is None:
         return {}
     workspace = os.path.realpath(workspace)
     trash_root = os.path.abspath(trash_root)
-    if trash_root == os.path.join(workspace, ".agent-trash"):
+    if not include_default and trash_root == os.path.join(workspace, ".agent-trash"):
         return {}
     return {
         "AGENT_GUARD_WORKSPACE": workspace,
@@ -200,15 +200,21 @@ def gc_guidance(workspace=None, trash_root=None, *, txid=None, platform=None):
 def restore_guidance(txid, workspace=None, trash_root=None, *,
                      can_restore=False, can_restore_with_force=False,
                      has_conflicts=False, has_manual_review=False,
-                     platform=None):
+                     platform=None, selected_paths=None):
     """Read-only next-step guidance for restore preview; never executes restore."""
     script = Path(__file__).resolve().parent.parent / "skills/delete-guard/scripts/restore.py"
     target_os = os.name if platform is None else platform
-    base = [sys.executable, str(script)]
-    env_vars = _storage_env(workspace, trash_root)
+    base = [sys.executable, str(script), "restore"]
+    env_vars = _storage_env(workspace, trash_root, include_default=selected_paths is not None)
     shell_label = "PowerShell commands" if target_os == "nt" else "POSIX-shell commands"
-    ordinary = format_command(base + ["restore", "--", txid], env_vars, platform=target_os)
-    forced = format_command(base + ["restore", "--force", "--", txid], env_vars, platform=target_os)
+    if selected_paths is not None:
+        base += ["--exact-txid", *(f"--path={path}" for path in selected_paths)]
+    ordinary = None
+    if selected_paths is None or (selected_paths and can_restore):
+        ordinary = format_command(base + ["--", txid], env_vars, platform=target_os)
+    forced = None
+    if has_conflicts and can_restore_with_force and (selected_paths is None or selected_paths):
+        forced = format_command(base + ["--force", "--", txid], env_vars, platform=target_os)
     if has_manual_review:
         action = "manual_review"
         message = ("Inspect failed cross-filesystem relocation items before restoring. "
@@ -229,7 +235,7 @@ def restore_guidance(txid, workspace=None, trash_root=None, *,
         "action": action,
         "message": message,
         "restore_command": ordinary,
-        "force_restore_command": forced if has_conflicts and can_restore_with_force else None,
+        "force_restore_command": forced,
         "note": f"{shell_label}. Preview is read-only and rechecked on execution.",
     }
 

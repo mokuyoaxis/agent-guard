@@ -27,7 +27,7 @@ _TIMESTAMP_RE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{
 _HASH_RE = re.compile(r"[0-9a-f]{64}\Z")
 _GIT_SHA_RE = re.compile(r"[0-9a-f]{40}(?:[0-9a-f]{24})?\Z")
 _COUNTS = frozenset({
-    "target_count", "moved_count", "skipped_count", "restored_count",
+    "target_count", "moved_count", "skipped_count", "restored_count", "selected_count",
     "conflict_count", "error_count", "missing_count", "moved", "skipped",
     "enumerated", "start", "end", "length",
     "span_count", "redacted_count", "exempted_count", "omitted_span_count", "size_bytes",
@@ -116,7 +116,7 @@ def project(record: Dict[str, Any]) -> Dict[str, Any]:
         value = record.get(key)
         if type(value) is int and value >= 0:
             stored[key] = value
-    for key in ("force", "ok", "exempted"):
+    for key in ("force", "ok", "exempted", "selective"):
         if type(record.get(key)) is bool:
             stored[key] = record[key]
     latency = record.get("guard_latency_ms")

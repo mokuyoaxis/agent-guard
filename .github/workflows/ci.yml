@@ -131,6 +131,7 @@ jobs:
             tests.test_exfil_sanitize.FormatPreservation.test_native_windows_user_path_uses_exact_bytes_and_sanitizes `
             tests.test_safe_read.SafeReadPlatformAndBoundaryTests `
             tests.test_quarantine_measurement `
+            tests.test_partial_restore `
             *> windows-core-test-output.txt
           $testExit = $LASTEXITCODE
           Get-Content windows-core-test-output.txt
