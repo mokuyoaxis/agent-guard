@@ -25,7 +25,7 @@ import sys
 import tarfile
 import tempfile
 import time
-from typing import Any, Optional, Sequence
+from typing import Any, Callable, Optional, Sequence
 from urllib.parse import urlsplit
 import zlib
 
@@ -244,7 +244,10 @@ def _write_new_json(path: Path, value: Any, mode: int = 0o600) -> None:
     _write_new_bytes(path, _canonical_bytes(value) + b"\n", mode)
 
 
-def _atomic_write_json(path: Path, value: Any, mode: int = 0o600) -> None:
+def _atomic_write_json(
+    path: Path, value: Any, mode: int = 0o600, *,
+    publish: Optional[Callable[[Path, Path], None]] = None,
+) -> None:
     if path.is_symlink():
         raise LabError("refusing to replace a symlinked evidence artifact")
     descriptor, temporary_name = tempfile.mkstemp(
@@ -257,7 +260,8 @@ def _atomic_write_json(path: Path, value: Any, mode: int = 0o600) -> None:
             output.write(_canonical_bytes(value) + b"\n")
             output.flush()
             os.fsync(output.fileno())
-        os.replace(temporary, path)
+        install = os.replace if publish is None else publish
+        install(temporary, path)
     finally:
         if temporary.exists():
             try:
@@ -1075,6 +1079,37 @@ def _check_observer_startup_stop(evidence: Path, *, ready: bool = False) -> None
     raise _ObserverStartupCancelled("observer startup was cancelled")
 
 
+def _install_observer_stop(temporary: Path, stop_path: Path) -> None:
+    if os.name == "nt":
+        try:
+            os.rename(temporary, stop_path)
+        except FileExistsError:
+            pass  # The first controller to publish wins.
+        return
+
+    import fcntl
+
+    # The run metadata is stable after preparation. Serialize the final
+    # existence check and rename on it without locking observer reads.
+    with (stop_path.parent / "run.json").open("rb") as run_file:
+        fcntl.flock(run_file, fcntl.LOCK_EX)
+        if not os.path.lexists(stop_path):
+            os.replace(temporary, stop_path)
+
+
+def _publish_observer_stop(evidence: Path, *, reason: Optional[str] = None) -> None:
+    stop_path = evidence / "stop.request"
+    if stop_path.exists():
+        return
+    request = {"schema_version": SCHEMA_VERSION, "requested_at": _now()}
+    if reason is not None:
+        request["reason"] = reason
+    try:
+        _atomic_write_json(stop_path, request, publish=_install_observer_stop)
+    except OSError as exc:
+        raise LabError("observer stop request could not be written") from exc
+
+
 def arm_observer(evidence_dir: Path, duration: int = 60) -> dict[str, Any]:
     if duration < MIN_DURATION_SECONDS or duration > MAX_DURATION_SECONDS:
         raise LabError("observer duration is outside the supported range")
@@ -1164,16 +1199,10 @@ def arm_observer(evidence_dir: Path, duration: int = 60) -> dict[str, Any]:
             raise LabError("observer exited before becoming ready")
         time.sleep(0.05)
     _observer_arm_note(evidence, "ARM_TIMEOUT")
-    stop_path = evidence / "stop.request"
-    if not stop_path.exists():
-        try:
-            _write_new_json(
-                stop_path,
-                {"schema_version": SCHEMA_VERSION, "requested_at": _now(),
-                 "reason": "OBSERVER_STARTUP_TIMEOUT"},
-            )
-        except LabError:
-            pass
+    try:
+        _publish_observer_stop(evidence, reason="OBSERVER_STARTUP_TIMEOUT")
+    except LabError:
+        pass
     _reap_local_observer(evidence)
     raise LabError("observer did not become ready in time")
 
@@ -1206,12 +1235,7 @@ def request_stop(evidence_dir: Path, timeout: float = 5.0) -> dict[str, Any]:
     if status != "READY":
         raise LabError("observer is not in a stoppable state")
 
-    stop_path = evidence / "stop.request"
-    if not stop_path.exists():
-        _write_new_json(
-            stop_path,
-            {"schema_version": SCHEMA_VERSION, "requested_at": _now()},
-        )
+    _publish_observer_stop(evidence)
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         state = _observer_state(evidence)

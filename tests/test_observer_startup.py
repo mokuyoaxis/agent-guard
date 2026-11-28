@@ -2,6 +2,7 @@
 import contextlib
 import io
 import json
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -156,6 +157,40 @@ class ObserverStartupTests(unittest.TestCase):
             self.assertEqual(self.run_child(), 0)
         self.assertEqual(lab._observer_state(self.evidence)["status"], "STOPPED")
         self.assertEqual(lab.build_report(self.evidence)["observer"]["health"], "HEALTHY")
+
+    def test_stop_request_is_published_only_after_writing_json(self):
+        stop_path = self.evidence / "stop.request"
+        real_fdopen = os.fdopen
+        visible_before_write = []
+
+        def observe_open(*args, **kwargs):
+            visible_before_write.append(stop_path.exists())
+            return real_fdopen(*args, **kwargs)
+
+        with mock.patch.object(lab, "_observer_state", side_effect=[
+                {"status": "READY"}, {"status": "STOPPED"}]), \
+                mock.patch.object(lab.os, "fdopen", side_effect=observe_open):
+            result = lab.request_stop(self.evidence)
+
+        self.assertEqual(result["status"], "STOPPED")
+        self.assertEqual(visible_before_write, [False])
+        request = json.loads(stop_path.read_text())
+        self.assertEqual(request["schema_version"], lab.SCHEMA_VERSION)
+        self.assertIn("requested_at", request)
+
+    def test_concurrent_stop_preserves_published_startup_cancellation(self):
+        mkstemp = tempfile.mkstemp
+
+        def stage_with_concurrent_cancellation(*args, **kwargs):
+            temporary = mkstemp(*args, **kwargs)
+            self.stop()
+            return temporary
+
+        with mock.patch.object(lab.tempfile, "mkstemp", side_effect=stage_with_concurrent_cancellation):
+            lab._publish_observer_stop(self.evidence)
+
+        with self.assertRaises(lab._ObserverStartupCancelled):
+            lab._check_observer_startup_stop(self.evidence, ready=True)
 
     def test_diagnostic_stream_failure_does_not_fail_healthy_observer(self):
         stream = mock.Mock()
