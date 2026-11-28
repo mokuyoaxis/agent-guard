@@ -324,7 +324,9 @@ corpus.
 
 ## Audit record shape
 
-The export preflight and optional Bash adapters also use the shared
+The export preflight, `safe_read.py` (`0.3.3+`, `tool: "exfil_safe_read"`),
+post-`APPLY` `agent-guard-config-edit` (`0.3.3+`, `tool: "exfil_config_edit"`),
+and optional Bash adapters also use the shared
 metadata projection. [Opt-in Exfil audit](../../../docs/guides/audit-metadata.md#opt-in-exfil-audit)
 
 In `0.3.2+`, enable metadata-only records on `check_span.py`

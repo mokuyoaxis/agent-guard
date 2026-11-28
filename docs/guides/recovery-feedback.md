@@ -3,7 +3,7 @@
 Clear operational feedback helps operators and coding agents tell three things apart: whether local adapter wiring initialized properly, what a guard verdict actually proves, and whether quarantined recovery copies still occupy disk. This guide covers status diagnostics (`agent_guard_status`, `doctor`), what `ALLOW_NOOP` does and does not guarantee, quarantine storage notices and manual GC, and optional Kimi Stop recovery feedback.
 
 > [!NOTE]
-> **Version scope:** Core CLI/DSH storage and `ALLOW_NOOP` diagnostics landed in `0.2.5`, Kimi Stop feedback in `0.2.6`, receipt-derived [execution summaries](maintenance-output.md#fixed-execution-summaries) plus bounded [`status` overviews](read-only-query.md) (`--view overview`, preserving legacy `--json` defaults without adding a UI panel) in **`0.3.0`**, staged cross-filesystem recovery (`manual_review_items`), exact-`txid` GC commands, unique prefixes, and `gc.py --task ID` in **`0.3.1`**, and read-only `restore.py preview` / MCP `restore_preview` plus Windows PowerShell-quoted handoff commands in **`0.3.2`**. See [maintenance acceptance](../reports/test-report-maintenance-0.3.0.md#regression-and-package-checkpoints) and [0.3.2 notes](../releases/release-notes-0.3.2.md) for recorded checks.
+> **Version scope:** Core CLI/DSH storage and `ALLOW_NOOP` diagnostics landed in `0.2.5`, Kimi Stop feedback in `0.2.6`, receipt-derived [execution summaries](maintenance-output.md#fixed-execution-summaries) plus bounded [`status` overviews](read-only-query.md) (`--view overview`, preserving legacy `--json` defaults without adding a UI panel) in **`0.3.0`**, staged cross-filesystem recovery (`manual_review_items`), exact-`txid` GC commands, unique prefixes, and `gc.py --task ID` in **`0.3.1`**, read-only `restore.py preview` / MCP `restore_preview` plus Windows PowerShell-quoted handoff commands in **`0.3.2`**, and on-demand `--measure-storage` plus multi-receipt transaction state reconciliation and selective path restore (`restore --path` / MCP `paths`) in **`0.3.3`**. See [maintenance acceptance](../reports/test-report-maintenance-0.3.0.md#regression-and-package-checkpoints) and [0.3.3 notes](../releases/release-notes-0.3.3.md) for recorded checks.
 >
 > **Reading `0.3.0` summaries:** Explicit `--view summary` omits per-row receipt details (capture full output on the initial call if you need row-level records rather than re-running a mutation), missing receipts remain labeled unknown, GC inventory is best effort, and summaries never claim unmeasured physical disk space reclaimed.
 
@@ -134,6 +134,31 @@ comparison `basis` (`sha256_regular_file`, `size_diff`, `kind_diff`,
 `directory_uncompared`, `symlink_target_uncompared`, `exceeds_hash_cap`)—never
 file contents or hash digests. The local MCP server exposes the same read-only
 preflight as [`restore_preview`](mcp.md#tools-and-limits) without `--force`.
+
+### Selective restore and state reconciliation
+
+In `0.3.3+`, transaction state reconciliation aggregates all confirmed
+historical restore receipts (including `relocate-intent` copies and applied Git
+snapshots), so a partial restore keeps remaining items visible as `PARTIAL`
+with accurate `restorable_items` instead of marking the transaction `RESTORED`.
+
+Both CLI and MCP support selective restoration of specific items from a
+multi-item transaction:
+
+```sh
+# Preview and restore selected workspace paths from one transaction:
+python3 /absolute/agent-guard/skills/delete-guard/scripts/restore.py preview '<txid>' --path src/a.py --path src/b.py
+python3 /absolute/agent-guard/skills/delete-guard/scripts/restore.py '<txid>' --path src/a.py --path src/b.py
+```
+
+In MCP, pass optional `paths: [...]` to `restore_preview` or `restore` alongside
+the exact complete `txid`. Both entrypoints share a read-only selection
+preflight that refuses the entire batch before moving files if any requested
+path is missing, ambiguous, already restored, or flagged for manual review.
+Unfiltered restore retains `PARTIAL` and `manual_review_items` handling and
+applies Git snapshots against the bound workspace. Successful moves clean up
+empty parent directories created under quarantine, and restore audit records
+log `selective` and `selected_count` without persisting file paths.
 
 ```sh
 # Inspect the plan; this removes nothing.

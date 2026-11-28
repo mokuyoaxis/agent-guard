@@ -38,7 +38,8 @@ limits; unreadable files and invalid UTF-8 are not silently certified clean.
 ## Opt-in Exfil audit
 
 In `0.3.2+`, Exfil-guard writes egress audit records when the operator adds
-`--audit` to `check_span.py`, `sanitize.py`, the export preflight or a Git hook, or sets
+`--audit` to `check_span.py`, `sanitize.py`, `safe_read.py` (`0.3.3+`), the
+export preflight or a Git hook, or sets
 `AGENT_GUARD_EXFIL_AUDIT=1` (`true` and `yes` also work). The MCP server uses
 its own trusted `--audit-exfil` startup flag. It ignores the ambient flag and
 never accepts it in tool arguments. [MCP Exfil tools](mcp.md#exfil-guard-tools)
@@ -55,10 +56,20 @@ overall summary. The workspace `status --json` counts decision summaries.
 
 The export preflight writes `tool: "exfil_export"` and uses `target_count`
 for the files whose text was scanned. Its byte total includes binary
-probes. Bash adapters use `tool: "exfil_bash_hook"` for evaluated commands
+probes. `safe_read.py` and MCP `safe_read` (`0.3.3+`) write page-scoped
+records with `tool: "exfil_safe_read"` and `size_bytes` equal to returned page
+bytes (or `0` on refusal). `agent-guard-config-edit --apply` (`0.3.3+`) always
+attempts a post-`APPLY` metadata-only record with `tool: "exfil_config_edit"`
+(reporting `AUDIT_WRITE_FAILED` separately without echoing config paths or
+values; read-only `--preview` never writes audit). Bash adapters use
+`tool: "exfil_bash_hook"` for evaluated commands
 when the operator enables `AGENT_GUARD_EXFIL_AUDIT`. The DSH fast path
 skips both the worker and its audit. File names and command text stay
 outside these records.
+
+In `0.3.3+`, Delete-guard `restore` audit records also include `selective`
+(boolean) and `selected_count` alongside `restored_count`, `conflict_count`,
+and `error_count`, while keeping target paths out of the audit log.
 
 An `audit` receipt reports whether the write was enabled and recorded. A
 write failure produces `AUDIT_WRITE_FAILED` and leaves the current decision

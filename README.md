@@ -7,12 +7,21 @@
   <a href="https://www.npmjs.com/package/@mokuyoaxis/agent-guard"><img src="https://img.shields.io/npm/v/%40mokuyoaxis%2Fagent-guard.svg" alt="npm stable"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/mokuyoaxis/agent-guard" alt="License"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&amp;logoColor=white" alt="Python 3.9+"></a>
-  <a href="docs/releases/release-notes-0.3.2.md"><img src="https://img.shields.io/badge/notes-0.3.2-5B6B7A" alt="0.3.2 notes"></a>
+  <a href="docs/releases/release-notes-0.3.3.md"><img src="https://img.shields.io/badge/notes-0.3.3-5B6B7A" alt="0.3.3 notes"></a>
 </p>
 
 <p align="center">
   <strong>Disclosure checks · Recoverable deletion · Agent experiments</strong><br>
   <a href="README.zh-CN.md">简体中文</a>
+</p>
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/anniversary-1128-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="assets/anniversary-1128.svg">
+    <img src="assets/anniversary-1128.svg" width="30" height="30" alt="Nov 28 Anniversary Special Edition Mark (M and Iris)">
+  </picture><br>
+  <sub>Nov 28 Anniversary Special Edition · 2026-11-28 &amp; Agent Guard 0.3.3 only</sub>
 </p>
 
 Coding agents fail in predictable ways: an over-broad `rm` wipes uncommitted work, a diagnostic dump leaks credentials, or a CLI update silently breaks a hook. **Agent Guard** puts zero-dependency deterministic safety checkpoints, transaction-level recovery, value-free multi-channel egress checks, and empirical L0/L1/L2 verification around your coding agent, backed by a shared Python Core (`3.9+`) and optional host integrations.
@@ -24,9 +33,9 @@ Coding agents fail in predictable ways: an over-broad `rm` wipes uncommitted wor
 
 | Capability | What it does | Guides & contracts |
 |---|---|---|
-| **Delete-guard** | Recoverable deletion and Git snapshots before destructive overwrites; inline-script deletion blocks; Cleanup Copilot inventory and reviewed maintenance tasks; workspace budgets, rate/repeat limits, protected paths and controlled regenerable patterns; read-only restore previews, transaction restore, manual GC, and optional local MCP tools (14 default / 15 Codex) | [Skill & CLI](skills/delete-guard/SKILL.md) · [Cleanup Copilot](docs/guides/cleanup-plan.md) · [Deletion limits](docs/guides/deletion-limits.md) · [Recovery & GC](docs/guides/recovery-feedback.md) · [MCP tools](docs/guides/mcp.md) · [MCP doctor](docs/guides/mcp.md#diagnose-a-local-service-028) |
-| **Exfil-guard** | Value-free outbound scanning for documented credential formats, secret source references, and host-identifying paths; plan-verified redaction; opt-in metadata-only audit; scalar-free JSON/dotenv/TOML config views (`safe_view`); bounded export preflight (`agent-guard-exfil-export`), local Git hooks, MCP tools, and opt-in Bash checks | [Skill & CLI](skills/exfil-guard/SKILL.md) · [Rules & export](skills/exfil-guard/references/rules.md) · [Safe config view](skills/exfil-guard/SKILL.md#safe-config-view) · [Git hooks](adapters/git/README.md) |
-| **Guard-lab & Doctor** | Controlled experiments in disposable fixtures using four loopback controls plus L0 paired lifecycle calibration (`lifecycle-calibration`), synthetic markers, and matched guard-off / guard-on runs; read-only `agent-guard-doctor workspace` checks for policies, Skill links, Git hooks, and hidden Unicode carrier smuggling | [Lab guide](docs/lab/guard-lab.md) · [Lifecycle calibration](docs/lab/guard-lab.md#lifecycle-calibration) · [Workspace doctor](docs/guides/host-drift.md#workspace-doctor) · [Four-control example](docs/lab/blue-team-calibration.md) |
+| **Delete-guard** | Recoverable deletion and Git snapshots before destructive overwrites; inline-script deletion blocks; Cleanup Copilot inventory and reviewed maintenance tasks; workspace budgets, rate/repeat limits, protected paths and controlled regenerable patterns; on-demand quarantine storage measurement (`--measure-storage`), read-only restore previews, selective path restore with reconciled transaction states, manual GC, and optional local MCP tools (15 default / 16 Codex) | [Skill & CLI](skills/delete-guard/SKILL.md) · [Cleanup Copilot](docs/guides/cleanup-plan.md) · [Deletion limits](docs/guides/deletion-limits.md) · [Unified queries](docs/guides/read-only-query.md) · [Recovery & GC](docs/guides/recovery-feedback.md) · [MCP tools](docs/guides/mcp.md) · [MCP doctor](docs/guides/mcp.md#diagnose-a-local-service-028) |
+| **Exfil-guard** | Value-free outbound scanning for documented credential formats, secret source references, and host-identifying paths; plan-verified redaction and opt-in metadata-only audit; bounded whole-file redacted reads (`agent-guard-safe-read` & MCP `safe_read`); scalar-free JSON/dotenv/TOML config views (`safe_view`); policy-allowlisted local scalar config edits (`agent-guard-config-edit`); bounded export preflight (`agent-guard-exfil-export`), local Git hooks, MCP tools, and opt-in Bash checks | [Skill & CLI](skills/exfil-guard/SKILL.md) · [Safe read](skills/exfil-guard/SKILL.md#safe-redacted-read) · [Guarded config edit](skills/exfil-guard/SKILL.md#guarded-config-editing) · [Rules & export](skills/exfil-guard/references/rules.md) · [Safe config view](skills/exfil-guard/SKILL.md#safe-config-view) · [Git hooks](adapters/git/README.md) |
+| **Guard-lab & Doctor** | Controlled experiments in disposable fixtures using four loopback controls plus L0 paired lifecycle calibration (`lifecycle-calibration`), synthetic markers, and matched guard-off / guard-on runs; read-only `agent-guard-doctor workspace` checks for deletion and config-edit policies, Skill links, Git hooks, and hidden Unicode carrier smuggling | [Lab guide](docs/lab/guard-lab.md) · [Lifecycle calibration](docs/lab/guard-lab.md#lifecycle-calibration) · [Workspace doctor](docs/guides/host-drift.md#workspace-doctor) · [Four-control example](docs/lab/blue-team-calibration.md) |
 
 Core and adapters form shared infrastructure across all three modules. After an incident, [recovery-audit](skills/recovery-audit/SKILL.md) provides a separate workflow for reconstructing a workspace from surviving Git, session, and cache records.
 
@@ -44,10 +53,10 @@ Core and adapters form shared infrastructure across all three modules. After an 
 
 Core requires **Python 3.9+** and **Git** (examples assume a POSIX shell). The optional local MCP server requires **Python 3.10+** and its separately installed [pinned MCP SDK](docs/guides/mcp.md).
 
-Install the current **`0.3.2`** release into a stable, user-owned prefix:
+Install the current **`0.3.3`** release into a stable, user-owned prefix:
 
 ```sh
-npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.3.2
+npm install --prefix /absolute/path/to/agent-guard-install @mokuyoaxis/agent-guard@0.3.3
 ```
 
 Your package root is `/absolute/path/to/agent-guard-install/node_modules/@mokuyoaxis/agent-guard` (keep the `@mokuyoaxis/` scope). You can also run directly from a Git checkout:
@@ -57,13 +66,14 @@ git clone https://github.com/mokuyoaxis/agent-guard.git
 cd agent-guard
 ```
 
-Verify exact publication details on [GitHub Releases (`0.3.2`)](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.3.2) or [npm (`0.3.2`)](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.3.2). See [Getting started](docs/guides/getting-started.md) for offline tarball installation, upgrades, and full dependency details (including Node 22 for the optional DSH read prototype and Python 3.11+ for TOML `safe_view` and Kimi TOML helpers).
+Verify exact publication details on [GitHub Releases (`0.3.3`)](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.3.3) or [npm (`0.3.3`)](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.3.3). See [Getting started](docs/guides/getting-started.md) for offline tarball installation, upgrades, and full dependency/platform details (including Node 22 for the optional DSH read prototype, Python 3.11+ for TOML `safe_view` and Kimi TOML helpers, POSIX descriptors for `agent-guard-exfil-export` / `safe_read`, and Linux xattr support for `agent-guard-config-edit`).
 
 <details>
-<summary>Release history & alternate channels (0.2.4 – 0.3.2)</summary>
+<summary>Release history & alternate channels (0.2.4 – 0.3.3)</summary>
 
 | Release | Key additions |
 |---|---|
+| **[0.3.3](docs/releases/release-notes-0.3.3.md)** | Exfil-guard bounded redacted reads (`agent-guard-safe-read` & 15th default / 16th Codex MCP tool `safe_read`) and allowlisted operator config editor (`agent-guard-config-edit` for JSON/single-line `.env`, 17 npm CLI bins, 7 `exfil-guard` Skill entrypoints); Delete-guard on-demand quarantine storage measurement (`status --view overview --measure-storage`, Top-10 verified transactions) and multi-receipt reconciled selective restore (`restore --path` / MCP `paths`); cross-platform `doctor workspace` `config_edit_policy` check; Nov 28 Anniversary Special Edition README emblem |
 | **[0.3.2](docs/releases/release-notes-0.3.2.md)** | Exfil-guard TOML safe view, opt-in audit, 3 MCP tools, local Git hooks, 8 modern credential rules, `agent-guard-exfil-export`, opt-in Bash checks; Delete-guard `protect`/`regenerable` policy CLI with whole-tree secret-store guards, read-only `restore.py preview` & MCP `restore_preview` (14 default / 15 Codex), inline-script deletion blocks, Windows PowerShell handoff; L0 paired `lifecycle-calibration`, read-only `agent-guard-doctor workspace` with Unicode carrier-smuggling checks |
 | **[0.3.1](docs/releases/release-notes-0.3.1.md)** | Cleanup terminal review overhaul (permanent-first, readable/exact sizes, >20-root summary + read-only list), unique CLI ID prefixes, multi-target `--targets-file` handoff, exact-`txid` and `gc.py --task` GC guidance, staged cross-filesystem recovery & `manual_review_items`, `agent-guard-delete-policy` CLI, three-Skill installer |
 | **[0.3.0](docs/releases/release-notes-0.3.0.md)** | Reviewed maintenance workflow (saved target plans, single-step operator approval, agent task execution/query), optional quarantine requirement, linked Skill installer, optional Codex native confirmation form |
@@ -124,7 +134,7 @@ python3 -c 'print("config: sk-proj-" + "AbCdEf0123456789GhIjKl")' |
 - **`check_span.py` is read-only:** Returns a verdict (`ALLOW`, `SANITIZE`, `ASK`, `BLOCK`) and a verified redaction plan without modifying input. Exit `0` indicates `ALLOW`/`SANITIZE`.
 - **`sanitize.py` rewrites only on safe paths:** Outputs allowed or redacted text to stdout on `ALLOW`/`SANITIZE`; suppresses stdout completely on `ASK`, `BLOCK`, or validation errors.
 - **What is covered:** Documented credential formats, value-free secret source references (e.g., environment dumps), and host-identifying paths—not general repository-wide secret auditing or deliberate encoding obfuscation. The caller remains responsible for emission and egress audit logging.
-- **Configuration structure without secrets:** Use `safe_view` to inspect supported JSON, `.env`, and TOML (Python 3.11+) schemas without displaying scalar values; it is a read-only view, not an automatic read hook. For explicit export sets, run `agent-guard-exfil-export` (POSIX) before packaging or sharing files.
+- **Configuration & bounded file access without leaking secrets:** Use `safe_view` to inspect supported JSON, `.env`, and TOML (Python 3.11+) schemas without displaying scalar values; use `agent-guard-safe-read` (or MCP `safe_read`, POSIX) for bounded whole-file redacted line reads of ordinary workspace text files; and use the operator-only `agent-guard-config-edit` (Linux with descriptor and xattr support) for policy-allowlisted non-sensitive JSON/single-line `.env` scalar edits with `--preview` and terminal `APPLY`. For explicit export sets, run `agent-guard-exfil-export` (POSIX) before packaging or sharing files.
 
 See the [Exfil-guard Skill](skills/exfil-guard/SKILL.md), [Detection rules](skills/exfil-guard/references/rules.md), and [Channel contract](skills/exfil-guard/references/channels.md).
 
@@ -173,7 +183,7 @@ In the table below, entries in the **MCP & maintenance (`0.3.0`)** column come f
 | **Claude Code** | `2.1.311` / `2.1.270–273` | `2.1.311` connected and discovered 10 MCP tools; live model maintenance deferred | Scripted native Bash hook evidence is from `2.1.270` / `2.1.273`; `2.1.311` native hooks remain unverified | [Report](docs/reports/test-report-maintenance-0.3.0.md#host-acceptance) · [Setup](adapters/claude/README.md) |
 | **Other hosts** | — | Skill / CLI / MCP cooperative usage | Use the [adaptation guide](adapters/INTEGRATION.md) for local setup; verify actual blocking before claiming native interception | [Adaptation guide](adapters/INTEGRATION.md) |
 
-For ongoing configuration health, `doctor.py workspace` checks local policies, Skill links, Git Hook wrappers, and whitelisted persistent carriers for hidden Unicode smuggling without writing files, while `doctor.py kimi|claude --probe` and `--check-drift` inspect host hook wiring against compatibility profiles (`PASS` validates local files, not live host hook loading). Optional live sentinels test one sampled root-agent Bash call and may use provider quota. See the [Host drift & workspace doctor guide](docs/guides/host-drift.md).
+For ongoing configuration health, `doctor.py workspace` checks local deletion and config-edit policies, Skill links, Git Hook wrappers, and whitelisted persistent carriers for hidden Unicode smuggling without writing files, while `doctor.py kimi|claude --probe` and `--check-drift` inspect host hook wiring against compatibility profiles (`PASS` validates local files, not live host hook loading). Optional live sentinels test one sampled root-agent Bash call and may use provider quota. See the [Host drift & workspace doctor guide](docs/guides/host-drift.md).
 
 ## Documentation
 
@@ -185,7 +195,7 @@ For ongoing configuration health, `doctor.py workspace` checks local policies, S
 | [Threat model](docs/design/threat-model.md) | Trust assumptions, attack vectors, and security-boundary upgrade paths |
 | [Compatibility](docs/design/compatibility.md) | Adapter contracts, interface guarantees, and release rules |
 | [Blue-team research](docs/research/README.md) | Defensive methods, sanitized studies, and calibration baseline |
-| [0.3.2 release notes](docs/releases/release-notes-0.3.2.md) · [0.3.1 notes](docs/releases/release-notes-0.3.1.md) | Release summaries, upgrade impacts, and verification scope |
+| [0.3.3 release notes](docs/releases/release-notes-0.3.3.md) · [0.3.2 notes](docs/releases/release-notes-0.3.2.md) | Release summaries, upgrade impacts, and verification scope |
 
 ## Contributing
 

@@ -11,7 +11,7 @@
 | Explicit, structured verdicts and append-only local audit trails for observed calls | Guaranteeing unbypassable telemetry or complete visibility across bypassed paths |
 | Safe redaction of documented credential shapes and host-identifying paths on inspected channels | Legal hold, cryptographic deletion certificates, or authenticated human identity |
 
-Regenerable, Git-ignored artifacts may still be deleted directly unless an operator explicitly requires quarantine (e.g., via Cleanup `--quarantine`). Versioned release scope and acceptance records live in the [0.3.2 release notes](../releases/release-notes-0.3.2.md), [0.3.1 release notes](../releases/release-notes-0.3.1.md), and [0.3.0 acceptance report](../reports/test-report-maintenance-0.3.0.md).
+Regenerable, Git-ignored artifacts may still be deleted directly unless an operator explicitly requires quarantine (e.g., via Cleanup `--quarantine`). Versioned release scope and acceptance records live in the [0.3.3 release notes](../releases/release-notes-0.3.3.md), [0.3.2 release notes](../releases/release-notes-0.3.2.md), and [0.3.0 acceptance report](../reports/test-report-maintenance-0.3.0.md).
 
 ## Assets
 

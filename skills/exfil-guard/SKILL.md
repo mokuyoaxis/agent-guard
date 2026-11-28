@@ -3,9 +3,11 @@ name: exfil-guard
 description: >-
   Disclosure discipline for AI agents. Use before text leaves the machine:
   writing files, sending model requests, posting forge comments, committing or
-  pushing, or when inspecting a JSON, dotenv or TOML config without exposing values.
-  Scans payloads for credentials and host-identifying paths, and offers an
-  explicit read-only, value-free config view.
+  pushing, reading workspace text with redaction, or when inspecting or
+  operator-editing allowlisted JSON/dotenv/TOML configs without exposing values.
+  Scans payloads for credentials and host-identifying paths, offers bounded
+  redacted reads (safe_read), an explicit read-only value-free config view,
+  and an operator-only allowlisted scalar config editor.
 ---
 
 # exfil-guard
@@ -78,10 +80,69 @@ config: it is diagnostic output, not an editable copy. This CLI does not
 intercept a harness's ordinary file-read tool.
 
 In `0.3.2+`, the local MCP server exposes `config_safe_view`, `exfil_check`, and
-`exfil_sanitize`. Use the config view for a file before its values enter model
-context. The text tools assess drafts on an explicit channel, and do not send
-them. Git projects can separately enable the local `pre-commit` and `commit-msg`
-checks. [MCP Exfil tools](../../docs/guides/mcp.md#exfil-guard-tools) · [Git hooks](../../adapters/git/README.md)
+`exfil_sanitize`, and `0.3.3+` adds `safe_read`. Use the config view for a file
+before its values enter model context, and use `safe_read` when you need bounded
+redacted text lines from ordinary workspace files. The text tools assess drafts
+on an explicit channel, and do not send them. Git projects can separately enable
+the local `pre-commit` and `commit-msg` checks. [MCP Exfil tools](../../docs/guides/mcp.md#exfil-guard-tools) · [Git hooks](../../adapters/git/README.md)
+
+## Safe redacted read
+
+In `0.3.3+`, read ordinary workspace-relative UTF-8 files with whole-file
+`llm-request` redaction and bounded whole-line pagination before the text enters
+model context:
+
+```bash
+agent-guard-safe-read --start-line 1 --end-line 200 --json docs/notes.md
+python3 <repo>/skills/exfil-guard/scripts/safe_read.py --workspace <workspace> --strict-paths app.log
+```
+
+`safe_read.py` opens targets without following symlinks (POSIX file-descriptor
+walk; reports `UNSUPPORTED_PLATFORM` on Windows), caps whole-file reads at
+256 KiB, rejects binary files (8 KiB NUL probe) and invalid UTF-8, and verifies
+`fstat` identity before and after reading. Known secret-store filenames
+(`.env`, `*.pem`, `id_rsa*`, etc.), case-insensitive control directories
+(`.git`, `.agent-guard`, `.agent-trash`), and both default and custom quarantine
+roots are refused before opening—use `view.py` for secret-bearing configs.
+Redaction runs whole-file with a dual re-scan including an empty-exemption final
+check (`RESIDUAL_SECRET_BLOCKED` / `RESIDUAL_PATH_BLOCKED`), returns whole-line
+pages up to 200 lines / 32 KiB (`LINE_TOO_LONG` for oversized lines), supports
+`--strict-paths`, `--fail-on-redaction`, and `--audit` (page-scoped metadata
+under `tool: "exfil_safe_read"`), and is exposed as the MCP tool `safe_read`.
+
+## Guarded config editing
+
+In `0.3.3+`, update explicitly allowlisted non-sensitive scalar values in
+workspace JSON or single-line `.env` files through the **operator-only** local
+CLI (`agent-guard-config-edit` / `skills/exfil-guard/scripts/edit_config.py`;
+never exposed as an MCP write tool):
+
+```bash
+# Default read-only preview (reports before_type / before_state only, never raw values):
+agent-guard-config-edit set config.json --key /server/port --value 8080 --type integer --preview --json
+
+# Operator terminal apply (requires dual TTY stdin+stderr and exact APPLY):
+agent-guard-config-edit set config.json --key /server/port --value 8080 --type integer --apply
+```
+
+Edits are default-deny and require an operator-maintained
+`.agent-guard/config-edit-policy.json` (single-link regular file ≤1 MiB,
+literal `version: 1`, explicit file format `json` or `dotenv`, and allowlisted
+`editable_keys`). JSON keys use RFC 6901 JSON Pointer object navigation; `.env`
+uses a Node 22-aligned single-line subset. A 20-term sensitive-key ban and
+two-layer new-value check (empty-exemption `file-write` scan plus placeholder
+and NUL ban) block credentials and sensitive fields. Receipts never leak raw
+values, `changed` booleans, byte offsets, or fingerprints. `--apply` acquires
+`.agent-guard/config-edit.lock`, re-verifies policy, live quarantine boundary,
+parent chain, and target identity before surgical UTF-8 byte-span replacement
+and atomic `os.replace`, preserves owner/group, normal mode bits, and matching
+inherited `security.selinux` labels (refusing special mode bits, ACLs, or custom
+xattrs as `UNSUPPORTED_FILE_METADATA`), reports explicit `replaced` /
+`durability_confirmed`, and records post-`APPLY` metadata-only audit
+(`tool: "exfil_config_edit"`). Preview and apply require Linux with descriptor
+operations and `os.listxattr`/`os.getxattr` (`UNSUPPORTED_PLATFORM` on macOS and
+Windows); `agent-guard-doctor workspace` validates `.agent-guard/config-edit-policy.json`
+cross-platform.
 
 ## Review files before export
 

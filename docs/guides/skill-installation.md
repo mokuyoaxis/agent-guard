@@ -43,8 +43,9 @@ used. Reload the host if it caches Skill content.
 The helper uses directory symlinks. Select a filesystem that supports them;
 Android shared storage and Windows permissions may impose different limits.
 
-When planning an `exfil-guard` link, `0.3.2+` validates
-`check_span`, `check_export`, `check_bash_exfil`, `sanitize`, and `view`.
+When planning an `exfil-guard` link, `0.3.2` validates `check_span`,
+`check_export`, `check_bash_exfil`, `sanitize`, and `view`; `0.3.3+` validates
+all seven entrypoints by adding `safe_read` and `edit_config`.
 Run `agent-guard-doctor workspace --skill-dir /path/to/host/skills --json` to
 inspect the linked Skill and its required files. [Workspace doctor](host-drift.md#workspace-doctor)
 No automatic copy fallback is provided. The full-package CLI remains usable

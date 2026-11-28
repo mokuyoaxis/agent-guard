@@ -112,9 +112,11 @@ Version 0.3.0 adds `cleanup_plan`, `cleanup_execute` and
 Terminal approval is the default; the optional
 [Codex confirmation channel](mcp.md#host-confirmation-030-development) adds
 native-form approval of a saved selection. Versions `0.3.0` and `0.3.1`
-advertise ten tools by default and eleven with the opt-in channel; `0.3.2+`
-adds three Exfil tools, read-only `restore_preview` (fourteen default / fifteen
-Codex), and a benign Exfil doctor probe. Runtime/SDK, operator-approved protocol-client execution,
+advertise ten tools by default and eleven with the opt-in channel; `0.3.2`
+adds three Exfil tools and read-only `restore_preview` (fourteen default / fifteen
+Codex) with a benign Exfil doctor probe, and `0.3.3+` adds `safe_read` (fifteen
+default / sixteen Codex) plus overview-only `status` storage measurement and
+selective `restore` / `restore_preview` `paths`. Runtime/SDK, operator-approved protocol-client execution,
 ordinary model maintenance in Codex/Kimi/DSH and completed-task replay have
 recorded results. Codex, DSH and Kimi each passed first execution of a fresh
 operator-approved 71-root task; Claude model work is deferred.

@@ -423,7 +423,15 @@ Every relocation writes `origin -> trash` pairs into
 transaction before restoring with `restore.py preview '<txid>'` (or
 `restore.py '<txid>' --preview`, or MCP `restore_preview`): preview is strictly
 read-only (no file or audit writes), accepts unique CLI transaction prefixes,
-and compares occupied origins without leaking file contents or hashes. Restore
+and compares occupied origins without leaking file contents or hashes. In
+`0.3.3+`, transaction states reconcile across all confirmed historical restore
+receipts (so partial restores keep remaining items visible as `PARTIAL` rather
+than marking `RESTORED`), and both CLI (`--path PATH ...`) and MCP (`paths: [...]`)
+support selective per-item preview and restore with fail-closed whole-batch
+selection preflight and cleanup of empty quarantine parent directories after
+successful moves; `status.py --view overview --measure-storage` (and MCP
+`status(view="overview", measure_storage=true)`) also adds opt-in bounded
+read-only quarantine occupancy and Top-10 transaction reporting. Restore
 is non-destructive: it refuses to overwrite anything that now exists at the
 origin unless a human passes `--force`. Git snapshots are stored as stashes
 named `agent-guard:<txid>`; restore applies them and never drops them.

@@ -1,11 +1,11 @@
 # Local MCP tools / 本地 MCP 工具
 
-The local stdio MCP server gives a coding-agent client structured, workspace-bound tools for Delete-guard and Exfil-guard workflows—covering **direct recoverable deletion & restore** (`safe_delete`, `restore`, `restore_preview`, `transactions`, `status`, `gc_plan`), **read-only cleanup inventory** (`cleanup_discover`, `cleanup_measure`), **reviewed batch task execution & queries** (`cleanup_plan`, `cleanup_execute`, `cleanup_task_status`, plus optional Codex confirmation when enabled by the operator), and **[three Exfil-guard tools](#exfil-guard-tools)** (`config_safe_view`, `exfil_check`, `exfil_sanitize`, added alongside `restore_preview` in `0.3.2`). Binding the workspace, session budget, and optional startup `--trash-root` at launch prevents model tool arguments from switching buckets or bypassing limits.
+The local stdio MCP server gives a coding-agent client structured, workspace-bound tools for Delete-guard and Exfil-guard workflows—covering **direct recoverable deletion & restore** (`safe_delete`, `restore`, `restore_preview`, `transactions`, `status`, `gc_plan`), **read-only cleanup inventory** (`cleanup_discover`, `cleanup_measure`), **reviewed batch task execution & queries** (`cleanup_plan`, `cleanup_execute`, `cleanup_task_status`, plus optional Codex confirmation when enabled by the operator), and **[four Exfil-guard tools](#exfil-guard-tools)** (`config_safe_view`, `exfil_check`, `exfil_sanitize` added alongside `restore_preview` in `0.3.2`, plus `safe_read` in `0.3.3`, bringing the server to 15 default tools / 16 with Codex confirmation). Binding the workspace, session budget, and optional startup `--trash-root` at launch prevents model tool arguments from switching buckets or bypassing limits.
 
 **Core boundary:** Registering MCP tools does **not** intercept native shell `rm`, custom scripts, or editor deletions that bypass the server. Keep a compatible host blocking hook active wherever automatic interception of native tool calls is required.
 
 > [!NOTE]
-> **Version scope & test evidence:** Base MCP deletion/recovery/status tools arrived in `0.2.7`, [`doctor mcp`](#diagnose-a-local-service-028) in `0.2.8`, read-only [`cleanup_discover` / `cleanup_measure`](#cleanup-observations-029) in `0.2.9`, and reviewed task workflows ([`cleanup_plan` / `cleanup_execute` / `cleanup_task_status`](#reviewed-maintenance-tasks-030-development), [`status(view=overview)`](read-only-query.md), plus an optional 11th [Codex confirmation tool](#host-confirmation-030-development)) in **`0.3.0`**. Tool discovery alone does not prove task completion or host enforcement; see the [0.3.0 acceptance report](../reports/test-report-maintenance-0.3.0.md) and [0.2.7 release notes](../releases/release-notes-0.2.7.md) for recorded runs and deferred Claude model checks.
+> **Version scope & test evidence:** Base MCP deletion/recovery/status tools arrived in `0.2.7`, [`doctor mcp`](#diagnose-a-local-service-028) in `0.2.8`, read-only [`cleanup_discover` / `cleanup_measure`](#cleanup-observations-029) in `0.2.9`, reviewed task workflows ([`cleanup_plan` / `cleanup_execute` / `cleanup_task_status`](#reviewed-maintenance-tasks-030-development), [`status(view=overview)`](read-only-query.md), plus an optional 11th [Codex confirmation tool](#host-confirmation-030-development)) in **`0.3.0`**, three Exfil tools plus `restore_preview` (14 default / 15 Codex) in **`0.3.2`**, and `safe_read` (15 default / 16 Codex), overview-only `status` storage measurement, and selective `restore` / `restore_preview` `paths` in **`0.3.3`**. Tool discovery alone does not prove task completion or host enforcement; see the [0.3.0 acceptance report](../reports/test-report-maintenance-0.3.0.md) and [0.3.3 release notes](../releases/release-notes-0.3.3.md) for recorded runs and deferred Claude model checks.
 
 ## Install the optional adapter
 
@@ -167,10 +167,12 @@ The checks cover:
    and a service version matching the doctor's package version.
 3. The expected tools and query annotations for this installation: five in
    0.2.8, seven in 0.2.9, ten by default in 0.3.0 and 0.3.1 (eleven with Codex),
-   and fourteen by default in 0.3.2+ (fifteen with
-   `--approval-channel codex`).
+   fourteen by default in 0.3.2 (fifteen with `--approval-channel codex`), and
+   fifteen by default in 0.3.3+ (sixteen with `--approval-channel codex`,
+   adding `safe_read`).
    The plan tool is annotated as writable because it can explicitly save;
-   `restore_preview` and `cleanup_task_status` are read-only. Use doctor and server
+   `restore_preview` and `cleanup_task_status` are read-only, and `safe_read`
+   is read-only unless `--audit-exfil` is enabled. Use doctor and server
    from the same installation; matching package version text alone does not
    establish an identical tool set.
 4. Successful `status`, `transactions`, `gc_plan` and benign `exfil_check`
@@ -235,10 +237,10 @@ or atomic rollback. Final candidate results are recorded in the
 | Tool | Inputs | Effect |
 |---|---|---|
 | `safe_delete` | `paths` (1–1000 literal strings), optional `dry_run` (default false); 0.3.0 adds `quarantine` (default false) | Existing policy and admission; `quarantine: true` retains recovery copies even for proven regenerable artifacts |
-| `restore` | complete `txid` (no prefix expansion) | Restore a transaction without force-overwriting an occupant |
-| `restore_preview` (0.3.2) | complete `txid` only (no prefix expansion, no `force`) | Read-only restore preflight (`restore_preview/v1`) and conflict comparison without writing files/audit or leaking content/hashes |
+| `restore` | complete `txid` (no prefix expansion); 0.3.3 adds optional `paths` (1–1000 literal strings) | Restore a whole transaction or selected items without force-overwriting an occupant; fail-closed selection preflight |
+| `restore_preview` (0.3.2) | complete `txid` (no prefix expansion, no `force`); 0.3.3 adds optional `paths` (1–1000 literal strings) | Read-only restore preflight (`restore_preview/v1`) and conflict comparison without writing files/audit or leaking content/hashes |
 | `transactions` | none | List the selected workspace's recovery transactions |
-| `status` | optional `tail` (0–100); 0.3.0 adds `view: overview/full` and overview-only `limit` (1–50) | Legacy full by default; explicit overview reads bounded task/transaction metadata and budget without payload size walks |
+| `status` | optional `tail` (0–100); 0.3.0 adds `view: overview/full` and overview-only `limit` (1–50); 0.3.3 adds overview-only `measure_storage` and `max_measure_entries` (1–200000) | Legacy full by default (`view: full` rejects `measure_storage`); overview stays zero-traversal unless `measure_storage: true` opts into bounded quarantine measurement and verified Top-10 reporting |
 | `gc_plan` | none | Preview the existing transaction GC plan; never execute it |
 | `cleanup_discover` (0.2.9) | optional literal directory `scopes`, `max_entries` (1–10000), `max_depth` (1–4) | Bounded read-only overview; no executable plan |
 | `cleanup_measure` (0.2.9) | required directory `scopes`, optional `max_entries` (1–20000), `max_depth` (1–32) | Read-only metadata measurement; protected whole sizes stay unknown |
@@ -394,7 +396,8 @@ local control files and the existing TTY workflow do not isolate malicious
 same-UID clients. Claude, DSH and Kimi approval bridges are not enabled by
 this Codex option; their existing terminal workflow remains available.
 
-The development `doctor mcp --approval-channel codex` checks fifteen tools
+The `0.3.3+` `doctor mcp --approval-channel codex` checks sixteen tools
+(fifteen in `0.3.2`)
 with the same workspace and storage options. It probes status, transactions,
 GC preview and a benign Exfil check with auditing disabled. Host confirmation
 remains `UNVERIFIED` and diagnosis creates no approval metadata. Protocol tests with scripted
@@ -403,25 +406,31 @@ answers are distinct from real operator/frontend acceptance; see the
 
 ## Exfil-guard tools
 
-The development server exposes fourteen tools by default (including
-`restore_preview` and the three Exfil-guard tools) and fifteen with
-Codex confirmation. Exfil tools use the same startup workspace, quarantine,
-and session. `config_safe_view` is read-only. The text tools do not write by
-default. Their bodies travel to the local CLI over stdin.
+The `0.3.3+` server exposes fifteen tools by default (including
+`restore_preview` and the four Exfil-guard tools) and sixteen with
+Codex confirmation (`0.3.2` exposed fourteen default / fifteen Codex). Exfil
+tools use the same startup workspace, quarantine,
+and session. `config_safe_view` is read-only; `safe_read` and the text tools do
+not write by default. Text tool bodies travel to the local CLI over stdin.
+Operator-only allowlisted scalar config editing (`agent-guard-config-edit`) is
+deliberately kept as a local interactive CLI and is not exposed as an MCP tool.
 
 | Tool | Arguments | Result |
 |---|---|---|
 | `config_safe_view` | Workspace-relative `path`, optional `format` (`auto`, `json`, `dotenv`, `toml`) | Keys, types and value states. TOML needs Python 3.11+. A refusal returns a fixed `code` and `message`. |
+| `safe_read` (0.3.3) | Workspace-relative `path`, optional `start_line` (default 1), `end_line`, `strict_paths`, `fail_on_redaction` | Bounded whole-file `llm-request` redacted read (`safe_read/v1`, up to 256 KiB file / 200 lines or 32 KiB per page, POSIX descriptors; `UNSUPPORTED_PLATFORM` on Windows). Refuses secret stores, control dirs, and quarantine roots. |
 | `exfil_check` | `text`, actual egress `channel`, optional workspace-relative `path` for exemptions | Safe metadata and redaction plan. `ok: true` with `SANITIZE` requires a rewrite before sending. |
 | `exfil_sanitize` | `text` and actual egress `channel` | Allowed or rewritten text after verification. `ASK` and `BLOCK` return `ok: false` and empty text. |
 
 Text is limited to 4 MiB of UTF-8 and the allowed channels are listed in the
 tool schema. Rewrites accept no path, mode or plan overrides. Use the config
-view before any secret value reaches the model. Checking or rewriting a
+view before any secret value reaches the model, and use `safe_read` when you
+need bounded redacted lines from ordinary workspace files. Checking or rewriting a
 draft cannot remove secrets already in the model's context. The tools do not
 intercept other shell, editor or network actions.
 
-The operator can add `--audit-exfil` at startup. Check and sanitize then
+The operator can add `--audit-exfil` at startup. `exfil_check`, `exfil_sanitize`,
+and `safe_read` then
 append decision metadata to the bound quarantine log and advertise that side
 effect with `readOnlyHint: false`. The config view stays read-only. Doctor
 always launches its own audit-disabled probe. [Audit metadata](audit-metadata.md#opt-in-exfil-audit)
@@ -748,7 +757,8 @@ below retain their original scope.
 
 1. Confirm the interpreter starts the server and the client discovers the
    tools for that installation: five in 0.2.8, seven in published 0.2.9,
-   ten by default in 0.3.0 and 0.3.1, and fourteen by default in 0.3.2+.
+   ten by default in 0.3.0 and 0.3.1, fourteen by default in 0.3.2, and
+   fifteen by default in 0.3.3+.
    Codex confirmation adds one tool when enabled.
    Check stderr when a dependency or executable cannot
    be found, and reconnect after changing the selected installation.

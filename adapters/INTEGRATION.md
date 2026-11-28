@@ -67,8 +67,12 @@ and verify that normal maintenance is not processed twice.
   - For reviewed tasks (`0.3.0+`), obtain operator CLI approval before calling execution tools (an operator-enabled `--approval-channel codex` adds `cleanup_request_approval(saved_plan_id)` to prompt via a host form—never auto-answer it or enable it without operator consent; see [confirmation scope](../docs/guides/mcp.md#host-confirmation-030-development)).
   - Acceptance evidence covers Codex/DSH/Kimi approved MCP batches and Codex's cache task; Claude model work remains deferred, and native hooks require separate validation ([acceptance report](../docs/reports/test-report-maintenance-0.3.0.md)).
 - In `0.3.2+`, the MCP server adds [explicit Exfil MCP tools](../docs/guides/mcp.md#exfil-guard-tools)
-  and read-only `restore_preview`. Repositories can also opt into
-  [local Git hooks](git/README.md) for staged text and commit messages.
+  and read-only `restore_preview` (14 default / 15 Codex), and `0.3.3+` adds
+  `safe_read` (15 default / 16 Codex), overview-only `status` storage
+  measurement, and selective `restore` / `restore_preview` `paths`. Repositories
+  can also opt into [local Git hooks](git/README.md) for staged text and commit
+  messages, and `agent-guard-doctor workspace` checks optional
+  `.agent-guard/config-edit-policy.json` alongside workspace policies.
 
 Core `ASK` must reach a real human-approval path or become a refusal for that
 call. It must never silently become allow. Treat malformed payloads and

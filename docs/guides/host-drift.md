@@ -15,7 +15,10 @@ agent-guard-doctor workspace --workspace /path/to/project --skill-dir /path/to/h
 ```
 
 `workspace` checks the selected directory's deletion policy, effective Exfil
-exemptions, Skill links, Git Hook wiring and instruction carriers. It never
+exemptions, optional config-edit policy (`checks.config_edit_policy` in `0.3.3+`,
+reporting `NOT_CONFIGURED`, `PASS`, or `FAIL` cross-platform while keeping
+`exfil_allow` checks independent), Skill links, Git Hook wiring and instruction
+carriers. It never
 runs a host or Hook and creates no files. Both `host_interception` and
 `hook_enforcement` report `UNVERIFIED`. Use `kimi` or `claude` for host-specific
 configuration and local bridge checks, and `mcp` for the local MCP service.

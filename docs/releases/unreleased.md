@@ -2,7 +2,58 @@
 
 <a id="current-unreleased-scope"></a>
 
-No unreleased feature changes sit ahead of **[0.3.2](release-notes-0.3.2.md)** yet.
+No unreleased feature changes sit ahead of **[0.3.3](release-notes-0.3.3.md)** yet.
+The next three sections ship in **[0.3.3](release-notes-0.3.3.md)** (absent from
+published `0.3.2`). Before registry installation, verify the exact
+[GitHub Release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.3.3)
+and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.3.3).
+
+## Exfil-guard changes (0.3.3)
+
+- Read workspace-relative UTF-8 files with whole-file `llm-request` redaction,
+  dual re-scan (including an empty-exemption final check), and bounded
+  whole-line pagination through `agent-guard-safe-read` and the 15th default
+  MCP tool `safe_read` (POSIX descriptor walks; `UNSUPPORTED_PLATFORM` on
+  Windows; refuses secret-store filenames, control directories, and both
+  default and custom quarantine roots). [Safe redacted read](../../skills/exfil-guard/SKILL.md#safe-redacted-read) · [MCP Exfil tools](../guides/mcp.md#exfil-guard-tools)
+- Update allowlisted non-sensitive JSON (RFC 6901) and Node 22-aligned
+  single-line `.env` scalar fields through the operator-only CLI
+  `agent-guard-config-edit` (Linux with descriptor and xattr inspection;
+  `UNSUPPORTED_PLATFORM` on macOS and Windows), governed by an independent
+  `.agent-guard/config-edit-policy.json` with read-only `--preview`, dual-TTY
+  `APPLY`, collaborative lock re-verification, surgical byte-span replacement,
+  strict value-free receipts, and post-`APPLY` metadata-only audit.
+  [Guarded config editing](../../skills/exfil-guard/SKILL.md#guarded-config-editing) · [Audit metadata](../guides/audit-metadata.md#opt-in-exfil-audit)
+
+## Delete-guard changes (0.3.3)
+
+- Opt into bounded read-only quarantine storage measurement with
+  `status.py --view overview --measure-storage` (`--max-measure-entries`,
+  default `50,000`, cap `200,000`) and MCP `status(view="overview",
+  measure_storage=true)` (MCP `view="full"` rejects explicit `measure_storage`).
+  Default overviews remain zero-traversal; complete measurements expose
+  `admission_ratio` and verified Top-10 `top_transactions`, while truncated or
+  unreadable scans report `observed_*` and `issues` with `logical_bytes: null`.
+  [On-demand storage measurement](../guides/read-only-query.md#on-demand-storage-measurement)
+- Reconcile transaction state across all confirmed historical restore receipts
+  (preventing partial restores from marking `RESTORED` while items remain
+  restorable), and restore selected items via `restore.py preview|restore
+  <txid> --path PATH ...` and MCP `restore_preview` / `restore` `paths: [...]`
+  with shared fail-closed selection preflight, empty quarantine parent cleanup,
+  and selective restore audit counts.
+  [Selective restore](../guides/recovery-feedback.md#selective-restore-and-state-reconciliation)
+
+## Workspace doctor and installer alignment (0.3.3)
+
+- `agent-guard-doctor workspace` adds cross-platform read-only
+  `checks.config_edit_policy` (`NOT_CONFIGURED` / `PASS` / `FAIL`) without
+  changing `exfil_allow` behavior. [Workspace doctor](../guides/host-drift.md#workspace-doctor)
+- `install_skill.py` validates all 7 `exfil-guard` entrypoints (`+safe_read`,
+  `+edit_config`), `doctor mcp` checks 15 default / 16 Codex tools, and
+  `package.json` exposes 17 npm CLI entrypoints. [Skill installation](../guides/skill-installation.md)
+
+## Published maintenance history
+
 The next three sections ship in **[0.3.2](release-notes-0.3.2.md)** (absent from
 published `0.3.1`). Before registry installation, verify the exact
 [GitHub Release](https://github.com/mokuyoaxis/agent-guard/releases/tag/0.3.2)
@@ -71,8 +122,6 @@ and [npm version](https://www.npmjs.com/package/@mokuyoaxis/agent-guard/v/0.3.2)
   [Workspace doctor](../guides/host-drift.md#workspace-doctor)
 - The Skill installer validates the linked `check_export.py` and
   `check_bash_exfil.py` Exfil entrypoints. [Skill installation](../guides/skill-installation.md)
-
-## Published maintenance history
 
 The next three maintenance sections ship in **[0.3.1](release-notes-0.3.1.md)**
 (absent from published `0.3.0`). Before registry installation, verify the exact

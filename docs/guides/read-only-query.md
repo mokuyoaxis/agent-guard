@@ -30,14 +30,20 @@ Overview cannot be combined with budget reset; the existing interactive
 reset workflow remains separate.
 
 MCP `status` accepts optional read arguments. Versions `0.3.0` and `0.3.1`
-have ten default tools; `0.3.2+` adds three Exfil tools and `restore_preview`
-(fourteen default tools) while retaining this status contract. [Tool listing](mcp.md#exfil-guard-tools)
+have ten default tools; `0.3.2` adds three Exfil tools and `restore_preview`
+(fourteen default tools), and `0.3.3+` adds `safe_read` (fifteen default tools,
+sixteen with Codex confirmation) plus optional overview-only storage measurement
+(`measure_storage`, `max_measure_entries`) while retaining this status contract.
+[Tool listing](mcp.md#exfil-guard-tools)
 
 ```json
 {"name":"status","arguments":{"view":"overview","limit":10}}
+{"name":"status","arguments":{"view":"overview","measure_storage":true,"max_measure_entries":50000}}
 ```
 
-Default MCP status remains the old full result for compatibility. Prefer the
+Default MCP status remains the old full result for compatibility, and MCP
+`view: "full"` rejects explicit `measure_storage` or `max_measure_entries`
+arguments. Prefer the
 explicit overview for routine maintenance. A valid partial overview returns
 `ok: true, partial: true` and CLI exit 1; complete overview exits 0, invalid
 input exits 2. Read success is not deletion permission or a completed task.
@@ -107,6 +113,37 @@ unknown rather than being inferred from an ID. Capacity-based eligibility
 requires detailed measurement; explicitly request the existing GC preview
 when needed. Overview does not claim physically released space or offer GC
 execution. See [result measurement units](maintenance-output.md#fixed-execution-summaries).
+
+### On-demand storage measurement
+
+In `0.3.3+`, overview remains strictly zero-traversal by default (`measured:
+false`, `logical_bytes: null`), and operators or agents can explicitly opt into
+a bounded read-only quarantine scan:
+
+```sh
+python3 -B /absolute/path/to/agent-guard/skills/delete-guard/scripts/status.py \
+  --view overview --measure-storage --max-measure-entries 50000 --json
+```
+
+- **Bounds and parity:** `--max-measure-entries` (MCP `max_measure_entries`)
+  defaults to `50,000` (cap `200,000`, depth limit `64`), matching Core
+  `admission.py` logical byte and entry accounting across both POSIX
+  `O_NOFOLLOW`/`dir_fd`/`fstat` open-time verification and the Windows
+  junction-aware fallback. Every attempted entry (including depth-limit probes)
+  charges the single global budget without prefetch, and subtrees that change
+  concurrently or truncate are rolled back from observed totals.
+- **Missing vs. unreadable root:** Only a quarantine root whose `lstat` returns
+  `FileNotFoundError` reports complete zero occupancy; permission errors,
+  non-directories, and dangling links report partial results
+  (`logical_bytes: null`) alongside `observed_logical_bytes`,
+  `observed_entries`, and `issues`.
+- **Admission ratio and Top-10 transactions:** `admission_ratio` is computed
+  only from complete measurements with valid limits. `top_transactions` (up to
+  10 unpurged direct entity directories sorted by logical bytes descending,
+  entries descending, `txid` ascending) requires both complete measurement and
+  actual manifest ownership evidence; an existing quarantine directory without
+  verified manifest ownership returns `null` rather than `[]`. The scan never
+  writes files, manifests, locks, or audit records.
 
 ## Terminal presentation
 
