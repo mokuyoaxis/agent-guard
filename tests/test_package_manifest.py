@@ -72,7 +72,9 @@ class PackageManifestTests(unittest.TestCase):
     def test_safe_read_bin_is_declared_and_exposes_redaction_and_pagination_flags(self):
         self.assertEqual(self.manifest["bin"]["agent-guard-safe-read"],
                          "./skills/exfil-guard/scripts/safe_read.py")
-        self.assertEqual(len(self.manifest["bin"]), 16)
+        self.assertEqual(self.manifest["bin"]["agent-guard-config-edit"],
+                         "./skills/exfil-guard/scripts/edit_config.py")
+        self.assertEqual(len(self.manifest["bin"]), 17)
         completed = subprocess.run(
             [sys.executable, str(ROOT / self.manifest["bin"]["agent-guard-safe-read"]), "--help"],
             cwd=ROOT, text=True, capture_output=True, check=False)
@@ -81,6 +83,14 @@ class PackageManifestTests(unittest.TestCase):
         self.assertIn("--end-line", completed.stdout)
         self.assertIn("--strict-paths", completed.stdout)
         self.assertIn("--fail-on-redaction", completed.stdout)
+        edit_help = subprocess.run(
+            [sys.executable, str(ROOT / self.manifest["bin"]["agent-guard-config-edit"]), "set", "--help"],
+            cwd=ROOT, text=True, capture_output=True, check=False)
+        self.assertEqual(edit_help.returncode, 0, edit_help.stderr)
+        self.assertIn("--preview", edit_help.stdout)
+        self.assertIn("--apply", edit_help.stdout)
+        self.assertIn("--key", edit_help.stdout)
+        self.assertIn("--type", edit_help.stdout)
 
     def test_guard_lab_bin_exposes_only_the_user_controller(self):
         self.assertEqual(

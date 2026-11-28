@@ -44,6 +44,7 @@ class UnicodeCarrierHygieneTests(WorkspaceFixture):
         report = json.loads(first.stdout)
         self.assertEqual((report["schema"], report["status"]), ("workspace_doctor/v1", "PASS"))
         self.assertEqual(report["checks"]["delete_policy"]["status"], "DEFAULT")
+        self.assertEqual(report["checks"]["config_edit_policy"]["status"], "NOT_CONFIGURED")
         self.assertEqual(report["checks"]["exfil_allow"]["status"], "NOT_CONFIGURED")
         self.assertEqual((report["host_interception"], report["hook_enforcement"]), ("UNVERIFIED", "UNVERIFIED"))
 
@@ -235,3 +236,62 @@ class WorkspaceDoctorTests(WorkspaceFixture):
         nested = self.root / "src"
         nested.mkdir()
         self.assertEqual(doctor.diagnose(nested)["checks"]["git_hooks"]["code"], "GIT_WORKSPACE_MISMATCH")
+
+    def test_config_edit_policy_states_and_exfil_allow_independence(self):
+        missing = doctor.diagnose(self.root)
+        self.assertEqual(missing["checks"]["config_edit_policy"], {"status": "NOT_CONFIGURED"})
+        self.assertEqual(missing["checks"]["exfil_allow"]["status"], "NOT_CONFIGURED")
+
+        valid_policy = json.dumps({
+            "version": 1,
+            "files": {
+                "config/app.json": {
+                    "format": "json",
+                    "editable_keys": ["/app/log_level"],
+                    "locked_keys": ["/auth/token"],
+                }
+            },
+        })
+        policy_path = self.put(doctor.CONFIG_EDIT_POLICY, valid_policy)
+        passed = doctor.diagnose(self.root)
+        self.assertEqual(passed["status"], "PASS")
+        self.assertEqual(passed["checks"]["config_edit_policy"]["status"], "PASS")
+        self.assertEqual(passed["checks"]["config_edit_policy"]["version"], 1)
+        self.assertEqual(passed["checks"]["config_edit_policy"]["file_count"], 1)
+        self.assertEqual(passed["checks"]["exfil_allow"]["status"], "NOT_CONFIGURED")
+        self.assertNotIn("config/app.json", json.dumps(passed["checks"]["config_edit_policy"]))
+
+        self.put(doctor.CONFIG_EDIT_POLICY, json.dumps({
+            "version": 1,
+            "files": {
+                "config/app.json": {
+                    "format": "json",
+                    "editable_keys": ["/auth/timeout"],
+                }
+            },
+        }))
+        sensitive = doctor.diagnose(self.root)
+        self.assertEqual(sensitive["status"], "FAIL")
+        self.assertEqual(sensitive["checks"]["config_edit_policy"], {
+            "status": "FAIL",
+            "code": "POLICY_SENSITIVE_KEY_FORBIDDEN",
+        })
+        self.assertEqual(sensitive["checks"]["exfil_allow"]["status"], "NOT_CONFIGURED")
+
+        self.put(doctor.CONFIG_EDIT_POLICY, "{broken json")
+        corrupt = doctor.diagnose(self.root)
+        self.assertEqual(corrupt["status"], "FAIL")
+        self.assertEqual(corrupt["checks"]["config_edit_policy"], {
+            "status": "FAIL",
+            "code": "POLICY_INVALID",
+        })
+
+        policy_path.write_text(valid_policy, encoding="utf-8")
+        alias = self.root / ".agent-guard/policy-hardlink.json"
+        os.link(policy_path, alias)
+        hardlinked = doctor.diagnose(self.root)
+        self.assertEqual(hardlinked["status"], "FAIL")
+        self.assertEqual(hardlinked["checks"]["config_edit_policy"], {
+            "status": "FAIL",
+            "code": "POLICY_INVALID",
+        })

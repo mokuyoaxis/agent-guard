@@ -35,7 +35,8 @@
     "agent-guard-exfil-export": "./skills/exfil-guard/scripts/check_export.py",
     "agent-guard-exfil-sanitize": "./skills/exfil-guard/scripts/sanitize.py",
     "agent-guard-safe-read": "./skills/exfil-guard/scripts/safe_read.py",
-    "agent-guard-config-view": "./skills/exfil-guard/scripts/view.py"
+    "agent-guard-config-view": "./skills/exfil-guard/scripts/view.py",
+    "agent-guard-config-edit": "./skills/exfil-guard/scripts/edit_config.py"
   },
   "scripts": {
     "test": "python3 -m unittest discover tests -v && node tests/test_dsh_adapter.mjs && node tests/test_dsh_read_result.mjs",

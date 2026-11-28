@@ -74,6 +74,10 @@ jobs:
           python-version: "3.11"
       - name: Import and initialize adapter with mocked host services
         run: npm run test:dsh
+      - name: Cross-check dotenv config-edit fixtures against Node 22 parseEnv
+        env:
+          AGENT_GUARD_REQUIRE_NODE22: "1"
+        run: python -m unittest -v tests.test_config_edit.ConfigEditDotenvNode22ReferenceTests
 
   mcp-adapter:
     name: Optional MCP / Py${{ matrix.python-version }}
@@ -132,6 +136,7 @@ jobs:
             tests.test_safe_read.SafeReadPlatformAndBoundaryTests `
             tests.test_quarantine_measurement `
             tests.test_partial_restore `
+            tests.test_config_edit.ConfigEditPlatformAndDoctorTests `
             *> windows-core-test-output.txt
           $testExit = $LASTEXITCODE
           Get-Content windows-core-test-output.txt

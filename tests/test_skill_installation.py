@@ -99,8 +99,10 @@ class SkillInstallationTests(unittest.TestCase):
         plan = install_skill.installation_plan(str(exfil_target), skill="exfil-guard")
         self.assertEqual(plan["skill"], "exfil-guard")
         self.assertEqual(set(plan["entrypoints"]),
-                         {"check_span", "check_export", "check_bash_exfil", "safe_read", "sanitize", "view"})
-        self.assertTrue({"scripts/check_export.py", "scripts/check_bash_exfil.py", "scripts/safe_read.py"}
+                         {"check_span", "check_export", "check_bash_exfil", "safe_read",
+                          "sanitize", "view", "edit_config"})
+        self.assertTrue({"scripts/check_export.py", "scripts/check_bash_exfil.py",
+                         "scripts/safe_read.py", "scripts/edit_config.py"}
                         <= set(install_skill.SKILLS["exfil-guard"]["required"]))
         install_skill.execute_plan(plan)
         self.assertTrue(exfil_target.is_symlink())

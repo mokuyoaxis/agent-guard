@@ -14,7 +14,7 @@ import unicodedata
 
 import install_skill
 
-from . import carrier_unicode, delete_config, redaction
+from . import carrier_unicode, config_edit, delete_config, redaction
 from .export_scan import supports_descriptor_scan
 
 
@@ -26,7 +26,9 @@ RULE_DIRS = {
     ".cursor/rules": (4, {".md", ".mdc"}),
 }
 DELETE_POLICY = ".agent-guard/delete-policy.json"
-CONFIG_FILES = (DELETE_POLICY, redaction.DEFAULT_ALLOWFILE, redaction.DEFAULT_IGNOREFILE)
+CONFIG_EDIT_POLICY = config_edit.POLICY_RELPATH
+EXFIL_ALLOW_FILES = (redaction.DEFAULT_ALLOWFILE, redaction.DEFAULT_IGNOREFILE)
+CONFIG_FILES = (DELETE_POLICY, CONFIG_EDIT_POLICY, *EXFIL_ALLOW_FILES)
 PRE_COMMIT_CONFIG = ".pre-commit-config.yaml"
 CARRIER_FILES = (
     "AGENTS.md", "AGENTS.override.md", "CLAUDE.md", "CLAUDE.local.md", "GEMINI.md",
@@ -115,9 +117,12 @@ def _read(root, relative, limit):
     return data, opened
 
 
-def _capture(root, relative, limit):
+def _capture(root, relative, limit, *, single_link=False):
     try:
-        return _read(root, relative, limit)[0]
+        data, opened = _read(root, relative, limit)
+        if single_link and ((os.name != "nt" and opened.st_nlink != 1) or opened.st_nlink > 1):
+            return UnsafeFile("hardlinked file")
+        return data
     except FileNotFoundError:
         return None
     except OSError:
@@ -142,6 +147,23 @@ def _delete_policy(workspace, raw):
     return result
 
 
+def _config_edit_policy(workspace, raw, trash_root):
+    if raw is None:
+        return {"status": "NOT_CONFIGURED"}
+    if isinstance(raw, OSError):
+        return {"status": "FAIL", "code": "POLICY_INVALID"}
+    try:
+        parsed = config_edit.parse_policy_bytes(raw, str(workspace), trash_root=trash_root)
+    except config_edit.ConfigEditError as exc:
+        return {"status": "FAIL", "code": exc.code}
+    return {
+        "status": "PASS",
+        "version": parsed.version,
+        "file_count": len(parsed.files),
+        "fingerprint": parsed.fingerprint,
+    }
+
+
 def _exfil_allow(workspace, captured):
     def read_text(relative):
         raw = captured[relative]
@@ -153,7 +175,7 @@ def _exfil_allow(workspace, captured):
 
     effective = redaction.load_exemption(str(workspace), read_text=read_text).safe()
     codes = {item["code"] for item in effective["diagnostics"]}
-    if not all(captured[name] is None for name in CONFIG_FILES[1:]):
+    if not all(captured[name] is None for name in EXFIL_ALLOW_FILES):
         if codes & {"EXEMPTION_ENCODING_INVALID", "EXEMPTION_READ_FAILED"}:
             return {"status": "FAIL", "code": "EXFIL_ALLOW_INVALID", **effective}
         if codes:
@@ -484,11 +506,15 @@ def diagnose(workspace, *, skill_dirs=(), trash_root=None, strict=False):
         trash = resolve_trash_root(str(root), trash_root)
     except (OSError, RuntimeError, ValueError):
         raise ValueError("workspace must be an existing non-root directory and trash-root must be valid") from None
-    captured = {name: _capture(root, name, CONFIG_LIMIT) for name in CONFIG_FILES}
+    captured = {
+        name: _capture(root, name, CONFIG_LIMIT, single_link=(name == CONFIG_EDIT_POLICY))
+        for name in CONFIG_FILES
+    }
     captured[PRE_COMMIT_CONFIG] = _capture(root, PRE_COMMIT_CONFIG, PRE_COMMIT_LIMIT)
     skills, approved, known_links = _skills(root, skill_dirs)
     checks = {
         "delete_policy": _delete_policy(root, captured[DELETE_POLICY]),
+        "config_edit_policy": _config_edit_policy(root, captured[CONFIG_EDIT_POLICY], trash),
         "exfil_allow": _exfil_allow(root, captured),
         "skills": skills,
         "git_hooks": _git_hooks(root, captured[PRE_COMMIT_CONFIG]),

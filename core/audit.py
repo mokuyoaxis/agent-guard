@@ -61,19 +61,21 @@ def _identifier(value: str) -> str:
 def _enums():
     # Import after module initialization: recovery imports the ID/time
     # helpers above, and needs no policy or redaction decisions here.
-    from . import dialects, policy, redaction
+    from . import config_edit, dialects, policy, redaction
     decisions = frozenset({"ALLOW", "RELOCATE", "SNAPSHOT", "SANITIZE", "ASK", "BLOCK"})
     return {
         "event": frozenset({
             "check", "ask", "decision", "advisory", "intent", "outcome",
             "enforce-block", "enforce-intent", "enforce-error", "enforce-proceed",
             "restore", "gc-intent", "gc", "delete-budget-reset", "exfil-span",
+            "exfil-config-edit",
         }) | {"exfil-" + decision.lower() for decision in decisions},
         "decision": decisions, "action": decisions | {"PURGED"},
-        "code": frozenset(policy.EXPLANATIONS),
+        "code": frozenset(policy.EXPLANATIONS) | config_edit.AUDIT_CODES,
         "tool": frozenset({"safe_delete", "check", "restore", "gc", "exfil_check",
-                           "exfil_sanitize", "exfil_safe_read", "git_pre_commit",
-                           "git_commit_msg", "exfil_export", "exfil_bash_hook"}),
+                           "exfil_sanitize", "exfil_safe_read", "exfil_config_edit",
+                           "git_pre_commit", "git_commit_msg", "exfil_export",
+                           "exfil_bash_hook"}),
         "phase": frozenset({"advisory", "intent", "complete"}),
         "outcome": frozenset({
             "relocated to quarantine", "deleted directly (provably regenerable)",
@@ -84,7 +86,9 @@ def _enums():
         "dialect_outcome": frozenset({"ok", "unusable"}),
         "strategy": frozenset({"relocate", "clean-enumerate", "snapshot"}),
         "status": frozenset({"started", "complete", "partial", "storage-failed",
-                             "failed", "incomplete"}),
+                             "failed", "incomplete", "applied",
+                             "applied_with_warning", "refused", "error"}),
+        "warning": frozenset({"DIR_FSYNC_UNCONFIRMED"}),
         "rule_id": frozenset(value for key, value in vars(redaction).items()
                              if key.startswith("RULE_") and isinstance(value, str)),
         "family": frozenset({"secret", "path"}),
@@ -116,7 +120,7 @@ def project(record: Dict[str, Any]) -> Dict[str, Any]:
         value = record.get(key)
         if type(value) is int and value >= 0:
             stored[key] = value
-    for key in ("force", "ok", "exempted", "selective"):
+    for key in ("force", "ok", "exempted", "selective", "replaced", "durability_confirmed"):
         if type(record.get(key)) is bool:
             stored[key] = record[key]
     latency = record.get("guard_latency_ms")

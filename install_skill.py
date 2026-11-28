@@ -35,8 +35,12 @@ SKILLS = {
             "scripts/check_span.py", "scripts/check_export.py",
             "scripts/check_bash_exfil.py", "scripts/safe_read.py",
             "scripts/sanitize.py", "scripts/view.py",
+            "scripts/edit_config.py",
         ),
-        "entrypoints": ("check_span", "check_export", "check_bash_exfil", "safe_read", "sanitize", "view"),
+        "entrypoints": (
+            "check_span", "check_export", "check_bash_exfil",
+            "safe_read", "sanitize", "view", "edit_config",
+        ),
     },
     "recovery-audit": {
         "required": ("SKILL.md", "references/evidence-records.md"),
